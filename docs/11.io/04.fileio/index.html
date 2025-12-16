@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File I/O - fast_io Documentation</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <main>
+    <h1>File I/O</h1>
+
+    <section>
+      <h2>Basic File Input and Output</h2>
+      <p>
+        <code>fast_io</code> provides file types such as <code>ibuf_file</code> and <code>obuf_file</code>
+        for buffered input and output. File names can be passed as any character type, and the
+        <code>os_c_str</code> manipulator applies here as well.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    ::fast_io::ibuf_file ibf(u8"aplusb_in.txt");
+    ::fast_io::obuf_file obf(u8"aplusb_out.txt");
+    ::std::size_t a, b;
+    scan(ibf, a, b);
+    println(obf, a + b);
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Directory Files</h2>
+      <p>
+        <code>dir_file</code> represents a directory handle. You can open files relative to a directory
+        using <code>at(dir)</code>. This makes it easy to work with subdirectories and ensures
+        portability across platforms.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main(int argc, char** argv)
+{
+    ::fast_io::dir_file dir(fast_io::mnp::os_c_str(argv[1]));
+    ::fast_io::obuf_file obf(at(dir), u8"hello.txt");
+    println(obf, "Hello World\n");
+
+    ::fast_io::dir_file subdir(at(dir), u8"subdir");
+    ::fast_io::u8obuf_file u8obf(at(subdir), u8"hellou8.txt");
+    println(u8obf, u8"Hello World for subdir\n");
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Native File Loader</h2>
+      <p>
+        <code>native_file_loader</code> uses the operating system’s memory mapping API (if available)
+        to load an entire file into memory. The file is exposed as a contiguous container, allowing
+        iteration and direct access.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main(int argc, char **argv)
+{
+    if (argc != 2)
+    {
+        if (argc == 0)
+        {
+            return 1;
+        }
+        perr("Usage: ", fast_io::mnp::os_c_str(*argv), " &lt;file&gt;\n");
+        return 1;
+    }
+    fast_io::native_file_loader loader(::fast_io::mnp::os_c_str(argv[1]));
+    // This will load the entire file into memory through memory mapping.
+    /*
+    This is a contiguous container of the file.
+    You can do things like:
+    std::size_t sum{};
+    for(auto e : loader)
+        sum += e;
+    */
+    print(loader);
+}
+      </code></pre>
+    </section>
+
+    <div class="page-navigation">
+      <a href="/docs/01.io/03.pointer/" class="prev-button">← Previous: Pointer</a>
+      <a href="/" class="main-button">↑ Back to Main Page</a>
+      <a href="/docs/01.io/05.filetypelayers/" class="next-button">Next: File Type Layers →</a>
+    </div>
+  </main>
+</body>
+</html>

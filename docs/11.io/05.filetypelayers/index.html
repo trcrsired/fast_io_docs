@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File Type Layers - fast_io Documentation</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <main>
+    <h1>File Type Layers</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>fast_io</code> organizes its file types into six layers. Each layer corresponds to a
+        different level of abstraction, from direct operating system calls up to C and C++ runtime
+        facilities. On top of these file types, <code>fast_io</code> provides operations
+        that unify input and output for all of them through Concepts.
+      </p>
+    </section>
+
+    <section>
+      <h2>Hierarchy of File Types</h2>
+      <p>From bottom to top:</p>
+      <ol>
+        <li><code>wine</code></li>
+        <li><code>nt</code></li>
+        <li><code>win32</code></li>
+        <li><code>posix</code></li>
+        <li><code>c</code></li>
+        <li><code>filebuf</code></li>
+      </ol>
+    </section>
+
+  <section>
+    <h2>Explainations for the Hierarchy of File Types</h2>
+    <p>From bottom to top:</p>
+    <ol>
+      <li>
+        <code>wine</code> —
+        <code>::fast_io::wine_file</code> is the lowest layer used when running Windows binaries on POSIX systems (e.g. Linux, FreeBSD) via Wine. It directly interacts with Wine’s emulated NT kernel APIs.
+      </li>
+      <li>
+        <code>nt</code> —
+        <code>::fast_io::nt_file</code> accesses the Windows NT kernel directly via <code>NtWriteFile</code> and related syscalls. This is the most native and lowest-level file interface on modern Windows systems (NT, 2000, XP, 7, 10, etc).
+      </li>
+      <li>
+        <code>win32</code> —
+        <code>::fast_io::win32_file</code> wraps the Win32 API’s <code>WriteFile</code> function via <code>kernel32.dll</code>. It is higher-level than NT and used for compatibility with user-mode Windows applications.
+      </li>
+      <li>
+        <code>posix</code> —
+        <code>::fast_io::posix_file</code> wraps POSIX-style file descriptors and maps to <code>write(2)</code> on Unix-like systems. On Windows, it is emulated via MSVCRT or UCRT.
+      </li>
+      <li>
+        <code>c</code> —
+        <code>::fast_io::c_file</code> exposes the C standard library’s <code>FILE*</code> interface (e.g. <code>fwrite(3)</code>). It provides buffering and is widely used in legacy C code.
+      </li>
+      <li>
+        <code>filebuf</code> —
+        <code>::fast_io::filebuf_file</code> exposes the C++ standard library’s <code>std::filebuf*</code> interface, used by <code>std::fstream</code>. It is the highest-level abstraction and integrates with C++ I/O streams.
+      </li>
+    </ol>
+  </section>
+
+    <section>
+      <h2>Unbuffered Layers</h2>
+      <p>
+        The first four layers are <strong>unbuffered</strong>. They map directly to OS APIs and do not
+        add buffering:
+      </p>
+      <ul>
+        <li><code>::fast_io::wine_file</code></li>
+        <li><code>::fast_io::nt_file</code></li>
+        <li><code>::fast_io::win32_file</code></li>
+        <li><code>::fast_io::posix_file</code></li>
+      </ul>
+      <p>
+        Each of these also has character type variants, for example:
+      </p>
+      <ul>
+        <li><code>::fast_io::u8nt_file</code></li>
+        <li><code>::fast_io::wwin32_file</code></li>
+        <li><code>::fast_io::u32posix_file</code></li>
+      </ul>
+      <p>
+        These variants allow working with UTF‑8, UTF‑32, or wide character filenames depending
+        on platform conventions.
+      </p>
+    </section>
+
+    <section>
+      <h2>Buffered Layers</h2>
+      <p>
+        The top two layers expose existing buffered facilities provided by the C and C++ runtime
+        libraries:
+      </p>
+      <ul>
+        <li><code>::fast_io::c_file</code> — exposes C’s <code>FILE*</code> object, which already provides buffering.</li>
+        <li><code>::fast_io::filebuf_file</code> — exposes C++ <code>std::filebuf</code>, which already provides buffering.</li>
+      </ul>
+      <p>
+        Note: <code>filebuf_file</code> only has <code>::fast_io::filebuf_file</code> and
+        <code>::fast_io::wfilebuf_file</code>. Why? Because the C++ standard library never
+        implemented basic functionality for other character types such as
+        <code>::fast_io::u8filebuf_file</code>. Only narrow and wide character streams are
+        supported.
+      </p>
+    </section>
+
+    <section>
+      <h2>Moving Between Layers</h2>
+      <p>
+        You can construct higher‑level types from lower ones (through <code>std::move</code>), or go
+        back down (through <code>static_cast</code>).
+      </p>
+      <pre><code class="language-cpp">
+// Lower to higher
+::fast_io::nt_file nfl("nt.txt", ::fast_io::open_mode::out);
+print(nfl, "Hello World from nt_file\n");
+
+::fast_io::filebuf_file fbf(std::move(nfl), ::fast_io::open_mode::out);
+print(fbf, "Hello World from filebuf_file\n");
+
+// Higher to lower
+::fast_io::filebuf_file fbf2("fb.txt", ::fast_io::open_mode::out);
+::fast_io::nt_io_observer niob{static_cast<::fast_io::nt_io_observer>(fbf2)};
+print(niob, "Hello World from nt_io_observer\n");
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Observers</h2>
+      <p>
+        Types like <code>xxx_io_observer</code> are simple aggregates that store a handle. They are
+        <em>trivially copyable</em>, have no destructors, and let you safely pass handles around without
+        ownership semantics.
+      </p>
+      <pre><code class="language-cpp">
+void foo(FILE* fp) {
+    ::fast_io::c_io_observer ciob{fp};
+    print(ciob, "Hello World from c_io_observer\n");
+
+    ::fast_io::nt_io_observer niob{static_cast<::fast_io::nt_io_observer>(ciob)};
+    print(niob, "Hello World from nt_io_observer\n");
+
+    // Inspect native handle
+    print(::fast_io::mnp::handlevw(niob.native_handle()));
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Native File and iobuf_file</h2>
+      <p>
+        <code>::fast_io::native_file</code> is an alias to the most appropriate unbuffered file type for
+        the platform:
+      </p>
+      <ul>
+        <li>Windows NT family → <code>nt_file</code></li>
+        <li>Windows 9x family → <code>win32_file</code></li>
+        <li>Other platforms → <code>posix_file</code></li>
+      </ul>
+      <p>
+        <code>basic_iobuf_file</code> is defined as:
+      </p>
+      <pre><code class="language-cpp">
+template&lt;std::integral char_type&gt;
+using basic_iobuf_file = basic_iobuf&lt;basic_native_file&lt;char_type&gt;&gt;;
+      </code></pre>
+      <p>
+        This means <code>iobuf_file</code> is a buffered stream built directly on top of the native file
+        type for your system.
+      </p>
+    </section>
+
+    <section>
+      <h2>Interop with fstream</h2>
+      <p>
+        You can construct a C++ <code>fstream</code> from system calls using <code>fast_io</code>. Here’s
+        a simplified example without the middle <code>c_file</code> layer:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io_legacy.h&gt;
+#include &lt;fstream&gt;
+
+int main() {
+    ::fast_io::posix_file pf("posix_file.txt", ::fast_io::open_mode::out);
+    ::fast_io::filebuf_file fbf(std::move(pf), ::fast_io::open_mode::out);
+
+    std::ofstream fout;
+    *fout.rdbuf() = std::move(*fbf.fb);
+
+    fout &lt;&lt; "Hello World from std::ofstream\n";
+
+    ::fast_io::filebuf_io_observer fiob{fout.rdbuf()};
+    print(fiob, "Hello World from fast_io::filebuf_io_observer\n");
+}
+      </code></pre>
+      <p>
+        If you don’t need <code>fstream</code>, using <code>std::ostream</code> directly with
+        <code>*rdbuf()</code> is even simpler and avoids the overhead of <code>fstream</code>.
+      </p>
+    </section>
+
+    <div class="page-navigation">
+      <a href="/docs/01.io/04.fileio/" class="prev-button">← Previous: File I/O</a>
+      <a href="/" class="main-button">↑ Back to Main Page</a>
+      <!--<a href="07.moreio.html" class="next-button">Next: More I/O →</a>-->
+    </div>
+  </main>
+</body>
+</html>
