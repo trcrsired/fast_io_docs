@@ -3,156 +3,133 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Introduction - fast_io Documentation</title>
+  <title>Introduction - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
 </head>
 <body>
   <main>
-    <h1>Introduction to fast_io</h1>
+    <h1>Introduction to C++ with fast_io</h1>
 
     <section>
-      <h2>Early Discoveries</h2>
+      <h2>Why This Tutorial Exists</h2>
       <p>
-        My interest in building a new I/O library began in high school. While exploring
-        performance benchmarks online and running my own tests, I discovered that both
-        <code>ifstream</code> and <code>stdio</code> were painfully slow. In many cases,
-        they were at least <strong>5× slower</strong>, and on some platforms even
-        <strong>10× to 100× slower</strong>, compared to simply reading an entire file
-        into memory and parsing it manually.
+        My journey into C++ was deeply shaped by <strong>C++ Primer, 5th Edition</strong>.  
+        It was the first full English book I ever read, and it opened the door to the language.  
+        Unfortunately, there will never be a 6th edition. When I began writing documentation for  
+        <strong>fast_io</strong>, I realized something important: this library touches almost every  
+        corner of C++. Even the classic <code>Hello World</code> example looks different now.
       </p>
       <p>
-        This inefficiency convinced me that the standard I/O facilities in C++ were
-        fundamentally flawed and needed a complete rethinking.
+        This created a long-term challenge — how do you explain fast_io without explaining the  
+        entire language context? For novices, the documentation was too hard to follow. For experts,  
+        it was unnecessary. That tension convinced me to take a different path: instead of writing  
+        only library docs, I would build a <strong>complete C++ tutorial</strong>, taught through fast_io.
       </p>
     </section>
 
     <section>
-      <h2>Generic Programming vs. OOP</h2>
+      <h2>Teaching in the Age of AI</h2>
       <p>
-        I was a strong admirer of the <strong>generic programming paradigm</strong> used
-        in the C++ standard library’s containers and algorithms. They demonstrated how
-        templates could provide both flexibility and performance. Yet, I/O in C++ felt
-        inconsistent: <code>iostream</code> leaned heavily on object-oriented programming,
-        with virtual inheritance at its core. This design choice introduced complexity
-        and inefficiency, and it stood in stark contrast to the elegance of generic
-        programming elsewhere in the language.
+        We are now in the <strong>age of AI</strong>, and the way we teach and learn programming  
+        must evolve. Old-style C++ books are outdated. The WG21 committee, including Bjarne Stroustrup,  
+        has struggled to embrace new ideas. Decisions made decades ago — such as exception handling —  
+        remain controversial and, in many ways, misguided. This tutorial will not shy away from  
+        questioning those choices and exploring alternatives.
+      </p>
+      <p>
+        Learning today requires adaptability, context, and debate. This book is not just about  
+        memorizing syntax; it is about <strong>rethinking programming itself</strong>.
       </p>
     </section>
 
     <section>
-      <h2>The Problem with Format Strings</h2>
+      <h2>Beyond C++</h2>
       <p>
-        Another major frustration was the reliance on <strong>format strings</strong>.
-        I always considered them redundant and unsafe. My years of programming in
-        <strong>Lua</strong>, particularly while developing World of Warcraft addons,
-        gave me a different perspective. Lua’s defaults often felt more correct than
-        C++, though Lua itself had its own flaws.
+        While C++ is the main focus, this tutorial will also briefly explore other languages and  
+        ecosystems to provide perspective:
       </p>
+      <ul>
+        <li><strong>HTML/CSS/JavaScript/WebAssembly</strong> — modern web technologies and how C++ can interact with them.</li>
+        <li><strong>Lua</strong> — scripting for World of Warcraft addons, and what it teaches us about simplicity.</li>
+        <li><strong>Cross-language comparisons</strong> — viewing C++ from the perspective of other languages, and vice versa.</li>
+      </ul>
       <p>
-        I came to believe that format strings should be eliminated entirely. No matter
-        how you constrain them — even at compile time — they remain vulnerable. Macros,
-        code generators, or even AI-generated code can reintroduce format string
-        vulnerabilities. The complexity never truly disappears. In my view, format
-        strings are a <strong>trillion-dollar historical mistake</strong>, comparable
-        to the infamous <code>gets()</code> function. Since <code>gets()</code> was
-        itself an I/O function in <code>stdio</code>, this only reinforced my belief
-        that the entire <code>stdio</code> system is extremely dangerous.
+        By comparing languages, we gain a clearer picture of where programming is heading and how  
+        different paradigms shape our thinking.
       </p>
     </section>
 
     <section>
-      <h2>The Birth of fast_io</h2>
+      <h2>What You Will Learn</h2>
       <p>
-        In 2013, when Bjarne Stroustrup introduced <strong>concepts prototypes</strong>
-        at CppCon, I had a breakthrough idea: why not use concepts to rewrite the entire
-        I/O subsystem? That was the moment <strong>fast_io</strong> was born — at least
-        in theory. I built an early prototype using GCC’s experimental concepts
-        implementation, just to prove the idea was viable.
+        Unlike traditional C++ books, this tutorial will cover topics that are often ignored or  
+        considered too advanced:
       </p>
+      <ul>
+        <li><strong>Freestanding C++</strong> — writing code that works without an operating system.</li>
+        <li><strong>Herbceptions</strong> — modern approaches to exception handling inspired by Herb Sutter.</li>
+        <li><strong>Cross Compilation</strong> — building C++ programs across different platforms and architectures.</li>
+        <li><strong>Progressive Web Apps</strong> — using C++ to power Progressive Web Apps (PWAs).</li>
+        <li><strong>fast_io as a new foundation</strong> — how fast_io reshapes even the simplest examples.</li>
+      </ul>
       <p>
-        Unfortunately, concepts were still immature at the time, existing only as a
-        Technical Specification (TS). Without proper standard library support,
-        <strong>fast_io</strong> couldn’t move beyond a prototype. The real
-        implementation only began in earnest around 2020, once concepts became part of
-        mainstream C++.
-      </p>
-    </section>
-
-    <section>
-      <h2>Refinement and Philosophy</h2>
-      <p>
-        Even after 2020, <strong>fast_io</strong> went through multiple waves of
-        refactoring. My goal was not just to make it functional, but to make it
-        <em>good</em> — elegant, portable, and robust. Because it is concepts-based,
-        the library is designed to work across all platforms, and even in environments
-        without operating systems.
-      </p>
-      <p>
-        Herb Sutter’s talk on <strong>Herbceptions</strong> further influenced my vision.
-        Since I/O is one of the largest consumers of exceptions in C++, I realized that
-        <strong>fast_io</strong> would eventually need to integrate Herbceptions to
-        truly complete its design. Until that happens, the library will continue to
-        evolve, with APIs gradually stabilizing as the design matures.
+        These are not side notes — they are core parts of how modern C++ should be understood and used.
       </p>
     </section>
 
     <section>
-      <h2>Backwards Compatibility</h2>
+      <h2>Debates and History</h2>
       <p>
-        A key design principle of <strong>fast_io</strong> is backwards compatibility.
-        The library is built to interoperate with multiple existing systems:
-        <code>wine</code> (host file descriptors), <code>NT</code> handles,
-        <code>Win32</code> handles, <code>POSIX</code> file descriptors,
-        <code>stdio</code>, and even <code>filebuf</code> from
-        <code>iostream/fstream</code>. Considerable effort has gone into making these
-        systems compatible with one another under a unified interface.
+        This tutorial will also dive into debates that go beyond C++: programming philosophy,  
+        language design, and the cultural forces that shape our tools. Along the way, we will  
+        examine the <strong>history of programming</strong>, including stories like the rise and  
+        fall of Windows Phone, and other moments that reveal both progress and missed opportunities.
+      </p>
+      <p>
+        Some of these reflections may be sobering, even depressing, but they are essential to  
+        understanding the bigger picture of how programming evolves.
       </p>
     </section>
 
     <section>
-      <h2>Freestanding Environments</h2>
-      <p>
-        Because <strong>fast_io</strong> is intended to work everywhere, including
-        freestanding environments, I came to realize that many features advocated by
-        the C++ community — exception handling (EH), RTTI, <code>vector</code>,
-        <code>array</code>, and others — simply do not function reliably outside of
-        hosted environments. This reinforced the need for a library that is both
-        <strong>freestanding-friendly</strong> and conceptually modern.
-      </p>
+    <h2>Class Perspective</h2>
+    <p>
+        As a <strong>Marxist</strong>, I often view programming and technology through the lens of  
+        class struggle. There are aspects of the modern programming world that deeply trouble me,  
+        because <strong>capitalism is actively destroying the programming ecosystem</strong>.  
+        Decisions driven by profit rather than progress have shaped languages, tools, and even  
+        entire platforms. In future chapters, when we discuss topics like Windows Phone, we will  
+        also examine them from this perspective — asking not only what went wrong technically,  
+        but also what went wrong socially and economically.
+    </p>
+    <p>
+        One case we will explore in detail is the <strong>failure of Windows Phone</strong>.  
+        On the surface, it was a technical and market battle against iOS and Android. But beneath  
+        that, it reveals how corporate priorities, licensing models, and profit-driven decisions  
+        undermined innovation. By analyzing Windows Phone through both technical and class-based  
+        perspectives, we can better understand how capitalism shapes — and often limits — the  
+        evolution of programming and technology.
+    </p>
     </section>
 
     <section>
       <h2>Looking Ahead</h2>
       <p>
-        <strong>fast_io</strong> is more than just an I/O library. It is a proof of
-        concept — a demonstration to WG21 and the broader C++ community that I/O can
-        be reimagined using modern language features. It is a statement against
-        inefficiency, redundancy, and outdated design patterns. And it is a commitment
-        to building tools that are both fast and conceptually clean.
+        This tutorial is more than documentation. It is a <strong>new way to learn C++</strong>.  
+        By combining the clarity of teaching with the power of fast_io, we will explore not only  
+        the language itself but also the broader world of programming.  
+      </p>
+      <p>
+        The journey will not stop at the basics. We will move into advanced territory, explore  
+        cutting-edge features, and rethink what it means to write modern C++ code in the age of AI.
       </p>
     </section>
-    <section>
-    <h2>Video Introduction</h2>
-    <p>
-        Here’s a talk that further illustrates the ideas behind <strong>fast_io</strong>:
-    </p>
-    <div class="video-container">
-    <iframe 
-        src="https://www.youtube.com/embed/CefgZlXeMUg" 
-        title="YouTube video player" 
-        frameborder="0" 
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-        allowfullscreen>
-    </iframe>
-    </div>
-    </section>
-    <!-- Add this after the last section -->
+
     <div class="page-navigation">
       <a href="/" class="main-button">↑ Back to Main Page</a>
-      <a href="/docs/01.io" class="next-button">Next: IO →</a>
+      <a href="/docs/introfastio/" class="next-button">Next: Background of fast_io →</a>
     </div>
-    </main>
-
+  </main>
 </body>
 </html>
