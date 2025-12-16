@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Introduction - fast_io Documentation</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <main>
+    <h1>Introduction to fast_io</h1>
+
+    <section>
+      <h2>Early Discoveries</h2>
+      <p>
+        My interest in building a new I/O library began in high school. While exploring
+        performance benchmarks online and running my own tests, I discovered that both
+        <code>ifstream</code> and <code>stdio</code> were painfully slow. In many cases,
+        they were at least <strong>5× slower</strong>, and on some platforms even
+        <strong>10× to 100× slower</strong>, compared to simply reading an entire file
+        into memory and parsing it manually.
+      </p>
+      <p>
+        This inefficiency convinced me that the standard I/O facilities in C++ were
+        fundamentally flawed and needed a complete rethinking.
+      </p>
+    </section>
+
+    <section>
+      <h2>Generic Programming vs. OOP</h2>
+      <p>
+        I was a strong admirer of the <strong>generic programming paradigm</strong> used
+        in the C++ standard library’s containers and algorithms. They demonstrated how
+        templates could provide both flexibility and performance. Yet, I/O in C++ felt
+        inconsistent: <code>iostream</code> leaned heavily on object-oriented programming,
+        with virtual inheritance at its core. This design choice introduced complexity
+        and inefficiency, and it stood in stark contrast to the elegance of generic
+        programming elsewhere in the language.
+      </p>
+    </section>
+
+    <section>
+      <h2>The Problem with Format Strings</h2>
+      <p>
+        Another major frustration was the reliance on <strong>format strings</strong>.
+        I always considered them redundant and unsafe. My years of programming in
+        <strong>Lua</strong>, particularly while developing World of Warcraft addons,
+        gave me a different perspective. Lua’s defaults often felt more correct than
+        C++, though Lua itself had its own flaws.
+      </p>
+      <p>
+        I came to believe that format strings should be eliminated entirely. No matter
+        how you constrain them — even at compile time — they remain vulnerable. Macros,
+        code generators, or even AI-generated code can reintroduce format string
+        vulnerabilities. The complexity never truly disappears. In my view, format
+        strings are a <strong>trillion-dollar historical mistake</strong>, comparable
+        to the infamous <code>gets()</code> function. Since <code>gets()</code> was
+        itself an I/O function in <code>stdio</code>, this only reinforced my belief
+        that the entire <code>stdio</code> system is extremely dangerous.
+      </p>
+    </section>
+
+    <section>
+      <h2>The Birth of fast_io</h2>
+      <p>
+        In 2013, when Bjarne Stroustrup introduced <strong>concepts prototypes</strong>
+        at CppCon, I had a breakthrough idea: why not use concepts to rewrite the entire
+        I/O subsystem? That was the moment <strong>fast_io</strong> was born — at least
+        in theory. I built an early prototype using GCC’s experimental concepts
+        implementation, just to prove the idea was viable.
+      </p>
+      <p>
+        Unfortunately, concepts were still immature at the time, existing only as a
+        Technical Specification (TS). Without proper standard library support,
+        <strong>fast_io</strong> couldn’t move beyond a prototype. The real
+        implementation only began in earnest around 2020, once concepts became part of
+        mainstream C++.
+      </p>
+    </section>
+
+    <section>
+      <h2>Refinement and Philosophy</h2>
+      <p>
+        Even after 2020, <strong>fast_io</strong> went through multiple waves of
+        refactoring. My goal was not just to make it functional, but to make it
+        <em>good</em> — elegant, portable, and robust. Because it is concepts-based,
+        the library is designed to work across all platforms, and even in environments
+        without operating systems.
+      </p>
+      <p>
+        Herb Sutter’s talk on <strong>Herbceptions</strong> further influenced my vision.
+        Since I/O is one of the largest consumers of exceptions in C++, I realized that
+        <strong>fast_io</strong> would eventually need to integrate Herbceptions to
+        truly complete its design. Until that happens, the library will continue to
+        evolve, with APIs gradually stabilizing as the design matures.
+      </p>
+    </section>
+
+    <section>
+      <h2>Backwards Compatibility</h2>
+      <p>
+        A key design principle of <strong>fast_io</strong> is backwards compatibility.
+        The library is built to interoperate with multiple existing systems:
+        <code>wine</code> (host file descriptors), <code>NT</code> handles,
+        <code>Win32</code> handles, <code>POSIX</code> file descriptors,
+        <code>stdio</code>, and even <code>filebuf</code> from
+        <code>iostream/fstream</code>. Considerable effort has gone into making these
+        systems compatible with one another under a unified interface.
+      </p>
+    </section>
+
+    <section>
+      <h2>Freestanding Environments</h2>
+      <p>
+        Because <strong>fast_io</strong> is intended to work everywhere, including
+        freestanding environments, I came to realize that many features advocated by
+        the C++ community — exception handling (EH), RTTI, <code>vector</code>,
+        <code>array</code>, and others — simply do not function reliably outside of
+        hosted environments. This reinforced the need for a library that is both
+        <strong>freestanding-friendly</strong> and conceptually modern.
+      </p>
+    </section>
+
+    <section>
+      <h2>Looking Ahead</h2>
+      <p>
+        <strong>fast_io</strong> is more than just an I/O library. It is a proof of
+        concept — a demonstration to WG21 and the broader C++ community that I/O can
+        be reimagined using modern language features. It is a statement against
+        inefficiency, redundancy, and outdated design patterns. And it is a commitment
+        to building tools that are both fast and conceptually clean.
+      </p>
+    </section>
+    <section>
+    <h2>Video Introduction</h2>
+    <p>
+        Here’s a talk that further illustrates the ideas behind <strong>fast_io</strong>:
+    </p>
+    <div class="video-container">
+    <iframe 
+        src="https://www.youtube.com/embed/CefgZlXeMUg" 
+        title="YouTube video player" 
+        frameborder="0" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen>
+    </iframe>
+    </div>
+    </section>
+    <!-- Add this after the last section -->
+    <div class="page-navigation">
+      <a href="/" class="main-button">↑ Back to Main Page</a>
+      <a href="/docs/01.io" class="next-button">Next: IO →</a>
+    </div>
+    </main>
+
+</body>
+</html>

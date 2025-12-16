@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A + B - fast_io Documentation</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <main>
+    <h1>A + B</h1>
+
+    <section>
+      <h2>Basic Input and Output</h2>
+      <p>
+        A simple program that reads two integers and prints their sum. This demonstrates
+        <code>scan</code> for input and <code>println</code> for output:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    std::size_t a, b;
+    scan(a, b);
+    println(a + b);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>What is a Manipulator?</h2>
+      <p>
+        In <code>fast_io</code>, a <strong>manipulator</strong> is a helper object that changes how
+        input or output is interpreted or formatted. Instead of relying on unsafe format strings,
+        manipulators make the intent explicit in the type system.
+      </p>
+      <p>
+        Manipulators are defined in the namespace <code>fast_io::manipulators</code>, which is aliased
+        as <code>fast_io::mnp</code> for convenience. They make input and output safer, more explicit,
+        and more portable than traditional <code>stdio</code> or <code>iostream</code>.
+      </p>
+      <p>
+        For example:
+      </p>
+      <ul>
+        <li><code>hex_get(a)</code> — tells <code>scan</code> to read the variable <code>a</code> in hexadecimal.</li>
+        <li><code>hex(a)</code> — tells <code>println</code> to print <code>a</code> in lowercase hexadecimal.</li>
+        <li><code>hexupper(a)</code> — prints <code>a</code> in uppercase hexadecimal.</li>
+        <li><code>base_get&lt;N&gt;(a)</code> — reads <code>a</code> in base <em>N</em> (2 ≤ N ≤ 36).</li>
+        <li><code>base&lt;N&gt;(a)</code> — prints <code>a</code> in base <em>N</em>.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Hexadecimal Manipulators</h2>
+      <p>
+        <code>fast_io</code> provides manipulators to read and print numbers in hexadecimal.
+        <code>hex_get</code> reads input in hex, while <code>hex</code> and <code>hexupper</code>
+        print output in lowercase or uppercase hex respectively:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    using namespace fast_io::mnp;
+    std::size_t a, b;
+    scan(hex_get(a), hex_get(b));
+    println(hex(a + b), " ", hexupper(a + b));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Base-N Manipulators</h2>
+      <p>
+        Manipulators also support arbitrary bases from 2 to 36. Here’s an example using base 36:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    using namespace fast_io::mnp;
+    std::size_t a, b;
+    scan(base_get&lt;36&gt;(a), base_get&lt;36&gt;(b));
+    println(base&lt;36&gt;(a + b));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>About Manipulators</h2>
+      <p>
+        <code>fast_io</code> defines a rich set of <strong>manipulators</strong> to control input and output formatting.
+        For convenience, the namespace <code>fast_io::manipulators</code> is aliased as <code>fast_io::mnp</code>.
+      </p>
+      <ul>
+        <li><code>base_get&lt;N&gt;</code> — reads numbers in base <em>N</em> (where 2 ≤ N ≤ 36).</li>
+        <li><code>base&lt;N&gt;</code> — prints numbers in base <em>N</em>.</li>
+        <li><code>hex</code> — shorthand for <code>base&lt;16&gt;</code>.</li>
+        <li><code>hexupper</code> — shorthand for <code>base&lt;16,true&gt;</code>, printing hex digits in uppercase.</li>
+      </ul>
+      <p>
+        These manipulators make it easy to work with different numeric bases without relying on unsafe format strings.
+      </p>
+    </section>
+
+    <div class="page-navigation">
+      <a href="/docs/01.io/01.helloworld/" class="prev-button">← Previous: Hello World</a>
+      <a href="/" class="main-button">↑ Back to Main Page</a>
+      <a href="/docs/01.io/03.pointer/" class="next-button">Next: Pointer →</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pointers - fast_io Documentation</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <main>
+    <h1>Pointers</h1>
+
+    <section>
+      <h2>Introduction</h2>
+      <p>
+        In <code>fast_io</code>, raw pointers and iterators are not printed directly. This is a deliberate
+        safety choice: printing them without explicit intent can lead to undefined or inconsistent
+        behavior across platforms. Instead, <code>fast_io</code> provides a family of <strong>pointer‑related
+        manipulators</strong> that make the intent explicit and ensure consistent, portable formatting.
+      </p>
+    </section>
+
+    <section>
+      <h2>Pointer Manipulators Overview</h2>
+      <ul>
+        <li><code>pointervw(ptr)</code> — prints the raw address of a pointer in fixed‑width hexadecimal.</li>
+        <li><code>os_c_str(ptr)</code> — treats a <code>char const*</code> as a C‑string, using <code>strlen</code> or <code>strnlen</code>.</li>
+        <li><code>funcvw(f)</code> — prints the address of a free function.</li>
+        <li><code>methodvw(m)</code> — prints member function pointers, including offset information for multiple inheritance.</li>
+        <li><code>handlevw(h)</code> — prints operating system handles, whether represented as integers (POSIX fd) or pointers (Win32 <code>HANDLE</code>, <code>FILE*</code>).</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Printing Pointers</h2>
+      <p>
+        Use <code>pointervw</code> to print raw addresses. The format is consistent across platforms:
+        <code>0x</code> followed by 8 hex digits on 32‑bit systems, or 16 hex digits on 64‑bit systems.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    using namespace fast_io::mnp;
+    int x{42};
+    int *ptr{::std::addressof(x)};
+    println("Address:", pointervw(ptr));
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>C‑String Manipulator</h2>
+      <p>
+        To treat a <code>char const*</code> as a C‑string, use <code>os_c_str</code>. This calls
+        <code>strlen</code> or <code>strnlen</code> depending on overload.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace fast_io::io;
+    using namespace fast_io::mnp;
+    constexpr char const* ptr{"Hello\0World\n"};
+
+    println(
+        "Literal: Hello\0World\n\n"
+        "Pointer:", pointervw(ptr), "\n"
+        "os_c_str:", os_c_str(ptr), "\n"
+        "os_c_str(ptr,4):", os_c_str(ptr,4), "\n"
+        "os_c_str(ptr,10):", os_c_str(ptr,10)
+    );
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Function and Method Pointers</h2>
+      <p>
+        <code>funcvw</code> prints the address of a free function. <code>methodvw</code> prints member
+        function pointers, including offset information for multiple inheritance cases.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;memory&gt;
+
+class dummy_class { public: void dummy_method() noexcept {} };
+struct A { virtual void f() noexcept {} };
+struct B { virtual void g() noexcept {} };
+struct C : A, B {};
+
+using namespace fast_io::io;
+
+void foo(){}
+
+int main()
+{
+    using namespace fast_io::mnp;
+    void (C::*downcptr)() noexcept = &B::g;
+
+    println(
+        "funcvw(foo):", funcvw(foo), "\n"
+
+        "methodvw(&dummy_class::dummy_method):",
+        methodvw(&dummy_class::dummy_method), "\n"
+
+        "methodvw(downcptr):", methodvw(downcptr)
+    );
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Handles</h2>
+      <p>
+        <code>handlevw</code> is used when printing operating system handles. A handle may be an
+        integer (POSIX file descriptor) or a pointer (Win32 <code>HANDLE</code>, <code>FILE*</code>).
+        <code>handlevw</code> adapts automatically, printing integers directly and pointers in
+        consistent hexadecimal format.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdio&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    using namespace fast_io::mnp;
+    int fd{3};       // POSIX file descriptor
+    FILE *f{stdout};
+
+    println(
+        "POSIX fd:", handlevw(fd), "\n"
+        "FILE* handle:", handlevw(f)
+    );
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Summary</h2>
+      <p>
+        Pointer‑related manipulators in <code>fast_io</code> make printing low‑level entities explicit,
+        safe, and portable. They cover raw pointers, C‑strings, free functions, member functions,
+        and OS handles. This design avoids the unsafe and inconsistent behavior of
+        <code>stdio</code> and <code>iostream</code>.
+      </p>
+    </section>
+
+    <div class="page-navigation">
+      <a href="/docs/01.io/02.aplusb/" class="prev-button">← Previous: A+B</a>
+      <a href="/" class="main-button">↑ Back to Main Page</a>
+      <a href="/docs/01.io/04.fileio/" class="next-button"> Next: File I/O →</a>
+    </div>
+  </main>
+</body>
+</html>
