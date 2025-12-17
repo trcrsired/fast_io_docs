@@ -1,4 +1,4 @@
-    <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -6,6 +6,7 @@
   <title>Hello World - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
@@ -403,12 +404,105 @@ int main()
   </p>
 </section>
 
+<section>
+  <h2>Character Data Types</h2>
+  <p>
+    C++ provides several character types to represent text in different encodings.  
+    Although <code>char</code> is the most common, modern C++ introduces <code>char8_t</code>, <code>char16_t</code>, and <code>char32_t</code> for Unicode support, plus <code>wchar_t</code> for wide characters.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Size</th>
+        <th>Encoding</th>
+        <th>Example</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>char</code></td>
+        <td>1 byte</td>
+        <td>Implementation-defined (usually ASCII or UTF-8)</td>
+        <td><code>char c = 'A';</code></td>
+      </tr>
+      <tr>
+        <td><code>char8_t</code></td>
+        <td>1 byte</td>
+        <td>UTF-8 code unit</td>
+        <td><code>char8_t u8c = u8'A';</code></td>
+      </tr>
+      <tr>
+        <td><code>char16_t</code></td>
+        <td>2 bytes</td>
+        <td>UTF-16 code unit</td>
+        <td><code>char16_t u16c = u'A';</code></td>
+      </tr>
+      <tr>
+        <td><code>char32_t</code></td>
+        <td>4 bytes</td>
+        <td>UTF-32 code unit</td>
+        <td><code>char32_t u32c = U'A';</code></td>
+      </tr>
+      <tr>
+        <td><code>wchar_t</code></td>
+        <td>Implementation-defined (2 or 4 bytes)</td>
+        <td>Wide character (platform-dependent)</td>
+        <td><code>wchar_t wc = L'A';</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    char c = 'A';
+    char8_t u8c = u8'A';
+    char16_t u16c = u'A';
+    char32_t u32c = U'A';
+    wchar_t wc = L'A';
+
+    // Print numeric values
+    println(c);    // prints 65
+    println(u8c);  // prints 65
+    println(u16c); // prints 65
+    println(u32c); // prints 65
+    println(wc);   // prints 65
+
+    // Print as characters
+    println(chvw(c));    // prints A
+    println(chvw(u8c));  // prints A
+    println(chvw(u16c)); // prints A
+    println(chvw(u32c)); // prints A
+    println(chvw(wc));   // prints A
+}
+</code></pre>
+
+  <p>
+    <strong>Important:</strong> All of these <code>char</code> types are still <em>integer types</em> under the hood.  
+    The literal <code>'A'</code> is stored as the numeric value <code>65</code> (its ASCII/Unicode code point).  
+    That’s why calling <code>println(c)</code> prints <code>65</code> — you are seeing the integer value.  
+    To display the character itself, you use manipulators like <code>chvw()</code>, which interpret the integer as a character for output.
+  </p>
+
+  <p>
+    <strong>Note:</strong> When printing UTF string literals (<code>u8"..."</code>, <code>u"..."</code>, <code>U"..."</code>), you must use <code>code_cvt(...)</code> unless you specify a device that matches the character type.  
+    By default, <code>print</code>/<code>println</code>/<code>scan</code> are tied to <code>char</code> and <code>FILE*</code>.  
+    We will explain devices and encoding in detail in the future I/O chapter.
+  </p>
+  <p> Appendix: <a href="/docs/02.basics/02.datatypes/01.ascii/">ASCII Table (0–127)</a></p>
+</section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/docs/02.basics/01.helloworld/" class="prev-button">← </a>
+      <a href="/docs/02.basics/01.helloworld/" class="prev-button">← Ch2.1: Hello World </a>
       <a href="/" class="main-button">↑ Main Page</a>
-      <a href="/docs/02.basics/03.literals/" class="next-button">Literals →</a>
+      <a href="/docs/02.basics/03.literals/" class="next-button">Ch2.3: Literals →</a>
     </div>
   </main>
 </body>

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch2.3: Literals - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch2.3: Literals</h1>
+
+    <section>
+      <h2>What Are Literals?</h2>
+      <p>
+        A <strong>literal</strong> is a fixed value written directly in your code.  
+        Unlike variables, literals do not change — they are constants embedded in the program.
+      </p>
+    </section>
+
+    <section>
+      <h2>Examples</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;stdfloat&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Integer literal assigned to ::std::size_t
+    ::std::size_t number = 42;
+    println(number); // prints 42
+
+    // Floating point literal assigned to ::std::float64_t
+    ::std::float64_t pi = 3.14;
+    println(pi); // prints 3.14
+
+    // Character literal
+    println('A');        // prints 65 (ASCII code)
+    println(chvw('A'));  // prints A
+
+    // Hexadecimal escape sequence gives value directly
+    println('\x41');     // prints 65
+    println(chvw('\x41')); // prints A
+
+    // Assigning character literal 'A' to different integer types
+    char c = 'A';
+    ::std::size_t b = 'A';
+    ::std::uint_least16_t u16 = 'A';
+    ::std::int_least32_t i32 = 'A';
+
+    println(c);          // prints 65
+    println(b);          // prints 65
+    println(u16);        // prints 65
+    println(i32);        // prints 65
+    println(chvw(c));    // prints A
+
+    // UTF-specific character types
+    char8_t u8ch = u8'A';
+    char16_t u16ch = u'A';
+    char32_t u32ch = U'A';
+
+    println(u8ch);       // prints 65
+    println(u16ch);      // prints 65
+    println(u32ch);      // prints 65
+    println(chvw(u8ch)); // prints A
+    println(chvw(u16ch));// prints A
+    println(chvw(u32ch));// prints A
+
+    // Boolean literals
+    println(true, " ", false);             // prints 1 0
+    println(boolalpha(true), " ", boolalpha(false)); // prints true false
+
+    // String literals (adjacent concatenation)
+    print("Hello"
+          "World"
+          "from C++\n");
+
+    // Multiline string literals
+    print("Hello\n"
+          "World\n"
+          "from C++\n");
+
+    // UTF string literals must use code_cvt
+    println(code_cvt(u8"Hello UTF-8"));
+    println(code_cvt(u"Hello UTF-16"));
+    println(code_cvt(U"Hello UTF-32"));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Escape Sequences</h2>
+      <p>
+        Escape sequences let you represent special characters inside string and character literals.  
+        They start with a backslash <code>\</code>.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Escape sequence</th>
+            <th>Meaning</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>\n</code></td><td>New line</td><td><code>"Hello\nWorld"</code></td></tr>
+          <tr><td><code>\t</code></td><td>Horizontal tab</td><td><code>"A\tB\tC"</code></td></tr>
+          <tr><td><code>\r</code></td><td>Carriage return</td><td><code>"Line1\rLine2"</code></td></tr>
+          <tr><td><code>\v</code></td><td>Vertical tab</td><td><code>"Hello\vWorld"</code></td></tr>
+          <tr><td><code>\\</code></td><td>Backslash</td><td><code>"Backslash: \\"</code></td></tr>
+          <tr><td><code>\"</code></td><td>Double quote</td><td><code>"Quote: \"Hello\""</code></td></tr>
+          <tr><td><code>\'</code></td><td>Single quote</td><td><code>"It\'s fine"</code></td></tr>
+          <tr><td><code>\x41</code></td><td>Hexadecimal value 0x41</td><td><code>'\x41'</code> → A</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Raw String Literals</h2>
+      <p>
+        Raw string literals let you write text without escaping backslashes or quotes.  
+        They start with <code>R"( ... )"</code> and can span multiple lines.  
+        UTF prefixes (<code>u8R</code>, <code>uR</code>, <code>UR</code>) are also supported.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Multiline raw string literal
+    println(R"(Line1
+Line2
+Line3)");
+
+    // Raw string with quotes and backslashes
+    println(R"(Path: C:\Users\Name
+Quote: "Hello World")");
+
+    // UTF raw string literals
+    println(code_cvt(u8R"(Hello UTF-8 raw)"));
+    println(code_cvt(uR"(Hello UTF-16 raw)"));
+    println(code_cvt(UR"(Hello UTF-32 raw)"));
+
+    // Raw string with custom delimiter
+    println(R"abc(This is a raw string with a custom delimiter)abc");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Multiline String Literals for Other Char Types</h2>
+      <p>
+        UTF string literals (<code>u8"..."</code>, <code>u"..."</code>, <code>U"..."</code>) can also span multiple lines.  
+        Adjacent literals are concatenated at compile time.  
+        When printing with <code>fast_io</code>, wrap them in <code>code_cvt(...)</code> because the default device expects <code>char</code>.
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    println(code_cvt(u8"Hello\n"
+                     u8"World\n"
+                     u8"from UTF-8"));
+
+    println(code_cvt(u"Hello\n"
+                     u"World\n"
+                     u"from UTF-16"));
+
+    println(code_cvt(U"Hello\n"
+                     U"World\n"
+                     U"from UTF-32"));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>print vs println</h2>
+      <p>
+        In <code>fast_io</code>, both <code>print</code> and <code>println</code> write output to the screen.  
+        The difference is simple:
+      </p>
+      <ul>
+        <li><code>print(...)</code> — prints exactly what you give it.</li>
+        <li><code>println(...)</code> — prints what you give it <strong>plus an extra <code>"\n"</code></strong> at the end.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Binary, Hexadecimal, and Octal Literals</h2>
+      <p>
+        In addition to decimal numbers, C++ allows you to write integer literals in 
+        <strong>binary</strong>, <strong>hexadecimal</strong>, and <strong>octal</strong> form.  
+        These are useful when working with bit patterns, memory addresses, or low-level data.
+      </p>
+
+      <ul>
+        <li><code>0b...</code> → Binary literal (base 2)</li>
+        <li><code>0x...</code> → Hexadecimal literal (base 16)</li>
+        <li><code>0...</code> → Octal literal (base 8)</li>
+      </ul>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Binary literal
+    ::std::uint_least32_t bin = 0b1010;   // decimal 10
+    println("Binary 0b1010 = ", bin);
+
+    // Hexadecimal literal
+    ::std::uint_least32_t hex = 0x1F;     // decimal 31
+    println("Hex 0x1F = ", hex);
+
+    // Octal literal
+    ::std::uint_least32_t oct = 077;      // decimal 63
+    println("Octal 077 = ", oct);
+}
+</code></pre>
+
+      <p>
+        Output:
+      </p>
+      <pre><code>
+Binary 0b1010 = 10
+Hex 0x1F = 31
+Octal 077 = 63
+</code></pre>
+
+      <p>
+        <strong>Note:</strong> These prefixes are part of the literal syntax itself.  
+        The values are stored as normal integers, regardless of how they are written.
+      </p>
+    </section>
+
+
+<section>
+  <h2>Printing Numbers in Different Bases</h2>
+  <p>
+    C++ lets you write integer literals in decimal, binary (<code>0b...</code>), hexadecimal (<code>0x...</code>), and octal (<code>0...</code>).  
+    When printing with <code>fast_io</code>, you can control the output base using manipulators.  
+    Unlike <code>std::cout</code>, <code>fast_io</code> does <strong>not</strong> add prefixes like <code>0x</code> or <code>0b</code> automatically — it prints only the digits.
+  </p>
+
+<section>
+  <h2>Printing Numbers in Different Bases</h2>
+  <p>
+    C++ lets you write integer literals in decimal, binary (<code>0b...</code>), hexadecimal (<code>0x...</code>), and octal (<code>0...</code>).  
+    When printing with <code>fast_io</code>, you can control the output base using manipulators.  
+    <code>fast_io</code> prints only the digits — it does not add prefixes like <code>0x</code> or <code>0b</code>.  
+    The <code>base&lt;N&gt;</code> manipulator supports any base from 2 through 36.
+  </p>
+
+  <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::std::uint_least32_t x = 255;   // our test value
+
+    println(
+        "Decimal: ", x, "\n"              // 255
+
+        "Hex: ", hex(x), "\n"             // ff
+        "Hex upper: ", hexupper(x), "\n"  // FF
+
+        "Binary: ", bin(x), "\n"          // 11111111
+        "Binary upper: ", binupper(x), "\n" // 11111111
+
+        "Octal: ", oct(x), "\n"           // 377
+        "Octal (literal 8): ", oct(8), "\n" // prints 10
+
+        "Base 2: ", base&lt;2&gt;(x), "\n"      // 11111111
+        "Base 8: ", base&lt;8&gt;(x), "\n"      // 377
+        "Base 16: ", base&lt;16&gt;(x), "\n"    // ff
+        "Base 35 upper: ", baseupper&lt;35&gt;(x), "\n" // 7U
+        "Base 36: ", base&lt;36&gt;(x)     // 73
+    );
+}
+</code></pre>
+
+  <p>
+    <strong>Note:</strong> These manipulators only change how the number is displayed.  
+    The stored value remains the same integer regardless of the base used for output.
+  </p>
+</section>
+
+</code></pre>
+
+  <p>
+    Output:
+  </p>
+  <pre><code>
+Decimal: 255
+Hex: ff
+Hex upper: FF
+Binary: 11111111
+Binary upper: 11111111
+Octal: 377
+Octal (base 8): 10
+Base 36: 73
+Base 35 upper: 7U
+</code></pre>
+
+  <p>
+    <strong>Note:</strong> These manipulators only change how the number is displayed.  
+    The stored value is always the same integer, regardless of whether you print it in decimal, hex, binary, octal, or another base.
+  </p>
+</section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/02.basics/02.datatypes/" class="prev-button">← Ch2.2: Data Types</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/02.basics/02.variables/" class="next-button">Ch2.4: Initialization →</a>
+    </div>
+  </main>
+</body>
+</html>
