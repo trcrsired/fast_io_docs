@@ -1,4 +1,4 @@
-const CACHE_NAME = "fast_io-docs-v16"; // bump version here
+const CACHE_NAME = "fast_io-docs-v17"; // bump version here
 const urlsToCache = [
   "/",
   "/style.css",
@@ -6,8 +6,8 @@ const urlsToCache = [
   "/sw-register.js",
   "/manifest.json",
   "/icons/logo.webp",
-  "/docs/intro/",
-  "/docs/introfastio/",
+  "/docs/00.intro/",
+  "/docs/00.intro/01.fastio/",
   // "/docs/api/",
   "/docs/01.compile/",
   "/docs/01.compile/01.pwastore/",
@@ -17,6 +17,9 @@ const urlsToCache = [
   "/docs/01.compile/02.vscode/",
   "/docs/01.compile/02.vscode/autosavedisable.webp",
   "/docs/01.compile/03.compilers/",
+  "/docs/02.basics/",
+  "/docs/02.basics/01.helloworld/",
+  "/docs/02.basics/02.datatypes/",
   "/docs/04.dsal/",
   "/docs/04.dsal/01.string/",
 ];
@@ -49,4 +52,11 @@ self.addEventListener("fetch", event => {
       return response || fetch(event.request);
     })
   );
+});
+
+// Listen for messages from the client
+self.addEventListener("message", event => {
+  if (event.data === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });

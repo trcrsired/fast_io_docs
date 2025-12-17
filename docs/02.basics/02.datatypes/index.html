@@ -1,0 +1,406 @@
+    <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hello World - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <main>
+<section>
+  <h2>Integer Types</h2>
+  <p>
+    To use standardized integer types, always include the <code>&lt;cstdint&gt;</code> header:
+  </p>
+  <pre><code class="language-cpp">
+#include &lt;cstdint&gt;
+</code></pre>
+
+  <p>
+    For an N‑bit integer:  
+    <strong>Unsigned range</strong> = 0 to 2^N − 1  
+    <strong>Signed range</strong> = −2^(N−1) to 2^(N−1) − 1
+  </p>
+  <p>
+    Formula to compute bytes: <code>bytes = N / 8</code>.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Bits</th>
+        <th>Bytes</th>
+        <th>Unsigned range</th>
+        <th>Signed range</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>8</td>
+        <td>1</td>
+        <td>0 to 255</td>
+        <td>-128 to 127</td>
+      </tr>
+      <tr>
+        <td>16</td>
+        <td>2</td>
+        <td>0 to 65535</td>
+        <td>-32768 to 32767</td>
+      </tr>
+      <tr>
+        <td>32</td>
+        <td>4</td>
+        <td>0 to 4294967295</td>
+        <td>-2147483648 to 2147483647</td>
+      </tr>
+      <tr>
+        <td>64</td>
+        <td>8</td>
+        <td>0 to 18446744073709551615</td>
+        <td>-9223372036854775808 to 9223372036854775807</td>
+      </tr>
+      <tr>
+        <td>128</td>
+        <td>16</td>
+        <td>0 to 340282366920938463463374607431768211455</td>
+        <td>-170141183460469231731687303715884105728 to 170141183460469231731687303715884105727</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Least, Fast, and Exact Types</h3>
+  <p>
+    C++ defines three families of integer types:
+  </p>
+  <ul>
+    <li><code>::std::uintXX_t</code> / <code>::std::intXX_t</code> — exact-width types (only if the platform has exactly XX-bit integers).</li>
+    <li><code>::std::uint_leastXX_t</code> / <code>::std::int_leastXX_t</code> — smallest type with at least XX bits (always defined).</li>
+    <li><code>::std::uint_fastXX_t</code> / <code>::std::int_fastXX_t</code> — fastest type with at least XX bits.</li>
+  </ul>
+
+  <h3>Why exact-width types may not exist</h3>
+  <p>
+    Exact-width types are optional. They may be missing if:
+  </p>
+  <ul>
+    <li>The platform defines a <strong>byte</strong> as 16 bits instead of 8, so an 8-bit type cannot exist.</li>
+    <li>The toolchain <strong>emulates integers with floating point types</strong> (for example, when translating C++ to another language).</li>
+    <li>The vendor simply <strong>did not define the typedefs</strong> even though the hardware could support them.</li>
+  </ul>
+  <p>
+    On the overwhelming majority of platforms this is not a problem, but if you want maximum portability you should use <code>::std::int_leastXX_t</code> and <code>::std::uint_leastXX_t</code>.  
+    If <code>::std::uintXX_t</code> does exist, it is guaranteed to be identical to <code>::std::uint_leastXX_t</code>.
+  </p>
+
+  <h3>Examples</h3>
+  <pre><code class="language-cpp">
+#include &lt;cstdint&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::std::int_least32_t a = -123;   // guaranteed at least 32 bits
+    ::std::uint_least64_t b = 1000;  // guaranteed at least 64 bits
+    ::std::int_fast16_t c = 42;      // fastest type with ≥16 bits
+    ::std::uint8_t d = 255;          // exact 8-bit type (if available)
+
+    println("a = ", a, "\n"          // prints -123
+            "b = ", b, "\n"          // prints 1000
+            "c = ", c, "\n"          // prints 42
+            "d = ", d);              // prints 255
+}
+</code></pre>
+  <h3>Best Practices</h3>
+  <ul>
+    <li>Use <code>least</code> types (<code>int_leastXX_t</code>) for maximum portability — they are always defined.</li>
+    <li>Use <code>fast</code> types (<code>int_fastXX_t</code>) when performance matters more than memory size.</li>
+    <li>Use <code>exact</code> types (<code>intXX_t</code>) only when you truly need a fixed width (e.g., binary file formats, hardware registers).</li>
+    <li>Prefer <code>::std::size_t</code> for sizes and counts, since it matches the natural word size of the platform.</li>
+  </ul>
+</section>
+
+
+<section>
+  <h2>Floating Point Types</h2>
+  <p>
+    Floating point numbers represent real values with decimals.  
+    They can cover very large and very small magnitudes, but they are approximate and can introduce rounding errors.  
+    Unlike integers, floating point values are not exact.
+  </p>
+
+  <p>
+    These types are defined according to the <strong>IEC 559 standard</strong> (also known as <a href="https://en.wikipedia.org/wiki/IEEE_754" target="_blank">IEEE 754</a>),  
+    which specifies how floating point numbers are represented and how operations on them behave.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Bits</th>
+        <th>Bytes</th>
+        <th>Approx. Range</th>
+        <th>Precision</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>::std::bfloat16_t</code></td>
+        <td>16</td>
+        <td>2</td>
+        <td>~10^±38</td>
+        <td>~3 decimal digits</td>
+        <td>Mainly used in AI/ML workloads for reduced precision but faster computation</td>
+      </tr>
+      <tr>
+        <td><code>::std::float16_t</code></td>
+        <td>16</td>
+        <td>2</td>
+        <td>~10^±5</td>
+        <td>~3–4 decimal digits</td>
+        <td>Half precision, common in graphics and embedded systems</td>
+      </tr>
+      <tr>
+        <td><code>::std::float32_t</code></td>
+        <td>32</td>
+        <td>4</td>
+        <td>~10^±38</td>
+        <td>~7 decimal digits</td>
+        <td>Single precision, equivalent to <code>float</code></td>
+      </tr>
+      <tr>
+        <td><code>::std::float64_t</code></td>
+        <td>64</td>
+        <td>8</td>
+        <td>~10^±308</td>
+        <td>~15–16 decimal digits</td>
+        <td>Double precision, preferred over <code>double</code> for clarity</td>
+      </tr>
+      <tr>
+        <td><code>::std::float128_t</code></td>
+        <td>128</td>
+        <td>16</td>
+        <td>~10^±4932</td>
+        <td>~33–34 decimal digits</td>
+        <td>Quadruple precision, used in high‑precision scientific computing</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Examples</h3>
+  <pre><code class="language-cpp">
+// Define a reduced-precision floating point (AI/ML)
+::std::bfloat16_t bf = 1.5f;
+
+// Define a 16-bit floating point
+::std::float16_t f16 = 3.14f;
+
+// Define a 32-bit floating point
+::std::float32_t f32 = 2.71828f;
+
+// Define a 64-bit floating point
+::std::float64_t f64 = 3.141592653589793;
+
+// Define a 128-bit floating point
+::std::float128_t f128 = 1.234567890123456789012345678901234Q;
+</code></pre>
+
+  <h3>Why we prefer integers first</h3>
+  <p>
+    Integers are exact: they represent whole numbers without rounding.  
+    Floating point types are powerful for scientific and mathematical work, but they can lose precision.  
+    For counting, indexing, and sizes, integers are safer and more predictable.
+  </p>
+
+  <p>
+    Another reason is portability: <strong>not all platforms support floating point types</strong>.  
+    Some embedded systems or unusual environments may lack hardware floating point units, or emulate them very slowly.  
+    Even when floating point is supported, you may face restrictions — for example, the Linux kernel does not allow floating point operations in kernel space.  
+    This means that relying on floating point types can reduce portability or cause problems in low-level programming contexts.
+  </p>
+
+  <p>
+    Therefore, while floating point types are essential for scientific calculations, graphics, and machine learning,  
+    integers remain the most portable and reliable choice for general programming tasks.
+  </p>
+</section>
+
+<section>
+  <h2>Traditional Integer Types</h2>
+  <p>
+    Before standardized fixed-width types (<code>::std::int_leastXX_t</code>, <code>::std::uint_leastXX_t</code>),  
+    C++ provided traditional integer types: <code>char</code>, <code>short</code>, <code>int</code>, <code>long</code>, <code>long long</code>, and their <code>unsigned</code> versions.
+  </p>
+
+  <h3>What the standard guarantees</h3>
+  <ul>
+    <li><code>char</code> is guaranteed to be exactly <strong>1 byte</strong>. A byte is the smallest addressable unit of storage in C++ (at least 8 bits).  
+        The standard does <strong>not</strong> specify whether <code>char</code> is signed or unsigned — it is implementation‑defined.</li>
+    <li><code>short</code> has a minimum size of 16 bits, and cannot be larger than <code>int</code>.</li>
+    <li><code>int</code> has a minimum size of 16 bits, and cannot be larger than <code>long</code>.</li>
+    <li><code>long</code> has a minimum size of 32 bits, and cannot be larger than <code>long long</code>.</li>
+    <li><code>long long</code> has a minimum size of 64 bits.</li>
+  </ul>
+
+  <p>
+    That’s all the standard guarantees. It does <strong>not</strong> fix exact sizes.  
+    For example, <code>int</code> could be 16 bits, 32 bits, 64 bits, or even something absurd like 100000 bits — and it would still be valid according to the standard.
+    This means we cannot rely on <code>int</code> having a predictable size across platforms.
+  </p>
+
+  <h3>Examples</h3>
+  <pre><code class="language-cpp">
+// Traditional integer types
+
+// char is exactly 1 byte. Here we assign it an integer in [0,127],
+// which corresponds to ASCII codes (e.g. 97 = 'a', but we will
+// explain character literals later).
+char c = 97;                 // implementation-defined signedness
+
+short s = 123;               // minimum 16 bits, no larger than int
+int i = 456;                 // minimum 16 bits, no larger than long
+long l = 789;                // minimum 32 bits, no larger than long long
+long long ll = 123456789LL;  // minimum 64 bits
+
+// Unsigned versions
+unsigned short us = 123;
+unsigned int ui = 1000;
+unsigned long ul = 50000;
+unsigned long long ull = 100000000ULL;
+</code></pre>
+
+  <h3>Why we prefer standardized types</h3>
+  <p>
+    Because the sizes of <code>int</code>, <code>long</code>, and others are not guaranteed beyond these minimums and relative constraints,  
+    portable code should use standardized types like <code>::std::int_least32_t</code> or <code>::std::uint_least64_t</code>.  
+    These give clear, predictable guarantees across platforms.
+  </p>
+</section>
+
+<section>
+  <h2>Traditional Floating Point Types</h2>
+  <p>
+    In addition to integers, C++ provides traditional floating point types:  
+    <code>float</code>, <code>double</code>, and <code>long double</code>.
+  </p>
+
+  <h3>What the standard guarantees</h3>
+  <ul>
+    <li><code>float</code> is a floating point type with at least 6 decimal digits of precision.</li>
+    <li><code>double</code> has at least as much precision as <code>float</code>, and typically provides about 15 decimal digits.</li>
+    <li><code>long double</code> has at least as much precision as <code>double</code>, and may provide more depending on the implementation.</li>
+  </ul>
+
+  <p>
+    The standard does <strong>not</strong> fix exact sizes or ranges for these types.  
+    Instead, it only guarantees minimum precision and ordering:  
+    <code>float ≤ double ≤ long double</code> in terms of precision and range.  
+    On most modern platforms:
+  </p>
+  <ul>
+    <li><code>float</code> is 32 bits (single precision, IEEE 754).</li>
+    <li><code>double</code> is 64 bits (double precision, IEEE 754).</li>
+    <li><code>long double</code> may be 64 bits, 80 bits (extended precision), or even 128 bits depending on the compiler and architecture.</li>
+  </ul>
+
+  <p>
+    Because the standard only specifies minimum guarantees, you cannot assume exact sizes or formats.  
+    For example, <code>long double</code> might be identical to <code>double</code> on some systems, while on others it may provide extended precision.
+  </p>
+
+  <h3>Examples</h3>
+  <pre><code class="language-cpp">
+// Traditional floating point types
+
+float f = 3.14f;             // at least 6 decimal digits precision
+double d = 2.718281828;      // at least as precise as float, usually ~15 digits
+long double ld = 1.618033988749894L; // at least as precise as double, may be more
+</code></pre>
+
+  <h3>Why standardized types are preferred</h3>
+  <p>
+    Just as with integers, the traditional floating point types have only minimum guarantees.  
+    For predictable behavior across platforms, modern C++ provides standardized types such as  
+    <code>::std::float32_t</code>, <code>::std::float64_t</code>, and <code>::std::float128_t</code> (defined by the IEC 559 / IEEE 754 standard).  
+    These give clear, fixed sizes and precision guarantees, unlike the traditional types.
+  </p>
+</section>
+
+<section>
+  <h2>Boolean Type</h2>
+  <p>
+    C++ provides a dedicated logical type: <code>bool</code>.  
+    Unlike integers or floating point types, <code>bool</code> is designed specifically to represent truth values.
+  </p>
+
+  <h3>What the standard guarantees</h3>
+  <ul>
+    <li><code>bool</code> can only hold two values: <code>true</code> and <code>false</code>.</li>
+    <li>When converted to an integer, <code>false</code> becomes <code>0</code> and <code>true</code> becomes <code>1</code>.</li>
+    <li>Assigning any non‑zero integer to a <code>bool</code> results in <code>true</code>.</li>
+    <li>The exact size of <code>bool</code> in bytes is implementation‑defined, but it is guaranteed to be large enough to store the two values.</li>
+  </ul>
+
+<h3>Examples</h3>
+<pre><code class="language-cpp">
+// Boolean type
+
+bool flag1 = true;    // explicitly true
+bool flag2 = false;   // explicitly false
+
+// Conversion from integers
+bool b1 = 0;          // becomes false
+bool b2 = 1;          // becomes true
+bool b3 = 42;         // any non-zero becomes true
+bool b4 = -42;        // any non-zero (including negative) becomes true
+</code></pre>
+
+  <h3>Printing with fast_io</h3>
+  <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    bool flag = true;
+
+    // Default printing: outputs 0 or 1
+    // With boolalpha: outputs textual true/false
+    println(flag,        // prints "1"
+            " ", 
+            boolalpha(flag)); // prints "true"
+
+    // boolalpha also applies to integers and floating point types.
+    // Any non-zero value will print as "true", zero prints as "false".
+    ::std::size_t i = 42;
+    ::std::float64_t d = 0.0;
+
+    println(boolalpha(i),   // prints "true"
+            "\n",
+            boolalpha(d));  // prints "false"
+}
+</code></pre>
+
+  <h3>Usage</h3>
+  <p>
+    <code>bool</code> is primarily used in conditions, comparisons, and control flow.  
+    With <code>fast_io</code>, you can choose whether to print it as <code>0/1</code> or as <code>true/false</code> using <code>boolalpha</code>.  
+    The same manipulator can be applied to integers and floating point values to interpret them as logical truth values.
+  </p>
+</section>
+
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/02.basics/01.helloworld/" class="prev-button">← </a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/02.basics/03.literals/" class="next-button">Literals →</a>
+    </div>
+  </main>
+</body>
+</html>
