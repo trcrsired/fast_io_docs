@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch2.16: enum class - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch2.16: <code>enum class</code></h1>
+
+    <section>
+      <h2>What is an enum class</h2>
+      <p>
+        An <code>enum class</code> (scoped enumeration) defines a set of named constants that are strongly typed and scoped.  
+        Values do not leak into the surrounding scope, and there is no implicit conversion to integers or other enums.
+      </p>
+      <pre><code class="language-cpp">
+enum class Color { Red, Green, Blue };
+
+// Declaration and comparison without leaking names
+Color c{Color::Red};
+bool is_red{c == Color::Red};
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Underlying type specification</h2>
+      <p>
+        You can specify the underlying storage type. If omitted, it defaults to <code>int</code>.
+      </p>
+      <pre><code class="language-cpp">
+enum class Status : unsigned char { Ok, Warning, Error };
+
+// Declaration using the underlying storage
+Status s{Status::Error};
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Converting to and from the underlying integer type</h2>
+      <p>
+        <code>enum class</code> does not implicitly convert to integers. Use explicit conversions:
+      </p>
+      <ul>
+        <li><strong>::std::to_underlying(value):</strong> Returns the underlying integer value. Include the <code>&lt;utility&gt;</code> header.</li>
+        <li><strong>static_cast&lt;::std::underlying_type_t&lt;T&gt;&gt;(value):</strong> Cast to the enum’s underlying type. Include the <code>&lt;type_traits&gt;</code> header.</li>
+      </ul>
+      <pre><code class="language-cpp">
+#include &lt;utility&gt;      // ::std::to_underlying
+#include &lt;type_traits&gt;  // ::std::underlying_type_t
+
+enum class ErrorCode { None, Minor, Major };
+
+// To integer
+auto v1{::std::to_underlying(ErrorCode::Major)};
+auto v2{static_cast&lt;::std::underlying_type_t&lt;ErrorCode&gt;&gt;(ErrorCode::Major)};
+
+// Back to enum
+ErrorCode e1{static_cast&lt;ErrorCode&gt;(v1)};
+ErrorCode e2{static_cast&lt;ErrorCode&gt;(v2)};
+
+bool ok1{e1 == ErrorCode::Major};
+bool ok2{e2 == ErrorCode::Major};
+</code></pre>
+      <p>
+        Use these integer values for arithmetic, bitwise operations, storage, or interop. Cast back to the enum type when you need semantic clarity.
+      </p>
+    </section>
+
+    <section>
+      <h2>Using enum to bring values into scope</h2>
+      <p>
+        With <code>using enum</code>, you can bring all values of an enum into the current scope and use them without qualification.
+      </p>
+      <pre><code class="language-cpp">
+enum class Color { Red, Green, Blue };
+
+Color a{Color::Green};
+
+// Bring all Color values into scope
+using enum Color;
+
+Color b{Blue};         // No need to write Color::Blue
+bool is_green{a == Green};
+</code></pre>
+      <p>
+        Keep readability in mind. <code>using enum</code> reduces verbosity, but it also hides the enum name. Use it where it clearly improves clarity (e.g., local scopes or short switch-like logic).
+      </p>
+    </section>
+
+    <section>
+      <h2>Arithmetic and bitwise operations with enums</h2>
+      <p>
+        For arithmetic and bitwise operations, convert enum values to their underlying integer type. Define flags or masks explicitly, then compute with integers.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;utility&gt;
+
+enum class Permission : unsigned {
+  Read    = 1u,
+  Write   = 2u,
+  Execute = 4u
+};
+
+using enum Permission; // bring Read, Write, Execute into scope
+
+// Build a mask from enum values via underlying integers
+unsigned mask{::std::to_underlying(Read) | ::std::to_underlying(Write)};
+
+// Test a flag
+bool has_write{(mask & ::std::to_underlying(Write)) != 0u};
+
+// Add a flag
+mask |= ::std::to_underlying(Execute);
+
+// Remove a flag
+mask &= ~::std::to_underlying(Read);
+
+// Store and restore from an integer
+Permission p_exec{static_cast&lt;Permission&gt;(::std::to_underlying(Execute))};
+bool is_exec{p_exec == Execute};
+</code></pre>
+      <p>
+        Avoid performing arithmetic directly on enum values. Always operate on the underlying integer and cast back to the enum where appropriate.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><strong>Scoped and strong:</strong> <code>enum class</code> prevents name leakage and implicit conversions.</li>
+        <li><strong>Underlying type:</strong> Specify one when storage size or ABI matters.</li>
+        <li><strong>Explicit integer conversion:</strong> Use <code>::std::to_underlying</code> or <code>static_cast&lt;::std::underlying_type_t&lt;T&gt;&gt;</code>; include <code>&lt;utility&gt;</code> or <code>&lt;type_traits&gt;</code>.</li>
+        <li><strong>using enum:</strong> Bring values into scope to reduce verbosity; use judiciously.</li>
+        <li><strong>Arithmetic/bitwise:</strong> Operate on underlying integers; cast back to the enum for clarity.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/02.basics/15.limits/" class="prev-button">← Ch2.15: Limits</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/02.basics/17.next/" class="next-button">Ch2.17: bit →</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch2.15: Limits - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch2.15: Limits</h1>
+
+    <section>
+      <h2>What are Limits?</h2>
+      <p>
+        Every numeric type in C++ has a range of values it can represent.  
+        For example, <code>int</code> has a minimum and maximum value depending on the platform.  
+        The header <code>&lt;limits&gt;</code> provides a template <code>std::numeric_limits&lt;T&gt;</code>  
+        that lets you query these properties at compile time.
+      </p>
+      <p>
+        For full details, see the authoritative reference:  
+        <a href="https://en.cppreference.com/w/cpp/types/numeric_limits.html" target="_blank" rel="noopener">
+          cppreference: std::numeric_limits
+        </a>
+      </p>
+    </section>
+
+    <section>
+      <h2>sizeof(T) vs numeric_limits&lt;T&gt;</h2>
+      <p>
+        We have already learned that <code>sizeof(T)</code> tells us how many bytes a type occupies.  
+        But <code>std::numeric_limits&lt;T&gt;</code> goes further: it tells us how many digits of precision the type can represent.
+      </p>
+      <ul>
+        <li><code>std::numeric_limits&lt;T&gt;::digits</code> — number of binary digits (bits) of precision.</li>
+        <li><code>std::numeric_limits&lt;T&gt;::digits10</code> — number of base-10 digits that can be represented without change.</li>
+        <li><code>std::numeric_limits&lt;T&gt;::max_digits10</code> — maximum number of decimal digits needed to uniquely represent all values.</li>
+      </ul>
+      <pre><code class="language-cpp">
+#include &lt;limits&gt;
+#include &lt;cstddef&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    print("sizeof(double) = ", sizeof(double), " bytes\n"
+        "digits (binary) = ", ::std::numeric_limits&lt;double&gt;::digits, "\n"
+        "digits10 (decimal) = ", ::std::numeric_limits&lt;double&gt;::digits10, "\n"
+        "max_digits10 (decimal) = ", ::std::numeric_limits&lt;double&gt;::max_digits10, "\n");
+}
+</code></pre>
+      <p>
+        For example, <code>double</code> is usually 8 bytes (64 bits).  
+        But only 53 of those bits are used for precision (<code>digits</code>),  
+        which corresponds to about 15–17 decimal digits (<code>digits10</code> and <code>max_digits10</code>).
+      </p>
+    </section>
+
+    <section>
+      <h2>Basic Range Example</h2>
+      <pre><code class="language-cpp">
+#include &lt;limits&gt;
+#include &lt;cstddef&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    print("::std::size_t max = ", ::std::numeric_limits&lt;::std::size_t&gt;::max(), "\n"
+        "::std::size_t min = ", ::std::numeric_limits&lt;::std::size_t&gt;::min(), "\n");
+}
+</code></pre>
+      <p>
+        <code>std::numeric_limits&lt;T&gt;::max()</code> gives the largest representable value of type <code>T</code>.  
+        <code>std::numeric_limits&lt;T&gt;::min()</code> gives the smallest representable value.  
+        For unsigned types like <code>::std::size_t</code>, <code>min()</code> is always 0.
+      </p>
+    </section>
+
+    <section>
+      <h2>Other Useful Properties</h2>
+      <ul>
+        <li><code>std::numeric_limits&lt;T&gt;::lowest()</code> — the lowest finite value (for floating-point types).</li>
+        <li><code>std::numeric_limits&lt;T&gt;::epsilon()</code> — the difference between 1 and the next representable value (for floating-point types).</li>
+        <li><code>std::numeric_limits&lt;T&gt;::infinity()</code> — represents positive infinity if supported.</li>
+        <li><code>std::numeric_limits&lt;T&gt;::is_signed</code> — tells whether the type is signed.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Why Limits Matter</h2>
+      <p>
+        Knowing the limits of a type helps prevent overflow and underflow errors.  
+        For example, adding 1 to <code>std::numeric_limits&lt;int&gt;::max()</code> causes overflow.  
+        For floating-point types, understanding <code>digits</code>, <code>digits10</code>, and <code>epsilon</code>  
+        is critical for numerical stability and precision.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li><code>sizeof(T)</code> gives the number of bytes a type occupies.</li>
+        <li><code>std::numeric_limits&lt;T&gt;::digits</code> gives the number of binary digits of precision.</li>
+        <li><code>digits10</code> and <code>max_digits10</code> describe decimal precision.</li>
+        <li><code>max()</code> and <code>min()</code> give the range of values for a type.</li>
+        <li>Floating-point types provide additional properties like <code>lowest</code>, <code>epsilon</code>, and <code>infinity</code>.</li>
+        <li>Understanding limits helps avoid overflow, underflow, and precision errors.</li>
+        <li>See full details at 
+          <a href="https://en.cppreference.com/w/cpp/types/numeric_limits.html" target="_blank" rel="noopener">
+            cppreference: std::numeric_limits
+          </a>.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/02.basics/14.a+b/" class="prev-button">← Ch2.14: A + B</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/02.basics/16.enumclass/" class="next-button">Ch2.16: enum class →</a>
+    </div>
+  </main>
+</body>
+</html>

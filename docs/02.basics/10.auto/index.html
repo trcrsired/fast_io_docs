@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch2.10: auto - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch2.10: <code>auto</code></h1>
+
+    <section>
+      <h2>What is <code>auto</code>?</h2>
+      <p>
+        The keyword <code>auto</code> tells the compiler to deduce the type of an object from its initializer.  
+        Instead of writing the type explicitly, you let the compiler figure it out.
+      </p>
+    </section>
+
+    <section>
+      <h2>Basic Examples</h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+auto a{42zu};       // deduced as ::std::size_t
+auto b{3.14};       // deduced as double
+auto c{'x'};        // deduced as char
+auto d{true};       // deduced as bool
+</code></pre>
+      <p>
+        Each object is initialized with a literal, and the compiler deduces the correct type automatically.
+      </p>
+    </section>
+
+    <section>
+      <h2>Why Use <code>auto</code>?</h2>
+      <ul>
+        <li>Reduces repetition when the type is obvious from the initializer.</li>
+        <li>Improves readability when types are long or complex.</li>
+        <li>Helps avoid mistakes when working with template-heavy code.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Limitations</h2>
+      <ul>
+        <li><code>auto</code> requires an initializer — you cannot declare <code>auto x;</code> without one.</li>
+        <li>The deduced type may not always be what you expect (e.g., narrowing conversions).</li>
+        <li>Be cautious: <code>auto</code> deduces by value unless you explicitly add <code>&amp;</code> or <code>const&amp;</code>.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>References with <code>auto</code></h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t x{100zu};
+
+auto r1{x};        // deduced as ::std::size_t (copy)
+auto& r2{x};       // deduced as ::std::size_t& (reference)
+auto const& r3{x}; // deduced as ::std::size_t const& (const reference)
+</code></pre>
+      <p>
+        Adding <code>&amp;</code> or <code>const&amp;</code> changes the deduction to a reference type.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li><code>auto</code> deduces the type of an object from its initializer.</li>
+        <li>Always provide an initializer when using <code>auto</code>.</li>
+        <li>Use <code>&amp;</code> or <code>const&amp;</code> with <code>auto</code> to bind references.</li>
+        <li>Improves readability and reduces repetition, especially with complex types.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/02.basics/09.references/" class="prev-button">← Ch2.9: References</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/02.basics/11.decltype/" class="next-button">Ch2.11: decltype(T) →</a>
+    </div>
+  </main>
+</body>
+</html>

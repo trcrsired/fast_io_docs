@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch2.9: References - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch2.9: References</h1>
+
+    <section>
+      <h2>What is a Reference?</h2>
+      <p>
+        A reference in C++ is an alias for another object.  
+        It does not create a new object; it simply provides another name for an existing one.  
+        In this chapter, we only cover <strong>lvalue references</strong>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Syntax</h2>
+      <p>
+        A reference is declared using the <code>&amp;</code> symbol after the type.  
+        It must always be bound to an existing object at initialization:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t x{42zu};
+::std::size_t& ref{x}; // ref is a reference bound to object x
+</code></pre>
+      <p>
+        Here, <code>ref</code> is not a separate object. It is another name for <code>x</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Basic Behavior</h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t a{10zu};
+::std::size_t& r{a}; // r bound to object a
+
+r = 20zu; // modifies object a, because r refers to a
+// now a == 20
+</code></pre>
+      <p>
+        Assigning through the reference changes the original object.  
+        References must always be initialized when declared and cannot be reseated.
+      </p>
+    </section>
+
+    <section>
+      <h2>Const References</h2>
+      <p>
+        You can also declare a reference as <code>T const&amp;</code>.  
+        This means the reference cannot be used to modify the original object.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t b{30zu};
+::std::size_t const& cr{b}; // const reference bound to object b
+
+// cr = 40zu; // error: cannot assign through const reference
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Lifetime Extension with <code>T const&amp;</code></h2>
+      <p>
+        A special rule in C++: when you bind a <code>T const&amp;</code> to a temporary object,  
+        the lifetime of that temporary is extended to match the lifetime of the reference.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t const& r{42zu}; // binds to a temporary object
+// The temporary object lives as long as r does
+</code></pre>
+      <p>
+        Without this rule, the temporary object would be destroyed at the end of the full expression,  
+        leaving the reference dangling. Lifetime extension makes <code>T const&amp;</code> safe to use with temporaries.
+      </p>
+    </section>
+
+    <section>
+      <h2>Beware of <code>T &amp;a, b;</code></h2>
+      <p>
+        A common mistake is declaring multiple objects in one line with a reference:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t obj1{1zu};
+::std::size_t obj2{2zu};
+
+::std::size_t &a{obj1}, b{obj2};
+</code></pre>
+      <p>
+        In this declaration:
+      </p>
+      <ul>
+        <li><code>a</code> is a reference bound to <code>obj1</code>.</li>
+        <li><code>b</code> is just a plain <code>::std::size_t</code> object initialized with <code>obj2</code>.</li>
+      </ul>
+      <p>
+        The <code>&amp;</code> binds only to the name immediately following it.  
+        To declare both as references, you must write:
+      </p>
+      <pre><code class="language-cpp">
+::std::size_t obj3{3zu};
+::std::size_t obj4{4zu};
+
+::std::size_t &c{obj3}, &d{obj4}; // both c and d are references
+</code></pre>
+      <p>
+        Best practice: declare one reference per line to avoid confusion.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>A reference is an alias for an existing object.</li>
+        <li>Declared with <code>&amp;</code> after the type.</li>
+        <li>Must be initialized when declared, and cannot be reseated.</li>
+        <li>Assigning through a reference modifies the original object.</li>
+        <li>Use <code>T const&amp;</code> to prevent modification.</li>
+        <li><code>T const&amp;</code> extends the lifetime of temporary objects it binds to.</li>
+        <li>Be careful: <code>T &amp;a, b;</code> makes only <code>a</code> a reference, not <code>b</code>.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/02.basics/08.const/" class="prev-button">← Ch2.8: const</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/02.basics/10.auto/" class="next-button">Ch2.10: auto →</a>
+    </div>
+  </main>
+</body>
+</html>

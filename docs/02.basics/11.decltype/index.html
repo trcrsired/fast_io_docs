@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch2.11: decltype(T) - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch2.11: <code>decltype(T)</code></h1>
+
+    <section>
+      <h2>What is <code>decltype</code>?</h2>
+      <p>
+        The keyword <code>decltype</code> inspects the type of an expression and produces that type.  
+        Unlike <code>auto</code>, which deduces from an initializer, <code>decltype</code> gives you the exact type of an expression without creating an object.
+      </p>
+    </section>
+
+    <section>
+      <h2>Basic Examples</h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t x{42zu};
+
+decltype(x) a{100zu};     // a has type ::std::size_t
+decltype(42zu) b{200zu};  // b has type ::std::size_t
+decltype(x + 1) c{300zu}; // c has type ::std::size_t
+</code></pre>
+      <p>
+        <code>decltype</code> takes the type of the expression inside the parentheses and uses it for the declaration.
+      </p>
+    </section>
+
+    <section>
+      <h2>Difference from <code>auto</code></h2>
+      <ul>
+        <li><code>auto</code> deduces type from an initializer.</li>
+        <li><code>decltype</code> inspects the type of an expression, even without initializing.</li>
+        <li><code>auto</code> may adjust types (e.g., strip references), while <code>decltype</code> preserves them exactly.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>References with <code>decltype</code></h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t y{500zu};
+::std::size_t& ry{y};
+
+decltype(ry) d{y}; // d has type ::std::size_t& (reference)
+</code></pre>
+      <p>
+        <code>decltype</code> preserves reference types. If the expression is a reference, the declared object will also be a reference.
+      </p>
+    </section>
+
+    <section>
+      <h2>Const with <code>decltype</code></h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t const z{600zu};
+
+decltype(z) e{700zu}; // e has type ::std::size_t const
+</code></pre>
+      <p>
+        <code>decltype</code> also preserves <code>const</code> qualifiers from the inspected expression.
+      </p>
+    </section>
+
+    <section>
+      <h2>⚠️ Beware: <code>decltype(x)</code> vs <code>decltype((x))</code></h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t v{800zu};
+
+decltype(v) a{900zu};   // a has type ::std::size_t
+decltype((v)) b{v};     // b has type ::std::size_t& (reference)
+</code></pre>
+      <p>
+        The difference comes from how <code>decltype</code> rules treat expressions:
+      </p>
+      <ul>
+        <li><code>decltype(x)</code> — when the name of an object appears without parentheses, the type is the declared type of the object (here <code>::std::size_t</code>).</li>
+        <li><code>decltype((x))</code> — when the expression is wrapped in parentheses, it is treated as an lvalue expression.  
+            The type becomes <code>T&amp;</code> (here <code>::std::size_t&amp;</code>).</li>
+      </ul>
+      <p>
+        In short: <code>decltype(x)</code> gives the declared type, while <code>decltype((x))</code> gives a reference type because the expression <code>(x)</code> is an lvalue.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li><code>decltype</code> produces the type of an expression.</li>
+        <li>Unlike <code>auto</code>, it does not require an initializer.</li>
+        <li><code>decltype</code> preserves references and <code>const</code> qualifiers.</li>
+        <li><code>decltype(x)</code> is the declared type of <code>x</code>.</li>
+        <li><code>decltype((x))</code> is a reference type, because <code>(x)</code> is an lvalue expression.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/02.basics/10.auto/" class="prev-button">← Ch2.10: auto</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/02.basics/12.decltypeauto/" class="next-button">Ch2.12: decltype(auto) →</a>
+    </div>
+  </main>
+</body>
+</html>

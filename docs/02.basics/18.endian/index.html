@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch2.18: endian - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch2.18: endian</h1>
+
+    <section>
+      <h2>Endianness</h2>
+      <p>
+        Endianness describes how multi-byte values are stored in memory:
+      </p>
+      <ul>
+        <li><strong>Little endian</strong>: least significant byte first.</li>
+        <li><strong>Big endian</strong>: most significant byte first.</li>
+      </ul>
+      <p>
+        Print checks directly with <code>boolalpha</code>:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;bit&gt;
+
+int main() {
+    print("my machine is little endian? ",
+          boolalpha(::std::endian::native == ::std::endian::little), "\n");
+
+    print("my machine is big endian? ",
+          boolalpha(::std::endian::native == ::std::endian::big), "\n");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Use cases</h2>
+      <p>
+        Despite the fact that network protocols and encryption schemes often use big endian, most machines today are little endian.  
+        This means that when handling network packets or cryptographic data, systems often need to swap bytes back and forth.  
+        On architectures with efficient byte-swap instructions, this is trivial.  
+        However, RISC-V is criticized for lacking a default byteswap instruction, which leads to fragmentation and inefficiency.
+      </p>
+    </section>
+
+    <section>
+      <h2><code>::std::byteswap</code></h2>
+      <p>
+        <code>::std::byteswap</code> reverses the byte order of an integer.  
+        Just print the binary before and after:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;bit&gt;
+
+int main() {
+    ::std::uint32_t value{0xDEADBEEFu};
+
+    print("Original value = ", ::fast_io::bin&lt;true,true&gt;(value), "\n");
+
+    value = ::std::byteswap(value);
+
+    print("Byteswapped value = ", ::fast_io::bin&lt;true,true&gt;(value), "\n");
+}
+</code></pre>
+      <p>
+        Example: <code>0xDEADBEEF</code> prints as <code>0b11011110101011011011111011101111</code>.  
+        After byteswap, it prints as <code>0b11101111101110101010110111011110</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Discussion: RISC-V and Endianness</h2>
+      <p>
+        Linus Torvalds has raised strong arguments against adding big-endian support to RISC-V.  
+        From <a href="https://www.phoronix.com/news/Torvalds-No-RISC-V-BE">Phoronix coverage</a>:
+      </p>
+      <blockquote>
+        "Oh Christ. Is somebody seriously working on BE support in 2025?<br><br>
+
+        WHY?<br><br>
+
+        Seriously, that sounds like just *stupid*. Is there some actual real reason for this, or is it more of the 'RISC-V is used in academic design classes and so people just want to do endianness for academic reasons'?<br><br>
+
+        Because I'd be more than happy to just draw a line in the sand and say 'New endianness problems are somebody ELSES problem', and tell people to stop being silly.<br><br>
+
+        Let's not complicate things for no good reason. And there is *NO* reason to add new endianness.<br><br>
+
+        RISC-V is enough of a mess with the millions of silly configuration issues already. Don't make it even worse.<br><br>
+
+        Tell people to just talk to their therapists instead. That's *much* more productive."
+      </blockquote>
+
+      <p>He further added:</p>
+      <blockquote>
+        "Ok, I just googled this, and I am putting my foot down:<br><br>
+
+        WE ARE NOT PREEMPTIVELY SUPPORTING BIG-ENDIAN ON RISC-V<br><br>
+
+        The documented 'reasoning' for that craziness is too stupid for words, but since riscv.org did put it in words, I'll just quote those words here:<br><br>
+
+        'There are still applications where the way data is stored matters, such as the protocols that move data across the Internet, which are defined as big-endian. So when a little-endian system needs to inspect or modify a network packet, it has to swap the big-endian values to little-endian and back, a process that can take as many as 10-20 instructions on a RISC-V target which doesn’t implement the Zbb extension'<br><br>
+
+        In other words, it is suggesting that RISC-V add a big-endian mode due to<br>
+        (a) internet protocols - where byte swapping is not an issue<br>
+        (b) using 'some RISC-V implementations don't do the existing Zbb extension' as an excuse<br><br>
+
+        This is plain insanity. First off, even if byte swapping was a real cost for networking - it's not, the real costs tend to be all in memory subsystems - just implement the damn Zbb extension.<br><br>
+
+        Don't go 'we're too incompetent to implement Zbb, so we're now asking that EVERYBODY ELSE feel the pain of a much *worse* extension and fragmenting RISC-V further'.<br><br>
+
+        I'm hoping this is some April fools joke, but that page is dated 'March 10, 2025'. Close, but not close enough.<br><br>
+
+        This is the kind of silly stuff that just makes RISC-V look bad.<br><br>
+
+        Ben - I'm afraid that that page has 'further reading' pointing to codethink.<br><br>
+
+        I see some CONFIG_CPU_BIG_ENDIAN has already made it in, but this needs to stop.<br><br>
+
+        The mainline kernel is for mainline development. Not for random experiments that make the world a worse place.<br><br>
+
+        And yes, we're open source, and that very much means that anybody is more than welcome to try to prove me wrong.<br><br>
+
+        If it turns out that BE RISC-V becomes a real thing that is relevant and actually finds a place in the RISC-V ecosystem, then _of_course_ we should support it at that point in the mainline kernel.<br><br>
+
+        But I really do think that it actually makes RISC-V only worse, and that we should *not* actively help the fragmentation."
+      </blockquote>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>::std::endian</code> reports your system’s byte order.</li>
+        <li>Most machines today are little endian, even though protocols often use big endian.</li>
+        <li><code>::std::byteswap</code> reverses byte order for interoperability.</li>
+        <li>RISC-V’s lack of a default byteswap instruction is a weakness that causes fragmentation.</li>
+        <li>Linus Torvalds has argued strongly against adding big-endian support to RISC-V, calling it needless complexity.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/02.basics/17.bit/" class="prev-button">← Ch2.17: Bit operations</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/03.statements/" class="next-button">Ch3: statements →</a>
+    </div>
+  </main>
+</body>
+</html>

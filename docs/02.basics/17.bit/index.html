@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch2.17: Bit operations and &lt;bit&gt; header</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch2.17: Bit operations and &lt;bit&gt; header</h1>
+
+    <section>
+      <h2>Bits explained</h2>
+      <p>
+        A bit is a binary digit: either 0 or 1. In an unsigned integer, each bit position represents a power of 2.
+      </p>
+      <pre><code>
+Bit position:   7   6   5   4   3   2   1   0
+Power of two: 128  64  32  16   8   4   2   1
+Binary value:   0   1   0   0   1   0   1   1
+Decimal sum = 64 + 8 + 2 + 1 = 75
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Do not confuse bitwise with logical</h2>
+      <p>
+        Bitwise operators (<code>&amp;</code>, <code>|</code>, <code>^</code>, <code>~</code>) operate on individual bits of integers.
+        Logical operators (<code>&amp;&amp;</code>, <code>||</code>, <code>!</code>) operate on boolean values and return <code>true</code>/<code>false</code>.
+        For example, <code>a &amp; b</code> combines bits; <code>a &amp;&amp; b</code> checks if both are nonzero.
+      </p>
+    </section>
+
+    <section>
+      <h2>Operation summary table</h2>
+      <p>The table shows what each operator does and example results (with binary using <code>fast_io::bin&lt;true,true&gt;</code>).</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Operator</th>
+            <th>Meaning</th>
+            <th>Example (inputs)</th>
+            <th>Decimal result</th>
+            <th>Binary result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>&amp;</td>
+            <td>Bitwise AND</td>
+            <td>a = 10 (0b00001010), b = 12 (0b00001100)</td>
+            <td>8</td>
+            <td>0b00001000</td>
+          </tr>
+          <tr>
+            <td>|</td>
+            <td>Bitwise OR</td>
+            <td>a = 10 (0b00001010), b = 12 (0b00001100)</td>
+            <td>14</td>
+            <td>0b00001110</td>
+          </tr>
+          <tr>
+            <td>^</td>
+            <td>Bitwise XOR</td>
+            <td>a = 10 (0b00001010), b = 12 (0b00001100)</td>
+            <td>6</td>
+            <td>0b00000110</td>
+          </tr>
+          <tr>
+            <td>~</td>
+            <td>Bitwise NOT</td>
+            <td>a = 10 (0b00001010)</td>
+            <td>Platform-width dependent</td>
+            <td>Invert all bits (e.g., for 32-bit: 0b11111111111111111111111111110101)</td>
+          </tr>
+          <tr>
+            <td>&lt;&lt;</td>
+            <td>Left shift</td>
+            <td>a = 10 (0b00001010), shift 1</td>
+            <td>20</td>
+            <td>0b00010100</td>
+          </tr>
+          <tr>
+            <td>&gt;&gt;</td>
+            <td>Right shift</td>
+            <td>b = 12 (0b00001100), shift 2</td>
+            <td>3</td>
+            <td>0b00000011</td>
+          </tr>
+          <tr>
+            <td>&amp;&amp;</td>
+            <td>Logical AND</td>
+            <td>a = 2, b = 4</td>
+            <td>1 (true)</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>||</td>
+            <td>Logical OR</td>
+            <td>a = 2, b = 4</td>
+            <td>1 (true)</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Bitwise operators with binary output</h2>
+      <p>
+        Use <code>fast_io::bin&lt;true,true&gt;</code> to print a value’s binary with <code>0b</code> prefix and zero padding.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    unsigned a{0b1010u}; // 10, 0b00001010
+    unsigned b{0b1100u}; // 12, 0b00001100
+
+    println("a = ", a, " ", bin&lt;true,true&gt;(a)); 
+    // a = 10 0b00001010
+
+    println("b = ", b, " ", bin&lt;true,true&gt;(b)); 
+    // b = 12 0b00001100
+
+    auto andv{a & b};
+    println("a & b = ", andv, " ", bin&lt;true,true&gt;(andv)); 
+    // a & b = 8 0b00001000
+
+    auto orv{a | b};
+    println("a | b = ", orv, " ", bin&lt;true,true&gt;(orv)); 
+    // a | b = 14 0b00001110
+
+    auto xorv{a ^ b};
+    println("a ^ b = ", xorv, " ", bin&lt;true,true&gt;(xorv)); 
+    // a ^ b = 6 0b00000110
+
+    auto notv{~a};
+    println("~a = ", notv, " ", bin&lt;true,true&gt;(notv)); 
+    // ~a = (platform-dependent). For 32-bit unsigned: 4294967285 0b11111111111111111111111111110101
+
+    auto lshift{a << 1};
+    println("a << 1 = ", lshift, " ", bin&lt;true,true&gt;(lshift)); 
+    // a << 1 = 20 0b00010100
+
+    auto rshift{b >> 2};
+    println("b >> 2 = ", rshift, " ", bin&lt;true,true&gt;(rshift)); 
+    // b >> 2 = 3 0b00000011
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Shift intuition (ASCII diagram)</h2>
+      <pre><code>
+Start:             0 b 0 0 0 0 1 0 1 0   (= 10)
+Left shift by 1 →  0 b 0 0 0 1 0 1 0 0   (= 20)
+
+Start:             0 b 0 0 0 0 1 1 0 0   (= 12)
+Right shift by 2 → 0 b 0 0 0 0 0 0 1 1   (= 3)
+      </code></pre>
+      <p>
+        Left shift moves bits left (fills right with 0); right shift moves bits right (fills left with 0 for unsigned).
+      </p>
+    </section>
+
+    <section>
+      <h2>&lt;bit&gt; header utilities</h2>
+      <p>
+        The &lt;bit&gt; header provides tools for analyzing and transforming bit patterns.  
+        See cppreference: <a href="https://en.cppreference.com/w/cpp/header/bit.html" target="_blank">cppreference: &lt;bit&gt; header</a>.
+      </p>
+      <ul>
+        <li><strong>::std::popcount(x):</strong> number of set (1) bits.</li>
+        <li><strong>::std::countl_zero(x):</strong> leading zeros (depends on width).</li>
+        <li><strong>::std::countr_zero(x):</strong> trailing zeros.</li>
+        <li><strong>::std::rotl(x, s):</strong> rotate left by s bits.</li>
+        <li><strong>::std::rotr(x, s):</strong> rotate right by s bits.</li>
+        <li><strong>::std::bit_width(x):</strong> number of bits needed to represent x.</li>
+      </ul>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;bit&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    unsigned x{0b101100u}; // 44, 0b00101100
+
+    println("x = ", x, " ", bin&lt;true,true&gt;(x)); 
+    // x = 44 0b00101100
+
+    println("popcount = ", ::std::popcount(x)); 
+    // popcount = 3
+
+    println("countl_zero = ", ::std::countl_zero(x)); 
+    // countl_zero = (depends on width; e.g., 26 for 32-bit unsigned)
+
+    println("countr_zero = ", ::std::countr_zero(x)); 
+    // countr_zero = 2
+
+    auto rotl2{::std::rotl(x,2)};
+    println("rotl(x,2) = ", rotl2, " ", bin&lt;true,true&gt;(rotl2)); 
+    // rotl(x,2) = 176 0b10110000
+
+    auto rotr2{::std::rotr(x,2)};
+    println("rotr(x,2) = ", rotr2, " ", bin&lt;true,true&gt;(rotr2)); 
+    // rotr(x,2) = 11 0b00001011
+
+    println("bit_width = ", ::std::bit_width(x)); 
+    // bit_width = 6 (needs 6 bits to represent 44)
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><strong>Binary insight:</strong> Print with <code>fast_io::bin&lt;true,true&gt;</code> to see bit changes.</li>
+        <li><strong>Bitwise vs logical:</strong> Do not confuse <code>&amp;</code>/<code>|</code> with <code>&amp;&amp;</code>/<code>||</code>.</li>
+        <li><strong>Operators:</strong> AND, OR, XOR, NOT, shifts manipulate bit patterns; shifts insert zeros for unsigned.</li>
+        <li><strong>Utilities:</strong> Use &lt;bit&gt; functions for counting, shifting via rotation, and measuring width.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/02.basics/16.enumclass/" class="prev-button">← Ch2.16: enum class</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/02.basics/18.endian_bytecast/" class="next-button">Ch2.18: endian →</a>
+    </div>
+  </main>
+</body>
+</html>

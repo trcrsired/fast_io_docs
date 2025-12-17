@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch2.12: decltype(auto) - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch2.12: <code>decltype(auto)</code></h1>
+
+    <section>
+      <h2>What is <code>decltype(auto)</code>?</h2>
+      <p>
+        The keyword <code>decltype(auto)</code> combines the behavior of <code>auto</code> and <code>decltype</code>.  
+        It deduces the type of an expression, but preserves references and <code>const</code> qualifiers like <code>decltype</code> does.
+      </p>
+    </section>
+
+    <section>
+      <h2>Basic Examples</h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t x{42zu};
+
+auto a{x};            // deduced as ::std::size_t (copy)
+decltype(auto) b{x};  // deduced as ::std::size_t& (reference)
+</code></pre>
+      <p>
+        <code>auto</code> strips references, while <code>decltype(auto)</code> preserves them.
+      </p>
+    </section>
+
+    <section>
+      <h2>Return Types</h2>
+      <p>
+        We will introduce functions in detail later.  
+        For now, we show <code>decltype(auto)</code> with functions first, because return types are the most common use case.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t global{100zu};
+
+auto get_copy() {
+    return global; // returns ::std::size_t (copy)
+}
+
+decltype(auto) get_ref() {
+    return (global); // returns ::std::size_t& (reference)
+}
+</code></pre>
+      <p>
+        Using <code>decltype(auto)</code> ensures that if you return a reference, the caller receives a reference, not a copy.
+      </p>
+    </section>
+
+    <section>
+      <h2>⚠️ Beware: Parentheses Matter</h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t y{200zu};
+
+decltype(auto) c{y};   // deduced as ::std::size_t (copy)
+decltype(auto) d{(y)}; // deduced as ::std::size_t& (reference)
+</code></pre>
+      <p>
+        Just like with <code>decltype</code>, parentheses change the meaning:
+      </p>
+      <ul>
+        <li><code>decltype(auto) c{y};</code> → declared type of <code>y</code> (copy).</li>
+        <li><code>decltype(auto) d{(y)};</code> → lvalue expression, so deduced as reference.</li>
+      </ul>
+      <p>
+        Always be mindful of parentheses when using <code>decltype(auto)</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li><code>decltype(auto)</code> deduces type like <code>decltype</code>, but with the convenience of <code>auto</code>.</li>
+        <li>Preserves references and <code>const</code> qualifiers.</li>
+        <li>Most useful in function return types to avoid unintended copies.</li>
+        <li>Parentheses around expressions change deduction: <code>x</code> vs <code>(x)</code>.</li>
+        <li>Functions will be explained later, but this preview shows why <code>decltype(auto)</code> matters.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/02.basics/11.decltype/" class="prev-button">← Ch2.11: decltype(T)</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/02.basics/13.casting/" class="next-button">Ch2.13: Casting →</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch2.13: Casting - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch2.13: Casting</h1>
+
+    <section>
+      <h2>Implicit casting and type promotion</h2>
+      <p>
+        The compiler automatically converts objects to a common type when evaluating expressions.  
+        This is called <strong>implicit casting</strong> or <strong>type promotion</strong>.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+
+::std::uint8_t a{10u};
+::std::uint8_t b{20u};
+
+auto sum{a + b}; // both promoted to int before addition
+// sum has type int, not ::std::uint8_t
+</code></pre>
+      <p>
+        Small integer types (char, unsigned char, short, unsigned short) are promoted to int (or unsigned int) for arithmetic.  
+        When mixing types, the compiler promotes to a common type to perform the computation safely.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+double pi{3.14};
+::std::size_t n{2zu};
+
+auto result{pi * n}; // n promoted to double, result is double
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Explicit casting overview</h2>
+      <p>
+        When you need a specific conversion, use explicit casts. Modern C++ provides distinct operators for different intents:  
+        <code>static_cast</code>, <code>const_cast</code>, <code>reinterpret_cast</code>, and <code>::std::bit_cast</code> (C++20).
+      </p>
+      <p>
+        ⚠️ But remember: if you can avoid casting altogether, that is usually the best choice.  
+        Design your code so that types match naturally.
+      </p>
+    </section>
+
+    <section>
+      <h2>static_cast</h2>
+      <p>
+        Use <code>static_cast</code> for well-defined, compile-time-checked conversions (e.g., numeric types).
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+double pi{3.14159};
+::std::size_t n{static_cast&lt;::std::size_t&gt;(pi)}; // converts double to size_t
+</code></pre>
+    </section>
+
+    <section>
+      <h2>const_cast</h2>
+      <p>
+        Use <code>const_cast</code> to add or remove <code>const</code> qualifiers.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t const x{42zu};
+auto&amp; y{const_cast&lt;::std::size_t&amp;&gt;(x)}; // removes const
+</code></pre>
+      <p>
+        ⚠️ Writing through <code>y</code> is undefined behavior if <code>x</code> was truly const.
+      </p>
+    </section>
+
+    <section>
+      <h2>reinterpret_cast</h2>
+      <p>
+        <code>reinterpret_cast</code> reinterprets the bit pattern of an object.  
+        ⚠️ It is <strong>usually wrong</strong> and should be avoided.
+      </p>
+      <p>
+        The only common exception is casting to <code>char*</code> or <code>unsigned char*</code> to inspect raw bytes.  
+        <strong>Do not use <code>signed char*</code></strong> for type punning.  
+        Even with <code>char*</code> or <code>unsigned char*</code>, you must consider the strict aliasing rule.  
+        See: <a href="https://gist.github.com/shafik/848ae25ee209f698763cffee272a58f8" target="_blank" rel="noopener">
+          What is the Strict Aliasing Rule and Why do we care?
+        </a>.  
+        We will discuss this further in the future pointer section.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstdint&gt;
+
+::std::uint32_t u{0xDEADBEEFu};
+auto p{reinterpret_cast&lt;unsigned char const*&gt;(&u)}; // raw byte view
+</code></pre>
+      <p>
+        If you want to treat one type as another (for example, a <code>float64_t</code> as a <code>uint64_t</code>),  
+        you should <strong>not</strong> use <code>reinterpret_cast</code>.  
+        Instead, use <code>::std::bit_cast</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>::std::bit_cast</h2>
+      <p>
+        <code>::std::bit_cast</code> (C++20) safely reinterprets bits when source and destination types have the same size and are trivially copyable.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;bit&gt;
+#include &lt;cstdint&gt;
+
+double d{3.14};
+::std::uint64_t bits{::std::bit_cast&lt;::std::uint64_t&gt;(d)}; // safely copies bit pattern
+</code></pre>
+    </section>
+
+<section>
+  <h2>dynamic_cast</h2>
+  <p>
+    <code>dynamic_cast</code> is used with polymorphism to safely cast between base and derived classes.  
+    In practice it is slow, complex, and often banned in performance-critical code.  
+    Herb Sutter has proposed a <code>::std::down_cast</code> for the future,  
+    which would be much cheaper when it doesn’t cross virtual inheritance links or DLL boundaries.
+  </p>
+  <p>
+    For now: avoid <code>dynamic_cast</code>. Prefer designs that do not require it.  
+    You are free to skip this section — we list it here only to show that there is such a thing as <code>dynamic_cast</code>.  
+    We will discuss it properly in the future when we cover pointers and polymorphism.
+  </p>
+  <p>
+    Here is a very simple example just to show the syntax:
+  </p>
+  <pre><code class="language-cpp">
+struct Base { virtual ~Base() = default; };
+struct Derived : Base { };
+
+Derived d;
+Base* b = ::std::addressof(d);
+Derived* pd = dynamic_cast&lt;Derived*&gt;(b); // safe downcast
+
+if(pd) {
+    print("dynamic_cast succeeded\n");
+}
+</code></pre>
+  <p>
+    This works because <code>b</code> actually points to a <code>Derived</code>.  
+    If <code>b</code> pointed to some other subclass, <code>dynamic_cast</code> would return <code>nullptr</code>.
+  </p>
+</section>
+
+    <section>
+      <h2>C-style casts</h2>
+      <p>
+        A C-style cast looks like <code>(type)expression</code>.  
+        It is dangerous because it tries <strong>too much</strong>:  
+        the compiler will attempt a <code>const_cast</code>, then a <code>static_cast</code>, and finally a <code>reinterpret_cast</code> if needed.  
+        This makes it unclear which conversion is actually happening.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+double pi{3.14159};
+::std::size_t n{(::std::size_t)pi}; // C-style cast
+</code></pre>
+      <p>
+        ⚠️ Avoid C-style casts. They hide intent and can silently perform unsafe conversions.  
+        Always prefer the modern cast operators.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>Implicit casting promotes small integers to int and finds common types in mixed expressions.</li>
+        <li>Use <code>static_cast</code> for clear, compile-time-checked conversions.</li>
+        <li>Use <code>const_cast</code> only to change qualifiers when the underlying object is truly non-const.</li>
+        <li><code>reinterpret_cast</code> is usually wrong; only consider <code>char*</code>/<code>unsigned char*</code> for byte inspection, and mind strict aliasing.</li>
+        <li>Use <code>::std::bit_cast</code> for safe, explicit bit reinterpretation.</li>
+        <li><code>dynamic_cast</code> exists, but is slow and often banned. Syntax shown above for awareness only.</li>
+        <li>Avoid C-style casts; they try too many conversions (const_cast → static_cast → reinterpret_cast) and hide intent.</li>
+        <li>If you can avoid casting altogether, that is best — design your code so types match naturally.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/02.basics/12.decltypeauto/" class="prev-button">← Ch2.12: decltype(auto)</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/02.basics/14.a+b/" class="next-button">Ch2.14: A + B →</a>
+    </div>
+  </main>
+</body>
+</html>
