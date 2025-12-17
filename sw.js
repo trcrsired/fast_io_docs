@@ -22,6 +22,8 @@ const urlsToCache = [
   "/docs/02.basics/02.datatypes/",
   "/docs/02.basics/02.datatypes/01.ascii/",
   "/docs/02.basics/03.literals/",
+  "/docs/02.basics/04.initialization/",
+  "/docs/02.basics/05.assignment/",
   "/docs/04.dsal/",
   "/docs/04.dsal/01.string/",
 ];

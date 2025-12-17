@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch2.4: Initialization - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch2.4: Initialization</h1>
+
+    <section>
+      <h2>What Is an Object?</h2>
+      <p>
+        In C++, an <strong>object</strong> is a region of storage with a type.  
+        Every object has a type that determines what values it can hold and what operations are valid.  
+        When we declare an object, we reserve memory for it, and when we <strong>initialize</strong> it, we give it its first value.  
+        Initialization ensures that an object starts in a well-defined state instead of containing indeterminate data.
+      </p>
+    </section>
+
+    <section>
+      <h2>Initialization Styles</h2>
+      <p>
+        C++ provides several styles of initialization.  
+        In modern C++, we should <strong>prefer uniform initialization with <code>{}</code></strong>, because it is consistent and prevents narrowing conversions.
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;stdfloat&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // 1. Copy initialization with =
+    ::std::size_t a = 42;            // object a initialized to 42
+    println("a = ", a);              // prints 42
+
+    // 2. Direct initialization with ()
+    ::std::int_least32_t b(100);     // object b initialized to 100
+    println("b = ", b);              // prints 100
+
+    // 3. Uniform initialization with {}
+    ::std::float64_t pi{3.14159};    // object pi initialized to 3.14159
+    println("pi = ", pi);            // prints 3.14159
+
+    // 4. Zero initialization with {}
+    ::std::uint_least16_t u{};       // object u initialized to 0
+    println("u = ", u);              // prints 0
+
+    // 5. Copy initialization from another object
+    ::std::size_t c = a;             // object c initialized with value of a
+    println("c = ", c);              // prints 42
+
+    // 6. Multiple objects initialized together
+    ::std::size_t m = 1, n = 2, o = 3;
+    println("m = ", m, " n = ", n, " o = ", o); // prints 1 2 3
+
+    // 7. Boolean initialization
+    bool flag = true;                // object flag initialized to true
+    println("flag = ", flag);        // prints 1
+    println("flag (boolalpha) = ", boolalpha(flag)); // prints true
+
+    // 8. Typed integer literals with suffixes
+    ::std::size_t sz = 30zu;         // literal 30 as ::std::size_t
+    println("sz = ", sz);            // prints 30
+
+    unsigned int ui = 42u;           // literal 42 as unsigned int
+    println("ui = ", ui);            // prints 42
+
+    long long big = 1000000ll;       // literal as long long
+    println("big = ", big);          // prints 1000000
+
+    // 9. Floating-point literals with suffixes
+    float f = 3.14f;                 // literal as float
+    double d = 3.14;                 // literal as double (default)
+    long double ld = 3.14L;          // literal as long double
+
+    println("f = ", f);              // prints 3.14
+    println("d = ", d);              // prints 3.14
+    println("ld = ", ld);            // prints 3.14
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Copy vs Direct Initialization</h2>
+      <p>
+        At first glance, <strong>copy initialization</strong> (<code>=</code>) and <strong>direct initialization</strong> (<code>()</code>) look similar.  
+        Both give an object its initial value, but they are not the same:
+      </p>
+
+      <ul>
+        <li><strong>Copy initialization</strong> uses <code>=</code>. It may allow implicit conversions and can call a converting constructor.</li>
+        <li><strong>Direct initialization</strong> uses <code>()</code>. It is stricter and prefers constructors that exactly match the arguments.</li>
+      </ul>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;string&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Copy initialization allows implicit conversions
+    ::std::string s1 = "Hello";   // const char* converted to std::string
+    println("s1 = ", s1);
+
+    // Direct initialization calls constructor directly
+    ::std::string s2("World");
+    println("s2 = ", s2);
+
+    // Narrowing conversions
+    int i1 = 3.5;   // copy initialization, allowed (truncated to 3)
+    // int i2(3.5); // direct initialization, error: narrowing not allowed
+}
+</code></pre>
+
+      <p>
+        <strong>Key takeaway:</strong> Copy initialization is more permissive and may perform implicit conversions.  
+        Direct initialization is stricter.  
+        In modern C++, we should <strong>prefer uniform initialization with <code>{}</code></strong>, because it is consistent and prevents narrowing conversions.
+      </p>
+    </section>
+
+    <section>
+      <h2>Typed Constants with Macros</h2>
+      <p>
+        In addition to suffixes like <code>zu</code> or <code>ll</code>, C++ also provides macros in  
+        <code>&lt;cinttypes&gt;</code> to create constants of exact integer types.  
+        These macros are useful when you want to guarantee the type of a literal across platforms.
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cinttypes&gt;
+#include &lt;cstdint&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Constant of type ::std::uint_least32_t
+    ::std::uint_least32_t x = UINT_LEAST32_C(20);
+    println("x = ", x); // prints 20
+
+    // Constant of type ::std::int_least64_t
+    ::std::int_least64_t y = INT_LEAST64_C(1000000);
+    println("y = ", y); // prints 1000000
+}
+</code></pre>
+
+      <p>
+        These macros expand to literals with the correct type.  
+        For example, <code>UINT_LEAST32_C(20)</code> ensures the constant is of type  
+        <code>::std::uint_least32_t</code>, regardless of the underlying platform.
+      </p>
+    </section>
+
+    <section>
+      <h2>Comparison of Initialization Styles</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Style</th>
+            <th>Syntax</th>
+            <th>Example</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Copy initialization</td>
+            <td><code>=</code></td>
+            <td><code>int x = 5;</code></td>
+            <td>Traditional style, may allow implicit conversions.</td>
+          </tr>
+          <tr>
+            <td>Direct initialization</td>
+            <td><code>()</code></td>
+            <td><code>int x(5);</code></td>
+            <td>Constructor-style, stricter than copy.</td>
+          </tr>
+                    <tr>
+            <td>Uniform initialization</td>
+            <td><code>{}</code></td>
+            <td><code>int x{5};</code></td>
+            <td><strong>Preferred in modern C++</strong>, prevents narrowing conversions.</td>
+          </tr>
+          <tr>
+            <td>Zero initialization</td>
+            <td><code>{}</code></td>
+            <td><code>int x{};</code></td>
+            <td>Initializes to 0 (or equivalent).</td>
+          </tr>
+          <tr>
+            <td>Copy from object</td>
+            <td><code>= other</code></td>
+            <td><code>int y = x;</code></td>
+            <td>Initializes with another object’s value.</td>
+          </tr>
+          <tr>
+            <td>Multiple objects</td>
+            <td><code>int a=1, b=2;</code></td>
+            <td><code>int a=1, b=2;</code></td>
+            <td>Compact declaration of several objects.</td>
+          </tr>
+          <tr>
+            <td>Boolean</td>
+            <td><code>= true</code></td>
+            <td><code>bool flag = true;</code></td>
+            <td>Initializes to true/false.</td>
+          </tr>
+          <tr>
+            <td>Typed integer literal</td>
+            <td><code>zu, u, l, ll</code></td>
+            <td><code>auto n = 30zu;</code></td>
+            <td>Suffixes specify exact integer type.</td>
+          </tr>
+          <tr>
+            <td>Floating-point literal</td>
+            <td><code>f, L</code></td>
+            <td><code>float f = 3.14f;</code></td>
+            <td>Suffixes specify float or long double.</td>
+          </tr>
+          <tr>
+            <td>Typed constant macros</td>
+            <td><code>UINT_LEAST32_C(...)</code></td>
+            <td><code>auto x = UINT_LEAST32_C(20);</code></td>
+            <td>Macros from &lt;cinttypes&gt; guarantee exact integer type across platforms.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/02.basics/02.literals/" class="prev-button">← Ch2.3: Literals</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/02.basics/05.assignment/" class="next-button">Ch2.5: Assignment →</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch2.5: Assignment - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch2.5: Assignment</h1>
+
+    <section>
+      <h2>What Is Assignment?</h2>
+      <p>
+        In C++, <strong>assignment</strong> means giving an existing object a new value after it has already been initialized.  
+        <strong>Assignment is not initialization.</strong> Initialization happens when an object is created and given its first value.  
+        Assignment happens later, when you replace the value stored in that object.
+      </p>
+    </section>
+
+    <section>
+      <h2>Examples of Assignment</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Initialization
+    ::std::size_t a{10};             // object a initialized to 10
+    println("a = ", a);              // prints 10
+
+    // Assignment
+    a = 20;                          // assign new value to a
+    println("a = ", a);              // prints 20
+
+    // Multiple assignments
+    ::std::int_least32_t b{5};       // initialized to 5
+    println("b = ", b);              // prints 5
+    b = 15;                          // assigned new value
+    println("b = ", b);              // prints 15
+    b = b + 10;                      // assigned result of expression
+    println("b = ", b);              // prints 25
+
+    // Boolean assignment
+    bool flag{false};                // initialized to false
+    println("flag = ", flag);        // prints 0
+    flag = true;                     // assigned new value
+    println("flag = ", flag);        // prints 1
+
+    // Assignment between objects
+    ::std::size_t x{100};
+    ::std::size_t y{200};
+    println("x = ", x, " y = ", y);  // prints 100 200
+    x = y;                           // assign value of y to x
+    println("x = ", x, " y = ", y);  // prints 200 200
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Assignment vs Initialization</h2>
+      <p>
+        It is important to distinguish between <strong>initialization</strong> and <strong>assignment</strong>:
+      </p>
+      <ul>
+        <li><strong>Initialization</strong> gives an object its first value at the moment it is created.</li>
+        <li><strong>Assignment</strong> replaces the value of an object that already exists.</li>
+      </ul>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    int i = 5;       // initialization
+    println("i = ", i);
+
+    i = 10;          // assignment
+    println("i = ", i);
+}
+</code></pre>
+
+      <p>
+        <strong>Key takeaway:</strong> Initialization happens once, when the object is created.  
+        Assignment can happen many times during the lifetime of the object.
+      </p>
+    </section>
+
+    <section>
+      <h2>Lvalues and Rvalues</h2>
+      <p>
+        To understand assignment, we need to know the concepts of <strong>lvalue</strong> and <strong>rvalue</strong>:
+      </p>
+      <ul>
+        <li><strong>Lvalue</strong> (left value): An expression that refers to a memory location and can appear on the left-hand side of an assignment.  
+            Examples: named objects like <code>x</code>, dereferenced pointers like <code>*p</code>.</li>
+        <li><strong>Rvalue</strong> (right value): A temporary value or literal that does not persist beyond the expression.  
+            Examples: <code>42</code>, <code>x + y</code>, <code>3.14</code>.</li>
+      </ul>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    int x{5};          // x is an lvalue
+    int y{10};         // y is an lvalue
+
+    x = y;             // OK: lvalue (x) = lvalue (y)
+    println("x = ", x);
+
+    x = 42;            // OK: lvalue (x) = rvalue (42)
+    println("x = ", x);
+
+    // 42 = x;         // ERROR: rvalue cannot be on the left-hand side
+}
+</code></pre>
+
+      <p>
+        <strong>Key takeaway:</strong> The left-hand side of an assignment must be an <strong>lvalue</strong>.  
+        The right-hand side can be either an lvalue or an rvalue.  
+        This distinction is fundamental in C++ and becomes even more important when learning about references and move semantics.
+      </p>
+    </section>
+
+    <section>
+      <h2>Comparison Table</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Concept</th>
+            <th>When</th>
+            <th>Syntax</th>
+            <th>Example</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Initialization</td>
+            <td>At object creation</td>
+            <td><code>=</code>, <code>()</code>, <code>{}</code></td>
+            <td><code>int x{5};</code></td>
+            <td>Gives the object its first value.</td>
+          </tr>
+          <tr>
+            <td>Assignment</td>
+            <td>After object exists</td>
+            <td><code>=</code></td>
+            <td><code>x = 10;</code></td>
+            <td>Replaces the object’s current value.</td>
+          </tr>
+          <tr>
+            <td>Lvalue</td>
+            <td>Refers to memory location</td>
+            <td>Can appear on left-hand side</td>
+            <td><code>x = 42;</code></td>
+            <td>Named objects, dereferenced pointers.</td>
+          </tr>
+          <tr>
+            <td>Rvalue</td>
+            <td>Temporary value</td>
+            <td>Can appear on right-hand side</td>
+            <td><code>x = y + 2;</code></td>
+            <td>Literals, temporary results.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/02.basics/04.initialization/" class="prev-button">← Ch2.4: Initialization</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/02.basics/06.operators/" class="next-button">Ch2.6: Operators →</a>
+    </div>
+  </main>
+</body>
+</html>
