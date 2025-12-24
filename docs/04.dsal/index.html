@@ -3,105 +3,56 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch4: dsal - C++ Tutorial with fast_io</title>
+  <title>dsal - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
     <h1>Ch4: dsal</h1>
 
     <section>
-      <h2>What is dsal?</h2>
+      <h2>Overview</h2>
       <p>
-        <code>dsal</code> stands for <em>Data Structures and Algorithms</em>. In the context of
-        <code>fast_io</code>, this chapter introduces container implementations and algorithmic
-        utilities that support the I/O system. While <code>fast_io</code> is primarily an input/output
-        library, certain features require efficient data structures to function correctly.
+        The <code>dsal</code> module in <code>fast_io</code> provides a set of
+        simple, predictable containers. These containers form the foundation for
+        storing and organizing data in your programs.
       </p>
-    </section>
 
-    <section>
-      <h2>Why does an I/O library have containers?</h2>
       <p>
-        Initially, containers were deliberately avoided in <code>fast_io</code> to keep the library
-        focused purely on I/O. However, some I/O features cannot be implemented without them. For example:
+        In this chapter, you will learn:
       </p>
+
       <ul>
-        <li><strong>File system traversal:</strong> Recursive iteration requires a stack or similar container to store directory entries.</li>
-        <li><strong>Locale system:</strong> Implementing a locale system based on glibc metadata requires a map-like structure to manage character and formatting rules.</li>
+        <li>how <code>::fast_io::string</code> stores and grows character sequences</li>
+        <li>how <code>::fast_io::vector</code> manages a growable sequence of elements</li>
+        <li>how <code>::fast_io::array</code> provides a fixed‑size sequence</li>
+        <li>how to build 2D, 3D, and higher‑dimension structures by nesting containers</li>
       </ul>
+
       <p>
-        Without containers, these essential features would be impossible to provide.
+        These four containers give you a solid foundation for working with sequences
+        of data. They also prepare you for Chapter 5, where you will learn how
+        pointers interact with these containers.
       </p>
     </section>
 
     <section>
-      <h2>Why not just use the C++ standard library?</h2>
-      <p>
-        The C++ standard containers are not freestanding, while <code>fast_io</code> is designed as a
-        freestanding library. Standard containers rely on exceptions like <code>std::logic_error</code>,
-        which are unnecessary here. Instead, <code>fast_io</code> prefers to use <code>__builtin_trap</code>
-        to terminate on programming bugs, ensuring safer and faster semantics.
-      </p>
-      <p>
-        Other limitations of the standard library include:
-      </p>
+      <h2>Contents</h2>
       <ul>
-        <li><strong>Inefficient allocator design:</strong> <code>std::allocator&lt;T&gt;</code> duplicates code unnecessarily for types of the same size, preventing debloating optimizations.</li>
-        <li><strong>Problematic polymorphic memory resources (pmr):</strong> These often introduce fragmentation and are rarely used in real-world code.</li>
-        <li><strong>Overuse of <code>new</code> and exceptions:</strong> <code>fast_io</code> avoids these, preferring fail-fast allocation strategies.</li>
-        <li><strong>Missing data structures:</strong> The standard library does not provide useful containers like B‑trees or string maps, which are essential for efficient I/O tasks.</li>
-        <li><strong>Flawed designs:</strong> <code>std::list</code> maintains a <code>size()</code> member, which adds overhead and defeats the purpose of using a linked list.</li>
+        <li><a href="/docs/04.dsal/01.string/">Ch4.1: string</a></li>
+        <li><a href="/docs/04.dsal/02.vector/">Ch4.2: vector</a></li>
+        <li><a href="/docs/04.dsal/03.array/">Ch4.3: array</a></li>
+        <li><a href="/docs/04.dsal/04.multidcontainers/">Ch4.4: Multi‑Dimension Containers</a></li>
       </ul>
-    </section>
-
-    <section>
-      <h2>Unified Interface for I/O and Containers</h2>
-      <p>
-        One of the core goals of <code>fast_io</code> is to redesign both I/O and containers
-        under a consistent interface. In traditional C++ libraries, I/O streams and containers
-        often expose different semantics, error handling strategies, and allocation models.
-        This inconsistency leads to subtle bugs and unnecessary complexity.
-      </p>
-      <p>
-        By aligning the design of containers with the same principles as I/O — fail-fast
-        allocation, <code>noexcept</code> guarantees, and lean abstractions — we ensure that
-        developers can reason about both systems in the same way. This reduces friction,
-        avoids duplicated logic, and makes it easier to build robust applications.
-      </p>
-      <ul>
-        <li>Containers and I/O streams share the same error handling philosophy (terminate on corruption or logic bugs).</li>
-        <li>Allocators are unified, avoiding fragmentation and inefficiency.</li>
-        <li>Interfaces are predictable, lowering the risk of misuse and subtle inconsistencies.</li>
-      </ul>
-      <p>
-        The result is a coherent ecosystem where I/O and data structures complement each other,
-        rather than feeling like separate worlds stitched together.
-      </p>
-    </section>
-
-    <section>
-      <h2>The Philosophy</h2>
-      <p>
-        The guiding principle is that allocation failures and programming bugs should terminate
-        immediately rather than attempt recovery. This approach has been validated in practice:
-        Microsoft tested replacing <code>std::bad_alloc</code> with termination in critical software
-        like Office, and found no noticeable increase in crashes. Similarly, modern operating systems
-        like Android and iOS routinely kill background processes without user complaints.
-      </p>
-      <p>
-        In short, <code>fast_io</code> containers are designed to be lean, fail-fast, and
-        optimization-friendly, aligning with the library’s overall philosophy of safe and efficient
-        I/O.
-      </p>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
       <a href="/docs/03.statements/15.featuretesting/" class="prev-button">← Ch3.15: Feature Testing</a>
       <a href="/" class="main-button">↑ Main Page</a>
-      <a href="/docs/02.dsal/01.string/" class="next-button">Ch4.1: string →</a>
+      <a href="/docs/04.dsal/01.string/" class="next-button">Ch4.1: string →</a>
     </div>
   </main>
 </body>
