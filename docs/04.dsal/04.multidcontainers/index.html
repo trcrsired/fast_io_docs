@@ -3,666 +3,241 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch3.1: string - C++ Tutorial with fast_io</title>
+  <title>Ch4.4: Multi-Dimension Containers - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
 </head>
 <body>
   <main>
-    <h1>::fast_io::string</h1>
+    <h1>Multi‑Dimension Containers</h1>
 
     <section>
-      <h2>1. Creating a string</h2>
+      <h2>1. What is a "multi‑dimension container"?</h2>
       <p>
-        A <code>::fast_io::string</code> is a container for text. You can construct one directly:
+        In C++, there is no special syntax or built‑in type for multi‑dimension containers.
+        Instead, you create them by <strong>nesting containers inside containers</strong>.
       </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
-    ::fast_io::string s("Hello fast_io");
-    println(s);
-}
-      </code></pre>
+      <p>
+        For example:
+      </p>
+      <ul>
+        <li>a container of containers → 2D</li>
+        <li>a container of containers of containers → 3D</li>
+        <li>a container of containers of containers of containers → 4D</li>
+      </ul>
+
+      <p>
+        This works with any container: <code>::fast_io::vector</code>,
+        <code>::fast_io::string</code>, <code>::fast_io::array</code>, or your own types.
+      </p>
+
+      <p>
+        In practice, <strong><code>::fast_io::vector&lt;T&gt;</code> is the default container</strong>.
+        It grows automatically and is the easiest to use for multi‑dimension structures.
+      </p>
     </section>
 
     <section>
-      <h2>2. Concatenation</h2>
+      <h2>2. 2D containers (containers of containers)</h2>
       <p>
-        Concatenation in <code>fast_io</code> reuses its I/O printing system. Any type that can be printed can be concatenated into a string.
+        A 2D container is simply a container where each element is itself a container.
       </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
+
+      <h3>Example: 2D vector</h3>
+<pre><code class="language-cpp">
+#include <fast_io.h>
+#include <fast_io_dsal/vector.h>
 
 int main() {
     using namespace ::fast_io::iomnp;
-    ::fast_io::string name{"Alice"};
-    ::fast_io::string greeting = ::fast_io::concat_fast_io("Hello, ", name, "!");
-    ::fast_io::string greeting_ln = ::fast_io::concatln_fast_io("Hello, ", name); // adds newline
-    print(greeting_ln); // Output: Hello, Alice\n
+
+    // A vector where each element is another vector
+    ::fast_io::vector<::fast_io::vector<std::size_t>> grid{
+        {1zu, 2zu, 3zu},
+        {4zu, 5zu, 6zu},
+        {7zu, 8zu, 9zu}
+    };
+
+    println(grid[1][2]); // prints 6
 }
-      </code></pre>
+</code></pre>
+
+      <h3>Example: vector of strings</h3>
+      <p>
+        A vector of strings is also a 2D container:
+      </p>
+      <ul>
+        <li>outer dimension → list of strings</li>
+        <li>inner dimension → characters inside each string</li>
+      </ul>
+
+<pre><code class="language-cpp">
+::fast_io::vector<::fast_io::string> lines{
+    "Hello",
+    "fast_io",
+    "world"
+};
+
+println(lines[0][1]); // 'e'
+</code></pre>
+
+      <h3>Example: array of vectors</h3>
+<pre><code class="language-cpp">
+#include <fast_io.h>
+#include <fast_io_dsal/array.h>
+#include <fast_io_dsal/vector.h>
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::array<::fast_io::vector<std::size_t>, 3zu> buckets{
+        ::fast_io::vector<std::size_t>{1zu, 2zu},
+        ::fast_io::vector<std::size_t>{3zu},
+        ::fast_io::vector<std::size_t>{4zu, 5zu, 6zu}
+    };
+
+    println(buckets[2][1]); // prints 5
+}
+</code></pre>
     </section>
 
     <section>
-      <h2>3. Reading input</h2>
+      <h2>3. 3D containers (containers of containers of containers)</h2>
       <p>
-        Use manipulators from <code>fast_io::iomnp</code> to read text into strings. Place
-        <code>using namespace fast_io::iomnp;</code> inside <code>main()</code> so it only applies locally.
+        A 3D container is simply one more level of nesting.
       </p>
 
 <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
+#include <fast_io.h>
+#include <fast_io_dsal/vector.h>
 
 int main() {
     using namespace ::fast_io::iomnp;
 
-    ::fast_io::string str;
+    ::fast_io::vector<
+        ::fast_io::vector<
+            ::fast_io::vector<std::size_t>
+        >
+    > cube{
+        {
+            {1zu, 2zu, 3zu},
+            {4zu, 5zu, 6zu}
+        },
+        {
+            {7zu, 8zu, 9zu},
+            {10zu, 11zu, 12zu}
+        }
+    };
 
-    // read next space-delimited token
-    scan(str);
-    println("Token: ", str);
-
-    // read one line (without newline)
-    scan(line_get(str));
-    println("Line: ", str);
-
-    // read whole input until end of the file
-    scan(whole_get(str));
-    println("Whole input size: ", str.size());
+    println(cube[1][0][2]); // prints 9
 }
 </code></pre>
 
       <p>
-        These work with files too:
+        You can think of this as:
       </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace fast_io::iomnp;
-
-    ::fast_io::string str;
-    ::fast_io::ibuf_file ibf("input.txt");
-
-    scan(ibf, line_get(str));   // read one line
-    scan(ibf, whole_get(str));  // read whole file
-}
-      </code></pre>
-
-<h3>Detecting End of File (EOF)</h3>
-<p>
-  Use <code>scan&lt;true&gt;</code> to detect End of File (EOF). It returns <code>true</code> while input is available.
-</p>
-
-<h4>Example 1: Reading tokens until EOF</h4>
-<pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace fast_io::iomnp;
-
-    ::fast_io::string str;
-
-    // keep reading space-delimited tokens until end of the file
-    for (; scan&lt;true&gt;(str); ) {
-        println("Token: ", str);
-    }
-}
-</code></pre>
-
-<h4>Example 2: Reading lines until EOF</h4>
-<pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace fast_io::iomnp;
-
-    ::fast_io::string str;
-
-    // keep reading lines until end of the file
-    for (; scan&lt;true&gt;(line_get(str)); ) {
-        println("Line: ", str);
-    }
-}
-</code></pre>
-
+      <ul>
+        <li>2 “layers”</li>
+        <li>each layer has 2 “rows”</li>
+        <li>each row has 3 “columns”</li>
+      </ul>
     </section>
 
     <section>
-      <h2>4. Accessing characters safely</h2>
+      <h2>4. 4D containers (containers of containers of containers of containers)</h2>
       <p>
-        A <code>fast_io::string</code> lets you access characters directly:
+        A 4D container is just one more level of nesting beyond 3D.
       </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
+
+<pre><code class="language-cpp">
+#include <fast_io.h>
+#include <fast_io_dsal/vector.h>
 
 int main() {
     using namespace ::fast_io::iomnp;
 
-    ::fast_io::string s{"Hello"};
+    ::fast_io::vector<
+        ::fast_io::vector<
+            ::fast_io::vector<
+                ::fast_io::vector<std::size_t>
+            >
+        >
+    > hypercube{
+        {
+            {
+                {1zu, 2zu},
+                {3zu, 4zu}
+            },
+            {
+                {5zu, 6zu},
+                {7zu, 8zu}
+            }
+        },
+        {
+            {
+                {9zu, 10zu},
+                {11zu, 12zu}
+            },
+            {
+                {13zu, 14zu},
+                {15zu, 16zu}
+            }
+        }
+    };
 
-    char first = s.front();   // first character
-    char last  = s.back();    // last character
-
-    println("First: ", first); // H
-    println("Last: ", last);   // o
-
-    // access by index
-    char middle = s[2];       // third character (index starts at 0)
-    println("Middle: ", middle); // l
+    println(hypercube[1][0][1][1]); // prints 12
 }
-      </code></pre>
+</code></pre>
 
       <p>
-        ⚠️ <strong>Safety note:</strong> If you call <code>s.front()</code>, <code>s.back()</code>, 
-        or use <code>s[i]</code> when the string is empty or the index is out of range, 
-        <code>fast_io</code> performs a boundary check. If the check fails, it calls 
-        <code>__builtin_trap()</code>, which stops the program instantly and silently.
+        This structure has:
       </p>
-
-      <h4>Crash example</h4>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::string s;   // empty string
-
-    // All of these will crash:
-    char c1 = s.front();   // invalid: empty string
-    char c2 = s.back();    // invalid: empty string
-    char c3 = s[5];        // invalid: index out of range
-}
-      </code></pre>
-
-      <h4>Safe usage</h4>
-      <p>
-        To avoid crashes, always check before accessing:
-      </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::string s{"Hello"};
-
-    if(!s.is_empty()) {
-        println("First: ", s.front(), "\n",
-                "Last: ", s.back());
-    }
-
-    std::size_t i = 2;
-    if(i &lt; s.size()) {
-        println("Index ", i, ": ", s[i]);
-    }
-}
-      </code></pre>
+      <ul>
+        <li>2 blocks</li>
+        <li>each block has 2 layers</li>
+        <li>each layer has 2 rows</li>
+        <li>each row has 2 columns</li>
+      </ul>
     </section>
 
     <section>
-      <h2>5. Iterating through characters</h2>
-
-      <h3>Preferred: Range‑based for loop</h3>
+      <h2>5. Iterating through multi‑dimension containers</h2>
       <p>
-        The easiest and safest way to go through every character is a range‑based for loop:
+        You simply nest loops the same way you nest containers.
       </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::string s{"Hello"};
-
-    for(char c : s) {
-        print(chvw(c), ' ');
+<pre><code class="language-cpp">
+for(auto &row : grid) {
+    for(auto &x : row) {
+        print(x, " ");
     }
-    // Output: H e l l o
+    println();
 }
-      </code></pre>
+</code></pre>
 
-      <h3>Alternative: Index loop</h3>
       <p>
-        If you need positions, use container indexing. This is safer than iterators because bounds are checked:
+        This pattern works for any depth.
       </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::string s{"Hello"};
-
-    for(std::size_t i{}, n{s.size()}; i != n; ++i) {
-        println("Index ", i, ": ", chvw(s[i]));
-    }
-}
-      </code></pre>
-
-<section>
-  <h3>Advanced: Iterators</h3>
-  <p>
-    Iterators act like pointers into the string’s memory. They are powerful but more difficult for novices.
-    Unlike container indexing, iterators do not perform bounds checks. Misuse can cause <strong>undefined behavior</strong> —
-    meaning the program may crash, corrupt data, or even open the door to security vulnerabilities.
-  </p>
-
-  <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::string s{"Hello"};
-
-    // Iteration uses a left-inclusive range: [begin(), end())
-    // begin() points to the first element ('H')
-    // end() points just past the last element (not valid to dereference)
-
-    for(auto it = s.begin(), ed = s.end(); it != ed; ++it) {
-        print(chvw(*it), ' ');
-    }
-    // Output: H e l l o
-}
-  </code></pre>
-
-  <h4>Left‑inclusive ranges</h4>
-  <p>
-    Iterators in C++ follow the convention of a <strong>left‑inclusive, right‑exclusive range</strong>:
-  </p>
-  <ul>
-    <li><code>begin()</code> → points to the first valid element (inclusive).</li>
-    <li><code>end()</code> → points one past the last element (exclusive, cannot be dereferenced).</li>
-    <li>The loop condition <code>it != s.end()</code> ensures iteration stops before stepping out of bounds.</li>
-  </ul>
-  <p>
-    This design makes ranges easier to compose: the size of a range is simply <code>end() - begin()</code>, and
-    algorithms can safely stop at <code>end()</code> without accessing invalid memory.
-  </p>
-
-
-<h4>Undefined behavior and real exploits</h4>
-<p>
-  <strong>Undefined behavior</strong> means the C++ standard imposes no rules on what happens. The program may appear to work,
-  but it can also crash, corrupt memory, or expose vulnerabilities. Famous exploits have abused these exact categories of
-  <strong>memory safety bugs</strong>:
-</p>
-<ul>
-  <li><strong>Use‑after‑free</strong> (iterator invalidation) — exploited in <em>Heartbleed</em> (2014) and countless browser vulnerabilities.</li>
-  <li><strong>Buffer overflows</strong> (out‑of‑bounds access) — exploited in the <em>Morris Worm</em> (1988) and <em>WannaCry ransomware</em> (2017).</li>
-</ul>
-<p>
-  Both use‑after‑free and buffer overflows are examples of <strong>memory safety bugs</strong>. These flaws allowed attackers to
-  execute arbitrary code, steal sensitive data, or spread malware. That’s why safe iteration practices are critical even in
-  simple examples.
-</p>
-<p>
-  According to Google’s Chromium security team, <strong>around 70% of serious security bugs in Chrome are memory safety problems</strong>,
-  with half of those being use‑after‑free issues. This analysis was based on 912 high or critical severity bugs since 2015.
-  You can read their detailed breakdown here:
-  <a href="https://www.chromium.org/Home/chromium-security/memory-safety/" target="_blank">
-    Chromium Project: Memory Safety
-  </a>.
-</p>
-
-<h4>Iterator invalidation</h4>
-<p>
-  Iterators become invalid if the string reallocates (for example, after <code>append</code> or <code>reserve</code>).
-  Using an invalidated iterator is <strong>undefined behavior</strong> — the same class of bug as a <em>use‑after‑free</em>.
-</p>
-<pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::string s{"Hello"};
-
-    auto it2 = s.begin();
-    s.append(" world"); // may reallocate, invalidates it2
-
-    // ⚠️ Undefined behavior: iterator now points to freed memory
-    println(*it2); // like a use-after-free
-}
-</code></pre>
-
-<h4>Iterator arithmetic</h4>
-<p>
-  Iterators are contiguous, so you can use arithmetic operations (<code>+/-</code>, <code>[]</code>, comparisons).
-  ⚠️ These operations do <strong>not</strong> check bounds. Negative offsets or stepping past <code>end()</code> are undefined behavior.
-</p>
-
-<pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::string s{"Hello"};
-
-    auto it = s.begin();          // points to 'H'
-    println("First: ", *it);
-
-    // Move forward with +n
-    println("Third: ", *(it + 2)); // 'l'
-
-    // Negative indexing relative to a valid position
-    auto it2 = s.begin() + 2;     // points to 'l'
-    println("Second via negative index: ", it2[-1]); // 'e'
-
-    // Random access with operator[]
-    println("Fourth via []: ", it[3]); // 'l'
-
-    // Comparisons
-    if(it &lt; s.end()) {
-        println("Iterator is before end()");
-    }
-
-    // ⚠️ Buffer overflow example: stepping past end()
-    auto bad = s.end();
-    // println(*bad); // undefined behavior, like a buffer overflow
-
-    // ⚠️ Use-after-free example: iterator invalidation
-    auto it3 = s.begin();
-    s.append(" world"); // may reallocate, invalidates it3
-    // println(*it3);   // undefined behavior, like use-after-free
-}
-</code></pre>
-
-<h4>Printing iterator addresses</h4>
-<p>
-  You can inspect the memory address an iterator points to using the
-  <code>::fast_io::mnp::pointervw</code> manipulator (available directly from <code>&lt;fast_io.h&gt;</code>):
-</p>
-<pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::string s{"Hello"};
-    auto it = s.begin();
-
-    println("Character: ", *it);
-    println("Address: ", ::fast_io::mnp::pointervw(it));
-}
-</code></pre>
-
-  <h4>Advice for beginners</h4>
-  <p>
-    Iterators are powerful but advanced. For most cases, prefer:
-  </p>
-  <ol>
-    <li><strong>Range‑based for loops</strong> — safest and simplest way to iterate.</li>
-    <li><strong>Container indexing (<code>s[i]</code>)</strong> — safer than iterators, with boundary checks.</li>
-    <li><strong>Iterators</strong> — powerful but advanced; use only when algorithms require them.</li>
-  </ol>
-  <p>
-    Container indexing in <code>fast_io::string</code> performs boundary checks and calls <code>__builtin_trap()</code> if out of range,
-    stopping the program immediately. This fail‑fast behavior prevents silent memory corruption. Iterators, by contrast, do not check bounds
-    and can lead to the same classes of memory safety bugs that have historically been exploited.
-  </p>
-</section>
-
-<h2>6. Modifications</h4>
-<p>
-  Strings can be modified in two main ways: by referring to <strong>positions (indices)</strong> or by using <strong>iterators</strong>.
-  Both approaches let you insert, erase, or replace parts of the string, but they differ in safety.
-</p>
-
-<h4>Index‑based modification</h4>
-<p>
-  When you work with positions, the string checks that the index is valid. If you go out of range,
-  the program will stop immediately instead of silently corrupting memory. This fail‑fast behavior makes
-  index‑based modification safer and easier to reason about.
-</p>
-<pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::string s{"Hello"};
-
-    // Add text at the end
-    s.insert_index(5, " world");
-    println(s); // Hello world
-
-    // Remove everything from position 5 onward
-    s.erase_index(5);
-    println(s); // Hello
-
-    // Replace the first 5 characters ("Hello") with "Hi"
-    s.replace_index(0, 5, "Hi");
-    println(s); // Hi
-}
-</code></pre>
-
-<h4>Iterator‑based modification</h4>
-<p>
-  Iterators act like pointers into the string’s memory. They allow more flexible operations,
-  but they do not perform bounds checks. If you use an invalid iterator or one that has been
-  invalidated after reallocation, the behavior is undefined — the same class of bug as buffer
-  overflows or use‑after‑free.
-</p>
-<pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::string s{"Hello"};
-
-    // Insert using a valid iterator
-    auto it = s.begin() + 5;
-    s.insert(it, '!');
-    println(s); // Hello!
-
-    // Replace using iterators: replace "Hello" with "Hi"
-    s.replace(s.begin(), s.begin() + 5, "Hi");
-    println(s); // Hi!
-
-    // ⚠️ Danger: iterator invalidation
-    auto it2 = s.begin();
-    s.append(" world"); // may reallocate, invalidates it2
-    // s.insert(it2, '?'); // undefined behavior
-}
-</code></pre>
-
-<h4>Summary</h4>
-<p>
-  Position‑based modification is safer because it enforces bounds checking and fails fast on errors.
-  Iterator‑based modification is more powerful but unchecked, requiring discipline to avoid invalidation
-  and out‑of‑range access. Misusing iterators can lead to undefined behavior and the same memory safety
-  bugs that have caused real‑world security exploits.
-</p>
-
-
-<section>
-  <h2>7. Other string types</h2>
-  <p>
-    In addition to <code>fast_io::string</code> (based on <code>char</code>), 
-    <code>fast_io</code> provides specialized string containers for different character encodings:
-  </p>
-  <ul>
-    <li><code>fast_io::u8string</code> — UTF‑8 encoded text</li>
-    <li><code>fast_io::u16string</code> — UTF‑16 encoded text</li>
-    <li><code>fast_io::u32string</code> — UTF‑32 encoded text</li>
-    <li><code>fast_io::wstring</code> — wide characters (<code>wchar_t</code>, platform‑dependent)</li>
-  </ul>
-
-  <h3>Automatic filename transcoding</h3>
-  <p>
-    <code>fast_io</code> automatically transcodes filenames to whatever encoding the operating system requires.
-    This means you can safely use <code>u8</code>, <code>u16</code>, <code>u32</code>, or <code>L</code> string literals
-    for filenames, and <code>fast_io</code> will handle the conversion internally. You don’t need to worry about
-    platform differences — the library ensures the correct encoding is passed to the OS.
-  </p>
-
-  <h3>UTF‑8 string example</h3>
-  <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::u8obuf_file u8obf(u8"a.txt");   // UTF‑8 filename, transcoded automatically
-    ::fast_io::u8string u8str = ::fast_io::u8concat(u8"blah blah", 30, u8"fassfaafs");
-
-    println(u8obf, u8"hello: ", u8str);
-}
-  </code></pre>
-
-  <h3>UTF‑16 string example</h3>
-  <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::u16obuf_file u16obf(u"a16.txt");   // UTF‑16 filename, transcoded automatically
-    ::fast_io::u16string u16str = ::fast_io::u16concat_fast_io(u"UTF", 16, u"text");
-
-    println(u16obf, u"Message: ", u16str);
-}
-  </code></pre>
-
-  <h3>UTF‑32 string example</h3>
-  <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::u32obuf_file u32obf(U"a32.txt");   // UTF‑32 filename, transcoded automatically
-    ::fast_io::u32string u32str = ::fast_io::u32concat_fast_io(U"UTF", 32, U"text");
-
-    println(u32obf, U"Message: ", u32str);
-}
-  </code></pre>
-
-  <h3>Cross‑character type printing</h3>
-  <p>
-    Use <code>::fast_io::mnp::code_cvt</code> to print strings of different character types together.
-    This allows you to mix and match <code>string</code>, <code>u8string</code>, <code>u16string</code>, and <code>u32string</code>
-    in the same output without manual conversion.
-  </p>
-  <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string.h&gt;
-
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::u8obuf_file obf(u8"hello.txt");
-    ::fast_io::u8string s(u8"ASCII text");
-    ::fast_io::u16string u16s = ::fast_io::u16concat_fast_io(u"UTF", 16, u" text", ::fast_io::mnp::code_cvt(s));
-
-    // code_cvt allows cross charactype printing
-    println(obf, s, u8" | ", code_cvt(u16s));
-}
-  </code></pre>
-
-  <h3>A note on wide strings</h3>
-  <p>
-    <code>fast_io::wstring</code> is based on <code>wchar_t</code>, which differs by platform
-    (UTF‑16 on Windows, UTF‑32 on most Unix systems). Because of this inconsistency,
-    beginners should <strong>avoid using <code>wchar_t</code>/<code>wstring</code></strong> unless
-    they have a specific platform requirement. Prefer <code>u8string</code>, <code>u16string</code>,
-    or <code>u32string</code> for predictable, portable Unicode handling.
-  </p>
-
-  <h3>Best practice</h3>
-  <p>
-    - Use <strong><code>u8string</code></strong> as your default choice: UTF‑8 is the most portable and widely supported encoding.<br>
-    - Rely on <strong>automatic filename transcoding</strong>: you can pass any literal type, and <code>fast_io</code> will adapt it to the OS.<br>
-    - Use <strong><code>code_cvt</code></strong> when mixing different string types in output.<br>
-    - Avoid <code>wchar_t</code>/<code>wstring</code> unless you are targeting a specific platform API that requires it.
-  </p>
-</section>
-<section>
-  <h2>8. Memory Safety Tools</h2>
-  <p>
-    Modern compilers and runtimes provide powerful tools to detect and prevent memory safety bugs.
-    These can be combined with <code>fast_io</code> to ensure robust and secure code.
-  </p>
-  <ul>
-    <li>
-      <strong>AddressSanitizer (ASan)</strong>: enable with <code>-fsanitize=address</code> to catch buffer overflows,
-      use‑after‑free, and other memory errors at runtime.
-    </li>
-    <li>
-      <strong>UndefinedBehaviorSanitizer (UBSan)</strong>: enable with <code>-fsanitize=undefined</code> to detect
-      undefined behaviors such as invalid shifts, integer overflows, or misaligned accesses.
-    </li>
-    <li>
-      <strong>Fuzzing</strong>: combine sanitizers with Clang’s <code>-fsanitize=fuzzer</code> to automatically generate
-      random inputs and stress‑test your code paths for hidden bugs.
-    </li>
-    <li>
-      <strong>Memory Tagging</strong>: use <code>-fsanitize=memtag</code> on supported platforms (ARM MTE, WebAssembly
-      memory tagging, and others) to enforce tagged memory safety. This detects spatial and temporal errors by associating
-      tags with memory allocations. The WebAssembly memory tagging approach was developed by the same author as this
-      <code>fast_io</code> library, underscoring its focus on practical memory safety. See
-      <a href="https://dl.acm.org/doi/full/10.1145/3733812.3765536" target="_blank">ACM reference</a>
-      for details on cross‑platform memory tagging.
-    </li>
-  </ul>
-  <p>
-    In practice: run your builds with sanitizers during development, integrate fuzzing into CI pipelines, and adopt
-    memory tagging where available. These tools complement <code>fast_io</code>’s fail‑fast philosophy by catching
-    subtle bugs before they reach production.
-  </p>
-</section>
-
-<section>
-  <h2>9. Summary</h2>
-  <p>
-    <code>::fast_io::string</code> is the core text container in fast_io, designed for safe and efficient text handling.
-  </p>
-  <ul>
-    <li>Use <code>concat_fast_io</code> / <code>concatln_fast_io</code> for efficient concatenation.</li>
-    <li>Manipulate text safely with <code>push_back</code>, <code>append</code>, and indexing.</li>
-    <li>Read input with no manipulator (token), <code>line_get</code> (line), or <code>whole_get</code> (entire stream).</li>
-    <li>Prefer range‑based loops; use indices for positions, iterators only for advanced cases.</li>
-    <li>Favor <code>u8string</code> (UTF‑8) for portability; avoid <code>wchar_t</code>/<code>wstring</code> unless platform‑specific.</li>
-    <li>Use tooling such as Clang sanitizers (<code>-fsanitize=address,undefined</code>), fuzzing (<code>-fsanitize=fuzzer</code>),
-        and memory tagging (<code>-fsanitize=memtag</code> on ARM MTE, WebAssembly, and other platforms) to detect and prevent memory safety bugs.</li>
-  </ul>
-  <p>
-    In short: rely on safe defaults, use iterators carefully, and lean on UTF‑8 for cross‑platform text.
-  </p>
-</section>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>C++ has no built‑in multi‑dimension containers.</li>
+        <li>You create multi‑dimension structures by nesting containers.</li>
+        <li>Container of containers → 2D; container of containers of containers → 3D; and so on.</li>
+        <li>You can freely mix <code>vector</code>, <code>string</code>, and <code>array</code>.</li>
+        <li><code>::fast_io::vector&lt;T&gt;</code> is the default container and the most flexible choice.</li>
+        <li>Nesting works because containers behave like regular values that can be stored inside each other.</li>
+      </ul>
+    </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/docs/02.dsal/" class="prev-button">← 02.dsal</a>
+      <a href="/docs/04.dsal/03.array/" class="prev-button">← Ch4.3: array</a>
       <a href="/" class="main-button">↑ Main Page</a>
-      <!-- <a href="/docs/02.dsal/02.vector/" class="next-button">vector →</a> -->
+      <a href="/docs/05.pointerscarray/" class="next-button">Ch5: Pointers and C-style array →</a>
     </div>
   </main>
 </body>
