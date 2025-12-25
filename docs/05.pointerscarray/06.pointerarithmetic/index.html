@@ -21,21 +21,26 @@
         refer to elements of the <strong>same C‑style array</strong>.
       </p>
 
-      <p>
-        In this chapter, you will learn:
-      </p>
+      <p>In this chapter, you will learn:</p>
 
       <ul>
         <li>how pointer arithmetic works</li>
         <li>why pointer arithmetic moves by elements, not bytes</li>
         <li>how pointer subtraction works</li>
+        <li>what <code>::std::ptrdiff_t</code> is</li>
         <li>why pointer arithmetic is only valid within the same array</li>
         <li>why out‑of‑bounds arithmetic is undefined behavior</li>
         <li>why undefined behavior does <em>not</em> guarantee a crash</li>
         <li>that pointers are the iterators of C‑style arrays</li>
-        <li>how to use <code>::std::ranges::begin(a)</code> and <code>::std::ranges::end(a)</code></li>
+        <li>how <code>::std::ranges::begin(a)</code> and <code>::std::ranges::end(a)</code> work</li>
+        <li>what pointer arithmetic is <strong>not</strong> allowed</li>
+        <li>why the same rules apply to contiguous iterators of <code>::fast_io::array</code>, <code>::fast_io::vector</code>, and <code>::fast_io::string</code></li>
       </ul>
     </section>
+
+    <!-- ========================= -->
+    <!-- 1. MOVES BY ELEMENTS -->
+    <!-- ========================= -->
 
     <section>
       <h2>1. Pointer arithmetic moves by elements, not bytes</h2>
@@ -66,6 +71,10 @@ p + 1 = 1004   ← moved by sizeof(int)
       </p>
     </section>
 
+    <!-- ========================= -->
+    <!-- 2. SUBTRACTING POINTERS -->
+    <!-- ========================= -->
+
     <section>
       <h2>2. Subtracting pointers</h2>
       <p>
@@ -86,6 +95,54 @@ int *q = ::std::addressof(a[2]);
         The result is measured in <strong>elements</strong>, not bytes.
       </p>
     </section>
+
+    <!-- ========================= -->
+    <!-- 2.1 PTRDIFF_T -->
+    <!-- ========================= -->
+
+    <section>
+      <h3>2.1 ::std::ptrdiff_t — the type of pointer differences</h3>
+      <p>
+        When you subtract two pointers, the result is stored in a type called
+        <code>::std::ptrdiff_t</code>. This is a signed integer type defined by the
+        C++ standard specifically for representing the distance between two pointers.
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+
+int *p = ::std::addressof(a[0]);
+int *q = ::std::addressof(a[2]);
+
+::std::ptrdiff_t diff = q - p;   // diff == 2
+</code></pre>
+
+      <p>
+        <code>::std::ptrdiff_t</code> is always a <strong>signed</strong> type, because
+        pointer differences may be negative.
+      </p>
+
+      <h4>fast_io guarantee</h4>
+      <p>
+        All contiguous containers in <code>fast_io</code> — including
+        <code>::fast_io::vector</code>, <code>::fast_io::array</code>, and
+        <code>::fast_io::string</code> — guarantee that:
+      </p>
+
+      <ul>
+        <li>their iterator difference type is <code>::std::ptrdiff_t</code></li>
+        <li>their <code>.size()</code> returns <code>::std::size_t</code></li>
+      </ul>
+
+      <p>
+        This matches the C++ standard library and avoids subtle bugs involving
+        signed/unsigned mismatches.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. VALID RANGE -->
+    <!-- ========================= -->
 
     <section>
       <h2>3. Pointer arithmetic only works inside the same array</h2>
@@ -110,6 +167,10 @@ int *p = ::std::addressof(x);
 </code></pre>
     </section>
 
+    <!-- ========================= -->
+    <!-- 4. ONE PAST END -->
+    <!-- ========================= -->
+
     <section>
       <h2>4. One‑past‑the‑end pointer</h2>
       <p>
@@ -133,6 +194,10 @@ int *end   = first + 3;   // one past the end (valid)
       </p>
     </section>
 
+    <!-- ========================= -->
+    <!-- 5. UB -->
+    <!-- ========================= -->
+
     <section>
       <h2>5. Dereferencing out‑of‑bounds pointers is undefined behavior</h2>
       <p>
@@ -149,9 +214,7 @@ int *bad = p + 10;   // undefined behavior — out of bounds
 // *bad;             // undefined behavior
 </code></pre>
 
-      <p>
-        Undefined behavior means:
-      </p>
+      <p>Undefined behavior means:</p>
 
       <ul>
         <li>the program might crash</li>
@@ -160,9 +223,7 @@ int *bad = p + 10;   // undefined behavior — out of bounds
         <li>or appear to work</li>
       </ul>
 
-      <p>
-        You cannot rely on any specific outcome.
-      </p>
+      <p>You cannot rely on any specific outcome.</p>
 
       <h3>WebAssembly note</h3>
       <p>
@@ -171,6 +232,10 @@ int *bad = p + 10;   // undefined behavior — out of bounds
       </p>
     </section>
 
+    <!-- ========================= -->
+    <!-- 6. UB DOES NOT CRASH -->
+    <!-- ========================= -->
+
     <section>
       <h2>6. Undefined behavior does NOT guarantee a crash</h2>
       <p>
@@ -178,9 +243,7 @@ int *bad = p + 10;   // undefined behavior — out of bounds
         This is <strong>false</strong>.
       </p>
 
-      <p>
-        Compilers may assume:
-      </p>
+      <p>Compilers may assume:</p>
 
       <ul>
         <li>pointers always point to valid objects</li>
@@ -192,10 +255,12 @@ int *bad = p + 10;   // undefined behavior — out of bounds
         that make debugging extremely difficult.
       </p>
 
-      <p>
-        Undefined behavior is dangerous precisely because it is unpredictable.
-      </p>
+      <p>Undefined behavior is dangerous precisely because it is unpredictable.</p>
     </section>
+
+    <!-- ========================= -->
+    <!-- 7. POINTERS ARE ITERATORS -->
+    <!-- ========================= -->
 
     <section>
       <h2>7. Pointers are the iterators of C‑style arrays</h2>
@@ -205,9 +270,7 @@ int *bad = p + 10;   // undefined behavior — out of bounds
         C‑style arrays.
       </p>
 
-      <p>
-        For an array <code>a</code>, the iterators are simply:
-      </p>
+      <p>For an array <code>a</code>, the iterators are simply:</p>
 
 <pre><code class="language-cpp">
 int a[3]{10, 20, 30};
@@ -221,6 +284,10 @@ int *last  = first + 3;   // one past the end
       </p>
     </section>
 
+    <!-- ========================= -->
+    <!-- 8. RANGES BEGIN/END -->
+    <!-- ========================= -->
+
     <section>
       <h2>8. Using ::std::ranges::begin(a) and ::std::ranges::end(a)</h2>
       <p>
@@ -228,7 +295,7 @@ int *last  = first + 3;   // one past the end
       </p>
 
 <pre><code class="language-cpp">
-#include <ranges>
+#include &lt;ranges&gt;
 
 int a[3]{10, 20, 30};
 
@@ -236,34 +303,141 @@ int *first = ::std::ranges::begin(a);
 int *last  = ::std::ranges::end(a);
 </code></pre>
 
-      <p>
-        These functions return:
-      </p>
+      <p>These functions return:</p>
 
       <ul>
         <li><code>::std::addressof(a[0])</code> for <code>begin(a)</code></li>
         <li><code>::std::addressof(a[0]) + 3</code> for <code>end(a)</code></li>
       </ul>
 
+      <p>This is the preferred modern way to obtain iterators for C‑style arrays.</p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 9. INVALID POINTER ARITHMETIC -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>9. Invalid pointer arithmetic</h2>
       <p>
-        This is the preferred modern way to obtain iterators for C‑style arrays.
+        C++ allows only a very small set of arithmetic operations on pointers.
+        Anything outside these rules is a compile‑time error or undefined behavior.
+      </p>
+
+      <h3>9.1 Allowed operations</h3>
+      <ul>
+        <li><code>ptr + n</code></li>
+        <li><code>ptr - n</code></li>
+        <li><code>++ptr</code>, <code>--ptr</code></li>
+        <li><code>ptr += n</code>, <code>ptr -= n</code></li>
+        <li><code>ptr2 - ptr1</code> (distance in elements)</li>
+      </ul>
+
+      <h3>9.2 Forbidden operations</h3>
+      <ul>
+        <li><code>ptr + ptr</code></li>
+        <li><code>ptr * n</code></li>
+        <li><code>ptr / n</code></li>
+        <li><code>ptr % n</code></li>
+        <li><code>ptr1 * ptr2</code></li>
+        <li><code>ptr1 / ptr2</code></li>
+        <li><code>(ptr1 + ptr2) / 2</code></li>
+      </ul>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+int *p = a;
+int *q = a + 2;
+
+// p + q;        // ❌ illegal
+// p * 2;        // ❌ illegal
+// p / 2;        // ❌ illegal
+// (p + q) / 2;  // ❌ illegal
+
+int *mid = p + (q - p) / 2;   // ✔ correct
+</code></pre>
+
+      <p>
+        This works because <code>q - p</code> is a number of elements, not a pointer.
       </p>
     </section>
+
+    <!-- ========================= -->
+    <!-- 10. ITERATOR ARITHMETIC -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>10. Iterator arithmetic follows the same rules</h2>
+      <p>
+        The same restrictions on pointer arithmetic also apply to iterators of
+        <code>::fast_io::array</code>, <code>::fast_io::vector</code>, and
+        <code>::fast_io::string</code>. All three containers provide
+        <strong>contiguous iterators</strong>, meaning their iterators behave exactly
+        like raw pointers.
+      </p>
+
+      <p>Allowed operations:</p>
+
+      <ul>
+        <li><code>it + n</code></li>
+        <li><code>it - n</code></li>
+        <li><code>++it</code>, <code>--it</code></li>
+        <li><code>it2 - it1</code></li>
+      </ul>
+
+      <p>Forbidden operations:</p>
+
+      <ul>
+        <li><code>it + it</code></li>
+        <li><code>it * n</code></li>
+        <li><code>it / n</code></li>
+        <li><code>(it1 + it2) / 2</code></li>
+      </ul>
+
+<pre><code class="language-cpp">
+::fast_io::vector&lt;int&gt; v{10, 20, 30, 40};
+
+auto it1 = v.begin();
+auto it2 = v.begin() + 3;
+
+// it1 + it2;        // ❌ illegal
+// it1 * 2;          // ❌ illegal
+// (it1 + it2) / 2;  // ❌ illegal
+
+auto mid = it1 + (it2 - it1) / 2;   // ✔ correct
+</code></pre>
+
+      <p>
+        This works because <code>it2 - it1</code> is a number of elements.
+      </p>
+
+      <h3>Why this is true</h3>
+      <p>
+        Contiguous iterators are required by the C++ standard to behave exactly like
+        pointers for arithmetic. Since <code>::fast_io::array</code>,
+        <code>::fast_io::vector</code>, and <code>::fast_io::string</code> all store
+        elements contiguously, their iterators follow the same rules as raw pointers.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- KEY TAKEAWAYS -->
+    <!-- ========================= -->
 
     <section>
       <h2>Key takeaways</h2>
       <ul>
         <li>Pointer arithmetic moves by <strong>elements</strong>, not bytes.</li>
-        <li>Pointer subtraction gives the number of elements between pointers.</li>
+        <li>Pointer subtraction yields a <code>::std::ptrdiff_t</code>.</li>
+        <li>fast_io containers use <code>::std::ptrdiff_t</code> for iterator differences and <code>::std::size_t</code> for sizes.</li>
         <li>Pointer arithmetic is only valid within the same array.</li>
-        <li>You may form a pointer one past the end, but you must never dereference it.</li>
-        <li><strong>Out‑of‑bounds pointer arithmetic is undefined behavior.</strong></li>
-        <li><strong>Dereferencing out‑of‑bounds pointers is undefined behavior.</strong></li>
+        <li>You may form a pointer one past the end, but never dereference it.</li>
+        <li>Out‑of‑bounds pointer arithmetic is undefined behavior.</li>
         <li>Undefined behavior does NOT guarantee a crash.</li>
-        <li>WebAssembly without memory tagging will not trap on invalid pointer arithmetic.</li>
-        <li>Pointers are the highest‑level iterators in C++.</li>
         <li>Pointers are the iterators of C‑style arrays.</li>
-        <li>Use <code>::std::ranges::begin(a)</code> and <code>::std::ranges::end(a)</code> to obtain array iterators.</li>
+        <li>Use <code>::std::ranges::begin(a)</code> and <code>::std::ranges::end(a)</code> for array iterators.</li>
+        <li>Operations like <code>ptr + ptr</code>, <code>ptr * n</code>, and <code>(ptr1 + ptr2) / 2</code> are illegal.</li>
+        <li>Contiguous iterators of <code>array</code>, <code>vector</code>, and <code>string</code> follow the same rules as pointers.</li>
       </ul>
     </section>
 
@@ -271,7 +445,7 @@ int *last  = ::std::ranges::end(a);
     <div class="page-navigation">
       <a href="/docs/05.pointerscarray/05.cstylearray/" class="prev-button">← Ch5.5: C‑style Arrays</a>
       <a href="/" class="main-button">↑ Main Page</a>
-      <a href="/docs/05.pointerscarray/07.carraydecay/" class="next-button">Ch5.7: C-style Array Decay →</a>
+      <a href="/docs/05.pointerscarray/07.carraydecay/" class="next-button">Ch5.7: C‑style Array Decay →</a>
     </div>
   </main>
 </body>
