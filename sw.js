@@ -1,4 +1,4 @@
-const CACHE_NAME = "fast_io-docs-v30"; // bump version here
+const CACHE_NAME = "fast_io-docs-v31"; // bump version here
 const urlsToCache = [
   "/",
   "/style.css",

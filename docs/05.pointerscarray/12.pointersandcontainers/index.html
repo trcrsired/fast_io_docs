@@ -35,6 +35,10 @@
       </ul>
     </section>
 
+    <!-- ========================= -->
+    <!-- 1. VECTOR -->
+    <!-- ========================= -->
+
     <section>
       <h2>1. ::fast_io::vector and pointers</h2>
       <p>
@@ -46,20 +50,38 @@
         <li>the elements are laid out like a C‑style array</li>
         <li>pointer arithmetic works exactly as with C‑style arrays</li>
         <li><code>v.data()</code> returns a pointer to the first element</li>
+        <li><code>v.index_unchecked(pos)</code> provides unchecked element access</li>
+        <li><code>v.front_unchecked()</code> provides unchecked access to the first element</li>
+        <li><code>v.back_unchecked()</code> provides unchecked access to the last element</li>
       </ul>
 
 <pre><code class="language-cpp">
-::fast_io::vector<int> v{1, 2, 3, 4};
+::fast_io::vector&lt;int&gt; v{1, 2, 3, 4};
 
-int *p = v.data();   // pointer to v[0]
-int *q = p + 2;      // points to v[2]
+int *p = v.data();            // pointer to v[0]
+int *q = p + 2;               // points to v[2]
+
+int a = v.index_unchecked(1); // unchecked v[1]
+int b = v.front_unchecked();  // unchecked v[0]
+int c = v.back_unchecked();   // unchecked v[3]
 </code></pre>
 
       <p>
-        Because the memory is contiguous, <code>p + n</code> is valid as long as
-        <code>n</code> stays within the vector’s size.
+        ⚠️ <strong>Unchecked access never performs bounds checking.</strong>
+      </p>
+
+      <p>
+        <strong>Note:</strong> Bounds checking in <code>fast_io</code> is usually extremely cheap.
+        When an out‑of‑range access is detected, <code>fast_io</code> simply calls
+        <code>fast_terminate()</code> immediately, without printing diagnostics or
+        performing expensive error handling. This makes checked access fast while
+        still providing safety.
       </p>
     </section>
+
+    <!-- ========================= -->
+    <!-- 2. ARRAY -->
+    <!-- ========================= -->
 
     <section>
       <h2>2. ::fast_io::array and pointers</h2>
@@ -73,21 +95,40 @@ int *q = p + 2;      // points to v[2]
       <ul>
         <li>contiguous storage</li>
         <li><strong>bounds‑checked</strong> <code>[]</code> access</li>
-        <li><code>index_unchecked()</code> for intentionally unchecked access</li>
+        <li><code>index_unchecked(pos)</code> for intentionally unchecked access</li>
+        <li><code>front_unchecked()</code> for unchecked access to the first element</li>
+        <li><code>back_unchecked()</code> for unchecked access to the last element</li>
         <li><code>.data()</code> returning a pointer to the first element</li>
       </ul>
 
 <pre><code class="language-cpp">
-::fast_io::array<int, 3> a{10, 20, 30};
+::fast_io::array&lt;int, 3&gt; a{10, 20, 30};
 
-int *p = a.data();   // pointer to a[0]
-int *q = p + 1;      // points to a[1]
+int *p = a.data();            // pointer to a[0]
+int *q = p + 1;               // points to a[1]
+
+int x = a.index_unchecked(2); // unchecked a[2]
+int y = a.front_unchecked();  // unchecked a[0]
+int z = a.back_unchecked();   // unchecked a[2]
 </code></pre>
+
+      <p>
+        ⚠️ <strong>Unchecked functions never perform bounds checking.</strong>
+      </p>
+
+      <p>
+        <strong>Note:</strong> Bounds checking in <code>fast_io</code> is extremely cheap,
+        because <code>fast_terminate()</code> is the only action taken on failure.
+      </p>
 
       <p>
         Unlike C‑style arrays, <code>::fast_io::array</code> allows size 0.
       </p>
     </section>
+
+    <!-- ========================= -->
+    <!-- 3. STRING -->
+    <!-- ========================= -->
 
     <section>
       <h2>3. ::fast_io::string and pointers</h2>
@@ -100,25 +141,41 @@ int *q = p + 1;      // points to a[1]
         <li><code>s.data()</code> returns a pointer to the first character</li>
         <li><code>s.c_str()</code> returns a <strong>null‑terminated</strong> pointer</li>
         <li>pointer arithmetic works exactly like with <code>char[]</code></li>
+        <li><code>s.index_unchecked(pos)</code> provides unchecked character access</li>
+        <li><code>s.front_unchecked()</code> provides unchecked access to the first character</li>
+        <li><code>s.back_unchecked()</code> provides unchecked access to the last character</li>
       </ul>
 
 <pre><code class="language-cpp">
 ::fast_io::string s{"Hello"};
 
-char *p = s.data();        // pointer to 'H'
-char const *q = s.c_str(); // pointer to 'H', null-terminated
+char *p = s.data();            // pointer to 'H'
+char const *q = s.c_str();     // pointer to 'H', null-terminated
+
+char a = s.index_unchecked(1); // unchecked 'e'
+char b = s.front_unchecked();  // unchecked 'H'
+char c = s.back_unchecked();   // unchecked 'o'
 </code></pre>
 
       <p>
-        <strong>Important:</strong>  
-        <code>s.data()</code> may not be null‑terminated.  
-        <code>s.c_str()</code> is always null‑terminated.
+        ⚠️ <strong>Unchecked access does not validate bounds.</strong>
       </p>
 
       <p>
-        Always write <strong><code>char const*</code></strong> for pointers to C‑style strings.
+        <strong>Note:</strong> Bounds checking in <code>fast_io</code> is extremely cheap,
+        because <code>fast_terminate()</code> is called immediately on failure.
+      </p>
+
+      <p>
+        <strong>Reminder:</strong><br>
+        <code>s.data()</code> may not be null‑terminated.<br>
+        <code>s.c_str()</code> is always null‑terminated.
       </p>
     </section>
+
+    <!-- ========================= -->
+    <!-- 4. CONTIGUOUS STORAGE -->
+    <!-- ========================= -->
 
     <section>
       <h2>4. Contiguous storage guarantees</h2>
@@ -146,6 +203,10 @@ int *end = p + v.size();   // one past the end
       </p>
     </section>
 
+    <!-- ========================= -->
+    <!-- 5. NO DECAY -->
+    <!-- ========================= -->
+
     <section>
       <h2>5. Containers do not decay</h2>
       <p>
@@ -158,12 +219,10 @@ int a[3]{1,2,3};
 int *p = a;   // decay
 </code></pre>
 
-      <p>
-        But:
-      </p>
+      <p>But:</p>
 
 <pre><code class="language-cpp">
-::fast_io::vector<int> v{1,2,3};
+::fast_io::vector&lt;int&gt; v{1,2,3};
 
 // int *p = v;   // ❌ does not compile
 </code></pre>
@@ -172,6 +231,10 @@ int *p = a;   // decay
         You must explicitly request a pointer using <code>.data()</code>.
       </p>
     </section>
+
+    <!-- ========================= -->
+    <!-- 6. POINTER ARITHMETIC -->
+    <!-- ========================= -->
 
     <section>
       <h2>6. Pointer arithmetic with container storage</h2>
@@ -185,9 +248,7 @@ int *p = a.data();
 int *q = p + 2;   // points to a[2]
 </code></pre>
 
-      <p>
-        The same applies to <code>::fast_io::string</code>:
-      </p>
+      <p>The same applies to <code>::fast_io::string</code>:</p>
 
 <pre><code class="language-cpp">
 char *p = s.data();
@@ -199,12 +260,15 @@ char *q = p + 4;   // points to 'o'
       </p>
     </section>
 
+    <!-- ========================= -->
+    <!-- 7. std::to_address -->
+    <!-- ========================= -->
+
     <section>
       <h2>7. ::std::to_address and container iterators</h2>
       <p>
         <code>::std::to_address</code> is the universal way to obtain a raw pointer from
-        anything that behaves like a pointer.  
-        It works on:
+        anything that behaves like a pointer.
       </p>
 
       <ul>
@@ -221,22 +285,22 @@ char *q = p + 4;   // points to 'o'
       <h3>Example: ::fast_io::vector</h3>
 
 <pre><code class="language-cpp">
-auto it = v.begin();          // iterator
-int *p = ::std::to_address(it);  // extract raw pointer
+auto it = v.begin();          
+int *p = ::std::to_address(it);
 </code></pre>
 
       <h3>Example: ::fast_io::array</h3>
 
 <pre><code class="language-cpp">
 auto it = a.begin();
-int *p = ::std::to_address(it);  // pointer to a[0]
+int *p = ::std::to_address(it);
 </code></pre>
 
       <h3>Example: ::fast_io::string</h3>
 
 <pre><code class="language-cpp">
 auto it = s.begin();
-char *p = ::std::to_address(it);  // pointer to 'H'
+char *p = ::std::to_address(it);
 </code></pre>
 
       <p>
@@ -244,6 +308,10 @@ char *p = ::std::to_address(it);  // pointer to 'H'
         raw pointer from an iterator.
       </p>
     </section>
+
+    <!-- ========================= -->
+    <!-- 8. SUMMARY TABLE -->
+    <!-- ========================= -->
 
     <section>
       <h2>8. Summary table</h2>
@@ -256,6 +324,7 @@ char *p = ::std::to_address(it);  // pointer to 'H'
             <th>Pointer from .data()</th>
             <th>Null-terminated?</th>
             <th>Decay?</th>
+            <th>Unchecked access?</th>
           </tr>
         </thead>
         <tbody>
@@ -265,6 +334,7 @@ char *p = ::std::to_address(it);  // pointer to 'H'
             <td><code>T*</code></td>
             <td>❌ no</td>
             <td>❌ no</td>
+            <td>✔ index/front/back_unchecked()</td>
           </tr>
           <tr>
             <td><code>::fast_io::array&lt;T,N&gt;</code></td>
@@ -272,6 +342,7 @@ char *p = ::std::to_address(it);  // pointer to 'H'
             <td><code>T*</code></td>
             <td>❌ no</td>
             <td>❌ no</td>
+            <td>✔ index/front/back_unchecked()</td>
           </tr>
           <tr>
             <td><code>::fast_io::string</code></td>
@@ -279,10 +350,15 @@ char *p = ::std::to_address(it);  // pointer to 'H'
             <td><code>char*</code></td>
             <td>✔ via <code>.c_str()</code></td>
             <td>❌ no</td>
+            <td>✔ index/front/back_unchecked()</td>
           </tr>
         </tbody>
       </table>
     </section>
+
+    <!-- ========================= -->
+    <!-- KEY TAKEAWAYS -->
+    <!-- ========================= -->
 
     <section>
       <h2>Key takeaways</h2>
@@ -292,8 +368,9 @@ char *p = ::std::to_address(it);  // pointer to 'H'
         <li><code>.c_str()</code> returns a null‑terminated pointer for <code>::fast_io::string</code>.</li>
         <li>Containers do not decay; you must call <code>.data()</code>.</li>
         <li>Pointer arithmetic works on container storage exactly like C‑style arrays.</li>
+        <li><code>index_unchecked()</code>, <code>front_unchecked()</code>, and <code>back_unchecked()</code> provide fast, unchecked access.</li>
+        <li>Bounds checking in <code>fast_io</code> is extremely cheap because <code>fast_terminate()</code> is used.</li>
         <li><code>::std::to_address</code> extracts raw pointers from iterators.</li>
-        <li>Always write <strong><code>char const*</code></strong> for pointers to C‑style strings.</li>
         <li>Out‑of‑bounds pointer arithmetic is undefined behavior.</li>
       </ul>
     </section>

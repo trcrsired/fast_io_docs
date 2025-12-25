@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch4.3: array - C++ Tutorial with fast_io</title>
+  <title>Ch4.4: array - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
 </head>
@@ -32,13 +32,13 @@
       <p>You specify both the element type and the number of elements:</p>
 
 <pre><code class="language-cpp">
-#include <fast_io.h>
-#include <fast_io_dsal/array.h>
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/array.h&gt;
 
 int main() {
     using namespace ::fast_io::iomnp;
 
-    ::fast_io::array<std::size_t, 3zu> a{1zu, 2zu, 3zu};
+    ::fast_io::array&lt;std::size_t, 3zu&gt; a{1zu, 2zu, 3zu};
     println("a[0] = ", a[0]);
 }
 </code></pre>
@@ -48,7 +48,7 @@ int main() {
       </p>
 
 <pre><code class="language-cpp">
-::fast_io::array<std::size_t, 5zu> b{}; // all elements default-initialized
+::fast_io::array&lt;std::size_t, 5zu&gt; b{}; // all elements default-initialized
 </code></pre>
     </section>
 
@@ -59,13 +59,13 @@ int main() {
       </p>
 
 <pre><code class="language-cpp">
-#include <fast_io.h>
-#include <fast_io_dsal/array.h>
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/array.h&gt;
 
 int main() {
     using namespace ::fast_io::iomnp;
 
-    ::fast_io::array<std::size_t, 4zu> a{10zu, 20zu, 30zu, 40zu};
+    ::fast_io::array&lt;std::size_t, 4zu&gt; a{10zu, 20zu, 30zu, 40zu};
 
     println("Front: ", a.front()); // 10
     println("Back: ",  a.back());  // 40
@@ -81,7 +81,7 @@ int main() {
       <h4>Safe usage</h4>
 <pre><code class="language-cpp">
 std::size_t i = 2zu;
-if(i < a.size()) {
+if(i &lt; a.size()) {
     println("a[2] = ", a[i]);
 }
 </code></pre>
@@ -144,11 +144,63 @@ a.fill(7zu); // all elements become 7
       <p>Swaps the contents of two arrays of the same size:</p>
 
 <pre><code class="language-cpp">
-::fast_io::array<std::size_t, 3zu> x{1zu, 2zu, 3zu};
-::fast_io::array<std::size_t, 3zu> y{9zu, 8zu, 7zu};
+::fast_io::array&lt;std::size_t, 3zu&gt; x{1zu, 2zu, 3zu};
+::fast_io::array&lt;std::size_t, 3zu&gt; y{9zu, 8zu, 7zu};
 
 x.swap(y);
 </code></pre>
+    </section>
+
+    <section>
+      <h2>6. Copying arrays</h2>
+
+      <p>
+        <code>::fast_io::array&lt;T, N&gt;</code> supports copying just like any other
+        trivially copyable container. Because the size is fixed and all elements are
+        stored directly inside the object, copying an array always copies all
+        <code>N</code> elements.
+      </p>
+
+      <h3>Copy construction</h3>
+<pre><code class="language-cpp">
+::fast_io::array&lt;std::size_t, 3zu&gt; a{1zu, 2zu, 3zu};
+::fast_io::array&lt;std::size_t, 3zu&gt; b{a}; // copy constructor
+</code></pre>
+
+      <h3>Copy assignment</h3>
+<pre><code class="language-cpp">
+::fast_io::array&lt;std::size_t, 3zu&gt; a{1zu, 2zu, 3zu};
+::fast_io::array&lt;std::size_t, 3zu&gt; b{};
+
+b = a; // copy assignment
+</code></pre>
+
+      <h3>Copying between arrays of different sizes</h3>
+      <p>
+        Arrays must have the same size <code>N</code> to be copied. The following is
+        a compile‑time error:
+      </p>
+
+<pre><code class="language-cpp">
+::fast_io::array&lt;std::size_t, 3zu&gt; a{};
+::fast_io::array&lt;std::size_t, 4zu&gt; b{};
+
+// b = a; // ❌ compile‑time error: sizes differ
+</code></pre>
+
+      <h3>Copying with iterators</h3>
+<pre><code class="language-cpp">
+::fast_io::array&lt;std::size_t, 3zu&gt; a{1zu, 2zu, 3zu};
+::fast_io::array&lt;std::size_t, 3zu&gt; b{};
+
+for(std::size_t i{}; i != a.size(); ++i) {
+    b[i] = a[i];
+}
+</code></pre>
+
+      <p>
+        Since arrays never reallocate, iterator‑based copying is always safe.
+      </p>
     </section>
 
     <section>
@@ -159,15 +211,16 @@ x.swap(y);
         <li>Access functions (<code>front()</code>, <code>back()</code>, <code>operator[]</code>) behave like those in vectors.</li>
         <li>Array iterators behave exactly like string and vector iterators, but never become invalid.</li>
         <li><code>fill()</code> and <code>swap()</code> provide convenient ways to modify the entire array.</li>
+        <li>Copying an array always copies all elements; arrays of different sizes cannot be copied.</li>
         <li>For most tasks, prefer <code>::fast_io::vector&lt;T&gt;</code> — it is the default container and grows automatically.</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/docs/04.dsal/02.vector/" class="prev-button">← Ch4.2: vector</a>
+      <a href="/docs/04.dsal/03.vector/" class="prev-button">← Ch4.3: vector</a>
       <a href="/" class="main-button">↑ Main Page</a>
-      <a href="/docs/04.dsal/04.multidcontainers/" class="next-button">Ch4.4: Multi‑Dimension Containers →</a>
+      <a href="/docs/04.dsal/05.multidcontainers/" class="next-button">Ch4.5: Multi‑Dimension Containers →</a>
     </div>
   </main>
 </body>
