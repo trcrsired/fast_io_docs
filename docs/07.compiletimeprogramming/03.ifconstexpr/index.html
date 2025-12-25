@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch7.3: if constexpr - C++ Tutorial</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>Ch7.3: if constexpr</h1>
+
+    <!-- ========================= -->
+    <!-- OVERVIEW -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>Overview</h2>
+
+      <p>
+        <code>if constexpr</code> is a compile‑time conditional. When its condition
+        is a constant expression, the compiler removes the branch that is not taken.
+        This is different from a normal <code>if</code>, which always generates both
+        branches in the program.
+      </p>
+
+      <p>
+        This chapter shows how <code>if constexpr</code> works, how to chain
+        <code>else if constexpr</code>, how it can replace certain uses of
+        <code>#ifdef</code>, and how it helps prevent hidden syntax errors.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. BASIC EXAMPLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. Basic example</h2>
+
+      <p>
+        If the condition is a constant expression, the compiler keeps only the
+        selected branch.
+      </p>
+
+<pre><code class="language-cpp">
+constexpr bool use_fast_path = true;
+
+int compute(int x)
+{
+    if constexpr(use_fast_path)
+    {
+        return x * 2;   // this branch is kept
+    }
+    else
+    {
+        return x + 2;   // this branch is removed
+    }
+}
+</code></pre>
+
+      <p>
+        Because <code>use_fast_path</code> is <code>constexpr</code>, the compiler
+        discards the <code>else</code> branch entirely.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. WHY THIS MATTERS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. Why this matters</h2>
+
+      <p>
+        <code>if constexpr</code> is useful when you want to:
+      </p>
+
+      <ul>
+        <li>select code paths at compile time</li>
+        <li>remove unused code entirely</li>
+        <li>avoid generating code that would be invalid in some cases</li>
+      </ul>
+
+      <p>
+        Unlike a normal <code>if</code>, the discarded branch is not compiled at
+        all.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. IF–ELSE IF–ELSE CHAIN -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. if constexpr / else if constexpr / else</h2>
+
+      <p>
+        You can chain <code>if constexpr</code> with <code>else if constexpr</code>
+        and <code>else</code>. Only one branch is selected, and all others are
+        removed at compile time.
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+constexpr int mode = 2;
+
+void handle_mode()
+{
+    using namespace ::fast_io::iomnp;
+
+    if constexpr(mode == 1)
+    {
+        print("mode 1\n");
+    }
+    else if constexpr(mode == 2)
+    {
+        print("mode 2\n");
+    }
+    else
+    {
+        print("other mode\n");
+    }
+}
+</code></pre>
+
+      <p>
+        Only the matching branch is kept in the final program.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. USING IT WITH CONSTEXPR VARIABLES -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. Using it with <code>constexpr</code> variables</h2>
+
+      <p>
+        A common pattern is to control behavior using a <code>constexpr</code>
+        configuration variable.
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+constexpr bool print_hex = false;
+
+void print_value(int x)
+{
+    using namespace ::fast_io::iomnp;
+
+    if constexpr(print_hex)
+        print("hex: ", hex(x), "\n");
+    else
+        print("dec: ", x, "\n");
+}
+</code></pre>
+
+      <p>
+        If <code>print_hex</code> is <code>false</code>, the compiler removes the
+        entire hex printing branch.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. REPLACING SOME #ifdef USAGE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. Replacing some <code>#ifdef</code> usage</h2>
+
+      <p>
+        <code>if constexpr</code> is very useful when combined with macros. In many
+        cases, it can replace <code>#ifdef</code> inside functions. The idea is to
+        convert a macro into a <code>constexpr</code> boolean, and then use
+        <code>if constexpr</code> to remove unused branches at compile time.
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+void foo()
+{
+    using namespace ::fast_io::iomnp;
+
+    constexpr bool is_windows{
+    #ifdef _WIN32
+        true
+    #else
+        false
+    #endif
+    };
+
+    if constexpr(is_windows)
+    {
+        win32_foo();
+    }
+    else
+    {
+        posix_foo();
+    }
+}
+</code></pre>
+
+      <p>
+        This keeps the function readable and avoids scattering <code>#ifdef</code>
+        throughout the code.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 6. WHY THIS IS SAFER THAN LARGE #ifdef BLOCKS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>6. Why this is safer than large <code>#ifdef</code> blocks</h2>
+
+      <p>
+        <code>#ifdef</code> removes code before the compiler ever sees it. This can
+        hide syntax errors or invalid code inside the disabled branch.
+      </p>
+
+      <p>For example:</p>
+
+<pre><code class="language-cpp">
+#ifdef _WIN32
+    win32_foo();
+#else
+    foo()   // missing semicolon, but never compiled on Windows
+#endif
+</code></pre>
+
+      <p>
+        On Windows, the <code>foo()</code> line is removed by the preprocessor, so
+        the compiler never checks it. The error remains hidden until someone builds
+        on a different platform.
+      </p>
+
+      <p>
+        With <code>if constexpr</code>, both branches must be valid C++. The
+        compiler parses both, then discards the unused one only after verifying it.
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+void foo()
+{
+    using namespace ::fast_io::iomnp;
+
+    constexpr bool is_windows{
+    #ifdef _WIN32
+        true
+    #else
+        false
+    #endif
+    };
+
+    if constexpr(is_windows)
+        win32_foo();
+    else
+        foo(); // must be valid C++ or compilation fails
+}
+</code></pre>
+
+      <p>
+        This reduces the chance of hidden compilation failures.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 7. USING if constexpr(false) -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>7. Using <code>if constexpr(false)</code> to disable code</h2>
+
+      <p>
+        <code>if constexpr(false)</code> can be used to temporarily disable a block
+        of code. The disabled branch is removed at compile time, but the compiler
+        still checks it for correctness.
+      </p>
+
+<pre><code class="language-cpp">
+if constexpr(false)
+{
+    do_something();   // must still be valid C++
+}
+</code></pre>
+
+      <p>
+        This is different from:
+      </p>
+
+<pre><code class="language-cpp">
+#if 0
+    do_something()    // missing semicolon, but never checked
+#endif
+</code></pre>
+
+      <p>
+        <code>#if 0</code> is still useful when the programmer intentionally wants
+        to hide unfinished or syntactically invalid code. In that case, the goal is
+        to prevent the compiler from seeing the code at all.
+      </p>
+
+      <p>
+        But when you want the compiler to keep checking the disabled code for
+        correctness, <code>if constexpr(false)</code> is the safer choice.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 8. CHECKING ENDIANNESS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>8. Checking endianness with <code>if constexpr</code></h2>
+
+      <p>
+        <code>if constexpr</code> is also useful for selecting code paths based on
+        compile‑time properties of the platform, such as endianness.
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;bit&gt;
+#include &lt;fast_io.h&gt;
+
+void show_endianness()
+{
+    using namespace ::fast_io::iomnp;
+
+    if constexpr(::std::endian::little == ::std::endian::native)
+    {
+        print("native endianness: little\n");
+    }
+    else if constexpr(::std::endian::big == ::std::endian::native)
+    {
+        print("native endianness: big\n");
+    }
+    else
+    {
+        print("native endianness: mixed or unknown\n");
+    }
+}
+</code></pre>
+
+      <p>
+        Only the matching branch is kept in the final program.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>Summary</h2>
+
+      <ul>
+        <li><code>if constexpr</code> is a compile‑time conditional.</li>
+        <li>You can chain it with <code>else if constexpr</code> and <code>else</code>.</li>
+        <li>Unused branches are removed when the condition is a constant expression.</li>
+        <li>It can replace some <code>#ifdef</code> usage inside functions.</li>
+        <li>It prevents hidden syntax errors in disabled branches.</li>
+        <li><code>if constexpr(false)</code> disables code but still checks it.</li>
+        <li><code>#if 0</code> is still useful when intentionally hiding invalid code.</li>
+        <li>It can select platform‑specific code paths, such as endianness.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/07.compiletimeprogramming/02.constexprobjects/" class="prev-button">← Ch7.2: constexpr Object Generation</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/07.compiletimeprogramming/04.ifconsteval/" class="next-button">Ch7.4: if consteval →</a>
+    </div>
+
+  </main>
+</body>
+</html>

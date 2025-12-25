@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch7.4: if consteval - C++ Tutorial</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>Ch7.4: if consteval</h1>
+
+    <!-- ========================= -->
+    <!-- OVERVIEW -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>Overview</h2>
+
+      <p>
+        <code>if consteval</code> checks whether the current function call is being
+        evaluated in a constant expression context. It allows a function to behave
+        differently when executed at compile time versus runtime.
+      </p>
+
+      <p>
+        Unlike <code>if constexpr</code>, which depends on a constant expression
+        value, <code>if consteval</code> depends on <em>how</em> the function is
+        being evaluated.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. BASIC EXAMPLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. Basic example</h2>
+
+      <p>
+        When a function is evaluated at compile time, the <code>if consteval</code>
+        branch is taken. When evaluated at runtime, the <code>else</code> branch is
+        taken.
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int compute(int x)
+{
+    using namespace ::fast_io::iomnp;
+
+    if consteval
+    {
+        print("computed at compile time\n");
+        return x * 2;
+    }
+    else
+    {
+        print("computed at runtime\n");
+        return x + 2;
+    }
+}
+</code></pre>
+
+      <p>
+        The compiler chooses the branch based on the evaluation context.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. FORCING COMPILE-TIME EVALUATION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. Forcing compile‑time evaluation</h2>
+
+      <p>
+        A <code>constexpr</code> variable forces its initializer to be evaluated at
+        compile time. This means the <code>if consteval</code> branch will be taken.
+      </p>
+
+<pre><code class="language-cpp">
+constexpr int a = compute(10);  // compile-time evaluation
+int b = compute(10);            // runtime evaluation
+</code></pre>
+
+      <p>
+        The first call prints “computed at compile time”, and the second prints
+        “computed at runtime”.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. WHY THIS IS USEFUL -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. Why this is useful</h2>
+
+      <p>
+        <code>if consteval</code> is useful when a function must:
+      </p>
+
+      <ul>
+        <li>perform different logic at compile time</li>
+        <li>avoid runtime‑only operations during constant evaluation</li>
+        <li>provide better diagnostics for compile‑time usage</li>
+      </ul>
+
+      <p>
+        For example, you may want to forbid certain operations when the function is
+        evaluated at compile time.
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int safe_divide(int a, int b)
+{
+    using namespace ::fast_io::iomnp;
+
+    if consteval
+    {
+        if(b == 0)
+            print("error: division by zero in constant expression\n");
+    }
+
+    return a / b;
+}
+</code></pre>
+
+      <p>
+        This allows compile‑time checks without affecting runtime behavior.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. CONTRAST WITH if constexpr -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. Contrast with <code>if constexpr</code></h2>
+
+      <p>
+        <code>if constexpr</code> depends on a constant expression value:
+      </p>
+
+<pre><code class="language-cpp">
+if constexpr(flag) { ... }
+</code></pre>
+
+      <p>
+        <code>if consteval</code> depends on the evaluation context:
+      </p>
+
+<pre><code class="language-cpp">
+if consteval { ... }
+</code></pre>
+
+      <p>
+        They solve different problems:
+      </p>
+
+      <ul>
+        <li><code>if constexpr</code> selects code based on a constant value.</li>
+        <li><code>if consteval</code> selects code based on whether the function is being evaluated at compile time.</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>Summary</h2>
+
+      <ul>
+        <li><code>if consteval</code> checks whether the current function call is evaluated at compile time.</li>
+        <li>It allows functions to behave differently in compile‑time and runtime contexts.</li>
+        <li><code>constexpr</code> variables force compile‑time evaluation.</li>
+        <li>Useful for diagnostics, restrictions, and context‑dependent behavior.</li>
+        <li>Different from <code>if constexpr</code>, which depends on a constant expression value.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/07.compiletimeprogramming/03.ifconstexpr/" class="prev-button">← Ch7.3: if constexpr</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/07.compiletimeprogramming/05.consteval/" class="next-button">Ch7.5: consteval →</a>
+    </div>
+
+  </main>
+</body>
+</html>

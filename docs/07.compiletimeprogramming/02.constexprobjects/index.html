@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch7.2: constexpr Object Generation - C++ Tutorial</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>Ch7.2: constexpr Object Generation</h1>
+
+    <!-- ========================= -->
+    <!-- OVERVIEW -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>Overview</h2>
+
+      <p>
+        A <code>constexpr</code> function can build objects at compile time. In this
+        chapter, we generate a lookup table of powers of ten using a loop inside a
+        <code>constexpr</code> function, return the table, and force the compiler to
+        compute it during compilation.
+      </p>
+
+      <p>
+        This technique is useful for precomputed tables such as powers of ten,
+        digit conversion tables, and other fixed data that should not be computed
+        at runtime.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. HOW MANY POWERS OF TEN -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. Determining how many powers of ten fit</h2>
+
+      <p>
+        We use <code>std::uint_least64_t</code> to avoid overflow. The number of
+        safe powers of ten is given by:
+      </p>
+
+<pre><code class="language-cpp">
+constexpr std::size_t pow10_count =
+    ::std::numeric_limits<::std::uint_least64_t>::digits10 + 1;
+</code></pre>
+
+      <p>
+        For 64‑bit integers, this is typically 19 (10⁰ through 10¹⁸).
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. GENERATING THE TABLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. Generating the table with a <code>constexpr</code> function</h2>
+
+      <p>
+        A <code>constexpr</code> function may contain loops. We use this to fill a
+        <code>::fast_io::array</code> with powers of ten. The return type is
+        <code>auto</code>, so the compiler deduces the array type.
+      </p>
+
+<pre><code class="language-cpp">
+constexpr auto make_pow10()
+{
+    ::fast_io::array&lt;::std::uint_least64_t, pow10_count&gt; arr{};
+    ::std::uint_least64_t value{1};
+
+    for(std::size_t i{}; i != pow10_count; ++i)
+    {
+        arr[i] = value;
+        value *= 10;
+    }
+
+    return arr;
+}
+</code></pre>
+
+      <p>
+        This function builds the entire table at compile time.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. FORCING COMPILE-TIME EVALUATION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. Forcing compile‑time evaluation</h2>
+
+      <p>
+        To force the compiler to compute the table during compilation, define an
+        <code>inline constexpr</code> global variable:
+      </p>
+
+<pre><code class="language-cpp">
+inline constexpr auto pow10_table = make_pow10();
+</code></pre>
+
+      <p>
+        A <code>constexpr</code> variable forces its initializer to be evaluated at
+        compile time. If the initializer calls a <code>constexpr</code> function,
+        the compiler must execute that function during compilation.
+      </p>
+
+      <p>
+        If the computation cannot be completed at compile time, the compilation
+        fails. This happens when:
+      </p>
+
+      <ul>
+        <li>the function being called is not <code>constexpr</code></li>
+        <li>the function performs an operation not allowed in constant expressions</li>
+        <li>the function triggers undefined behavior</li>
+      </ul>
+
+      <p>
+        Because the variable is <code>inline</code>, it can be placed in a header
+        without causing duplicate symbol errors.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. USING THE TABLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. Using the table in <code>main()</code></h2>
+
+<pre><code class="language-cpp">
+int main()
+{
+    using namespace ::fast_io::iomnp;
+    println(pow10_table[0]);  // 1
+    println(pow10_table[1]);  // 10
+    println(pow10_table[5]);  // 100000
+    println(pow10_table[18]); // 10^18 (on 64-bit)
+}
+</code></pre>
+
+      <p>
+        All values are precomputed and stored directly in the program image.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>Summary</h2>
+
+      <ul>
+        <li><code>digits10</code> tells us how many powers of ten fit in the type.</li>
+        <li>A <code>constexpr</code> function can generate arrays using loops.</li>
+        <li>Returning <code>auto</code> lets the compiler deduce the array type.</li>
+        <li><code>inline constexpr</code> variables force compile‑time evaluation.</li>
+        <li>Compilation fails if the computation cannot be done at compile time.</li>
+        <li>The resulting table is embedded directly in the program image.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/07.compiletimeprogramming/01.constexprfunction/" class="prev-button">← Ch7.1: constexpr Functions</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/07.compiletimeprogramming/03.ifconstexpr/" class="next-button">Ch7.3: if constexpr →</a>
+    </div>
+
+  </main>
+</body>
+</html>

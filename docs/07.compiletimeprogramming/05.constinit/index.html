@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch7.5: constinit - C++ Tutorial</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>Ch7.5: constinit</h1>
+
+    <!-- ========================= -->
+    <!-- OVERVIEW -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>Overview</h2>
+
+      <p>
+        <code>constinit</code> guarantees that a variable is initialized at compile
+        time, but unlike <code>constexpr</code>, the variable itself does not need
+        to be a constant expression. It simply ensures that the initialization
+        happens before any dynamic initialization.
+      </p>
+
+      <p>
+        This is extremely useful for preventing static initialization order
+        problems.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. BASIC EXAMPLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. Basic example</h2>
+
+      <p>
+        A <code>constinit</code> variable must be initialized with a constant
+        initializer, but the variable itself does not need to be <code>constexpr</code>.
+      </p>
+
+<pre><code class="language-cpp">
+#include <fast_io.h>
+
+constinit int counter = 0;   // guaranteed compile-time initialization
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ++counter;                // OK: not constexpr
+    print("counter = ", counter, "\n");
+}
+</code></pre>
+
+      <p>
+        The initialization is compile‑time, but the variable is mutable at runtime.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. WHY THIS IS USEFUL -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. Why this is useful</h2>
+
+      <p>
+        <code>constinit</code> solves a real problem: the static initialization
+        order fiasco. It ensures that a global variable is initialized before any
+        dynamic initialization begins.
+      </p>
+
+      <p>
+        Without <code>constinit</code>, two global variables in different
+        translation units may be initialized in an unpredictable order.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. PREVENTING STATIC INITIALIZATION ORDER FIASCO -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. Preventing static initialization order issues</h2>
+
+      <p>
+        Consider two global variables in different files:
+      </p>
+
+<pre><code class="language-cpp">
+// file A
+#include <fast_io.h>
+
+constinit int global_value = 42;
+
+// file B
+extern int global_value;
+
+int compute()
+{
+    return global_value * 2;   // safe: global_value is initialized early
+}
+</code></pre>
+
+      <p>
+        Because <code>global_value</code> is <code>constinit</code>, it is
+        guaranteed to be initialized before <code>compute()</code> runs.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. DIFFERENCE FROM constexpr -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. Difference from <code>constexpr</code></h2>
+
+      <p>
+        <code>constexpr</code> means:
+      </p>
+
+      <ul>
+        <li>the value must be a constant expression</li>
+        <li>the variable cannot be modified</li>
+      </ul>
+
+      <p>
+        <code>constinit</code> means:
+      </p>
+
+      <ul>
+        <li>the variable must be initialized at compile time</li>
+        <li>the variable <em>can</em> be modified at runtime</li>
+        <li>the value does <em>not</em> need to be a constant expression</li>
+      </ul>
+
+<pre><code class="language-cpp">
+constexpr int a = 5;     // constant expression, immutable
+constinit int b = 5;     // compile-time init, mutable
+</code></pre>
+
+      <p>
+        <code>b</code> can be changed at runtime; <code>a</code> cannot.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. constinit DOES NOT FORCE CONSTANT EVALUATION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. constinit does not force constant evaluation</h2>
+
+      <p>
+        <code>constinit</code> only requires that the initializer is a constant
+        initializer. It does <em>not</em> force the variable to be used in constant
+        expressions.
+      </p>
+
+<pre><code class="language-cpp">
+constinit int x = 10;   // must be initialized at compile time
+int y = x + 5;          // runtime use is fine
+</code></pre>
+
+      <p>
+        This makes <code>constinit</code> ideal for global state that must be
+        initialized early but remains mutable.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>Summary</h2>
+
+      <ul>
+        <li><code>constinit</code> guarantees compile‑time initialization.</li>
+        <li>The variable itself may be modified at runtime.</li>
+        <li>It prevents static initialization order problems.</li>
+        <li>It is different from <code>constexpr</code>, which requires constant expressions.</li>
+        <li>It is ideal for global variables that must be initialized early.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/07.compiletimeprogramming/04.ifconsteval/" class="prev-button">← Ch7.4: if consteval</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/07.compiletimeprogramming/06.consteval/" class="next-button">Ch7.6: consteval →</a>
+    </div>
+
+  </main>
+</body>
+</html>

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch7.6: consteval - C++ Tutorial</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>Ch7.6: consteval</h1>
+
+    <!-- ========================= -->
+    <!-- OVERVIEW -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>Overview</h2>
+
+      <p>
+        A <code>consteval</code> function must always be evaluated at compile time.
+        It cannot run at runtime. If the compiler cannot evaluate the function
+        during compilation, the program fails to compile.
+      </p>
+
+      <p>
+        This is stricter than <code>constexpr</code>. In practice,
+        <code>consteval</code> is rarely needed, but it is useful when you want to
+        guarantee that a function is <em>never</em> executed at runtime.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. BASIC EXAMPLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. Basic example</h2>
+
+      <p>
+        A <code>consteval</code> function must be called in a constant expression.
+      </p>
+
+<pre><code class="language-cpp">
+#include <fast_io.h>
+
+consteval int double_value(int x)
+{
+    return x * 2;
+}
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    constexpr int a = double_value(10);  // OK: compile-time
+    print("a = ", a, "\n");
+
+    // int b = double_value(10);        // ERROR: cannot call at runtime
+}
+</code></pre>
+
+      <p>
+        The second call fails because <code>double_value</code> cannot run at runtime.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. WHY THIS IS RARELY USEFUL -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. Why this is rarely useful</h2>
+
+      <p>
+        Most functions do not need to be restricted to compile‑time evaluation.
+        <code>constexpr</code> already allows compile‑time evaluation when needed,
+        while still permitting runtime execution.
+      </p>
+
+      <p>
+        <code>consteval</code> is only useful when:
+      </p>
+
+      <ul>
+        <li>you want to forbid runtime execution entirely</li>
+        <li>you want to guarantee a compile‑time constant</li>
+        <li>you want immediate compile‑time errors for invalid usage</li>
+      </ul>
+
+      <p>
+        These situations are uncommon in normal application code.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. COMPILE-TIME VALIDATION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. Compile‑time validation</h2>
+
+      <p>
+        A <code>consteval</code> function can enforce constraints that must be
+        checked during compilation.
+      </p>
+
+<pre><code class="language-cpp">
+#include <fast_io.h>
+
+consteval int positive(int x)
+{
+    if(x <= 0)
+        throw "value must be positive";
+
+    return x;
+}
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    constexpr int a = positive(5);   // OK
+    print("a = ", a, "\n");
+
+    // constexpr int b = positive(-3); // compile-time error
+}
+</code></pre>
+
+      <p>
+        Any invalid input causes a compile‑time failure.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. DIFFERENCE FROM constexpr -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. Difference from <code>constexpr</code></h2>
+
+      <p>
+        <code>constexpr</code> functions:
+      </p>
+
+      <ul>
+        <li>may run at compile time</li>
+        <li>may also run at runtime</li>
+        <li>can be used in both contexts</li>
+      </ul>
+
+      <p>
+        <code>consteval</code> functions:
+      </p>
+
+      <ul>
+        <li><strong>must</strong> run at compile time</li>
+        <li>cannot run at runtime</li>
+        <li>cause compilation failure if used incorrectly</li>
+      </ul>
+
+<pre><code class="language-cpp">
+constexpr int f(int x) { return x + 1; }   // flexible
+consteval int g(int x) { return x + 1; }   // strict
+</code></pre>
+
+      <p>
+        <code>g()</code> can only be used in constant expressions.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. INTERACTION WITH if consteval -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. Interaction with <code>if consteval</code></h2>
+
+      <p>
+        <code>if consteval</code> detects whether a <code>constexpr</code> function
+        is being evaluated at compile time. But a <code>consteval</code> function is
+        <em>always</em> evaluated at compile time.
+      </p>
+
+<pre><code class="language-cpp">
+#include <fast_io.h>
+
+constexpr int compute(int x)
+{
+    using namespace ::fast_io::iomnp;
+
+    if consteval
+        print("compile-time path\n");
+    else
+        print("runtime path\n");
+
+    return x * 3;
+}
+
+consteval int force_ct(int x)
+{
+    return compute(x);  // always compile-time
+}
+</code></pre>
+
+      <p>
+        <code>force_ct()</code> guarantees that <code>compute()</code> takes the
+        compile‑time branch.
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>Summary</h2>
+
+      <ul>
+        <li><code>consteval</code> functions must run at compile time.</li>
+        <li>They cannot run at runtime.</li>
+        <li>They are useful for strict compile‑time validation and generation.</li>
+        <li><code>constexpr</code> is flexible; <code>consteval</code> is strict.</li>
+        <li><code>if consteval</code> detects compile‑time evaluation, while <code>consteval</code> enforces it.</li>
+        <li>Most real‑world code does not need <code>consteval</code>.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/07.compiletimeprogramming/05.constinit/" class="prev-button">← Ch7.5: constinit</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/08.algorithm/" class="next-button">Ch8: Algorithm →</a>
+    </div>
+
+  </main>
+</body>
+</html>
