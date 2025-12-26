@@ -53,7 +53,7 @@ struct Record {
 };
 
 // Sort by the offset field
-::std::ranges::sort(v, ::std::less&lt;&gt;{}, &Record::offset);
+::std::ranges::sort(v, {}, &Record::offset);
       </code></pre>
 
       <p>
@@ -97,7 +97,7 @@ struct Record {
 });
 
 // Comparator + projection:
-::std::ranges::sort(v, ::std::less&lt;&gt;{}, &Record::offset);
+::std::ranges::sort(v, {}, &Record::offset);
       </code></pre>
 
       <p>
@@ -126,7 +126,7 @@ struct Record {
 
       <pre><code class="language-cpp">
 // Bad: expensive projection
-::std::ranges::sort(v, ::std::less&lt;&gt;{}, [](auto const&amp; r) {
+::std::ranges::sort(v, {}, [](auto const&amp; r) {
     return r.offset * r.offset * r.offset; // expensive
 });
       </code></pre>
@@ -147,7 +147,7 @@ struct Record {
 
       <pre><code class="language-cpp">
 // Bad: returns reference to a temporary
-::std::ranges::sort(v, ::std::less&lt;&gt;{}, [](auto const&amp; r) -> ::std::ptrdiff_t const&amp; {
+::std::ranges::sort(v, ::std::ranges::greater{}, [](auto const&amp; r) -> ::std::ptrdiff_t const&amp; {
     return r.offset + 1; // temporary
 });
       </code></pre>
@@ -174,28 +174,7 @@ struct Record {
     </section>
 
     <section>
-      <h2>7. Common projection patterns</h2>
-
-      <p>
-        Projections are most useful when working with:
-      </p>
-
-      <ul>
-        <li>structs with multiple numeric fields</li>
-        <li>containers of pairs</li>
-        <li>containers of pointers</li>
-        <li>containers of optional values</li>
-      </ul>
-
-      <pre><code class="language-cpp">
-// Sort by the first element of a pair
-::fast_io::vector&lt;::std::pair&lt;::std::size_t, ::std::ptrdiff_t&gt;&gt; p = { ... };
-::std::ranges::sort(p, ::std::less&lt;&gt;{}, &::std::pair&lt;::std::size_t, ::std::ptrdiff_t&gt;::first);
-      </code></pre>
-    </section>
-
-    <section>
-      <h2>8. Key takeaways</h2>
+      <h2>Key takeaways</h2>
 
       <ul>
         <li>A projection transforms each element before the algorithm sees it.</li>
