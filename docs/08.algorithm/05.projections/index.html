@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch8.5: Projections - C++ Tutorial</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch8.5: Projections</h1>
+
+    <section>
+      <h2>Overview</h2>
+
+      <p>
+        A <strong>projection</strong> is a function applied to each element before
+        an algorithm uses it. Instead of operating on the element directly, the
+        algorithm operates on the projected value. This allows algorithms to work
+        with derived fields or computed values without modifying the underlying
+        data structure.
+      </p>
+
+      <p>
+        Projections are conceptually simple: the algorithm sees
+        <code>proj(x)</code> instead of <code>x</code>. But understanding how
+        projections interact with iterators, references, and algorithm semantics
+        is essential for writing correct and efficient code.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. What is a projection?</h2>
+
+      <p>
+        A projection is a unary function applied to each element before the
+        algorithm processes it. For example, if we have a struct with two numeric
+        fields, we can sort by one of them using a projection.
+      </p>
+
+      <pre><code class="language-cpp">
+struct Record {
+    ::std::size_t index;
+    ::std::ptrdiff_t offset;
+};
+
+::fast_io::vector&lt;Record&gt; v = {
+    {3, -10},
+    {1,  25},
+    {2,   5}
+};
+
+// Sort by the offset field
+::std::ranges::sort(v, ::std::less&lt;&gt;{}, &Record::offset);
+      </code></pre>
+
+      <p>
+        The algorithm never compares <code>Record</code> objects directly. It
+        compares the projected values returned by <code>&Record::offset</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Why projections exist</h2>
+
+      <p>
+        Without projections, customizing algorithms often required:
+      </p>
+
+      <ul>
+        <li>writing custom comparison lambdas</li>
+        <li>repeating field names everywhere</li>
+        <li>rewriting algorithms manually</li>
+      </ul>
+
+      <p>
+        Projections eliminate this boilerplate. They let you specify <em>what</em>
+        part of the element the algorithm should use, without changing
+        <em>how</em> the algorithm works.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Projections vs comparators</h2>
+
+      <p>
+        A comparator defines how two projected values are compared.  
+        A projection defines what part of the element is compared.
+      </p>
+
+      <pre><code class="language-cpp">
+// Comparator only:
+::std::ranges::sort(v, [](auto const&amp; a, auto const&amp; b) {
+    return a.offset &lt; b.offset;
+});
+
+// Comparator + projection:
+::std::ranges::sort(v, ::std::less&lt;&gt;{}, &Record::offset);
+      </code></pre>
+
+      <p>
+        The projection version is shorter, avoids captures, and avoids duplicating
+        field names. It also reduces binary size compared to lambdas.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Projections must be pure and cheap</h2>
+
+      <p>
+        Projections are called many times. They must be:
+      </p>
+
+      <ul>
+        <li><strong>pure</strong> (no side effects)</li>
+        <li><strong>cheap</strong> (ideally trivial)</li>
+        <li><strong>safe</strong> (no references to temporaries)</li>
+      </ul>
+
+      <p>
+        A projection should behave like a field access. Anything more expensive
+        risks destroying algorithmic performance.
+      </p>
+
+      <pre><code class="language-cpp">
+// Bad: expensive projection
+::std::ranges::sort(v, ::std::less&lt;&gt;{}, [](auto const&amp; r) {
+    return r.offset * r.offset * r.offset; // expensive
+});
+      </code></pre>
+
+      <p>
+        This turns <code>O(n log n)</code> sorting into something much worse.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Projections and references</h2>
+
+      <p>
+        A projection may return a reference, but only if the reference remains
+        valid for the duration of the algorithm. Returning references to
+        temporaries is undefined behavior.
+      </p>
+
+      <pre><code class="language-cpp">
+// Bad: returns reference to a temporary
+::std::ranges::sort(v, ::std::less&lt;&gt;{}, [](auto const&amp; r) -> ::std::ptrdiff_t const&amp; {
+    return r.offset + 1; // temporary
+});
+      </code></pre>
+
+      <p>
+        Safe projections return:
+      </p>
+
+      <ul>
+        <li>a field reference</li>
+        <li>a pointer</li>
+        <li>a small value (copied cheaply)</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>6. Projections and stability</h2>
+
+      <p>
+        Projections do not change whether an algorithm is stable. They only change
+        what the algorithm sees. If two elements have equal projected values, a
+        stable algorithm preserves their original order.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Common projection patterns</h2>
+
+      <p>
+        Projections are most useful when working with:
+      </p>
+
+      <ul>
+        <li>structs with multiple numeric fields</li>
+        <li>containers of pairs</li>
+        <li>containers of pointers</li>
+        <li>containers of optional values</li>
+      </ul>
+
+      <pre><code class="language-cpp">
+// Sort by the first element of a pair
+::fast_io::vector&lt;::std::pair&lt;::std::size_t, ::std::ptrdiff_t&gt;&gt; p = { ... };
+::std::ranges::sort(p, ::std::less&lt;&gt;{}, &::std::pair&lt;::std::size_t, ::std::ptrdiff_t&gt;::first);
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>8. Key takeaways</h2>
+
+      <ul>
+        <li>A projection transforms each element before the algorithm sees it.</li>
+        <li>Projections simplify code and reduce boilerplate.</li>
+        <li>They must be pure, cheap, and safe.</li>
+        <li>Returning references to temporaries is undefined behavior.</li>
+        <li>Projections do not change algorithm stability.</li>
+        <li>Using simple POD‑like types keeps projections efficient.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/08.algorithm/04.iteratoralgorithms/" class="prev-button">← Ch8.4: Iterator Algorithms</a>
+      <a href="/" class="main-button">↑ Main Page</a>
+      <a href="/docs/08.algorithm/06.typical/" class="next-button">Ch8.6: Typical Algorithms →</a>
+    </div>
+
+  </main>
+</body>
+</html>
