@@ -137,9 +137,10 @@ inline int add(int a, int b)
       </ol>
 
       <p>
-        This is why inconsistent inline definitions cause <strong>undefined
-        behavior</strong>. If two translation units contain different inline
-        definitions, the linker will arbitrarily discard some and keep one.
+        This is why inconsistent inline definitions cause
+        <strong>IFNDR (Ill-Formed, No Diagnostic Required)</strong>. If two
+        translation units contain different inline definitions, the linker will
+        arbitrarily discard some and keep one.
       </p>
 
       <p>
@@ -155,7 +156,7 @@ inline int add(int a, int b)
       <h2>4. Example: ODR violation</h2>
 
       <p>
-        Here is a simple example of undefined behavior caused by violating the
+        Here is a simple example of IFNDR caused by violating the
         One Definition Rule:
       </p>
 
@@ -191,7 +192,7 @@ inline int f()
       </p>
 
       <p>
-        This is a real ODR violation and results in undefined behavior.
+        This is a real ODR violation and results in IFNDR.
       </p>
     </section>
 
@@ -328,8 +329,8 @@ inline int inlinesquare(int num) {
       </ul>
 
       <p>
-        This is a silent ODR violation and leads to undefined behavior. In practice,
-        the bounds‑checked version is often discarded, leaving you with the unchecked
+        This is a silent ODR violation and leads to IFNDR. In practice, the
+        bounds‑checked version is often discarded, leaving you with the unchecked
         version even if you intended to enable hardening.
       </p>
     </section>
@@ -495,7 +496,7 @@ export int square(int x)
       <ul>
         <li><code>inline</code> allows a function definition to appear in multiple translation units.</li>
         <li>The linker <strong>discards</strong> duplicate inline definitions; it does not merge them.</li>
-        <li>Inconsistent inline definitions cause undefined behavior.</li>
+        <li>Inconsistent inline definitions cause IFNDR.</li>
         <li>Inline functions may not generate symbols unless ODR-used.</li>
         <li><code>-flto</code> allows global inlining and symbol elimination.</li>
         <li>Mixing hardened and unhardened <code>libstdc++</code> builds causes real ODR violations.</li>
