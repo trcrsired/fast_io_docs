@@ -80,10 +80,10 @@ int main()
     // ::fast_io::win32_api_family.
     ::fast_io::win32_file wf(u8"hello_win32.txt", ::fast_io::open_mode::out);
 
-    println(wf, u8"Hello from win32_file!");
+    print(wf, "Hello from win32_file!\n");
 
     ::std::size_t const n{42zu};
-    println(wf, u8"The answer is: ", n);
+    println(wf, "The answer is: ", n);
     // CloseHandle is invoked automatically when `wf` goes out of scope.
 }
       </code></pre>
@@ -105,7 +105,7 @@ void write_via_handle(void* h)
 
     // Non-owning: does NOT call CloseHandle on destruction.
     ::fast_io::win32_io_observer observer{
-        static_cast<::fast_io::win32_io_observer::native_handle_type>(h)};
+        static_cast&lt;::fast_io::win32_io_observer::native_handle_type&gt;(h)};
     println(observer, u8"Written through a win32_io_observer\n");
 }
 
