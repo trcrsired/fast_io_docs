@@ -307,8 +307,8 @@ int main() {
     ::fast_io::c_file cf(u8"output.txt", ::fast_io::open_mode::out);
 
     // Use fast_io's print/println
-    println(cf, "Hello, ", "World!");
-    println(cf, "The answer is: ", 42);
+    println(cf, "Hello, " "World!"
+        "The answer is: ", 42);
 
     // File is automatically closed when cf goes out of scope
 }
@@ -342,11 +342,11 @@ int main() {
 
     scan(cf, x);
     scan(cf, y);
-    scan&lt;true&gt;(cf, ::fast_io::mnp::str_line_get(name));  // read a line
+    scan(cf, ::fast_io::mnp::str_line_get(name));  // read a line
 
-    println("x = ", x);
-    println("y = ", y);
-    println("name = ", name);
+    println("x = ", x, "\n"
+      "y = ", y, "\n"
+      "name = ", name);
 }
 </code></pre>
 
@@ -364,20 +364,18 @@ int main() {
 void process_file(::fast_io::c_io_observer observer) {
     using namespace ::fast_io::iomnp;
     // Use fast_io's API without taking ownership
-    println(observer, "Processing...");
+    print(observer, "Processing...\n");
 }
 
 int main() {
     // Open with C API
     FILE* fp = std::fopen("data.txt", "w");
-
+    ::fast_io::c_file cf(fp);
     // Wrap it in an observer (non-owning)
     ::fast_io::c_io_observer observer{fp};
 
     process_file(observer);
 
-    // You still need to close it manually
-    std::fclose(fp);
 }
 </code></pre>
       <p>

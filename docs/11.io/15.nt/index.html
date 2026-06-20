@@ -64,7 +64,7 @@ int main()
     // NtCreateFile parameters (DesiredAccess, CreateDisposition, ...).
     ::fast_io::nt_file nf(u8"hello_nt.txt", ::fast_io::open_mode::out);
 
-    println(nf, u8"Hello from nt_file!");
+    print(nf, "Hello from nt_file!\n");
 
     ::std::size_t const n{42zu};
     println(nf, u8"The answer is: ", n);
@@ -85,7 +85,7 @@ void inspect(void* nt_handle)
 
     // Non-owning view. No NtClose on destruction.
     ::fast_io::nt_io_observer observer{
-        static_cast<::fast_io::nt_io_observer::native_handle_type>(nt_handle)};
+        static_cast&lt;::fast_io::nt_io_observer::native_handle_type&gt;(nt_handle)};
 
     println(observer, u8"Written through an nt_io_observer\n");
     println(::fast_io::mnp::handlevw(observer.native_handle()));
