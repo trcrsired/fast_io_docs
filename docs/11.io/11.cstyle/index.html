@@ -25,6 +25,44 @@
         <code>print</code>/<code>println</code>/<code>scan</code> while keeping RAII semantics, type
         safety, and performance.
       </p>
+
+      <h3>The Problem with Error Handling</h3>
+      <p>
+        One of the biggest issues with C stdio is that <strong>most functions can fail</strong>,
+        and proper error handling requires checking the return value of <em>most</em> calls:
+      </p>
+<pre><code class="language-c">
+#include &lt;stdio.h&gt;
+
+int main() {
+    FILE *fp = fopen("output.txt", "w");
+    if (fp == NULL) {
+        perror("fopen failed");
+        return 1;
+    }
+
+    if (fprintf(fp, "%s\n", "Hello") &lt; 0) {
+        perror("fprintf failed");
+        fclose(fp);
+        return 1;
+    }
+
+    // fclose can fail, but there's nothing you can do about it
+    fclose(fp);
+
+    return 0;
+}
+</code></pre>
+      <p>
+        This is extremely error-prone. Most C programs don&rsquo;t check errors from
+        <code>fprintf</code> or even <code>printf</code> itself. Even <code>printf</code> can fail
+        (e.g., broken pipe, disk full, I/O error), but almost no one checks its return value.
+      </p>
+      <p>
+        <code>fast_io</code> makes error handling explicit. Functions throw exceptions on error by
+        default, or return error codes that you can&rsquo;t accidentally ignore. This makes it much
+        harder to write buggy I/O code.
+      </p>
     </section>
 
     <section>
@@ -199,6 +237,194 @@ int main() {
     </section>
 
     <section>
+      <h2>Using C Files with <code>fast_io</code></h2>
+      <p>
+        <code>fast_io</code> provides RAII wrappers for <code>FILE*</code> so you can use
+        <code>print</code>/<code>println</code>/<code>scan</code> with C files while ensuring
+        proper resource management.
+      </p>
+
+      <h3><code>::fast_io::c_file</code>: RAII Wrapper</h3>
+      <p>
+        <code>::fast_io::c_file</code> wraps a <code>FILE*</code> and automatically closes it
+        when the object goes out of scope. This prevents resource leaks.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // Open a file for writing (RAII)
+    ::fast_io::c_file cf(u8"output.txt", ::fast_io::open_mode::out);
+
+    // Use fast_io's print/println
+    println(cf, "Hello, ", "World!");
+    println(cf, "The answer is: ", 42);
+
+    // File is automatically closed when cf goes out of scope
+}
+</code></pre>
+      <p>
+        The mode parameter works the same as <code>fopen</code>:
+      </p>
+      <ul>
+        <li><code>::fast_io::open_mode::in</code> &mdash; read</li>
+        <li><code>::fast_io::open_mode::out</code> &mdash; write (creates or truncates)</li>
+        <li><code>::fast_io::open_mode::append</code> &mdash; append</li>
+        <li>Combine with <code>|</code>: <code>::fast_io::open_mode::in | ::fast_io::open_mode::out</code></li>
+        <li>Add <code>::fast_io::open_mode::binary</code> for binary mode</li>
+      </ul>
+
+      <h3>Reading from C Files</h3>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // Open for reading
+    ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::in);
+
+    // Read values
+    int x;
+    double y;
+    ::fast_io::string name;
+
+    scan(cf, x);
+    scan(cf, y);
+    scan&lt;true&gt;(cf, ::fast_io::mnp::str_line_get(name));  // read a line
+
+    println("x = ", x);
+    println("y = ", y);
+    println("name = ", name);
+}
+</code></pre>
+
+      <h3><code>::fast_io::c_io_observer</code>: Non-Owning View</h3>
+      <p>
+        Sometimes you have a <code>FILE*</code> from another source (e.g., passed as a parameter)
+        and you want to use <code>fast_io</code>'s API without taking ownership. Use
+        <code>::fast_io::c_io_observer</code> for this:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;cstdio&gt;
+
+void process_file(::fast_io::c_io_observer observer) {
+    using namespace ::fast_io::iomnp;
+    // Use fast_io's API without taking ownership
+    println(observer, "Processing...");
+}
+
+int main() {
+    // Open with C API
+    FILE* fp = std::fopen("data.txt", "w");
+
+    // Wrap it in an observer (non-owning)
+    ::fast_io::c_io_observer observer{fp};
+
+    process_file(observer);
+
+    // You still need to close it manually
+    std::fclose(fp);
+}
+</code></pre>
+      <p>
+        The observer does <strong>not</strong> close the file when it goes out of scope &mdash;
+        the original owner is responsible for that.
+      </p>
+
+      <h3>Accessing the Underlying <code>FILE*</code></h3>
+      <p>
+        You can access the underlying <code>FILE*</code> via the <code>.fp</code> member:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;cstdio&gt;
+
+int main() {
+    ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::out);
+
+    // Use fast_io's API
+    println(cf, "fast_io output");
+
+    // Access the underlying FILE* for C API calls
+    std::fprintf(cf.fp, "C API output\n");
+
+    // File is closed automatically
+}
+</code></pre>
+
+      <h3>Thread Safety: <code>_unlocked</code> Variants</h3>
+      <p>
+        C's <code>FILE*</code> operations are thread-safe by default &mdash; each operation acquires
+        an internal lock. However, this can be slow. <code>fast_io</code> provides
+        <code>_unlocked</code> variants that skip the internal locking:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // Unlocked variant (no internal locking)
+    ::fast_io::c_file_unlocked cf(u8"data.txt", ::fast_io::open_mode::out);
+
+    println(cf, "Fast, but not thread-safe by default");
+
+    // If you need thread safety, use ::fast_io::native_mutex
+    {
+        ::fast_io::native_mutex_lock lock(cf);
+        println(cf, "Thread-safe output");
+    }
+}
+</code></pre>
+      <p>
+        Use <code>c_file_unlocked</code> when:
+      </p>
+      <ul>
+        <li>You're in a single-threaded context</li>
+        <li>You're synchronizing manually with <code>::fast_io::native_mutex</code></li>
+        <li>You need maximum performance and understand the threading implications</li>
+      </ul>
+
+      <h3>Interoperability with C Libraries</h3>
+      <p>
+        Many C libraries expect <code>FILE*</code> parameters. You can pass the underlying
+        <code>FILE*</code> from <code>c_file</code> or <code>c_io_observer</code>:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;cstdio&gt;
+
+// C library function
+void c_library_function(FILE* fp) {
+    std::fprintf(fp, "%s\n", "From C library");
+}
+
+int main() {
+    ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::out);
+
+    // Use fast_io
+    println(cf, "From fast_io");
+
+    // Pass to C library
+    c_library_function(cf.fp);
+
+    // More fast_io
+    println(cf, "Back to fast_io");
+}
+</code></pre>
+    </section>
+
+    <section>
       <h2>Appendix</h2>
       <p>
         For the complete C I/O function reference, see
@@ -208,9 +434,12 @@ int main() {
 
     <section>
       <h2>Key Takeaways</h2>
-    <section>
-      <h2>Key Takeaways</h2>
       <ul>
+        <li>
+          C stdio requires checking errors on <strong>most</strong> function calls (though
+          <code>fclose</code> failure is typically not recoverable). Most code ignores these
+          errors, leading to silent data loss.
+        </li>
         <li>
           <code>::fast_io::c_file</code> wraps <code>FILE*</code> with RAII &mdash; the file is
           closed automatically.
@@ -224,12 +453,15 @@ int main() {
           to synchronize them manually when needed.
         </li>
         <li>
-          Never pass a runtime string as the format argument to <code>printf</code>. Always use a
-          literal format string: <code>printf("%s", str)</code>, not <code>printf(str)</code>.
+          Never pass a variable or runtime string as the format argument to <code>printf</code>.
+          This is a format string vulnerability: <code>printf(str)</code> is dangerous if
+          <code>str</code> contains <code>%</code> characters. Always use a literal format string:
+          <code>printf("%s", str)</code> &mdash; or better, use <code>::fast_io::print</code>.
         </li>
         <li>
           Prefer <code>::fast_io::print</code>/<code>println</code>/<code>scan</code> over the C
-          functions &mdash; they are type-safe, faster, and immune to format string attacks.
+          functions &mdash; they are type-safe, faster, handle errors explicitly, and immune to
+          format string attacks.
         </li>
       </ul>
     </section>
