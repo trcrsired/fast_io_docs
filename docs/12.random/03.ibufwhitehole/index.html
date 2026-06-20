@@ -135,7 +135,7 @@ int main() {
 
     // Read 32 random bytes
     ::std::array&lt;::std::byte, 32&gt; buffer;
-    ::fast_io::io::read_all(rng, buffer.data(), buffer.data() + buffer.size());
+    ::fast_io::operations::read_all(rng, buffer.data(), buffer.data() + buffer.size());
 
     // Print as hex
     println("Random bytes (hex):");
@@ -148,7 +148,7 @@ int main() {
 
     // Use for generating a UUID (16 bytes)
     ::std::array&lt;::std::byte, 16&gt; uuid_bytes;
-    ::fast_io::io::read_all(rng, uuid_bytes.data(), uuid_bytes.data() + uuid_bytes.size());
+    ::fast_io::operations::read_all(rng, uuid_bytes.data(), uuid_bytes.data() + uuid_bytes.size());
 
     println("\nUUID bytes:");
     for (::std::size_t i{}; i != uuid_bytes.size(); ++i) {
@@ -165,6 +165,48 @@ int main() {
         buffered, cryptographically secure random bytes as the engine, but through the standard
         I/O interface (<code>read_all</code>, <code>read_some</code>, etc.).
       </p>
+    </section>
+
+    <section>
+      <h2>One-Time Use: native_white_hole</h2>
+      <p>
+        If you only need to generate random bytes once (such as creating a single secret key or
+        token), use <code>::fast_io::native_white_hole</code> instead of
+        <code>ibuf_white_hole</code>. The <code>native_white_hole</code> is unbuffered and makes
+        direct system calls, which is more efficient when you won't reuse the stream.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;array&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    // Generate a single API key (32 bytes)
+    ::fast_io::native_white_hole rng;
+    ::std::array&lt;::std::byte, 32&gt; api_key;
+    ::fast_io::operations::read_all(rng, api_key.data(), api_key.data() + api_key.size());
+
+    println("Generated API key (32 bytes)");
+
+    // No need to keep rng around - we only used it once
+    // The unbuffered approach is more efficient for one-time use
+}
+</code></pre>
+      <p>
+        <strong>When to use <code>native_white_hole</code> vs <code>ibuf_white_hole</code>:</strong>
+      </p>
+      <ul>
+        <li>
+          Use <code>native_white_hole</code> for one-time generation of secrets, keys, or tokens
+          where you won't reuse the stream. No buffering overhead.
+        </li>
+        <li>
+          Use <code>ibuf_white_hole</code> or <code>ibuf_white_hole_engine</code> when you need
+          multiple random values over time. The 8KB buffer amortizes syscall overhead.
+        </li>
+      </ul>
     </section>
 
     <section>
