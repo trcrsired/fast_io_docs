@@ -134,7 +134,7 @@ int main() {
         ::fast_io::operations::char_put(
             ::fast_io::out_handle(obf), 'A');
     }
-    // Buffer is flushed here when `out` goes out of scope.
+    // Buffer is flushed here when `obf` goes out of scope.
 }
 </code></pre>
     </section>
@@ -208,12 +208,13 @@ int main() {
         ::fast_io::ibuf_file ibf{"numbers.txt"};
         ::fast_io::obuf_file obf{"sum.txt"};
 
+        using namespace ::fast_io::iomnp;
         ::std::int64_t sum{};
         ::std::int64_t value{};
-        while (::fast_io::scan(in, value)) {
+        while (scan(ibf, value)) {
             sum += value;
         }
-        ::fast_io::println(out, "Sum: ", sum);
+        println(obf, "Sum: ", sum);
     }
 
     // ----- Buffered bidirectional: iobuf_file -----
@@ -224,11 +225,12 @@ int main() {
 
         // Read a header
         ::std::uint32_t magic{};
-        ::fast_io::scan(iof, magic);
+        using namespace ::fast_io::iomnp;
+        scan(iof, magic);
 
         // Jump to offset 1024 and patch a field
         ::fast_io::seek(iof, 1024);
-        ::fast_io::println(iof, "patched");
+        println(iof, "patched");
     }
 }
 </code></pre>

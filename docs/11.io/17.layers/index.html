@@ -93,9 +93,81 @@
               [ kernel ]
       </code></pre>
       <p>
+        Each layer corresponds to a real system component:
+      </p>
+      <ul>
+        <li>
+          <strong>filebuf</strong> &mdash; the C++ standard library (<code>libstdc++</code>,
+          <code>libc++</code>, or MSVC&rsquo;s STL). On Windows these ship as
+          <code>libstdc++-6.dll</code> (MinGW), <code>libc++.dll</code> / <code>c++.dll</code>
+          (LLVM libc++ &mdash; <code>libc++.dll</code> for <code>${CPU}-windows-gnu</code>,
+          <code>c++.dll</code> for <code>${CPU}-windows-msvc</code>), or
+          <code>msvcp{version}.dll</code> (MSVC, e.g. <code>msvcp140.dll</code>). <code>::std::filebuf</code>,
+          <code>::std::fstream</code>, and <code>::std::iostream</code> live here.
+        </li>
+        <li>
+          <strong>c</strong> &mdash; the C standard library (<strong>libc</strong>:
+          <code>glibc</code>, <code>musl</code>, <code>msvcrt.dll</code>/<code>ucrt</code>).
+          <code>FILE*</code>, <code>fopen</code>, <code>fread</code>, <code>fprintf</code>,
+          and <code>printf</code> live here.
+        </li>
+        <li>
+          <strong>posix</strong> &mdash; POSIX syscalls (<code>open</code>, <code>read</code>,
+          <code>write</code>, <code>close</code>). On Linux/macOS/FreeBSD, libc wraps these
+          syscalls. On Windows, there is no native POSIX layer.
+        </li>
+        <li>
+          <strong>win32</strong> &mdash; <strong>kernel32.dll</strong> on Windows.
+          <code>CreateFileW</code>, <code>ReadFile</code>, <code>WriteFile</code>, and other
+          Win32 file APIs live here. This is the &ldquo;traditional&rdquo; Windows API.
+        </li>
+        <li>
+          <strong>nt</strong> &mdash; <strong>ntdll.dll</strong> on Windows.
+          <code>NtCreateFile</code>, <code>NtReadFile</code>, <code>NtWriteFile</code>, and
+          other native NT APIs live here. This is the <strong>real</strong> Windows kernel
+          interface &mdash; kernel32.dll itself is built on top of ntdll.dll.
+        </li>
+        <li>
+          <strong>wine</strong> &mdash; Wine&rsquo;s translation layer. When running Windows
+          programs on Linux/macOS, Wine translates NT syscalls into host POSIX syscalls.
+        </li>
+      </ul>
+      <p>
+        So when you call <code>std::fstream</code>, the call chain on Windows is:
+        C++ stdlib &rarr; MSVCRT/ucrt (<code>FILE*</code>) &rarr; kernel32.dll
+        (<code>CreateFileW</code>) &rarr; ntdll.dll (<code>NtCreateFile</code>) &rarr; kernel.
+        On Linux, it is: C++ stdlib &rarr; glibc/musl (<code>FILE*</code>) &rarr;
+        <code>open()</code>/<code>read()</code> syscalls &rarr; kernel.
+      </p>
+      <p>
+        <code>fast_io</code> lets you skip layers. If you want zero overhead, use
+        <code>native_file</code> to call the kernel directly. If you need compatibility with
+        legacy code, use <code>c_file</code> or <code>filebuf_file</code>. You choose the
+        layer that fits your needs.
+      </p>
+      <p>
         On Linux, FreeBSD, and macOS, only the <code>posix</code> branch is used. On
         Windows, the <code>nt</code> and <code>win32</code> branches are used. The
         <code>wine</code> branch is only used when running under Wine on a POSIX host.
+      </p>
+      <p>
+        <strong>Platform availability:</strong>
+      </p>
+      <ul>
+        <li><code>wine_file</code> is only available when compiling for Wine (running on a POSIX host).</li>
+        <li><code>nt_file</code> and <code>win32_file</code> are only available on Windows (and Wine).</li>
+        <li><code>posix_file</code> is available on all POSIX-compliant systems (Linux, macOS, FreeBSD, etc.) and also on Windows when using a POSIX compatibility layer.</li>
+        <li><code>c_file</code> and <code>filebuf_file</code> are available everywhere, since they rely on the C and C++ standard libraries.</li>
+      </ul>
+      <p>
+        <strong>Important:</strong> These relationships are <strong>not</strong> defined by
+        <code>fast_io</code>. They are defined by the operating system and the compiler&rsquo;s
+        C/C++ runtime vendors. For example, on POSIX systems, the C stdlib&rsquo;s
+        <code>FILE*</code> is implemented on top of POSIX file descriptors by the libc
+        implementation (glibc, musl, etc.), and the C++ stdlib&rsquo;s
+        <code>::std::filebuf</code> is implemented on top of <code>FILE*</code> by the C++
+        runtime library. <code>fast_io</code> merely summarizes and wraps these existing
+        relationships &mdash; it does not invent new ones.
       </p>
     </section>
 
@@ -266,8 +338,7 @@ int main()
     // Step 2: pull the raw int fd out of the observer.
     int const fd{piob.fd};
 
-    println(u8"The underlying fd is: ",
-        static_cast&lt;::std::size_t&gt;(static_cast&lt;unsigned&gt;(fd)));
+    print("The underlying fd is: ", fd);
 
     // The fd is still owned by `bf`; we only borrowed a view.
 }
@@ -333,6 +404,13 @@ int main()
 
     <section>
       <h2>Key Takeaways</h2>
+      <div class="warning">
+        <strong>Memorize these six layers.</strong> They are not arbitrary &mdash; they reflect
+        how operating systems and compiler runtimes actually implement file I/O. Understanding
+        this hierarchy explains why <code>FILE*</code> behaves the way it does, why
+        <code>mmap</code> is faster than <code>fread</code>, and how different APIs relate to
+        each other under the hood.
+      </div>
       <ul>
         <li>
           The six layers form a strict hierarchy:

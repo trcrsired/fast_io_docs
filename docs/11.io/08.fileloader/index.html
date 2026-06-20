@@ -252,6 +252,49 @@ int main()
       </code></pre>
     </section>
 
+    <section>
+      <h2>Loading Files Relative to a Directory</h2>
+      <p>
+        You can combine <code>::fast_io::dir_file</code> with a file loader to load files
+        relative to a directory. Use <code>drt(ent)</code> on a directory entry to get a
+        (fd, name) pair that the loader can open directly.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::dir_file df(::fast_io::mnp::os_c_str("src"));
+
+    // Iterate over all files recursively
+    for (auto const&amp; ent : recursive(at(df)))
+    {
+        if (type(ent) != ::fast_io::file_type::regular) continue;
+
+        // Load only .cpp files
+        ::std::u8string_view ext{u8extension(ent)};
+        if (ext != u8".cpp") continue;
+
+        // drt(ent) gives the (fd, name) pair to open this entry
+        ::fast_io::native_file_loader loader(drt(ent));
+        ::std::size_t lines{};
+        for (auto ch : loader)
+        {
+            if (ch == u8'\n') ++lines;
+        }
+        println(::fast_io::mnp::code_cvt(u8filename(ent)), ": ", lines, " lines");
+    }
+}
+      </code></pre>
+      <p>
+        This pattern is efficient because <code>drt(ent)</code> reuses the directory&rsquo;s
+        file descriptor &mdash; no extra <code>open()</code> call is needed to resolve the path.
+      </p>
+    </section>
+
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
       <a href="/docs/11.io/07.randomaccess/" class="prev-button">&larr; Ch11.7: Random Access I/O</a>

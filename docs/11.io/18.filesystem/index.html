@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.18: Filesystem APIs - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.18: Filesystem APIs</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>::fast_io::dir_file</code> opens a directory handle for enumeration. Combined
+        with <code>at()</code>, <code>current()</code>, and <code>recursive()</code>, it provides
+        a powerful, type-safe way to traverse the filesystem. Each iteration yields a
+        <code>directory_entry</code> with functions to query the filename, extension, and file type.
+      </p>
+    </section>
+
+    <section>
+      <h2>Opening a Directory</h2>
+      <p>
+        Construct a <code>dir_file</code> from a path. The constructor accepts anything convertible
+        to a C string &mdash; C strings, <code>string_view</code>, <code>u8string</code>, or wrapped
+        with <code>os_c_str</code>.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // From a C string (wrap runtime strings with os_c_str)
+    ::fast_io::dir_file df(::fast_io::mnp::os_c_str("/home/user/docs"));
+
+    // From a string literal (no wrapping needed)
+    ::fast_io::dir_file df2("relative/path");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>The <code>at()</code> Function</h2>
+      <p>
+        Call <code>at(df)</code> to get an <code>at_entry</code> &mdash; a lightweight handle anchored
+        at the directory. This handle is used by <code>current()</code> and <code>recursive()</code> to
+        enumerate entries, and can also be used to open files relative to the directory (as shown in
+        Ch11.1).
+      </p>
+<pre><code class="language-cpp">
+::fast_io::dir_file df("my_directory");
+auto entry = at(df);  // at_entry anchored at my_directory
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Iterating Immediate Children: <code>current()</code></h2>
+      <p>
+        <code>current(at(df))</code> returns a range that yields each immediate child of the directory
+        (non-recursive). Use it in a range-for loop:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::dir_file df(::fast_io::mnp::os_c_str("."));
+
+    for (auto const&amp; ent : current(at(df)))
+    {
+        if (is_dot(ent)) continue;  // skip . and ..
+
+        switch (type(ent)) {
+            using enum ::fast_io::file_type;
+        case directory: print("[DIR]  "); break;
+        case symlink:   print("[LINK] "); break;
+        case regular:   print("[FILE] "); break;
+        default:        print("[OTHER]");
+        }
+        println(::fast_io::mnp::code_cvt(u8filename(ent)));
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Recursive Traversal: <code>recursive()</code></h2>
+      <p>
+        <code>recursive(at(df))</code> walks all descendants of the directory, yielding every file
+        and subdirectory it contains. This is ideal for searching or processing entire directory trees.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::dir_file df(::fast_io::mnp::os_c_str("src"));
+
+    ::std::size_t cpp_count{};
+    ::std::size_t total_lines{};
+
+    for (auto const&amp; ent : recursive(at(df)))
+    {
+        if (type(ent) != ::fast_io::file_type::regular) continue;
+
+        ::std::u8string_view ext{u8extension(ent)};
+        if (ext == u8".cpp" || ext == u8".h")
+        {
+            ++cpp_count;
+
+            // Load the file and count lines
+            ::fast_io::native_file_loader loader(drt(ent));
+            for (auto ch : loader)
+            {
+                if (ch == u8'\n') ++total_lines;
+            }
+        }
+    }
+
+    println("Found ", cpp_count, " C++ files with ", total_lines, " total lines");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Directory Entry Functions</h2>
+      <p>
+        Each <code>directory_entry</code> yielded by <code>current()</code> or <code>recursive()</code>
+        exposes these functions:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Returns</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>u8filename(ent)</code></td>
+            <td><code>char8_t</code> string_view</td>
+            <td>Filename in UTF-8.</td>
+          </tr>
+          <tr>
+            <td><code>u8extension(ent)</code></td>
+            <td><code>char8_t</code> string_view</td>
+            <td>Extension (from last <code>.</code> onward) in UTF-8.</td>
+          </tr>
+          <tr>
+            <td><code>u8stem(ent)</code></td>
+            <td><code>char8_t</code> string_view</td>
+            <td>Filename without extension in UTF-8.</td>
+          </tr>
+          <tr>
+            <td><code>type(ent)</code></td>
+            <td><code>file_type</code></td>
+            <td>File type (see below).</td>
+          </tr>
+          <tr>
+            <td><code>is_dot(ent)</code></td>
+            <td><code>bool</code></td>
+            <td>True if the name is <code>.</code> or <code>..</code>.</td>
+          </tr>
+          <tr>
+            <td><code>drt(ent)</code></td>
+            <td><code>fs_dirent</code></td>
+            <td>A (fd, name) pair &mdash; pass to file constructors or loaders to open the entry.</td>
+          </tr>
+          <tr>
+            <td><code>at(ent)</code></td>
+            <td><code>at_entry</code></td>
+            <td>Anchor <code>*at</code>-style operations relative to this entry.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        There are also <code>native_filename()</code>, <code>native_extension()</code>, and
+        <code>native_stem()</code> variants that return the filename in the native encoding
+        (which may not be UTF-8 on all platforms).
+      </p>
+    </section>
+
+    <section>
+      <h2>The <code>file_type</code> Enum</h2>
+      <p>
+        <code>::fast_io::file_type</code> categorizes filesystem entries:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Value</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>regular</code></td><td>Regular file.</td></tr>
+          <tr><td><code>directory</code></td><td>Directory.</td></tr>
+          <tr><td><code>symlink</code></td><td>Symbolic link.</td></tr>
+          <tr><td><code>block</code></td><td>Block device.</td></tr>
+          <tr><td><code>character</code></td><td>Character device.</td></tr>
+          <tr><td><code>fifo</code></td><td>FIFO (named pipe).</td></tr>
+          <tr><td><code>socket</code></td><td>Socket.</td></tr>
+          <tr><td><code>unknown</code></td><td>Unknown type.</td></tr>
+          <tr><td><code>not_found</code></td><td>File does not exist.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Opening Files Relative to Directory Entries</h2>
+      <p>
+        Use <code>drt(ent)</code> to get a (fd, name) pair that file constructors and loaders can
+        open directly. This is more efficient than building a full path, and avoids race conditions
+        from path resolution.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::dir_file df("data");
+
+    for (auto const&amp; ent : current(at(df)))
+    {
+        if (type(ent) != ::fast_io::file_type::regular) continue;
+
+        // Open the entry directly using drt(ent)
+        ::fast_io::native_file_loader loader(drt(ent));
+        println(::fast_io::mnp::code_cvt(u8filename(ent)), ": ", loader.size(), " bytes");
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>Use <code>::fast_io::dir_file</code> to open a directory handle.</li>
+        <li>Call <code>at(df)</code> to get an <code>at_entry</code> for enumeration.</li>
+        <li>Use <code>current(at(df))</code> for immediate children (non-recursive).</li>
+        <li>Use <code>recursive(at(df))</code> to walk all descendants.</li>
+        <li>Each entry exposes <code>u8filename()</code>, <code>u8extension()</code>, <code>type()</code>, <code>is_dot()</code>, <code>drt()</code>, and <code>at()</code>.</li>
+        <li>Use <code>drt(ent)</code> to open files relative to directory entries efficiently.</li>
+        <li>Use <code>type(ent)</code> with the <code>file_type</code> enum to filter by file type.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/17.layers/" class="prev-button">&larr; Ch11.17: File Layers</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

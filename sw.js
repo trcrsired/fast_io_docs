@@ -157,6 +157,7 @@ const urlsToCache = [
   '/docs/11.io/15.nt/',
   '/docs/11.io/16.wine/',
   '/docs/11.io/17.layers/',
+  '/docs/11.io/18.filesystem/',
 ];
 
 // Install: pre-cache resources
