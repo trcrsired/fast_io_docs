@@ -194,22 +194,22 @@ int main(int argc, char** argv)
         <tbody>
           <tr>
             <td>Underlying mechanism</td>
-            <td><code>mmap()</code> / <code>MapViewOfFile</code></td>
+            <td><code>mmap()</code> / <code>MapViewOfFile</code> (or <code>malloc()</code> + <code>read()</code> on platforms without memory mapping)</td>
             <td><code>malloc()</code> + <code>read()</code></td>
           </tr>
           <tr>
             <td>Copy into user buffer</td>
-            <td>No (zero-copy)</td>
+            <td>No (zero-copy) on platforms with memory mapping; Yes on others</td>
             <td>Yes</td>
           </tr>
           <tr>
             <td>Platform support</td>
-            <td>POSIX, Windows NT</td>
+            <td>All platforms (aliases to <code>allocation_file_loader</code> when memory mapping unavailable)</td>
             <td>All platforms</td>
           </tr>
           <tr>
             <td>Works on WASM / newlib</td>
-            <td>No</td>
+            <td>Yes (aliases to <code>allocation_file_loader</code>)</td>
             <td>Yes</td>
           </tr>
           <tr>
