@@ -86,14 +86,14 @@ int main() {
 
     // Write to a file
     {
-        ::fast_io::obuf_file obf("hello.txt");
+        ::fast_io::obuf_file obf(u8"hello.txt");
         print(obf, "Hello, File I/O!\n"
                    "Line 2: ", 42, " + ", 100, " = ", 142);
     } // file closed automatically here
 
     // Read from the file line by line
     {
-        ::fast_io::ibuf_file ibf("hello.txt");
+        ::fast_io::ibuf_file ibf(u8"hello.txt");
         for (::fast_io::string line; scan&lt;true&gt;(ibf, str_line_get(line)); ) {
             println(line);
         }
@@ -173,10 +173,10 @@ int main() {
       </p>
 <pre><code class="language-cpp">
 // Open for writing, create if not exists, truncate if exists
-::fast_io::obuf_file obf("data.bin", ::fast_io::open_mode::out | ::fast_io::open_mode::trunc);
+::fast_io::obuf_file obf(u8"data.bin", ::fast_io::open_mode::out | ::fast_io::open_mode::trunc);
 
 // Open for reading and writing
-::fast_io::iobuf_file iof("data.txt", ::fast_io::open_mode::in | ::fast_io::open_mode::out);
+::fast_io::iobuf_file iof(u8"data.txt", ::fast_io::open_mode::in | ::fast_io::open_mode::out);
 </code></pre>
     </section>
 
@@ -231,7 +231,7 @@ int main() {
     using namespace ::fast_io::iomnp;
 
     // Open a directory
-    ::fast_io::dir_file df("my_directory");
+    ::fast_io::dir_file df(u8"my_directory");
 
     // Open a file relative to that directory
     ::fast_io::obuf_file obf(at(df), "hello.txt");

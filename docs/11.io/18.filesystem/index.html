@@ -33,14 +33,14 @@
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
+int main(int argc, char** argv) {
     using namespace ::fast_io::iomnp;
 
-    // From a C string (wrap runtime strings with os_c_str)
-    ::fast_io::dir_file df(::fast_io::mnp::os_c_str("/home/user/docs"));
-
     // From a string literal (no wrapping needed)
-    ::fast_io::dir_file df2("relative/path");
+    ::fast_io::dir_file df(u8"/home/user/docs");
+
+    // From a runtime C string (must wrap with os_c_str)
+    ::fast_io::dir_file df2(::fast_io::mnp::os_c_str(argv[1]));
 }
 </code></pre>
     </section>
@@ -54,7 +54,7 @@ int main() {
         Ch11.1).
       </p>
 <pre><code class="language-cpp">
-::fast_io::dir_file df("my_directory");
+::fast_io::dir_file df(u8"my_directory");
 auto entry = at(df);  // at_entry anchored at my_directory
 </code></pre>
     </section>
@@ -72,7 +72,7 @@ auto entry = at(df);  // at_entry anchored at my_directory
 int main() {
     using namespace ::fast_io::iomnp;
 
-    ::fast_io::dir_file df(::fast_io::mnp::os_c_str("."));
+    ::fast_io::dir_file df(u8".");
 
     for (auto const&amp; ent : current(at(df)))
     {
@@ -104,7 +104,7 @@ int main() {
 int main() {
     using namespace ::fast_io::iomnp;
 
-    ::fast_io::dir_file df(::fast_io::mnp::os_c_str("src"));
+    ::fast_io::dir_file df(u8"src");
 
     ::std::size_t cpp_count{};
     ::std::size_t total_lines{};
@@ -231,7 +231,7 @@ int main() {
 int main() {
     using namespace ::fast_io::iomnp;
 
-    ::fast_io::dir_file df("data");
+    ::fast_io::dir_file df(u8"data");
 
     for (auto const&amp; ent : current(at(df)))
     {
