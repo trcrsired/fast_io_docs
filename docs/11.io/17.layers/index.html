@@ -34,18 +34,18 @@
         user):
       </p>
       <ul>
-        <li><code>wine</code></li>
-        <li><code>nt</code></li>
-        <li><code>win32</code></li>
-        <li><code>posix</code></li>
-        <li><code>c</code></li>
-        <li><code>filebuf</code></li>
+        <li><strong>Layer 1:</strong> <code>wine</code> (lowest, Wine translation layer)</li>
+        <li><strong>Layer 2:</strong> <code>nt</code> / <code>zw</code> (NT kernel interface, Nt* and Zw* functions are identical in user space)</li>
+        <li><strong>Layer 3:</strong> <code>win32</code> (Win32 API)</li>
+        <li><strong>Layer 4:</strong> <code>posix</code> (POSIX file descriptors)</li>
+        <li><strong>Layer 5:</strong> <code>c</code> (C stdlib FILE*)</li>
+        <li><strong>Layer 6:</strong> <code>filebuf</code> (C++ stdlib, highest)</li>
       </ul>
       <p>
         Written as a chain, with the arrow meaning &ldquo;is built on top of&rdquo;:
       </p>
       <pre><code>
-    wine  =&gt;  nt  =&gt;  win32  =&gt;  posix  =&gt;  c  =&gt;  filebuf
+    wine (1)  =&gt;  nt/zw (2)  =&gt;  win32 (3)  =&gt;  posix (4)  =&gt;  c (5)  =&gt;  filebuf (6)
       </code></pre>
       <p>
         Each layer <strong>wraps the one below it</strong>. When that is not possible
@@ -61,36 +61,36 @@
       </p>
       <pre><code>
     +------------------------------------------------+
-    |       std::filebuf  (C++ stdlib)               |  &lt;- filebuf_file
+    |       std::filebuf  (C++ stdlib)               |  &lt;- filebuf_file (Layer 6)
     +------------------------------------------------+
                  |
                  v
     +------------------------------------------------+
-    |               FILE*  (C stdlib)                |  &lt;- c_file
+    |               FILE*  (C stdlib)                |  &lt;- c_file (Layer 5)
     +------------------------------------------------+
                  |
                  v
     +------------------------------------------------+
-    |        POSIX file descriptors (int fd)         |  &lt;- posix_file
+    |        POSIX file descriptors (int fd)         |  &lt;- posix_file (Layer 4)
     +------------------------------------------------+
                  |
                  v
     +------------------------------------------------+
-    |   Win32 HANDLE  (CreateFileW / CreateFileA)    |  &lt;- win32_file
+    |   Win32 HANDLE  (CreateFileW / CreateFileA)    |  &lt;- win32_file (Layer 3)
     +------------------------------------------------+
                  |
                  v
     +------------------------------------------------+
-    |   NT HANDLE  (NtCreateFile / ZwCreateFile)     |  &lt;- nt_file
+    |   NT HANDLE  (NtCreateFile / ZwCreateFile)     |  &lt;- nt_file (Layer 2)
     +------------------------------------------------+
                  |
                  v
     +------------------------------------------------+
-    |   Wine host fd  (Wine translating NT to host)  |  &lt;- wine_file
+    |   Wine host fd  (Wine translating NT to host)  |  &lt;- wine_file (Layer 1)
     +------------------------------------------------+
                  |
                  v
-              [ kernel ]
+              [ kernel: ntoskrnl.exe ]
       </code></pre>
       <p>
         Each layer corresponds to a real system component:
@@ -125,6 +125,16 @@
           <code>NtCreateFile</code>, <code>NtReadFile</code>, <code>NtWriteFile</code>, and
           other native NT APIs live here. This is the <strong>real</strong> Windows kernel
           interface &mdash; kernel32.dll itself is built on top of ntdll.dll.
+        </li>
+        <li>
+          <strong>zw</strong> &mdash; Also in <strong>ntdll.dll</strong>. <code>ZwCreateFile</code>,
+          <code>ZwReadFile</code>, <code>ZwWriteFile</code>, etc. In user space, <code>Nt*</code>
+          and <code>Zw*</code> functions are <strong>identical</strong> &mdash; they both call
+          into the kernel. The difference is only in the kernel: <code>Nt*</code> functions
+          validate parameters (for calls from user mode), while <code>Zw*</code> functions skip
+          parameter validation (for calls from trusted kernel mode code). <code>fast_io</code>
+          provides <code>::fast_io::zw_file</code> as an alias for <code>::fast_io::nt_file</code>
+          since they behave the same in user space.
         </li>
         <li>
           <strong>wine</strong> &mdash; Wine&rsquo;s translation layer. When running Windows
@@ -209,8 +219,60 @@
           <code>io_observer</code>. This gives you a non-owning view of the underlying handle.
         </li>
       </ul>
+      <p>
+        <strong>Cross-layer conversions are also allowed.</strong> You don&rsquo;t need to convert
+        one layer at a time. For example, you can move directly from <code>nt_file</code> (the
+        lowest Windows layer) to <code>filebuf_file</code> (the highest layer), skipping the
+        intermediate <code>win32_file</code>, <code>posix_file</code>, and <code>c_file</code>
+        layers:
+      </p>
 <pre><code class="language-cpp">
-// Lower to higher: move ownership upward
+// Cross-layer conversion: skip intermediate layers
+::fast_io::nt_file nf(u8"example.txt", ::fast_io::open_mode::out);
+
+// Move directly from nt_file (layer 1) to filebuf_file (layer 6)
+::fast_io::filebuf_file fbf(::std::move(nf), ::fast_io::open_mode::out);
+
+// This works because filebuf_file's constructor accepts any lower-layer file type
+</code></pre>
+      <p>
+        Similarly, you can <code>static_cast</code> from any higher layer directly to any lower
+        layer&rsquo;s observer:
+      </p>
+<pre><code class="language-cpp">
+// Direct cast from filebuf_file to nt_io_observer (skipping intermediate layers)
+::fast_io::filebuf_file fbf(/* ... */);
+auto nt_iob{static_cast&lt;::fast_io::nt_io_observer&gt;(fbf)};
+HANDLE handle{nt_iob.native_handle()};  // access the raw NT handle
+</code></pre>
+      <p>
+        This flexibility lets you jump directly to the layer you need without tedious
+        step-by-step conversions.
+      </p>
+      <div class="note">
+        <strong>Special case: <code>nt_file</code> and <code>win32_file</code></strong>
+        <p>
+          Although <code>nt_file</code> (layer 2) and <code>win32_file</code> (layer 3) are
+          conceptually different layers from an API perspective, they both use the same
+          <code>HANDLE</code> type at the OS level. If you need to convert between their observers,
+          just use <code>static_cast</code>:
+        </p>
+<pre><code class="language-cpp">
+// Convert between nt_io_observer and win32_io_observer
+::fast_io::nt_io_observer nt_iob(/* ... */);
+auto win32_iob{static_cast&lt;::fast_io::win32_io_observer&gt;(nt_iob)};
+
+// The reverse also works
+auto nt_iob2{static_cast&lt;::fast_io::nt_io_observer&gt;(win32_iob)};
+</code></pre>
+        <p>
+          This is different from true layer transitions (like <code>posix_file</code> &rarr;
+          <code>c_file</code>), where the handle type actually changes and must be wrapped in
+          a new abstraction.
+        </p>
+      </div>
+<pre><code class="language-cpp">
+// Standard layer-by-layer conversion
 ::fast_io::posix_file pf(u8"example.txt", ::fast_io::open_mode::out);
 ::fast_io::c_file cf(::std::move(pf), ::fast_io::open_mode::out);
 

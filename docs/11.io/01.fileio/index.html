@@ -154,7 +154,7 @@ int main() {
           </tr>
           <tr>
             <td><code>open_mode::text</code></td>
-            <td>Text mode (newline translation). Ignored by <code>native_file</code>, which is always binary. Only meaningful for <code>c_file</code> and <code>filebuf_file</code>.</td>
+            <td>Text mode (newline translation). On DOS/Windows (not Cygwin), this enables CRLF &harr; LF conversion. Ignored by <code>native_file</code> on pure POSIX systems, but may be honored by the POSIX layer on Windows. Only meaningful for <code>c_file</code> and <code>filebuf_file</code>.</td>
           </tr>
           <tr>
             <td><code>open_mode::temporary</code></td>
@@ -251,7 +251,7 @@ int main() {
         <li><code>ibuf_file</code> for reading, <code>obuf_file</code> for writing, <code>iobuf_file</code> for both.</li>
         <li>Each type has five character variants: <code>char</code>, <code>u8</code> (<code>char8_t</code>), <code>u16</code> (<code>char16_t</code>), <code>u32</code> (<code>char32_t</code>), and <code>w</code> (<code>wchar_t</code>).</li>
         <li>Files are RAII-managed &mdash; automatically closed on scope exit.</li>
-        <li>Use <code>open_mode</code> flags to control opening behavior. There is no <code>open_mode::binary</code> &mdash; native files are always binary; use <code>open_mode::text</code> for text mode (only meaningful for <code>c_file</code> and <code>filebuf_file</code>).</li>
+        <li>Use <code>open_mode</code> flags to control opening behavior. There is no <code>open_mode::binary</code> &mdash; native files are always binary. <code>open_mode::text</code> enables CRLF &harr; LF conversion on DOS/Windows (not Cygwin); on pure POSIX it is ignored, but may be honored by the POSIX layer on Windows.</li>
         <li>Use <code>using namespace ::fast_io::iomnp;</code> (which includes <code>::fast_io::io</code>) then call <code>println</code> / <code>print</code> / <code>scan</code> and manipulators like <code>str_line_get</code> directly.</li>
         <li>Use <code>scan</code> with the <code>str_line_get</code> manipulator for line-by-line reading: <code>for (::fast_io::string line; scan&lt;true&gt;(ibf, str_line_get(line)); ) { ... }</code></li>
         <li>You cannot directly print between different character types. Use <code>::fast_io::mnp::code_cvt</code> to convert, or write to a device with the matching character type.</li>
