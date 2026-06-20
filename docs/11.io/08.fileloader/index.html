@@ -20,20 +20,24 @@
       </p>
       <ul>
         <li>
-          <code>::fast_io::native_file_loader</code> &mdash; uses memory mapping
+          <code>::fast_io::native_file_loader</code> &mdash; uses memory mapping when available
           (<code>mmap()</code> on POSIX, <code>CreateFileMapping</code>/<code>MapViewOfFile</code>
           on Windows). This is a zero-copy approach: the OS maps the file directly into the
-          process's virtual address space.
+          process's virtual address space. <strong>Important:</strong> On platforms that do not
+          support memory mapping (e.g., WASM, newlib), <code>native_file_loader</code> automatically
+          aliases to <code>allocation_file_loader</code>.
         </li>
         <li>
           <code>::fast_io::allocation_file_loader</code> &mdash; uses <code>malloc()</code> +
-          <code>read()</code> as a fallback when memory mapping is unavailable (e.g. WASM,
-          newlib, or other platforms without <code>mmap</code>).
+          <code>read()</code> to load the entire file into heap memory. This works on all platforms,
+          including those without memory mapping support.
         </li>
       </ul>
       <p>
         Both loaders provide the same interface, so you can switch between them depending on
-        platform capabilities without changing the rest of your code.
+        platform capabilities without changing the rest of your code. In most cases, you should
+        use <code>native_file_loader</code> and let it automatically choose the best implementation
+        for your platform.
       </p>
     </section>
 
@@ -65,6 +69,21 @@
         read into a separate buffer &mdash; instead, the file contents are mapped directly
         into virtual memory. Accesses to the mapped region are handled by the OS page fault
         mechanism, giving zero-copy semantics.
+      </p>
+      <p>
+        <strong>Important:</strong> The memory mapping uses <strong>copy-on-write (COW)</strong>
+        pages by default. This means:
+      </p>
+      <ul>
+        <li>You <strong>can</strong> modify the bytes in the mapped memory.</li>
+        <li>These modifications <strong>do not</strong> change the actual file on disk.</li>
+        <li>You <strong>cannot</strong> change the size of the file through the mapping.</li>
+        <li>The modifications are local to your process's virtual memory and are lost when the loader is destroyed.</li>
+      </ul>
+      <p>
+        If you need modifications to be written back to disk, you must explicitly write them
+        using file I/O operations. If you need to modify the file and write it back, use
+        <code>allocation_file_loader</code> instead (see below).
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -211,12 +230,12 @@ int main(int argc, char** argv)
         use <code>allocation_file_loader</code>.
       </p>
       <p>
-        <strong>Important:</strong> If you need to load a file, modify its contents in memory, and then
-        write it back to the <em>same file</em>, use <code>allocation_file_loader</code> instead of
+        <strong>Important:</strong> If you need to load a file, massively modify its contents in memory,
+        or even recreate the entire file, use <code>allocation_file_loader</code> instead of
         <code>native_file_loader</code>. The memory-mapped loader keeps the file open until it is destroyed,
-        which prevents you from reopening the file for writing. <code>allocation_file_loader</code> reads
-        the entire file into heap memory and closes it immediately, allowing you to safely reopen the file
-        for output.
+        which prevents you from reopening the file for writing or recreating it. <code>allocation_file_loader</code>
+        reads the entire file into heap memory and closes it immediately, allowing you to safely modify
+        the data and write it back (or write completely different content) to the same file.
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -356,14 +375,18 @@ int main()
         </li>
         <li>
           <strong>Use <code>native_file_loader</code> when available.</strong> It provides zero-copy
-          access via memory mapping. Use <code>allocation_file_loader</code> only when memory mapping
-          is unavailable (WASM, newlib) or when you specifically need heap-allocated data.
+          access via memory mapping. On platforms without memory mapping support, it automatically
+          aliases to <code>allocation_file_loader</code>. Note that the mapping uses copy-on-write
+          pages: you can modify bytes in memory, but these changes don&rsquo;t affect the file on
+          disk and are lost when the loader is destroyed.
         </li>
         <li>
-          <strong>Use <code>allocation_file_loader</code> for read-modify-write cycles.</strong> If you
-          need to load a file, modify it, and write it back to the <em>same file</em>, use
-          <code>allocation_file_loader</code>. The <code>native_file_loader</code> keeps the file
-          memory-mapped and locked, preventing you from reopening it for writing.
+          <strong>Use <code>allocation_file_loader</code> for read-modify-write cycles or file recreation.</strong>
+          If you need to load a file, massively modify its contents, or recreate the file entirely,
+          use <code>allocation_file_loader</code>. The <code>native_file_loader</code> keeps the file
+          memory-mapped and locked, preventing you from writing to or recreating it.
+          <code>allocation_file_loader</code> reads the file into heap memory and closes it immediately,
+          allowing you to safely modify the data and write it back or create a completely new file.
         </li>
         <li>
           <strong>Combine with <code>dir_file</code> for directory-relative loading.</strong> Use
