@@ -127,8 +127,7 @@ int main()
       <p>
         Each has a <code>comma_</code> sibling (<code>comma_fixed</code>,
         <code>comma_scientific</code>, <code>comma_general</code>) that inserts thousands
-        separators. An optional second argument controls the number of digits after the
-        decimal point.
+        separators.
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -144,11 +143,8 @@ int main()
     println("scientific  : ", scientific(pi));
     println("general     : ", general(pi));
 
-    // Fixed precision: 2 digits after the decimal point
-    println("fixed(2)    : ", fixed(pi, 2zu));
-
     // With thousands separators
-    println("comma_fixed : ", comma_fixed(big, 2zu));
+    println("comma_fixed : ", comma_fixed(big));
 }
 </code></pre>
     </section>
@@ -359,8 +355,8 @@ int main()
 
     // Combine with other manipulators
     double pi{3.14159};
-    println("|", left_width(fixed(pi, 2zu), 15zu), "|");   // | 3.14         |
-    println("|", right_width(fixed(pi, 2zu), 15zu), "|");  // |           3.14 |
+    println("|", left_width(fixed(pi), 15zu), "|");   // | 3.14159        |
+    println("|", right_width(fixed(pi), 15zu), "|");  // |        3.14159 |
 
     // These are stateless: each manipulator applies only to its value
     println(hex(255), " ", 255);  // prints: ff 255 (second value is decimal)
@@ -393,7 +389,7 @@ int main()
         <li>Manipulators are ordinary objects in <code>::fast_io::manipulators</code> (shorthand: <code>::fast_io::mnp</code>) that control how values are formatted or parsed.</li>
         <li>Base manipulators: <code>hex</code>, <code>oct</code>, <code>bin</code>, <code>dec</code> for output; <code>hex_get</code>, <code>oct_get</code>, <code>bin_get</code>, <code>dec_get</code> for input. <code>hex0x</code> adds the <code>0x</code> prefix.</li>
         <li><code>boolalpha</code> switches between <code>1</code>/<code>0</code> and <code>true</code>/<code>false</code>.</li>
-        <li>Floating-point formatting: <code>fixed</code>, <code>scientific</code>, <code>general</code>, with optional precision and <code>comma_*</code> variants for thousands separators.</li>
+        <li>Floating-point formatting: <code>fixed</code>, <code>scientific</code>, <code>general</code>, with <code>comma_*</code> variants for thousands separators.</li>
         <li>Alignment: <code>left</code>, <code>right</code>, <code>middle</code> take a value and a field width, plus an optional fill character.</li>
         <li><code>chvw</code> prints an integral value as a character; <code>rgvw</code> prints a range with a separator.</li>
         <li><code>addrvw</code> and <code>pointervw</code> format pointers as addresses; <code>hex_encode</code> turns byte sequences into hex strings.</li>

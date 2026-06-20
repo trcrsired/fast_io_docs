@@ -149,6 +149,143 @@ int main(int argc, char** argv)
     </section>
 
     <section>
+      <h2>The Raw POSIX I/O System Calls</h2>
+      <p>
+        Before using <code>fast_io</code>'s wrappers, it helps to understand the underlying POSIX
+        system calls. These are the actual kernel entry points (section 2 of the manual):
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>System Call</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>open(path, flags, mode)</code></td>
+            <td>Open a file by path, returns an <code>int</code> file descriptor.</td>
+          </tr>
+          <tr>
+            <td><code>openat(dirfd, path, flags, mode)</code></td>
+            <td>Open a file relative to a directory file descriptor. Safer than <code>open</code> because it avoids race conditions from path resolution.</td>
+          </tr>
+          <tr>
+            <td><code>read(fd, buf, count)</code></td>
+            <td>Read up to <code>count</code> bytes from <code>fd</code> into <code>buf</code>. Returns the number of bytes actually read, or -1 on error.</td>
+          </tr>
+          <tr>
+            <td><code>write(fd, buf, count)</code></td>
+            <td>Write <code>count</code> bytes from <code>buf</code> to <code>fd</code>. Returns the number of bytes actually written, or -1 on error.</td>
+          </tr>
+          <tr>
+            <td><code>close(fd)</code></td>
+            <td>Close the file descriptor. <strong>Always required</strong> &mdash; file descriptors are a limited resource.</td>
+          </tr>
+          <tr>
+            <td><code>lseek(fd, offset, whence)</code></td>
+            <td>Change the file offset. <code>whence</code> is <code>SEEK_SET</code>, <code>SEEK_CUR</code>, or <code>SEEK_END</code>.</td>
+          </tr>
+          <tr>
+            <td><code>fdopen(fd, mode)</code></td>
+            <td>Associate a C <code>FILE*</code> stream with an existing file descriptor. Returns a <code>FILE*</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        These system calls are <strong>unbuffered</strong> &mdash; each call goes directly to the kernel.
+        This makes them slow for small or frequent operations. <code>fast_io</code>'s buffered types
+        (like <code>ibuf_file</code> and <code>obuf_file</code>) wrap these calls with user-space buffering
+        for much better performance.
+      </p>
+    </section>
+
+    <section>
+      <h2>Using posix_file for RAII Even Without fast_io I/O</h2>
+      <p>
+        Even if you prefer to call the raw POSIX APIs directly (e.g., <code>read</code> and
+        <code>write</code>) instead of using <code>fast_io</code>'s <code>print</code> and <code>scan</code>,
+        you should <strong>still use <code>::fast_io::posix_file</code> for RAII</strong>. The destructor
+        guarantees <code>close</code> is called, so you never forget to close the file descriptor.
+      </p>
+      <p>
+        This is especially important when exceptions or early returns are involved &mdash; without RAII,
+        you must manually call <code>close</code> on every exit path, which is error-prone.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;unistd.h&gt;
+
+int main()
+{
+    // Open with posix_file for RAII, but use raw POSIX read/write
+    ::fast_io::posix_file pf(u8"data.bin", ::fast_io::open_mode::out);
+
+    // Get the raw file descriptor
+    int fd{pf.native_handle()};
+
+    // Use raw POSIX write (unbuffered, goes directly to kernel)
+    char const buffer[]{"Hello from raw write(2)\n"};
+    ::ssize_t written{::write(fd, buffer, sizeof(buffer) - 1)};
+
+    if (written &lt; 0) {
+        // handle error
+    }
+
+    // pf's destructor calls close(fd) automatically when it goes out of scope.
+    // No need to manually call close() here, even if we return early or throw.
+}
+</code></pre>
+      <p>
+        The same principle applies to reading:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;unistd.h&gt;
+
+int main()
+{
+    ::fast_io::posix_file pf(u8"data.bin", ::fast_io::open_mode::in);
+    int fd{pf.native_handle()};
+
+    char buffer[256];
+    ::ssize_t nread{::read(fd, buffer, sizeof(buffer))};
+
+    if (nread &gt; 0) {
+        // Process the buffer
+    }
+
+    // close(fd) is called automatically
+}
+</code></pre>
+      <p>
+        For seeking, use <code>lseek</code> on the native handle:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;unistd.h&gt;
+
+int main()
+{
+    ::fast_io::posix_file pf(u8"data.bin",
+        ::fast_io::open_mode::in | ::fast_io::open_mode::out);
+    int fd{pf.native_handle()};
+
+    // Seek to offset 100 from the beginning of the file
+    ::off_t result{::lseek(fd, 100, SEEK_SET)};
+    if (result == static_cast&lt;::off_t&gt;(-1)) {
+        // handle error
+    }
+
+    // Now read or write from the new position
+}
+</code></pre>
+    </section>
+
+    <section>
       <h2>Summary</h2>
       <ul>
         <li>
@@ -165,6 +302,22 @@ int main(int argc, char** argv)
         </li>
         <li>
           You can wrap any raw <code>int fd</code> without changing the rest of your code.
+        </li>
+        <li>
+          The raw POSIX system calls are <code>open</code>, <code>openat</code>, <code>read</code>,
+          <code>write</code>, <code>close</code>, <code>lseek</code>, and <code>fdopen</code>.
+          These are unbuffered and go directly to the kernel.
+        </li>
+        <li>
+          <strong>Even if you call the raw POSIX APIs directly</strong> (e.g., <code>read</code> and
+          <code>write</code>), <strong>still use <code>::fast_io::posix_file</code> for RAII</strong>
+          to guarantee <code>close</code> is called automatically. This prevents resource leaks,
+          especially with exceptions or early returns.
+        </li>
+        <li>
+          For more details on POSIX APIs, see the
+          <a href="https://linux.die.net/man/" target="_blank" rel="noopener noreferrer">Linux man pages</a>
+          or your system's documentation.
         </li>
       </ul>
     </section>

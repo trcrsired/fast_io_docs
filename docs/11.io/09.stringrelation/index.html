@@ -128,6 +128,73 @@ int main() {
     </section>
 
     <section>
+      <h2>concat_std: Formatting to C++ std::string</h2>
+      <p>
+        In <a href="/docs/09.seqcontainers/16.std/">Ch9.16</a>, we introduced C++
+        Standard Library containers, including <code>::std::string</code>. If you
+        need to interoperate with C++ Standard Library code that expects
+        <code>::std::string</code>, <code>fast_io</code> provides
+        <code>::fast_io::concat_std</code> &mdash; which works exactly like
+        <code>concat_fast_io</code> but produces a <code>::std::string</code>
+        instead of a <code>::fast_io::string</code>.
+      </p>
+      <p>
+        Just like <code>concat_fast_io</code>, <code>concat_std</code> uses the
+        same <code>print_reserve_define</code> customisation points. Any type
+        that works with <code>println</code> or <code>concat_fast_io</code>
+        automatically works with <code>concat_std</code>.
+      </p>
+      <p>
+        There are also character-type variants for UTF-8, UTF-16, UTF-32, and
+        wide strings:
+      </p>
+      <ul>
+        <li><code>::fast_io::concat_std</code> &mdash; produces <code>::std::string</code> (<code>char</code>)</li>
+        <li><code>::fast_io::u8concat_std</code> &mdash; produces <code>::std::u8string</code> (<code>char8_t</code>)</li>
+        <li><code>::fast_io::u16concat_std</code> &mdash; produces <code>::std::u16string</code> (<code>char16_t</code>)</li>
+        <li><code>::fast_io::u32concat_std</code> &mdash; produces <code>::std::u32string</code> (<code>char32_t</code>)</li>
+        <li><code>::fast_io::wconcat_std</code> &mdash; produces <code>::std::wstring</code> (<code>wchar_t</code>)</li>
+      </ul>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;string&gt;
+
+struct Point {
+    int x;
+    int y;
+};
+
+// Assume print_reserve_define is defined as in Ch11.2
+
+int main() {
+    using namespace ::fast_io::iomnp;
+    Point p{42, 100};
+
+    // concat_std produces a ::std::string
+    ::std::string s = ::fast_io::concat_std("Point: ", p);
+    // s == "Point: (42, 100)"
+
+    // u8concat_std produces a ::std::u8string
+    ::std::u8string u8s = ::fast_io::u8concat_std(u8"Unicode: ", p);
+
+    println("std::string: ", s);
+}
+</code></pre>
+      <p>
+        There is also <code>::fast_io::concatln_std</code> (and its character-type
+        variants), which appends a newline at the end, just like
+        <code>concatln_fast_io</code>.
+      </p>
+      <p>
+        The primary use case for <code>concat_std</code> is when you need to pass
+        a formatted string to legacy C++ code that expects
+        <code>::std::string</code>. For new code, prefer
+        <code>concat_fast_io</code> with <code>::fast_io::string</code>.
+      </p>
+    </section>
+
+    <section>
       <h2>The Unified Design</h2>
       <p>
         The takeaway is that <code>fast_io</code> has <em>one</em> set of
@@ -145,7 +212,8 @@ int main() {
             <td><code>print_define</code> / <code>print_reserve_define</code></td>
             <td>
               <code>println</code>, <code>print</code>, <code>concat_fast_io</code>,
-              <code>concatln_fast_io</code>, <code>to&lt;T&gt;</code>
+              <code>concatln_fast_io</code>, <code>concat_std</code>,
+              <code>concatln_std</code>, <code>to&lt;T&gt;</code>
             </td>
           </tr>
           <tr>
@@ -261,6 +329,11 @@ int main()
           Use <code>::fast_io::{chtype}ostring_ref_fast_io</code> to write formatted output
           directly into an existing string buffer. These non-owning reference types let you
           build strings incrementally or reuse buffers to avoid allocations.
+        </li>
+        <li>
+          Use <code>::fast_io::concat_std</code> when you need to produce a
+          <code>::std::string</code> for interoperation with C++ Standard Library
+          code. It uses the same customisation points as <code>concat_fast_io</code>.
         </li>
       </ul>
     </section>

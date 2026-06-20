@@ -30,8 +30,7 @@
     <section>
       <h2>The Layer Hierarchy</h2>
       <p>
-        From the lowest layer (closest to the kernel) to the highest layer (closest to the
-        user):
+        From the lowest layer (closest to the kernel) to the highest layer:
       </p>
       <ul>
         <li><strong>Layer 1:</strong> <code>wine</code> (lowest, Wine translation layer)</li>
@@ -41,6 +40,26 @@
         <li><strong>Layer 5:</strong> <code>c</code> (C stdlib FILE*)</li>
         <li><strong>Layer 6:</strong> <code>filebuf</code> (C++ stdlib, highest)</li>
       </ul>
+      <p>
+        <strong>These 6 layers exist in <em>all</em> programming languages</strong>, not just C++.
+        Every modern language is built on top of C or C++ runtimes, or uses the same OS APIs
+        directly. When you do file I/O in Python, Java, Rust, Go, or any other language, you're
+        ultimately going through these same layers:
+      </p>
+      <ul>
+        <li>Python's <code>open()</code> uses CPython's C implementation, which calls libc</li>
+        <li>Java's <code>FileInputStream</code> uses JNI to call C/C++ code</li>
+        <li>Rust's <code>std::fs::File</code> calls OS APIs directly or through libc</li>
+        <li>Go's <code>os.Open</code> uses cgo to call C functions or direct syscalls</li>
+        <li>Node.js uses libuv, which wraps POSIX/Win32 APIs</li>
+      </ul>
+      <p>
+        Understanding these layers helps you understand how <em>any</em> language's file I/O works
+        under the hood, not just C++. <strong>Therefore, understanding them is crucial for working
+        with any programming language</strong> &mdash; whether you're debugging performance issues
+        in Python, understanding why Java's file operations behave a certain way, or optimizing
+        I/O in Rust, the same principles apply.
+      </p>
       <p>
         Written as a chain, with the arrow meaning &ldquo;is built on top of&rdquo;:
       </p>
@@ -57,41 +76,172 @@
     <section>
       <h2>Layer Diagram</h2>
       <p>
-        A concrete picture of the stack:
+        The layer stack is <strong>platform-specific</strong>. Not all layers are present on every
+        platform. Here is the general hierarchy showing all possible layers:
       </p>
       <pre><code>
     +------------------------------------------------+
     |       std::filebuf  (C++ stdlib)               |  &lt;- filebuf_file (Layer 6)
-    +------------------------------------------------+
+    +================================================+
                  |
                  v
     +------------------------------------------------+
-    |               FILE*  (C stdlib)                |  &lt;- c_file (Layer 5)
-    +------------------------------------------------+
+    |     libc / CRT  (FILE*)                        |  &lt;- c_file (Layer 5)
+    +================================================+
                  |
                  v
     +------------------------------------------------+
-    |        POSIX file descriptors (int fd)         |  &lt;- posix_file (Layer 4)
-    +------------------------------------------------+
+    |   libc POSIX fd / CRT fd  (int fd)             |  &lt;- posix_file (Layer 4)
+    +================================================+
                  |
                  v
+    +------------------------------------------------+
+    |   Win32 HANDLE / System calls                  |  &lt;- win32_file (Layer 3) / syscalls
+    +================================================+
+                 |
+                 v
+    +------------------------------------------------+
+    |        NT HANDLE  (Windows only)               |  &lt;- nt_file (Layer 2)
+    +================================================+
+                 |
+                 v
+    +------------------------------------------------+
+    |   Wine host fd  (Wine only)                    |  &lt;- wine_file (Layer 1)
+    +================================================+
+                 |
+                 v
+              [ kernel ]
+      </code></pre>
+      <p>
+        <strong>Note:</strong> This is a simplified overview. The actual layers depend on the platform.
+        Not all layers are present on every platform:
+      </p>
+      <ul>
+        <li><strong>On POSIX systems</strong> (Linux, macOS, FreeBSD): Only layers 4-6 are present (libc POSIX fd, libc FILE*, filebuf). Layers 1-3 (wine, nt, win32) do not exist.</li>
+        <li><strong>On Windows</strong> (native): All layers 2-6 are present (NT HANDLE, Win32 HANDLE, CRT fd, CRT FILE*, filebuf). The CRT file descriptors (layer 4) exist through the C runtime (MSVCRT/UCRT) and are wrappers around HANDLEs internally.</li>
+        <li><strong>On Wine</strong>: All layers may be present. Wine translates Windows API calls (layers 2-3) into host POSIX calls (layer 4), then into the host kernel.</li>
+      </ul>
+      <p>
+        Below are the detailed diagrams for each typical platform:
+      </p>
+
+      <h3>On POSIX Systems (Linux, macOS, FreeBSD, etc.)</h3>
+      <pre><code>
+    +------------------------------------------------+
+    |       std::filebuf  (C++ stdlib)               |  &lt;- filebuf_file (Layer 6)
+    +================================================+
+             |
+             v
+    +------------------------------------------------+
+    |        libc  (FILE*, fopen, fread, etc.)       |  &lt;- c_file (Layer 5)
+    +------------------------------------------------+
+             |
+             v
+    +------------------------------------------------+
+    |   libc POSIX layer  (int fd, open, read, etc.) |  &lt;- posix_file (Layer 4)
+    +================================================+
+             |
+             v
+    +------------------------------------------------+
+    |        System calls (open, read, write)        |  &lt;- kernel interface
+    +================================================+
+             |
+             v
+          [ kernel ]
+      </code></pre>
+      <p>
+        On POSIX systems, the stack is straightforward: C++ stdlib wraps libc, which provides
+        both <code>FILE*</code> and POSIX file descriptors, which wrap system calls that enter
+        the kernel. Both <code>FILE*</code> and POSIX file descriptors are part of libc.
+      </p>
+
+      <h3>On Windows (Native)</h3>
+      <pre><code>
+    +------------------------------------------------+
+    |       std::filebuf  (C++ stdlib)               |  &lt;- filebuf_file (Layer 6)
+    +================================================+
+             |
+             v
+    +------------------------------------------------+
+    |     CRT  (msvcrt.dll / ucrt, FILE*)            |  &lt;- c_file (Layer 5)
+    +================================================+
+             |
+             v
+    +------------------------------------------------+
+    |     CRT file descriptors  (int fd)             |  &lt;- posix_file (Layer 4)
+    +================================================+
+             |
+             v
     +------------------------------------------------+
     |   Win32 HANDLE  (CreateFileW / CreateFileA)    |  &lt;- win32_file (Layer 3)
-    +------------------------------------------------+
-                 |
-                 v
+    +================================================+
+             |
+             v
     +------------------------------------------------+
     |   NT HANDLE  (NtCreateFile / ZwCreateFile)     |  &lt;- nt_file (Layer 2)
+    +================================================+
+             |
+             v
+          [ kernel: ntoskrnl.exe ]
+      </code></pre>
+      <p>
+        On Windows, the CRT (C Runtime: MSVCRT or UCRT) provides both <code>FILE*</code> (layer 5)
+        and file descriptors (layer 4). The file descriptors are wrappers around Win32 HANDLEs &mdash;
+        internally, the CRT calls <code>CreateFileW</code> and stores the HANDLE, then returns a
+        small integer file descriptor that maps to that HANDLE. You can convert between them using
+        <code>_get_osfhandle(fd)</code> and <code>_open_osfhandle(handle, flags)</code> (see Ch11.14).
+      </p>
+
+      <h3>On Wine (Windows Programs on POSIX Host)</h3>
+      <pre><code>
     +------------------------------------------------+
-                 |
-                 v
+    |       std::filebuf  (C++ stdlib)               |  &lt;- filebuf_file (Layer 6)
+    +================================================+
+             |
+             v
+    +------------------------------------------------+
+    |     CRT  (msvcrt.dll / ucrt, FILE*)            |  &lt;- c_file (Layer 5)
+    +================================================+
+             |
+             v
+    +------------------------------------------------+
+    |     CRT file descriptors  (int fd)             |  &lt;- posix_file (Layer 4)
+    +================================================+
+             |
+             v
+    +------------------------------------------------+
+    |   Win32 HANDLE  (CreateFileW / CreateFileA)    |  &lt;- win32_file (Layer 3)
+    +================================================+
+             |
+             v
+    +------------------------------------------------+
+    |   NT HANDLE  (NtCreateFile / ZwCreateFile)     |  &lt;- nt_file (Layer 2)
+    +================================================+
+             |
+             v
     +------------------------------------------------+
     |   Wine host fd  (Wine translating NT to host)  |  &lt;- wine_file (Layer 1)
+    +================================================+
+             |
+             v
     +------------------------------------------------+
-                 |
-                 v
-              [ kernel: ntoskrnl.exe ]
+    |   Host libc  (glibc, musl, etc.)               |  &lt;- host POSIX layer
+    +================================================+
+             |
+             v
+    +------------------------------------------------+
+    |   Host system calls (open, read, write)        |  &lt;- host kernel interface
+    +================================================+
+             |
+             v
+          [ host kernel: Linux, macOS, etc. ]
       </code></pre>
+      <p>
+        On Wine, the Windows layers (CRT, Win32, NT) are present, but Wine translates NT syscalls into
+        host POSIX syscalls. So the call chain goes through Wine's translation layer (layer 1), then into
+        the host's libc, then into the host kernel. This is why Wine programs can run on
+        Linux, macOS, and FreeBSD.
+      </p>
       <p>
         Each layer corresponds to a real system component:
       </p>
@@ -105,15 +255,16 @@
           <code>msvcp{version}.dll</code> (MSVC, e.g. <code>msvcp140.dll</code>).
         </li>
         <li>
-          <strong>c</strong> &mdash; the C standard library (<strong>libc</strong>:
-          <code>glibc</code>, <code>musl</code>, <code>msvcrt.dll</code>/<code>ucrt</code>).
-          <code>FILE*</code>, <code>fopen</code>, <code>fread</code>, <code>fprintf</code>,
-          and <code>printf</code> live here.
+          <strong>c</strong> &mdash; libc (<code>glibc</code>, <code>musl</code>,
+          <code>msvcrt.dll</code>/<code>ucrt</code>). <code>FILE*</code>, <code>fopen</code>,
+          <code>fread</code>, <code>fprintf</code>, and <code>printf</code> live here. On POSIX
+          systems, libc also provides the POSIX file descriptor layer (layer 4).
         </li>
         <li>
-          <strong>posix</strong> &mdash; POSIX syscalls (<code>open</code>, <code>read</code>,
-          <code>write</code>, <code>close</code>). On Linux/macOS/FreeBSD, libc wraps these
-          syscalls. On Windows, there is no native POSIX layer.
+          <strong>posix</strong> &mdash; POSIX file descriptors and syscalls (<code>open</code>,
+          <code>read</code>, <code>write</code>, <code>close</code>). This is part of libc on
+          Linux/macOS/FreeBSD. On Windows, there is no native POSIX layer (except through
+          compatibility layers).
         </li>
         <li>
           <strong>win32</strong> &mdash; <strong>kernel32.dll</strong> on Windows.
@@ -143,9 +294,9 @@
       </ul>
       <p>
         So when you call <code>std::fstream</code>, the call chain on Windows is:
-        C++ stdlib &rarr; MSVCRT/ucrt (<code>FILE*</code>) &rarr; kernel32.dll
+        C++ stdlib &rarr; libc (MSVCRT/ucrt, <code>FILE*</code>) &rarr; kernel32.dll
         (<code>CreateFileW</code>) &rarr; ntdll.dll (<code>NtCreateFile</code>) &rarr; kernel.
-        On Linux, it is: C++ stdlib &rarr; glibc/musl (<code>FILE*</code>) &rarr;
+        On Linux, it is: C++ stdlib &rarr; libc (glibc/musl, <code>FILE*</code> and POSIX fd) &rarr;
         <code>open()</code>/<code>read()</code> syscalls &rarr; kernel.
       </p>
       <p>
@@ -171,12 +322,80 @@
       <p>
         <strong>Important:</strong> These relationships are <strong>not</strong> defined by
         <code>fast_io</code>. They are defined by the operating system and the compiler&rsquo;s
-        C/C++ runtime vendors. For example, on POSIX systems, the C stdlib&rsquo;s
+        C/C++ runtime vendors. For example, on POSIX systems, libc&rsquo;s
         <code>FILE*</code> is implemented on top of POSIX file descriptors by the libc
         implementation (glibc, musl, etc.), and the C++ stdlib&rsquo;s
         <code>::std::filebuf</code> is implemented on top of <code>FILE*</code> by the C++
         runtime library. <code>fast_io</code> merely summarizes and wraps these existing
         relationships &mdash; it does not invent new ones.
+      </p>
+    </section>
+
+    <section>
+      <h2>Complete Layer Reference</h2>
+      <p>
+        The following table summarizes all the file layers, their types, and what they wrap:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Owning type</th>
+            <th>Observer type</th>
+            <th>Handle name</th>
+            <th>Wraps</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>wine</code></td>
+            <td><code>::fast_io::wine_file</code></td>
+            <td><code>::fast_io::wine_io_observer</code></td>
+            <td><code>host_fd</code></td>
+            <td>Wine host fd</td>
+          </tr>
+          <tr>
+            <td><code>nt</code></td>
+            <td><code>::fast_io::nt_file</code></td>
+            <td><code>::fast_io::nt_io_observer</code></td>
+            <td><code>handle</code></td>
+            <td>NtCreateFile / ZwCreateFile</td>
+          </tr>
+          <tr>
+            <td><code>win32</code></td>
+            <td><code>::fast_io::win32_file</code></td>
+            <td><code>::fast_io::win32_io_observer</code></td>
+            <td><code>handle</code></td>
+            <td>CreateFileW / CreateFileA</td>
+          </tr>
+          <tr>
+            <td><code>posix</code></td>
+            <td><code>::fast_io::posix_file</code></td>
+            <td><code>::fast_io::posix_io_observer</code></td>
+            <td><code>fd</code></td>
+            <td>open / openat</td>
+          </tr>
+          <tr>
+            <td><code>c</code></td>
+            <td><code>::fast_io::c_file</code></td>
+            <td><code>::fast_io::c_io_observer</code></td>
+            <td><code>fp</code></td>
+            <td>FILE* / fopen</td>
+          </tr>
+          <tr>
+            <td><code>filebuf</code></td>
+            <td><code>::fast_io::filebuf_file</code></td>
+            <td><code>::fast_io::filebuf_io_observer</code></td>
+            <td><code>fb</code></td>
+            <td>::std::filebuf*</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The <strong>handle name</strong> column shows the member function name used to access
+        the underlying native handle. For example, <code>posix_file::native_handle()</code> returns
+        the <code>fd</code> (file descriptor), while <code>nt_file::native_handle()</code> returns
+        the <code>handle</code> (NT HANDLE).
       </p>
     </section>
 
