@@ -27,6 +27,517 @@
     </section>
 
     <section>
+      <h2>Standard C++ I/O: <code>&lt;iostream&gt;</code>, <code>&lt;fstream&gt;</code>, <code>&lt;sstream&gt;</code></h2>
+      <p>
+        Before discussing how <code>fast_io</code> wraps C++ I/O, let&rsquo;s review the standard C++
+        I/O library. C++ provides three main headers for I/O:
+      </p>
+      <ul>
+        <li><code>&lt;iostream&gt;</code> &mdash; standard streams (<code>std::cin</code>, <code>std::cout</code>, <code>std::cerr</code>, <code>std::clog</code>)</li>
+        <li><code>&lt;fstream&gt;</code> &mdash; file streams (<code>std::ifstream</code>, <code>std::ofstream</code>, <code>std::fstream</code>)</li>
+        <li><code>&lt;sstream&gt;</code> &mdash; string streams (<code>std::istringstream</code>, <code>std::ostringstream</code>, <code>std::stringstream</code>)</li>
+      </ul>
+
+      <h3>Standard Streams</h3>
+      <p>
+        C++ provides four predefined streams:
+      </p>
+      <ul>
+        <li><code>std::cin</code> &mdash; standard input (usually keyboard)</li>
+        <li><code>std::cout</code> &mdash; standard output (usually terminal)</li>
+        <li><code>std::cerr</code> &mdash; standard error (unbuffered, usually terminal)</li>
+        <li><code>std::clog</code> &mdash; standard error (buffered, usually terminal)</li>
+      </ul>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+int main() {
+    int x;
+    std::string name;
+
+    // Read from stdin
+    std::cout &lt;&lt; "Enter your name: ";
+    std::cin &gt;&gt; name;
+
+    std::cout &lt;&lt; "Enter a number: ";
+    std::cin &gt;&gt; x;
+
+    // Write to stdout
+    std::cout &lt;&lt; "Hello, " &lt;&lt; name &lt;&lt; "!\n";
+    std::cout &lt;&lt; "You entered: " &lt;&lt; x &lt;&lt; "\n";
+
+    // Write to stderr
+    if (x &lt; 0) {
+        std::cerr &lt;&lt; "Warning: negative number\n";
+    }
+}
+</code></pre>
+
+      <h3>File Streams</h3>
+<pre><code class="language-cpp">
+#include &lt;fstream&gt;
+#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+int main() {
+    // Write to a file
+    std::ofstream fout("output.txt");
+    if (!fout) {
+        std::cerr &lt;&lt; "Failed to open file\n";
+        return 1;
+    }
+
+    fout &lt;&lt; "Hello, World!\n";
+    fout &lt;&lt; "The answer is: " &lt;&lt; 42 &lt;&lt; "\n";
+    fout.close();
+
+    // Read from a file
+    std::ifstream fin("output.txt");
+    if (!fin) {
+        std::cerr &lt;&lt; "Failed to open file\n";
+        return 1;
+    }
+
+    std::string line;
+    while (std::getline(fin, line)) {
+        std::cout &lt;&lt; "Read: " &lt;&lt; line &lt;&lt; "\n";
+    }
+    fin.close();
+
+    // Read and write (bidirectional)
+    std::fstream fio("data.txt", std::ios::in | std::ios::out | std::ios::trunc);
+    fio &lt;&lt; "Initial data\n";
+    fio.seekg(0);  // Go back to beginning
+    std::getline(fio, line);
+    std::cout &lt;&lt; "Read back: " &lt;&lt; line &lt;&lt; "\n";
+}
+</code></pre>
+      <p>
+        Common file open modes:
+      </p>
+      <ul>
+        <li><code>std::ios::in</code> &mdash; open for reading</li>
+        <li><code>std::ios::out</code> &mdash; open for writing</li>
+        <li><code>std::ios::app</code> &mdash; append to end</li>
+        <li><code>std::ios::ate</code> &mdash; seek to end after opening</li>
+        <li><code>std::ios::trunc</code> &mdash; truncate file if it exists</li>
+        <li><code>std::ios::binary</code> &mdash; binary mode (no text translation)</li>
+      </ul>
+
+      <h3>String Streams</h3>
+<pre><code class="language-cpp">
+#include &lt;sstream&gt;
+#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+int main() {
+    // Write to a string
+    std::ostringstream oss;
+    oss &lt;&lt; "x = " &lt;&lt; 42 &lt;&lt; ", pi = " &lt;&lt; 3.14159;
+    std::string result = oss.str();
+    std::cout &lt;&lt; "Built string: " &lt;&lt; result &lt;&lt; "\n";
+
+    // Read from a string
+    std::istringstream iss("42 3.14 hello");
+    int x;
+    double y;
+    std::string word;
+    iss &gt;&gt; x &gt;&gt; y &gt;&gt; word;
+    std::cout &lt;&lt; "Parsed: " &lt;&lt; x &lt;&lt; ", " &lt;&lt; y &lt;&lt; ", " &lt;&lt; word &lt;&lt; "\n";
+
+    // Bidirectional string stream
+    std::stringstream ss;
+    ss &lt;&lt; "100 200";
+    int a, b;
+    ss &gt;&gt; a &gt;&gt; b;
+    std::cout &lt;&lt; "Sum: " &lt;&lt; (a + b) &lt;&lt; "\n";
+}
+</code></pre>
+
+      <h3>Stream Manipulators</h3>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;iomanip&gt;
+
+int main() {
+    // Formatting
+    std::cout &lt;&lt; std::hex &lt;&lt; 255 &lt;&lt; "\n";           // ff
+    std::cout &lt;&lt; std::oct &lt;&lt; 255 &lt;&lt; "\n";           // 377
+    std::cout &lt;&lt; std::dec &lt;&lt; 255 &lt;&lt; "\n";           // 255
+
+    // Floating-point precision
+    std::cout &lt;&lt; std::fixed &lt;&lt; std::setprecision(2) &lt;&lt; 3.14159 &lt;&lt; "\n";  // 3.14
+    std::cout &lt;&lt; std::scientific &lt;&lt; 3.14159 &lt;&lt; "\n";  // 3.14e+00
+
+    // Width and alignment
+    std::cout &lt;&lt; "[" &lt;&lt; std::setw(10) &lt;&lt; std::left &lt;&lt; "left" &lt;&lt; "]\n";
+    std::cout &lt;&lt; "[" &lt;&lt; std::setw(10) &lt;&lt; std::right &lt;&lt; "right" &lt;&lt; "]\n";
+
+    // Boolean
+    std::cout &lt;&lt; std::boolalpha &lt;&lt; true &lt;&lt; "\n";    // true
+    std::cout &lt;&lt; std::noboolalpha &lt;&lt; true &lt;&lt; "\n";  // 1
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Appendix: Complete C++ I/O Reference</h2>
+
+      <h3>Stream Classes</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Class</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>std::istream</code></td>
+            <td>Base input stream</td>
+          </tr>
+          <tr>
+            <td><code>std::ostream</code></td>
+            <td>Base output stream</td>
+          </tr>
+          <tr>
+            <td><code>std::iostream</code></td>
+            <td>Base input/output stream</td>
+          </tr>
+          <tr>
+            <td><code>std::ifstream</code></td>
+            <td>Input file stream</td>
+          </tr>
+          <tr>
+            <td><code>std::ofstream</code></td>
+            <td>Output file stream</td>
+          </tr>
+          <tr>
+            <td><code>std::fstream</code></td>
+            <td>Input/output file stream</td>
+          </tr>
+          <tr>
+            <td><code>std::istringstream</code></td>
+            <td>Input string stream</td>
+          </tr>
+          <tr>
+            <td><code>std::ostringstream</code></td>
+            <td>Output string stream</td>
+          </tr>
+          <tr>
+            <td><code>std::stringstream</code></td>
+            <td>Input/output string stream</td>
+          </tr>
+          <tr>
+            <td><code>std::filebuf</code></td>
+            <td>File buffer (narrow)</td>
+          </tr>
+          <tr>
+            <td><code>std::wfilebuf</code></td>
+            <td>File buffer (wide)</td>
+          </tr>
+          <tr>
+            <td><code>std::streambuf</code></td>
+            <td>Base stream buffer</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Standard Stream Objects</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Object</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>std::cin</code></td>
+            <td>Standard input stream</td>
+          </tr>
+          <tr>
+            <td><code>std::cout</code></td>
+            <td>Standard output stream</td>
+          </tr>
+          <tr>
+            <td><code>std::cerr</code></td>
+            <td>Standard error stream (unbuffered)</td>
+          </tr>
+          <tr>
+            <td><code>std::clog</code></td>
+            <td>Standard error stream (buffered)</td>
+          </tr>
+          <tr>
+            <td><code>std::wcin</code></td>
+            <td>Wide standard input stream</td>
+          </tr>
+          <tr>
+            <td><code>std::wcout</code></td>
+            <td>Wide standard output stream</td>
+          </tr>
+          <tr>
+            <td><code>std::wcerr</code></td>
+            <td>Wide standard error stream (unbuffered)</td>
+          </tr>
+          <tr>
+            <td><code>std::wclog</code></td>
+            <td>Wide standard error stream (buffered)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Stream Manipulators</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>std::endl</code></td>
+            <td>Output newline and flush</td>
+          </tr>
+          <tr>
+            <td><code>std::ends</code></td>
+            <td>Output null terminator</td>
+          </tr>
+          <tr>
+            <td><code>std::flush</code></td>
+            <td>Flush stream</td>
+          </tr>
+          <tr>
+            <td><code>std::ws</code></td>
+            <td>Skip whitespace (input)</td>
+          </tr>
+          <tr>
+            <td><code>std::boolalpha</code></td>
+            <td>Use true/false for booleans</td>
+          </tr>
+          <tr>
+            <td><code>std::noboolalpha</code></td>
+            <td>Use 1/0 for booleans</td>
+          </tr>
+          <tr>
+            <td><code>std::showbase</code></td>
+            <td>Show base prefix (0x, 0)</td>
+          </tr>
+          <tr>
+            <td><code>std::noshowbase</code></td>
+            <td>Don&rsquo;t show base prefix</td>
+          </tr>
+          <tr>
+            <td><code>std::showpoint</code></td>
+            <td>Show decimal point</td>
+          </tr>
+          <tr>
+            <td><code>std::noshowpoint</code></td>
+            <td>Don&rsquo;t show decimal point</td>
+          </tr>
+          <tr>
+            <td><code>std::showpos</code></td>
+            <td>Show + sign for positive numbers</td>
+          </tr>
+          <tr>
+            <td><code>std::noshowpos</code></td>
+            <td>Don&rsquo;t show + sign</td>
+          </tr>
+          <tr>
+            <td><code>std::skipws</code></td>
+            <td>Skip whitespace on input</td>
+          </tr>
+          <tr>
+            <td><code>std::noskipws</code></td>
+            <td>Don&rsquo;t skip whitespace</td>
+          </tr>
+          <tr>
+            <td><code>std::uppercase</code></td>
+            <td>Use uppercase for hex/scientific</td>
+          </tr>
+          <tr>
+            <td><code>std::nouppercase</code></td>
+            <td>Use lowercase</td>
+          </tr>
+          <tr>
+            <td><code>std::unitbuf</code></td>
+            <td>Flush after each output</td>
+          </tr>
+          <tr>
+            <td><code>std::nounitbuf</code></td>
+            <td>Don&rsquo;t flush after each output</td>
+          </tr>
+          <tr>
+            <td><code>std::internal</code></td>
+            <td>Internal padding</td>
+          </tr>
+          <tr>
+            <td><code>std::left</code></td>
+            <td>Left-align</td>
+          </tr>
+          <tr>
+            <td><code>std::right</code></td>
+            <td>Right-align</td>
+          </tr>
+          <tr>
+            <td><code>std::dec</code></td>
+            <td>Decimal base</td>
+          </tr>
+          <tr>
+            <td><code>std::hex</code></td>
+            <td>Hexadecimal base</td>
+          </tr>
+          <tr>
+            <td><code>std::oct</code></td>
+            <td>Octal base</td>
+          </tr>
+          <tr>
+            <td><code>std::fixed</code></td>
+            <td>Fixed-point notation</td>
+          </tr>
+          <tr>
+            <td><code>std::scientific</code></td>
+            <td>Scientific notation</td>
+          </tr>
+          <tr>
+            <td><code>std::hexfloat</code></td>
+            <td>Hexadecimal floating-point (C++11)</td>
+          </tr>
+          <tr>
+            <td><code>std::defaultfloat</code></td>
+            <td>Default floating-point notation (C++11)</td>
+          </tr>
+          <tr>
+            <td><code>std::setprecision(n)</code></td>
+            <td>Set decimal precision</td>
+          </tr>
+          <tr>
+            <td><code>std::setw(n)</code></td>
+            <td>Set field width</td>
+          </tr>
+          <tr>
+            <td><code>std::setbase(n)</code></td>
+            <td>Set numeric base</td>
+          </tr>
+          <tr>
+            <td><code>std::setfill(c)</code></td>
+            <td>Set fill character</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Stream State Flags</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>std::ios::goodbit</code></td>
+            <td>No error</td>
+          </tr>
+          <tr>
+            <td><code>std::ios::eofbit</code></td>
+            <td>End-of-file reached</td>
+          </tr>
+          <tr>
+            <td><code>std::ios::failbit</code></td>
+            <td>Logical error (e.g., failed to read int)</td>
+          </tr>
+          <tr>
+            <td><code>std::ios::badbit</code></td>
+            <td>Read/write error on stream</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Stream Member Functions</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>good()</code></td>
+            <td>Check if stream is in good state</td>
+          </tr>
+          <tr>
+            <td><code>eof()</code></td>
+            <td>Check if end-of-file reached</td>
+          </tr>
+          <tr>
+            <td><code>fail()</code></td>
+            <td>Check if last operation failed</td>
+          </tr>
+          <tr>
+            <td><code>bad()</code></td>
+            <td>Check if stream is corrupted</td>
+          </tr>
+          <tr>
+            <td><code>clear()</code></td>
+            <td>Clear error state</td>
+          </tr>
+          <tr>
+            <td><code>setstate()</code></td>
+            <td>Set error state</td>
+          </tr>
+          <tr>
+            <td><code>rdstate()</code></td>
+            <td>Get current error state</td>
+          </tr>
+          <tr>
+            <td><code>peek()</code></td>
+            <td>Look at next character without extracting</td>
+          </tr>
+          <tr>
+            <td><code>get()</code></td>
+            <td>Extract one character</td>
+          </tr>
+          <tr>
+            <td><code>getline()</code></td>
+            <td>Extract a line</td>
+          </tr>
+          <tr>
+            <td><code>put()</code></td>
+            <td>Insert one character</td>
+          </tr>
+          <tr>
+            <td><code>write()</code></td>
+            <td>Insert multiple characters</td>
+          </tr>
+          <tr>
+            <td><code>read()</code></td>
+            <td>Extract multiple characters</td>
+          </tr>
+          <tr>
+            <td><code>seekg()</code> / <code>seekp()</code></td>
+            <td>Set get/put position</td>
+          </tr>
+          <tr>
+            <td><code>tellg()</code> / <code>tellp()</code></td>
+            <td>Get get/put position</td>
+          </tr>
+          <tr>
+            <td><code>sync()</code></td>
+            <td>Synchronize with underlying device</td>
+          </tr>
+          <tr>
+            <td><code>flush()</code></td>
+            <td>Flush output buffer</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
       <h2>fast_io Wrappers for <code>std::basic_filebuf</code></h2>
       <p>
         There are two key types:
@@ -191,6 +702,454 @@ int main()
     </section>
 
     <section>
+      <h2>Sockets Are Just Files: The POSIX Philosophy</h2>
+      <p>
+        On POSIX systems (Linux, macOS, BSD, etc.), <strong>everything is a file</strong>. Sockets,
+        pipes, terminals, regular files &mdash; they all use the same file descriptor interface.
+        <code>fast_io</code> embraces this philosophy. On non-Windows systems,
+        <code>::fast_io::native_file</code> can wrap <em>any</em> file descriptor, including sockets.
+      </p>
+      <p>
+        Here&rsquo;s an example showing how to construct a <code>::fast_io::filebuf_file</code> from a
+        <code>::fast_io::native_file</code> wrapping a socket, then use C++ <code>fstream</code> to
+        read/write it:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_legacy.h&gt;
+#include &lt;fstream&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::net_service net_svc;
+
+    // Connect to a server (returns a native_socket_file, which is native_file on POSIX)
+    auto dns = ::fast_io::native_dns_file(u8"example.com");
+    ::fast_io::native_socket_file sock{::fast_io::tcp_connect(::fast_io::to_ip(dns, 80u16))};
+
+    // On POSIX, native_socket_file is just native_file (same type)
+    // We can construct a filebuf_file from it
+    ::fast_io::filebuf_file fbf{::std::move(sock), ::fast_io::open_mode::in | ::fast_io::open_mode::out};
+
+    // Now we can use C++ fstream to read/write the socket!
+    ::std::iostream sock_stream;
+    *sock_stream.rdbuf() = ::std::move(*fbf.fb);
+
+    // Send an HTTP request using fstream
+    sock_stream &lt;&lt; "GET / HTTP/1.1\r\n"
+                &lt;&lt; "Host: example.com\r\n"
+                &lt;&lt; "Connection: close\r\n"
+                &lt;&lt; "\r\n";
+    sock_stream.flush();
+
+    // Read the response using fstream
+    ::std::string line;
+    while (::std::getline(sock_stream, line))
+    {
+        ::std::cout &lt;&lt; line &lt;&lt; '\n';
+    }
+}
+</code></pre>
+      <p>
+        This example demonstrates a profound truth: <strong>sockets are just files</strong>. The C++
+        standard library&rsquo;s <code>fstream</code> can work with sockets, pipes, terminals &mdash;
+        anything that has a file descriptor. The fact that C++ treats files and sockets as completely
+        different abstractions (with separate APIs like <code>std::fstream</code> vs Boost.Asio) is a
+        <strong>fundamental design flaw</strong> that violates the POSIX philosophy.
+      </p>
+      <p>
+        <code>fast_io</code> gets this right: there is no artificial separation between files and
+        sockets. A socket is a file. A pipe is a file. Everything uses the same <code>print</code>,
+        <code>println</code>, <code>scan</code> APIs. This is not just convenient &mdash; it&rsquo;s
+        <em>correct</em>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Why C++ iostream Is Fundamentally Flawed</h2>
+      <p>
+        C++ iostream has been around since the 1980s, but it suffers from deep design flaws that make
+        it unsuitable for modern C++. Understanding these flaws will help you appreciate why
+        <code>fast_io</code> was designed the way it is.
+      </p>
+
+      <h3>1. Security Vulnerabilities: Pointer Confusion</h3>
+      <p>
+        Consider this code:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;cstdint&gt;
+
+int main()
+{
+    ::std::int8_t* ptr{};  // nullptr
+    ::std::cout &lt;&lt; ptr &lt;&lt; '\n';  // CRASH! Why?
+}
+</code></pre>
+      <p>
+        This crashes because <code>std::cout</code> treats <code>int8_t*</code> (which is
+        <code>signed char*</code>) as a C-style string and tries to dereference it until it finds a
+        null terminator. Since the pointer is null, it crashes.
+      </p>
+      <p>
+        But change <code>int8_t</code> to <code>int32_t</code>:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;cstdint&gt;
+
+int main()
+{
+    ::std::int32_t* ptr{};  // nullptr
+    ::std::cout &lt;&lt; ptr &lt;&lt; '\n';  // No crash, prints 0
+}
+</code></pre>
+      <p>
+        Now it prints <code>0</code> (the pointer value) because <code>int32_t*</code> is not treated
+        as a string. The behavior changes based on the <em>exact type</em> of the pointer, which is
+        confusing and error-prone.
+      </p>
+      <p>
+        <code>fast_io</code> avoids this entirely: pointers are always printed as addresses, never
+        dereferenced as strings. You must explicitly use <code>::fast_io::mnp::os_c_str()</code> to
+        print a C-string.
+      </p>
+
+      <h3>2. Not Thread-Safe</h3>
+      <p>
+        <code>std::cout</code> is shared across all threads. If multiple threads write to it
+        simultaneously, their output can interleave:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;thread&gt;
+
+void worker(int id)
+{
+    // BAD: Output can interleave across threads
+    ::std::cout &lt;&lt; "Thread " &lt;&lt; id &lt;&lt; " is running\n";
+}
+
+int main()
+{
+    ::std::jthread t1(worker, 1);
+    ::std::jthread t2(worker, 2);
+    // Possible output: "Thread Thread 12 is running\n is running\n"
+}
+</code></pre>
+      <p>
+        With <code>fast_io</code>, each <code>print</code> or <code>println</code> call is atomic
+        (for console output). The output will never interleave:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;thread&gt;
+
+void worker(int id)
+{
+    using namespace ::fast_io::iomnp;
+    // GOOD: Each println is atomic
+    println("Thread ", id, " is running");
+}
+
+int main()
+{
+    ::std::jthread t1(worker, 1);
+    ::std::jthread t2(worker, 2);
+    // Output is always clean: "Thread 1 is running\nThread 2 is running\n"
+    // (order may vary, but no interleaving)
+}
+</code></pre>
+
+      <h3>3. Not Exception-Safe</h3>
+      <p>
+        If an exception is thrown while formatting output, the stream&rsquo;s internal state can be
+        left in an inconsistent state:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;stdexcept&gt;
+
+struct BadType {
+    friend ::std::ostream&amp; operator&lt;&lt;(::std::ostream&amp; os, BadType const&amp;) {
+        throw ::std::runtime_error("oops");
+    }
+};
+
+int main()
+{
+    try {
+        ::std::cout &lt;&lt; "Value: " &lt;&lt; BadType{} &lt;&lt; "\n";
+    } catch (...) {
+        // Stream may be in a bad state now
+    }
+    // ::std::cout might be unusable here
+}
+</code></pre>
+      <p>
+        <code>fast_io</code>&rsquo;s formatting is designed to be exception-safe and doesn&rsquo;t
+        leave streams in inconsistent states.
+      </p>
+
+      <h3>4. Stateful Manipulators: The <code>&lt;iomanip&gt;</code> Nightmare</h3>
+      <p>
+        C++ manipulators like <code>std::hex</code>, <code>std::dec</code>, <code>std::setw</code>
+        <em>change the stream&rsquo;s state</em>. This leads to subtle bugs:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;iomanip&gt;
+
+void print_data(int value)
+{
+    ::std::cout &lt;&lt; ::std::hex &lt;&lt; value &lt;&lt; '\n';
+    // Stream is now in hex mode!
+}
+
+int main()
+{
+    print_data(255);  // Prints "ff"
+    ::std::cout &lt;&lt; 255 &lt;&lt; '\n';  // Also prints "ff"! (not "255")
+
+    // You must manually restore the state:
+    ::std::cout &lt;&lt; ::std::dec;  // Restore to decimal
+}
+</code></pre>
+      <p>
+        This is a maintenance nightmare. You must remember to restore the stream state after every
+        use, or else later code will behave unexpectedly.
+      </p>
+      <p>
+        <code>fast_io</code>&rsquo;s manipulators are <strong>stateless</strong>:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+void print_data(int value)
+{
+    using namespace ::fast_io::iomnp;
+    println(::fast_io::mnp::hex(value));  // Only this value is hex
+    // No state to restore!
+}
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+    print_data(255);  // Prints "ff"
+    println(255);     // Prints "255" (decimal, as expected)
+}
+</code></pre>
+      <p>
+        Each manipulator applies only to the value it wraps. There is no global state to corrupt.
+      </p>
+
+      <h3>5. Locale Hell</h3>
+      <p>
+        C++ iostream respects the global locale, which can cause unexpected behavior:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;locale&gt;
+
+int main()
+{
+    ::std::locale::global(::std::locale("de_DE"));  // German locale
+    ::std::cout &lt;&lt; 1234.56 &lt;&lt; '\n';  // Prints "1.234,56" (German format)
+
+    // Now your output format depends on the user&rsquo;s locale!
+    // This breaks parsers, config files, network protocols, etc.
+}
+</code></pre>
+      <p>
+        <code>fast_io</code> ignores locales by default. Numbers are always formatted in a
+        machine-readable, locale-independent way. If you need locale-aware formatting, you must
+        explicitly request it.
+      </p>
+
+      <h3>6. Performance</h3>
+      <p>
+        C++ iostream is slower than C&rsquo;s <code>printf</code> family due to virtual function calls,
+        locale handling, and complex formatting logic. <code>fast_io</code> is faster than both
+        <code>printf</code> and iostream, often by a large margin.
+      </p>
+    </section>
+
+    <section>
+      <h2>Practical Advice: Implementing fstream with fast_io</h2>
+      <p>
+        If you are working with legacy code that uses C++ <code>fstream</code>, you can internally use
+        <code>::fast_io::filebuf_io_observer</code> to implement it. This gives you the performance
+        benefits of <code>fast_io</code>&rsquo;s low-level operations while maintaining compatibility
+        with the <code>fstream</code> interface.
+      </p>
+      <p>
+        The cost is much smaller than you might think. <code>filebuf_io_observer</code> is just a
+        lightweight wrapper around <code>std::basic_filebuf*</code>, and the underlying operations
+        (read, write, seek) can be implemented using <code>fast_io</code>&rsquo;s efficient syscall
+        layer.
+      </p>
+      <p>
+        This is a common pattern in high-performance libraries: expose a standard interface (like
+        <code>fstream</code>) for compatibility, but use <code>fast_io</code> internally for speed.
+      </p>
+    </section>
+
+    <section>
+      <h2>Appendix: Complete <code>&lt;iomanip&gt;</code> Reference</h2>
+      <p>
+        The <code>&lt;iomanip&gt;</code> header provides manipulators that take arguments. These
+        manipulators modify the stream&rsquo;s internal state, which persists until explicitly changed.
+        This is a fundamental design flaw &mdash; see &ldquo;Why C++ iostream Is Fundamentally Flawed&rdquo;
+        above. <code>fast_io</code>&rsquo;s manipulators are stateless and do not suffer from these issues.
+      </p>
+
+      <h3>Field Width and Fill</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>std::setw(n)</code></td>
+            <td>Set minimum field width to <code>n</code> characters</td>
+            <td><code>std::cout &lt;&lt; std::setw(10) &lt;&lt; 42;</code></td>
+          </tr>
+          <tr>
+            <td><code>std::setfill(c)</code></td>
+            <td>Set fill character to <code>c</code></td>
+            <td><code>std::cout &lt;&lt; std::setfill('0') &lt;&lt; std::setw(5) &lt;&lt; 42;</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Warning:</strong> <code>std::setw</code> only applies to the <em>next</em> output
+        operation, then resets to 0. This is inconsistent and error-prone.
+      </p>
+
+      <h3>Numeric Base</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>std::setbase(n)</code></td>
+            <td>Set numeric base to <code>n</code> (8, 10, or 16)</td>
+            <td><code>std::cout &lt;&lt; std::setbase(16) &lt;&lt; 255;</code> (prints <code>ff</code>)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Precision</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>std::setprecision(n)</code></td>
+            <td>Set floating-point precision to <code>n</code> digits</td>
+            <td><code>std::cout &lt;&lt; std::setprecision(3) &lt;&lt; 3.14159;</code> (prints <code>3.14</code>)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Note:</strong> Precision persists until changed. Combined with
+        <code>std::fixed</code> or <code>std::scientific</code>, it controls decimal places.
+      </p>
+
+      <h3>Other Manipulators</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>std::resetiosflags(f)</code></td>
+            <td>Clear specified format flags</td>
+          </tr>
+          <tr>
+            <td><code>std::setiosflags(f)</code></td>
+            <td>Set specified format flags</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Format flags include: <code>std::ios::left</code>, <code>std::ios::right</code>,
+        <code>std::ios::internal</code>, <code>std::ios::dec</code>, <code>std::ios::hex</code>,
+        <code>std::ios::oct</code>, <code>std::ios::fixed</code>, <code>std::ios::scientific</code>,
+        <code>std::ios::boolalpha</code>, <code>std::ios::showbase</code>,
+        <code>std::ios::showpoint</code>, <code>std::ios::showpos</code>,
+        <code>std::ios::skipws</code>, <code>std::ios::uppercase</code>,
+        <code>std::ios::unitbuf</code>.
+      </p>
+
+      <h3>Why This Is Terrible</h3>
+      <p>
+        All of these manipulators modify the stream&rsquo;s internal state. Consider:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;iomanip&gt;
+
+void print_hex(int value) {
+    std::cout &lt;&lt; std::hex &lt;&lt; value &lt;&lt; '\n';
+    // Stream is now in hex mode!
+}
+
+int main() {
+    print_hex(255);  // Prints "ff"
+    std::cout &lt;&lt; 255 &lt;&lt; '\n';  // Also prints "ff"!
+    // Must manually restore: std::cout &lt;&lt; std::dec;
+}
+</code></pre>
+      <p>
+        This is a maintenance nightmare. You must remember to restore the stream state after every
+        use, or else later code will behave unexpectedly. Exceptions can leave the stream in an
+        inconsistent state. Multiple threads can corrupt each other&rsquo;s formatting.
+      </p>
+      <p>
+        <code>fast_io</code>&rsquo;s manipulators are <strong>stateless</strong>:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+void print_hex(int value) {
+    using namespace ::fast_io::iomnp;
+    println(::fast_io::mnp::hex(value));
+    // No state to restore!
+}
+
+int main() {
+    using namespace ::fast_io::iomnp;
+    print_hex(255);  // Prints "ff"
+    println(255);    // Prints "255" (decimal, as expected)
+}
+</code></pre>
+      <p>
+        Each manipulator applies only to the value it wraps. There is no global state to corrupt.
+      </p>
+    </section>
+
+    <section>
       <h2>Key Takeaways</h2>
       <ul>
         <li>
@@ -208,9 +1167,27 @@ int main()
           other character types.
         </li>
         <li>
-          You can construct an <code>std::fstream</code> from <code>fast_io</code>&rsquo;s syscall
-          layer by moving a <code>filebuf_file</code>&rsquo;s buffer into the stream&rsquo;s
-          <code>rdbuf()</code>. This will be explored further in Ch11.17.
+          <strong>Sockets are just files.</strong> On POSIX systems, you can wrap a socket in a
+          <code>filebuf_file</code> and use <code>fstream</code> to read/write it. C++&rsquo;s
+          artificial separation of files and sockets (e.g., Boost.Asio vs fstream) violates the
+          POSIX philosophy.
+        </li>
+        <li>
+          <strong>C++ iostream has fundamental design flaws:</strong> pointer confusion (security
+          issues), not thread-safe, not exception-safe, stateful manipulators that corrupt stream
+          state, locale-dependent output, and poor performance. <code>fast_io</code> fixes all of
+          these.
+        </li>
+        <li>
+          <strong>fast_io&rsquo;s manipulators are stateless.</strong> Unlike <code>std::hex</code>
+          which changes the stream state, <code>::fast_io::mnp::hex(value)</code> applies only to
+          that value. No state to restore, no bugs.
+        </li>
+        <li>
+          <strong>Use fast_io internally for fstream implementations.</strong> If you need to
+          maintain compatibility with <code>fstream</code>, use
+          <code>::fast_io::filebuf_io_observer</code> internally. The performance cost is minimal,
+          and you get the benefits of <code>fast_io</code>&rsquo;s efficient syscall layer.
         </li>
       </ul>
     </section>

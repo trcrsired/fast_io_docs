@@ -84,10 +84,8 @@ int main(int argc, char** argv)
     ::fast_io::native_file_loader loader(::fast_io::mnp::os_c_str(argv[1]));
 
     // Print the entire file contents directly
-    print(loader,
-
-    // Access size and data
-      "File size: ", loader.size(), " bytes\n");
+    print(loader);
+    println("File size: ", loader.size(), " bytes");
 
     // Iterate over the bytes
     ::std::size_t newline_count{};
@@ -148,10 +146,9 @@ int main(int argc, char** argv)
     ::fast_io::allocation_file_loader loader(::fast_io::mnp::os_c_str(argv[1]));
 
     // Same container-like interface
-    print("File size: ", loader.size(), " bytes\n",
-
+    println("File size: ", loader.size(), " bytes");
     // Print file contents
-      loader);
+    print(loader);
 
     // Access individual bytes
     for (::std::size_t i{}; i &lt; loader.size(); ++i)
@@ -213,6 +210,41 @@ int main(int argc, char** argv)
         for best performance. If you need maximum portability (e.g. cross-compiling to WASM),
         use <code>allocation_file_loader</code>.
       </p>
+      <p>
+        <strong>Important:</strong> If you need to load a file, modify its contents in memory, and then
+        write it back to the <em>same file</em>, use <code>allocation_file_loader</code> instead of
+        <code>native_file_loader</code>. The memory-mapped loader keeps the file open until it is destroyed,
+        which prevents you from reopening the file for writing. <code>allocation_file_loader</code> reads
+        the entire file into heap memory and closes it immediately, allowing you to safely reopen the file
+        for output.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Load file into heap memory (file is closed after loading)
+    ::fast_io::allocation_file_loader loader(u8"data.txt");
+
+    // Modify the contents in memory
+    for (auto&amp; ch : loader)
+    {
+        if (ch == u8'a') ch = u8'A';
+    }
+
+    // Now we can safely write back to the same file
+    ::fast_io::obuf_file obf(u8"data.txt");
+    print(obf, loader);
+}
+      </code></pre>
+      <p>
+        If you had used <code>native_file_loader</code> in the example above, the file would remain
+        memory-mapped and locked, causing the <code>obuf_file</code> construction to fail or the write
+        to corrupt the mapping.
+      </p>
     </section>
 
     <section>
@@ -240,8 +272,8 @@ int main()
     auto loader = load_file("example.txt");
 
     // loader now owns the mapped file
-    print("Size in main: ", loader.size(), "\n",
-      loader);
+    println("Size in main: ", loader.size());
+    print(loader);
 
     // Move into another variable
     auto loader2 = ::std::move(loader);
@@ -293,6 +325,52 @@ int main()
         This pattern is efficient because <code>drt(ent)</code> reuses the directory&rsquo;s
         file descriptor &mdash; no extra <code>open()</code> call is needed to resolve the path.
       </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <strong>Prefer file loaders over random access I/O.</strong> When you need to read
+          entire files or perform many random accesses, use <code>::fast_io::native_file_loader</code>
+          (or <code>allocation_file_loader</code>) instead of seek operations. File loaders
+          are simpler, faster, and less error-prone.
+        </li>
+        <li>
+          <strong>Seek is hard to use and slow.</strong> The seek operations from
+          <a href="/docs/11.io/07.randomaccess/">Ch11.7</a> require you to track file positions
+          manually, handle partial reads/writes, and issue multiple syscalls. For most use cases,
+          loading the entire file into memory is more efficient.
+        </li>
+        <li>
+          <strong>Positional I/O (pwrite/pread) is also complex.</strong> While positional I/O
+          avoids changing the file position, it still requires managing offsets and buffer pointers
+          manually. File loaders give you a clean container interface with <code>operator[]</code>,
+          <code>begin()</code>/<code>end()</code>, and algorithms from the standard library.
+        </li>
+        <li>
+          <strong>File loaders are not always possible.</strong> For streams that don&rsquo;t have
+          a fixed size (network sockets, pipes, terminals), you cannot use a file loader. In those
+          cases, fall back to buffered I/O (<code>ibuf_file</code>, <code>obuf_file</code>) or
+          unbuffered I/O (<code>native_file</code>) as appropriate.
+        </li>
+        <li>
+          <strong>Use <code>native_file_loader</code> when available.</strong> It provides zero-copy
+          access via memory mapping. Use <code>allocation_file_loader</code> only when memory mapping
+          is unavailable (WASM, newlib) or when you specifically need heap-allocated data.
+        </li>
+        <li>
+          <strong>Use <code>allocation_file_loader</code> for read-modify-write cycles.</strong> If you
+          need to load a file, modify it, and write it back to the <em>same file</em>, use
+          <code>allocation_file_loader</code>. The <code>native_file_loader</code> keeps the file
+          memory-mapped and locked, preventing you from reopening it for writing.
+        </li>
+        <li>
+          <strong>Combine with <code>dir_file</code> for directory-relative loading.</strong> Use
+          <code>drt(ent)</code> on directory entries to load files efficiently without extra path
+          resolution.
+        </li>
+      </ul>
     </section>
 
     <script src="/sw-register.js"></script>

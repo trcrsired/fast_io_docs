@@ -59,8 +59,10 @@ int main()
         In <code>fast_io</code>, use the operations namespace:
       </p>
       <ul>
-        <li><code>::fast_io::operations::output_stream_pwrite</code> &mdash; positional write.</li>
-        <li><code>::fast_io::operations::input_stream_pread</code> &mdash; positional read.</li>
+        <li><code>::fast_io::operations::pwrite_some</code> / <code>pwrite_all</code> &mdash; positional write.</li>
+        <li><code>::fast_io::operations::pread_some</code> / <code>pread_all</code> &mdash; positional read.</li>
+        <li><code>::fast_io::operations::pwrite_some_bytes</code> / <code>pwrite_all_bytes</code> &mdash; positional write for <code>::std::byte</code>.</li>
+        <li><code>::fast_io::operations::pread_some_bytes</code> / <code>pread_all_bytes</code> &mdash; positional read for <code>::std::byte</code>.</li>
       </ul>
       <p>
         The file position remains unchanged after the call.
@@ -79,9 +81,9 @@ int main()
     ::fast_io::obuf_file obf(u8"positional_write.txt", ::fast_io::open_mode::out);
 
     // Write at specific offsets without disturbing file position
-    ::fast_io::operations::output_stream_pwrite(obf, "AAAA", 0uz);
-    ::fast_io::operations::output_stream_pwrite(obf, "BBBB", 100uz);
-    ::fast_io::operations::output_stream_pwrite(obf, "CCCC", 200uz);
+    ::fast_io::operations::pwrite_all(obf, "AAAA", 0uz);
+    ::fast_io::operations::pwrite_all(obf, "BBBB", 100uz);
+    ::fast_io::operations::pwrite_all(obf, "CCCC", 200uz);
 }
       </code></pre>
       <p>
@@ -106,8 +108,8 @@ int main()
     char buf2[5]{};
 
     // Read from specific offsets
-    ::fast_io::operations::input_stream_pread(ibf, ::fast_io::as_bytes(::fast_io::span{buf1, 4uz}), 0uz);
-    ::fast_io::operations::input_stream_pread(ibf, ::fast_io::as_bytes(::fast_io::span{buf2, 4uz}), 100uz);
+    ::fast_io::operations::pread_all(ibf, ::fast_io::as_bytes(::fast_io::span{buf1, 4uz}), 0uz);
+    ::fast_io::operations::pread_all(ibf, ::fast_io::as_bytes(::fast_io::span{buf2, 4uz}), 100uz);
 
     println("At offset 0:   ", ::fast_io::mnp::os_c_str(buf1));
     println("At offset 100: ", ::fast_io::mnp::os_c_str(buf2));
@@ -128,8 +130,8 @@ int main()
       <h2>Key Takeaways</h2>
       <ul>
         <li>Use <code>::fast_io::operations::input_stream_seek</code>, <code>output_stream_seek</code>, or <code>io_stream_seek</code> to move the file position.</li>
-        <li>Use <code>::fast_io::operations::output_stream_pwrite</code> for positional writes &mdash; writes at a specific offset without changing the file position.</li>
-        <li>Use <code>::fast_io::operations::input_stream_pread</code> for positional reads.</li>
+        <li>Use <code>::fast_io::operations::pwrite_all</code> for positional writes &mdash; writes at a specific offset without changing the file position.</li>
+        <li>Use <code>::fast_io::operations::pread_all</code> for positional reads.</li>
       </ul>
     </section>
 

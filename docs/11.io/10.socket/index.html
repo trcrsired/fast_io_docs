@@ -33,12 +33,18 @@
         <li>
           <strong>POSIX</strong> (Linux, macOS, FreeBSD, &hellip;): a regular file
           descriptor. On POSIX systems, sockets <em>are</em> file descriptors, so
-          this is just an <code>int</code> wrapper.
+          this is just an <code>int</code> wrapper. <strong>Important:</strong> On
+          POSIX systems (including Cygwin and MSYS2),
+          <code>::fast_io::native_socket_file</code> is actually the same type as
+          <code>::fast_io::native_file</code>. This is because POSIX treats sockets
+          as file descriptors, so there is no distinction between a "socket file" and
+          a "regular file" at the type level.
         </li>
         <li>
           <strong>Windows</strong>: a <code>SOCKET</code> handle wrapper. Windows
           sockets are not file descriptors, so this type carries the native
-          <code>SOCKET</code> value instead.
+          <code>SOCKET</code> value instead. Only on native Windows (Win32) does
+          <code>native_socket_file</code> differ from <code>native_file</code>.
         </li>
       </ul>
       <p>
@@ -53,19 +59,30 @@
         <code>::fast_io::iobuf_socket_file</code> wraps a
         <code>native_socket_file</code> in a <code>basic_iobuf</code>, adding
         user-space buffering. This is the <strong>standard type for TCP
-        I/O</strong>:
+        I/O</strong>.
+      </p>
+      <p>
+        <strong>Important:</strong> On non-Windows platforms (including POSIX, Cygwin, and MSYS2),
+        <code>::fast_io::iobuf_socket_file</code> is actually the same type as
+        <code>::fast_io::iobuf_file</code>. This mirrors the relationship between
+        <code>native_socket_file</code> and <code>native_file</code> &mdash; on POSIX systems,
+        sockets are just file descriptors, so there is no type-level distinction.
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
-#include &lt;fast_io_driver/tcp.h&gt;
 
 int main() {
     using namespace ::fast_io::iomnp;
-    // Connect to example.com on port 80
-    ::fast_io::iobuf_socket_file sock{::fast_io::tcp_connect("example.com", 80u16)};
+
+    // Initialize networking on Windows (no-op on POSIX)
+    ::fast_io::net_service net_svc;
+
+    // Resolve hostname and connect
+    auto dns = ::fast_io::native_dns_file(u8"example.com");
+    ::fast_io::iobuf_socket_file sock{::fast_io::tcp_connect(::fast_io::to_ip(dns, 80u16))};
 
     // Send an HTTP GET request using the normal print API
-    println(sock,
+    print(sock,
         "GET / HTTP/1.1\r\n"
         "Host: example.com\r\n"
         "Connection: close\r\n"
@@ -105,14 +122,16 @@ int main() {
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
-#include &lt;fast_io_driver/tcp.h&gt;
-#include &lt;fast_io_http.h&gt;
 
 int main() {
     using namespace ::fast_io::iomnp;
-    ::fast_io::iobuf_socket_file sock{::fast_io::tcp_connect("example.com", 80u16)};
 
-    println(sock,
+    ::fast_io::net_service net_svc;
+
+    auto dns = ::fast_io::native_dns_file(u8"example.com");
+    ::fast_io::iobuf_socket_file sock{::fast_io::tcp_connect(::fast_io::to_ip(dns, 80u16))};
+
+    print(sock,
         "GET / HTTP/1.1\r\n"
         "Host: example.com\r\n"
         "Connection: close\r\n"
@@ -192,10 +211,12 @@ int main() {
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
-#include &lt;fast_io_driver/tcp.h&gt;
 
 int main() {
     using namespace ::fast_io::iomnp;
+
+    ::fast_io::net_service net_svc;
+
     // Listen on port 8080
     auto listener = ::fast_io::tcp_listen(8080u16);
 
@@ -212,16 +233,528 @@ int main() {
     </section>
 
     <section>
+      <h2>::fast_io::net_service</h2>
+      <p>
+        On Windows, the networking subsystem must be initialized before any socket operations
+        can be performed. This is done by calling <code>WSAStartup()</code> at program start
+        and <code>WSACleanup()</code> at program exit. <code>::fast_io::net_service</code> is
+        a RAII wrapper that handles this automatically:
+      </p>
+      <ul>
+        <li>
+          <strong>Windows (Win32)</strong>: Constructs by calling <code>WSAStartup()</code> and
+          destructs by calling <code>WSACleanup()</code>. Create one instance at the beginning
+          of <code>main()</code> to ensure the networking subsystem is initialized for the
+          lifetime of your program.
+        </li>
+        <li>
+          <strong>POSIX and other systems</strong>: <code>::fast_io::net_service</code> is a
+          no-op type with no constructor or destructor overhead. You can still create an
+          instance for portability, but it does nothing.
+        </li>
+      </ul>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_driver/tcp.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // Initialize networking on Windows (no-op on POSIX)
+    ::fast_io::net_service net_svc;
+
+    // Now safe to use socket operations
+    ::fast_io::iobuf_socket_file sock{::fast_io::tcp_connect("example.com", 80u16)};
+
+    print(sock,
+        "GET / HTTP/1.1\r\n"
+        "Host: example.com\r\n"
+        "Connection: close\r\n"
+        "\r\n");
+
+    ::fast_io::string line;
+    while (scan&lt;::fast_io::getline&gt;(sock, line)) {
+        println(line);
+    }
+}
+</code></pre>
+      <p>
+        Always create a <code>::fast_io::net_service</code> object at the start of <code>main()</code>
+        if your program uses sockets. This ensures portability across platforms &mdash; on Windows it
+        initializes the networking subsystem, and on POSIX it is a harmless no-op.
+      </p>
+    </section>
+
+    <section>
+      <h2>DNS Resolution</h2>
+      <p>
+        When you need to connect to a host by name (rather than by IP address), you must first
+        resolve the hostname to an IP address. <code>fast_io</code> provides
+        <code>::fast_io::native_dns_file</code> for this purpose. It wraps the OS&rsquo;s DNS
+        resolution facilities (<code>getaddrinfo()</code> on POSIX, <code>GetAddrInfoW()</code> on
+        Windows NT).
+      </p>
+      <p>
+        <code>native_dns_file</code> is iterable &mdash; it may resolve to multiple IP addresses
+        (both IPv4 and IPv6). You can iterate over all of them, or use the first result with
+        <code>::fast_io::to_ip()</code> to get an IP address with a port number, ready for
+        <code>tcp_connect()</code>.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::net_service net_svc;
+
+    // Resolve hostname to IP addresses
+    ::fast_io::native_dns_file dns(u8"example.com");
+
+    // Option 1: Use the first resolved address with a port
+    ::fast_io::iobuf_socket_file sock{::fast_io::tcp_connect(::fast_io::to_ip(dns, 80u16))};
+
+    print(sock, "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n");
+
+    // Option 2: Iterate over all resolved addresses
+    for (auto const&amp; ent : dns) {
+        println("Resolved IP: ", ::fast_io::to_ip_address(ent));
+    }
+}
+</code></pre>
+      <p>
+        The key functions are:
+      </p>
+      <ul>
+        <li><code>::fast_io::native_dns_file(hostname)</code> &mdash; resolve a hostname to IP addresses</li>
+        <li><code>::fast_io::to_ip(dns_entry, port)</code> &mdash; convert a DNS entry to an IP address with port</li>
+        <li><code>::fast_io::to_ip_address(dns_entry)</code> &mdash; convert a DNS entry to just an IP address (no port)</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Appendix: Network Basics</h2>
+
+      <h3>The OSI Model (Open Systems Interconnection)</h3>
+      <p>
+        The OSI model is a conceptual framework that standardizes the functions of a communication
+        system into seven abstraction layers. A common mnemonic in Chinese is
+        <strong>应表会传网数物</strong>:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Chinese</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Examples</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>7</td>
+            <td>应</td>
+            <td>Application</td>
+            <td>High-level protocols for user applications</td>
+            <td>HTTP, FTP, SMTP, DNS, SSH</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td>表</td>
+            <td>Presentation</td>
+            <td>Data representation, encryption, compression</td>
+            <td>SSL/TLS, JPEG, MPEG</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>会</td>
+            <td>Session</td>
+            <td>Managing sessions between applications</td>
+            <td>NetBIOS, RPC</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>传</td>
+            <td>Transport</td>
+            <td>Reliable data transfer between hosts</td>
+            <td>TCP, UDP</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>网</td>
+            <td>Network</td>
+            <td>Routing and forwarding of packets</td>
+            <td>IP, ICMP, ARP</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>数</td>
+            <td>Data Link</td>
+            <td>Node-to-node data transfer</td>
+            <td>Ethernet, Wi-Fi, PPP</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>物</td>
+            <td>Physical</td>
+            <td>Physical transmission of raw bits</td>
+            <td>Ethernet cables, fiber optics, radio waves</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        In practice, the TCP/IP model (a simpler 4-layer model) is more commonly used:
+      </p>
+      <ul>
+        <li><strong>Application Layer</strong> (combines OSI layers 5&ndash;7): HTTP, FTP, DNS, SMTP</li>
+        <li><strong>Transport Layer</strong>: TCP, UDP</li>
+        <li><strong>Internet Layer</strong>: IP, ICMP</li>
+        <li><strong>Network Access Layer</strong> (combines OSI layers 1&ndash;2): Ethernet, Wi-Fi</li>
+      </ul>
+
+      <h3>IP Addresses: IPv4 and IPv6</h3>
+      <p>
+        An IP address uniquely identifies a device on a network. There are two versions:
+      </p>
+      <h4>IPv4</h4>
+      <ul>
+        <li>32-bit address, written as four decimal numbers separated by dots</li>
+        <li>Example: <code>192.168.1.1</code>, <code>8.8.8.8</code></li>
+        <li>Address space: ~4.3 billion addresses (2<sup>32</sup>)</li>
+        <li>Running out of addresses due to Internet growth</li>
+        <li>Special ranges:
+          <ul>
+            <li><code>127.0.0.1</code> &mdash; localhost (loopback)</li>
+            <li><code>10.0.0.0/8</code>, <code>172.16.0.0/12</code>, <code>192.168.0.0/16</code> &mdash; private networks</li>
+            <li><code>0.0.0.0</code> &mdash; any address</li>
+            <li><code>255.255.255.255</code> &mdash; broadcast</li>
+          </ul>
+        </li>
+      </ul>
+      <h4>IPv6</h4>
+      <ul>
+        <li>128-bit address, written as eight groups of four hexadecimal digits separated by colons</li>
+        <li>Example: <code>2001:0db8:85a3:0000:0000:8a2e:0370:7334</code></li>
+        <li>Can omit leading zeros and consecutive zero groups: <code>2001:db8:85a3::8a2e:370:7334</code></li>
+        <li>Address space: ~3.4&times;10<sup>38</sup> addresses (enough for every atom on Earth)</li>
+        <li>Special addresses:
+          <ul>
+            <li><code>::1</code> &mdash; localhost (loopback)</li>
+            <li><code>::</code> &mdash; any address</li>
+            <li><code>fe80::/10</code> &mdash; link-local addresses</li>
+          </ul>
+        </li>
+      </ul>
+
+      <h3>Common Ports</h3>
+      <p>
+        A port is a 16-bit number (0&ndash;65535) that identifies a specific service on a host.
+        Well-known ports (0&ndash;1023) are assigned by IANA:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Port</th>
+            <th>Protocol</th>
+            <th>Service</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>20&ndash;21</td>
+            <td>TCP</td>
+            <td>FTP (File Transfer Protocol)</td>
+          </tr>
+          <tr>
+            <td>22</td>
+            <td>TCP</td>
+            <td>SSH (Secure Shell)</td>
+          </tr>
+          <tr>
+            <td>23</td>
+            <td>TCP</td>
+            <td>Telnet (unencrypted, avoid)</td>
+          </tr>
+          <tr>
+            <td>25</td>
+            <td>TCP</td>
+            <td>SMTP (Simple Mail Transfer Protocol)</td>
+          </tr>
+          <tr>
+            <td>53</td>
+            <td>TCP/UDP</td>
+            <td>DNS (Domain Name System)</td>
+          </tr>
+          <tr>
+            <td>67&ndash;68</td>
+            <td>UDP</td>
+            <td>DHCP (Dynamic Host Configuration Protocol)</td>
+          </tr>
+          <tr>
+            <td>80</td>
+            <td>TCP</td>
+            <td>HTTP (Hypertext Transfer Protocol)</td>
+          </tr>
+          <tr>
+            <td>110</td>
+            <td>TCP</td>
+            <td>POP3 (Post Office Protocol v3)</td>
+          </tr>
+          <tr>
+            <td>143</td>
+            <td>TCP</td>
+            <td>IMAP (Internet Message Access Protocol)</td>
+          </tr>
+          <tr>
+            <td>443</td>
+            <td>TCP</td>
+            <td>HTTPS (HTTP Secure)</td>
+          </tr>
+          <tr>
+            <td>465</td>
+            <td>TCP</td>
+            <td>SMTPS (SMTP over SSL)</td>
+          </tr>
+          <tr>
+            <td>587</td>
+            <td>TCP</td>
+            <td>SMTP (submission, with STARTTLS)</td>
+          </tr>
+          <tr>
+            <td>993</td>
+            <td>TCP</td>
+            <td>IMAPS (IMAP over SSL)</td>
+          </tr>
+          <tr>
+            <td>995</td>
+            <td>TCP</td>
+            <td>POP3S (POP3 over SSL)</td>
+          </tr>
+          <tr>
+            <td>3306</td>
+            <td>TCP</td>
+            <td>MySQL</td>
+          </tr>
+          <tr>
+            <td>3389</td>
+            <td>TCP</td>
+            <td>RDP (Remote Desktop Protocol)</td>
+          </tr>
+          <tr>
+            <td>5432</td>
+            <td>TCP</td>
+            <td>PostgreSQL</td>
+          </tr>
+          <tr>
+            <td>5900</td>
+            <td>TCP</td>
+            <td>VNC (Virtual Network Computing)</td>
+          </tr>
+          <tr>
+            <td>6379</td>
+            <td>TCP</td>
+            <td>Redis</td>
+          </tr>
+          <tr>
+            <td>8080</td>
+            <td>TCP</td>
+            <td>HTTP alternate (often used for proxies)</td>
+          </tr>
+          <tr>
+            <td>8443</td>
+            <td>TCP</td>
+            <td>HTTPS alternate</td>
+          </tr>
+          <tr>
+            <td>27017</td>
+            <td>TCP</td>
+            <td>MongoDB</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Note:</strong> Ports 0&ndash;1023 are <em>well-known ports</em> (require root/admin to bind).
+        Ports 1024&ndash;49151 are <em>registered ports</em>. Ports 49152&ndash;65535 are
+        <em>dynamic/ephemeral ports</em> (used for client-side connections).
+      </p>
+    </section>
+
+    <section>
+      <h2>Appendix: DNS (Domain Name System)</h2>
+      <p>
+        DNS is the phonebook of the Internet. It translates human-readable domain names
+        (like <code>example.com</code>) into IP addresses (like <code>93.184.216.34</code>) that
+        computers use to identify each other.
+      </p>
+      <h3>How DNS Works</h3>
+      <ol>
+        <li>Your application asks the OS to resolve <code>example.com</code></li>
+        <li>The OS queries a DNS resolver (often your ISP&rsquo;s or a public one like <code>8.8.8.8</code>)</li>
+        <li>The resolver checks its cache; if not found, it queries root servers, then TLD servers, then authoritative servers</li>
+        <li>The resolver returns the IP address to your application</li>
+        <li>Your application connects to the IP address</li>
+      </ol>
+      <h3>Record Types</h3>
+      <ul>
+        <li><strong>A</strong> &mdash; IPv4 address (e.g., <code>93.184.216.34</code>)</li>
+        <li><strong>AAAA</strong> &mdash; IPv6 address (e.g., <code>2606:2800:220:1:248:1893:25c8:1946</code>)</li>
+        <li><strong>CNAME</strong> &mdash; Canonical name (alias for another domain)</li>
+        <li><strong>MX</strong> &mdash; Mail exchange (specifies mail servers)</li>
+        <li><strong>TXT</strong> &mdash; Text records (used for SPF, DKIM, etc.)</li>
+        <li><strong>NS</strong> &mdash; Name servers (delegates to other DNS servers)</li>
+        <li><strong>SOA</strong> &mdash; Start of authority (administrative info about the zone)</li>
+        <li><strong>PTR</strong> &mdash; Pointer (reverse DNS: IP to domain name)</li>
+        <li><strong>SRV</strong> &mdash; Service locator (for specific services)</li>
+      </ul>
+      <h3>DNS over HTTPS (DoH) and DNS over TLS (DoT)</h3>
+      <p>
+        Traditional DNS queries are sent in plaintext over UDP port 53, which can be intercepted or
+        manipulated. Modern secure alternatives:
+      </p>
+      <ul>
+        <li><strong>DNS over HTTPS (DoH)</strong> &mdash; DNS queries sent over HTTPS (port 443), encrypted and authenticated</li>
+        <li><strong>DNS over TLS (DoT)</strong> &mdash; DNS queries sent over TLS (port 853), encrypted and authenticated</li>
+        <li><strong>DNSCrypt</strong> &mdash; Another encrypted DNS protocol</li>
+      </ul>
+      <p>
+        These protocols prevent eavesdropping, man-in-the-middle attacks, and DNS spoofing. They are
+        increasingly supported by browsers and operating systems.
+      </p>
+    </section>
+
+    <section>
+      <h2>Appendix: Modern Network Protocols</h2>
+
+      <h3>HTTP/1.1 vs HTTP/2 vs HTTP/3</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>HTTP/1.1</th>
+            <th>HTTP/2</th>
+            <th>HTTP/3</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Year</td>
+            <td>1997</td>
+            <td>2015</td>
+            <td>2022</td>
+          </tr>
+          <tr>
+            <td>Transport</td>
+            <td>TCP</td>
+            <td>TCP</td>
+            <td>QUIC (over UDP)</td>
+          </tr>
+          <tr>
+            <td>Binary</td>
+            <td>Text</td>
+            <td>Binary</td>
+            <td>Binary</td>
+          </tr>
+          <tr>
+            <td>Multiplexing</td>
+            <td>No (head-of-line blocking)</td>
+            <td>Yes (streams over TCP)</td>
+            <td>Yes (streams over QUIC)</td>
+          </tr>
+          <tr>
+            <td>Header compression</td>
+            <td>No</td>
+            <td>HPACK</td>
+            <td>QPACK</td>
+          </tr>
+          <tr>
+            <td>Server push</td>
+            <td>No</td>
+            <td>Yes</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td>Connection migration</td>
+            <td>No</td>
+            <td>No</td>
+            <td>Yes (switch networks seamlessly)</td>
+          </tr>
+          <tr>
+            <td>0-RTT resume</td>
+            <td>No</td>
+            <td>No</td>
+            <td>Yes (faster connection setup)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>QUIC (Quick UDP Internet Connections)</h3>
+      <p>
+        QUIC is a transport layer protocol developed by Google and standardized by the IETF. It runs
+        over UDP and provides:
+      </p>
+      <ul>
+        <li><strong>Lower latency</strong> &mdash; 0-RTT connection establishment (vs 3-way handshake in TCP)</li>
+        <li><strong>No head-of-line blocking</strong> &mdash; packet loss in one stream doesn&rsquo;t block others</li>
+        <li><strong>Connection migration</strong> &mdash; can switch between Wi-Fi and cellular without dropping</li>
+        <li><strong>Built-in encryption</strong> &mdash; TLS 1.3 integrated at the transport layer</li>
+        <li><strong>Better congestion control</strong> &mdash; modern algorithms, easier to evolve than TCP (which is in the kernel)</li>
+      </ul>
+      <p>
+        HTTP/3 uses QUIC as its transport. QUIC is also used by other protocols like WebTransport.
+      </p>
+
+      <h3>WebSocket and Server-Sent Events</h3>
+      <ul>
+        <li><strong>WebSocket</strong> &mdash; Full-duplex communication over a single TCP connection. Starts with an HTTP upgrade request, then both sides can send data anytime. Used for chat, live updates, gaming.</li>
+        <li><strong>Server-Sent Events (SSE)</strong> &mdash; Server pushes updates to the client over HTTP. Simpler than WebSocket, but only server-to-client. Used for news feeds, notifications.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Appendix: Protocol Support in fast_io</h2>
+      <p>
+        Unlike Boost.Asio which focuses primarily on TCP and UDP, <code>fast_io</code>&rsquo;s socket
+        API supports a wide range of protocols through the OS&rsquo;s native socket interface:
+      </p>
+      <ul>
+        <li><strong>TCP</strong> &mdash; Reliable, connection-oriented streams (most common)</li>
+        <li><strong>UDP</strong> &mdash; Unreliable, connectionless datagrams (fast, low overhead)</li>
+        <li><strong>Unix domain sockets</strong> &mdash; Local inter-process communication (POSIX)</li>
+        <li><strong>Bluetooth</strong> &mdash; Bluetooth sockets (where supported by OS)</li>
+        <li><strong>Raw sockets</strong> &mdash; Direct access to IP/ICMP/etc. (requires root/admin)</li>
+        <li><strong>Other protocols</strong> &mdash; Any protocol supported by the OS&rsquo;s socket API</li>
+      </ul>
+      <p>
+        The key difference: <code>fast_io</code> wraps the OS&rsquo;s socket interface directly, so you
+        get access to <em>everything</em> the OS supports. You&rsquo;re not limited to a hardcoded list of
+        protocols.
+      </p>
+      <p>
+        For TCP and UDP, <code>fast_io</code> provides convenience functions like
+        <code>tcp_connect()</code>, <code>tcp_listen()</code>, and DNS resolution. For other protocols,
+        you can construct socket files directly from the OS&rsquo;s socket handles.
+      </p>
+    </section>
+
+    <section>
       <h2>Key Takeaways</h2>
       <ul>
         <li>
           <code>::fast_io::native_socket_file</code> wraps the raw socket handle
           &mdash; a file descriptor on POSIX, a <code>SOCKET</code> on Windows.
+          On non-Windows platforms (including Cygwin/MSYS2), it is the same type as
+          <code>::fast_io::native_file</code>.
         </li>
         <li>
           <code>::fast_io::iobuf_socket_file</code> adds user-space buffering and
-          is the standard type for TCP I/O. Use it with <code>print</code>,
-          <code>println</code>, and <code>scan</code>.
+          is the standard type for TCP I/O. On non-Windows platforms, it is the same type as
+          <code>::fast_io::iobuf_file</code>.
+        </li>
+        <li>
+          Use <code>::fast_io::native_dns_file</code> to resolve hostnames to IP addresses.
+          Combine with <code>::fast_io::to_ip(dns, port)</code> and <code>tcp_connect()</code>
+          to connect by hostname.
         </li>
         <li>
           <code>::fast_io::u8http_header_buffer</code> parses HTTP headers via
@@ -233,6 +766,12 @@ int main() {
           Free functions: <code>tcp_connect()</code>, <code>tcp_listen()</code>,
           <code>posix_bind()</code>, <code>posix_listen()</code>,
           <code>posix_accept()</code>.
+        </li>
+        <li>
+          <code>::fast_io::net_service</code> is a RAII type that initializes the Windows
+          networking subsystem (<code>WSAStartup</code>/<code>WSACleanup</code>). On POSIX
+          systems it is a no-op. Always create one at the start of <code>main()</code> for
+          portability.
         </li>
         <li>
           Sockets are files in <code>fast_io</code> &mdash; the same

@@ -28,6 +28,343 @@
     </section>
 
     <section>
+      <h2>Standard C I/O: <code>&lt;cstdio&gt;</code></h2>
+      <p>
+        Before discussing how <code>fast_io</code> wraps C I/O, let&rsquo;s review the standard C
+        I/O API itself. All C I/O functions are declared in <code>&lt;cstdio&gt;</code> (or
+        <code>&lt;stdio.h&gt;</code> in C). The core abstraction is <code>FILE*</code>, an opaque
+        pointer to a stream that represents an open file, pipe, or device.
+      </p>
+
+      <h3>Opening and Closing Files</h3>
+<pre><code class="language-cpp">
+#include &lt;cstdio&gt;
+
+int main() {
+    // Open a file for writing
+    FILE* fp = std::fopen("output.txt", "w");
+    if (!fp) {
+        return 1;  // Failed to open
+    }
+
+    // ... use the file ...
+
+    // Always close when done
+    std::fclose(fp);
+}
+</code></pre>
+      <p>
+        The mode string controls how the file is opened:
+      </p>
+      <ul>
+        <li><code>"r"</code> &mdash; read (file must exist)</li>
+        <li><code>"w"</code> &mdash; write (creates or truncates)</li>
+        <li><code>"a"</code> &mdash; append (creates or appends)</li>
+        <li><code>"r+"</code> &mdash; read and write (file must exist)</li>
+        <li><code>"w+"</code> &mdash; read and write (creates or truncates)</li>
+        <li><code>"a+"</code> &mdash; read and append (creates or appends)</li>
+        <li>Add <code>"b"</code> for binary mode: <code>"rb"</code>, <code>"wb"</code>, etc.</li>
+      </ul>
+
+      <h3>Formatted Output: <code>printf</code>, <code>fprintf</code></h3>
+<pre><code class="language-cpp">
+#include &lt;cstdio&gt;
+
+int main() {
+    int x = 42;
+    double pi = 3.14159;
+    char const* name = "Alice";
+
+    // printf: write to stdout
+    std::printf("Name: %s, Age: %d, Pi: %.2f\n", name, x, pi);
+
+    // fprintf: write to a FILE*
+    FILE* fp = std::fopen("data.txt", "w");
+    std::fprintf(fp, "x = %d, pi = %f\n", x, pi);
+    std::fclose(fp);
+
+    // sprintf: write to a string buffer
+    char buffer[100];
+    std::sprintf(buffer, "Value: %d", x);
+}
+</code></pre>
+      <p>
+        Common format specifiers:
+      </p>
+      <ul>
+        <li><code>%d</code> or <code>%i</code> &mdash; signed integer</li>
+        <li><code>%u</code> &mdash; unsigned integer</li>
+        <li><code>%x</code>, <code>%X</code> &mdash; hexadecimal (lowercase/uppercase)</li>
+        <li><code>%o</code> &mdash; octal</li>
+        <li><code>%f</code> &mdash; floating-point (decimal notation)</li>
+        <li><code>%e</code>, <code>%E</code> &mdash; floating-point (scientific notation)</li>
+        <li><code>%g</code>, <code>%G</code> &mdash; floating-point (shortest representation)</li>
+        <li><code>%s</code> &mdash; string</li>
+        <li><code>%c</code> &mdash; character</li>
+        <li><code>%p</code> &mdash; pointer</li>
+        <li><code>%%</code> &mdash; literal <code>%</code></li>
+      </ul>
+
+      <h3>Formatted Input: <code>scanf</code>, <code>fscanf</code></h3>
+<pre><code class="language-cpp">
+#include &lt;cstdio&gt;
+
+int main() {
+    int x;
+    double y;
+
+    // scanf: read from stdin
+    std::printf("Enter two numbers: ");
+    std::scanf("%d %lf", &amp;x, &amp;y);
+
+    // fscanf: read from a FILE*
+    FILE* fp = std::fopen("data.txt", "r");
+    std::fscanf(fp, "x = %d, y = %lf", &amp;x, &amp;y);
+    std::fclose(fp);
+
+    // sscanf: read from a string
+    char const* input = "42 3.14";
+    std::sscanf(input, "%d %lf", &amp;x, &amp;y);
+}
+</code></pre>
+      <p>
+        <strong>Warning:</strong> The <code>scanf</code> family is prone to buffer overflows and
+        format string vulnerabilities. Always validate input and never pass user-controlled strings
+        as format specifiers.
+      </p>
+
+      <h3>Character and Line I/O</h3>
+<pre><code class="language-cpp">
+#include &lt;cstdio&gt;
+
+int main() {
+    FILE* fp = std::fopen("example.txt", "r");
+
+    // Read a single character
+    int ch = std::fgetc(fp);
+
+    // Read a line (up to n-1 characters or newline)
+    char buffer[256];
+    std::fgets(buffer, sizeof(buffer), fp);
+
+    // Write a single character
+    std::fputc('A', stdout);
+
+    // Write a string
+    std::fputs("Hello, World!\n", stdout);
+
+    std::fclose(fp);
+}
+</code></pre>
+
+      <h3>Binary I/O</h3>
+<pre><code class="language-cpp">
+#include &lt;cstdio&gt;
+
+int main() {
+    // Write binary data
+    FILE* fp = std::fopen("data.bin", "wb");
+    int numbers[] = {1, 2, 3, 4, 5};
+    std::fwrite(numbers, sizeof(int), 5, fp);
+    std::fclose(fp);
+
+    // Read binary data
+    fp = std::fopen("data.bin", "rb");
+    int buffer[5];
+    std::size_t count = std::fread(buffer, sizeof(int), 5, fp);
+    std::fclose(fp);
+}
+</code></pre>
+
+      <h3>Standard Streams</h3>
+      <p>
+        C provides three predefined streams:
+      </p>
+      <ul>
+        <li><code>stdin</code> &mdash; standard input (usually keyboard)</li>
+        <li><code>stdout</code> &mdash; standard output (usually terminal)</li>
+        <li><code>stderr</code> &mdash; standard error (usually terminal, unbuffered)</li>
+      </ul>
+<pre><code class="language-cpp">
+#include &lt;cstdio&gt;
+
+int main() {
+    std::fprintf(stdout, "This goes to stdout\n");
+    std::fprintf(stderr, "This goes to stderr\n");
+
+    // printf() is equivalent to fprintf(stdout, ...)
+    std::printf("Same as stdout\n");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Appendix: Complete C I/O Function Reference</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>fopen</code></td>
+            <td>Open a file</td>
+          </tr>
+          <tr>
+            <td><code>fclose</code></td>
+            <td>Close a file</td>
+          </tr>
+          <tr>
+            <td><code>fflush</code></td>
+            <td>Flush a stream&rsquo;s buffer</td>
+          </tr>
+          <tr>
+            <td><code>printf</code></td>
+            <td>Formatted output to stdout</td>
+          </tr>
+          <tr>
+            <td><code>fprintf</code></td>
+            <td>Formatted output to a stream</td>
+          </tr>
+          <tr>
+            <td><code>sprintf</code></td>
+            <td>Formatted output to a string buffer</td>
+          </tr>
+          <tr>
+            <td><code>snprintf</code></td>
+            <td>Formatted output to a string buffer with size limit</td>
+          </tr>
+          <tr>
+            <td><code>vprintf</code></td>
+            <td>Formatted output to stdout (variadic)</td>
+          </tr>
+          <tr>
+            <td><code>vfprintf</code></td>
+            <td>Formatted output to a stream (variadic)</td>
+          </tr>
+          <tr>
+            <td><code>vsprintf</code></td>
+            <td>Formatted output to a string buffer (variadic)</td>
+          </tr>
+          <tr>
+            <td><code>vsnprintf</code></td>
+            <td>Formatted output to a string buffer with size limit (variadic)</td>
+          </tr>
+          <tr>
+            <td><code>scanf</code></td>
+            <td>Formatted input from stdin</td>
+          </tr>
+          <tr>
+            <td><code>fscanf</code></td>
+            <td>Formatted input from a stream</td>
+          </tr>
+          <tr>
+            <td><code>sscanf</code></td>
+            <td>Formatted input from a string</td>
+          </tr>
+          <tr>
+            <td><code>fgetc</code> / <code>getc</code></td>
+            <td>Read a character from a stream</td>
+          </tr>
+          <tr>
+            <td><code>fgets</code></td>
+            <td>Read a line from a stream</td>
+          </tr>
+          <tr>
+            <td><code>fputc</code> / <code>putc</code></td>
+            <td>Write a character to a stream</td>
+          </tr>
+          <tr>
+            <td><code>fputs</code></td>
+            <td>Write a string to a stream</td>
+          </tr>
+          <tr>
+            <td><code>gets</code></td>
+            <td>Read a line from stdin (deprecated, unsafe)</td>
+          </tr>
+          <tr>
+            <td><code>puts</code></td>
+            <td>Write a string to stdout (adds newline)</td>
+          </tr>
+          <tr>
+            <td><code>ungetc</code></td>
+            <td>Push a character back onto a stream</td>
+          </tr>
+          <tr>
+            <td><code>fread</code></td>
+            <td>Read binary data from a stream</td>
+          </tr>
+          <tr>
+            <td><code>fwrite</code></td>
+            <td>Write binary data to a stream</td>
+          </tr>
+          <tr>
+            <td><code>fseek</code></td>
+            <td>Set file position</td>
+          </tr>
+          <tr>
+            <td><code>ftell</code></td>
+            <td>Get current file position</td>
+          </tr>
+          <tr>
+            <td><code>rewind</code></td>
+            <td>Set file position to beginning</td>
+          </tr>
+          <tr>
+            <td><code>fgetpos</code></td>
+            <td>Get file position (portble)</td>
+          </tr>
+          <tr>
+            <td><code>fsetpos</code></td>
+            <td>Set file position (portable)</td>
+          </tr>
+          <tr>
+            <td><code>feof</code></td>
+            <td>Test for end-of-file</td>
+          </tr>
+          <tr>
+            <td><code>ferror</code></td>
+            <td>Test for error</td>
+          </tr>
+          <tr>
+            <td><code>clearerr</code></td>
+            <td>Clear error and end-of-file indicators</td>
+          </tr>
+          <tr>
+            <td><code>perror</code></td>
+            <td>Print error message to stderr</td>
+          </tr>
+          <tr>
+            <td><code>remove</code></td>
+            <td>Delete a file</td>
+          </tr>
+          <tr>
+            <td><code>rename</code></td>
+            <td>Rename a file</td>
+          </tr>
+          <tr>
+            <td><code>tmpfile</code></td>
+            <td>Create a temporary file</td>
+          </tr>
+          <tr>
+            <td><code>tmpnam</code></td>
+            <td>Generate a temporary filename (deprecated)</td>
+          </tr>
+          <tr>
+            <td><code>setvbuf</code></td>
+            <td>Set stream buffering mode</td>
+          </tr>
+          <tr>
+            <td><code>setbuf</code></td>
+            <td>Set stream buffer</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
       <h2>fast_io Wrappers for <code>FILE*</code></h2>
       <p>
         There are four types you need to know:
@@ -42,7 +379,7 @@
         <li>
           <code>::fast_io::c_file_unlocked</code> &mdash; same as <code>c_file</code>, but it does
           <strong>not</strong> acquire the internal lock. Use this when you manage locking yourself
-          (for example, with <code>::fast_io::mutex</code>) or when you know the stream is only
+          (for example, with <code>::fast_io::native_mutex</code>) or when you know the stream is only
           accessed from one thread.
         </li>
         <li>
@@ -149,11 +486,11 @@ int main()
     </section>
 
     <section>
-      <h2>Thread Safety with <code>::fast_io::mutex</code></h2>
+      <h2>Thread Safety with <code>::fast_io::native_mutex</code></h2>
       <p>
         The locked variants (<code>c_file</code> and <code>c_io_observer</code>) rely on the C
         stream&rsquo;s own internal lock. If you are using the <strong>unlocked</strong> variants,
-        you must synchronize access yourself. <code>::fast_io::mutex</code> provides a portable,
+        you must synchronize access yourself. <code>::fast_io::native_mutex</code> provides a portable,
         fast mutex for this purpose.
       </p>
       <p>
@@ -171,7 +508,7 @@ int main()
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_legacy.h&gt;
 
-::fast_io::mutex stdout_mtx;
+::fast_io::native_mutex stdout_mtx;
 
 void print_report()
 {
@@ -329,7 +666,7 @@ int main()
           <code>FILE*</code>.
         </li>
         <li>
-          The <code>_unlocked</code> variants skip internal locking. Use <code>::fast_io::mutex</code>
+          The <code>_unlocked</code> variants skip internal locking. Use <code>::fast_io::native_mutex</code>
           to synchronize them manually when needed.
         </li>
         <li>

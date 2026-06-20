@@ -161,6 +161,76 @@ int main() {
     </section>
 
     <section>
+      <h2>Writing to Existing Strings: {chtype}ostring_ref_fast_io</h2>
+      <p>
+        While <code>concat_fast_io</code> creates a <em>new</em> string, sometimes you want to
+        format output directly into an <em>existing</em> string buffer. The
+        <code>::fast_io::{chtype}ostring_ref_fast_io</code> family of types lets you do exactly that.
+        These are non-owning reference types that wrap an existing string and expose it as an output
+        device for <code>print</code>, <code>println</code>, and other output operations.
+      </p>
+      <p>
+        The <code>{chtype}</code> placeholder is replaced with the character type:
+      </p>
+      <ul>
+        <li><code>::fast_io::ostring_ref_fast_io</code> &mdash; for <code>char</code> strings</li>
+        <li><code>::fast_io::u8ostring_ref_fast_io</code> &mdash; for <code>char8_t</code> / UTF-8 strings</li>
+        <li><code>::fast_io::u16ostring_ref_fast_io</code> &mdash; for <code>char16_t</code> / UTF-16 strings</li>
+        <li><code>::fast_io::u32ostring_ref_fast_io</code> &mdash; for <code>char32_t</code> / UTF-32 strings</li>
+        <li><code>::fast_io::wostring_ref_fast_io</code> &mdash; for <code>wchar_t</code> strings</li>
+      </ul>
+      <p>
+        You construct a reference by passing a pointer to an existing string. The string is
+        <strong>not cleared</strong> before writing &mdash; output is appended at the current position.
+        When you are done, the string contains everything that was written.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::u8string result;
+
+    // Wrap the existing string as an output device
+    ::fast_io::u8ostring_ref_fast_io ref(result);
+
+    // Write to the string using print/println
+    print(ref, "Hello, ");
+    print(ref, "World!");
+    println(ref);  // adds newline
+
+    // The string now contains "Hello, World!\n"
+    println("Result: ", result);
+
+    // You can also write structured data
+    ::fast_io::u8string buffer;
+    ::fast_io::u8ostring_ref_fast_io buf_ref(buffer);
+
+    ::std::size_t const x{42zu};
+    ::std::size_t const y{100zu};
+    println(buf_ref, "Point: (", x, ", ", y, ")");
+
+    // buffer now contains "Point: (42, 100)\n"
+    println(buffer);
+}
+</code></pre>
+      <p>
+        This is particularly useful when you need to build a string incrementally, or when you want
+        to reuse a string buffer to avoid repeated allocations. The reference type itself is lightweight
+        &mdash; it just holds a pointer to the string.
+      </p>
+      <p>
+        Note that these types are different from <code>::fast_io::u8string</code> and similar owning
+        string types. The <code>_ref_</code> in the name indicates that these are <strong>non-owning
+        references</strong> &mdash; they do not manage the lifetime of the underlying string. You must
+        ensure the string outlives the reference.
+      </p>
+    </section>
+
+    <section>
       <h2>Key Takeaways</h2>
       <ul>
         <li>
@@ -186,6 +256,11 @@ int main() {
         <li>
           This is the unified design: one set of customisation points for console,
           file, string, and socket output.
+        </li>
+        <li>
+          Use <code>::fast_io::{chtype}ostring_ref_fast_io</code> to write formatted output
+          directly into an existing string buffer. These non-owning reference types let you
+          build strings incrementally or reuse buffers to avoid allocations.
         </li>
       </ul>
     </section>

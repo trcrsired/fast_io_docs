@@ -327,35 +327,50 @@ int main()
     </section>
 
     <section>
-      <h2>cond &mdash; Conditional Printing</h2>
+      <h2>Compound Manipulators: left_width, right_width</h2>
       <p>
-        <code>cond(predicate, value_if_true, value_if_false)</code> evaluates the predicate at
-        run time and prints one of two values. Both branches must be printable and, ideally,
-        have the same type so the compiler can pick a single reservation size. There is also
-        a one-argument overload: <code>cond(pred, value)</code> prints <code>value</code> when
-        <code>pred</code> is true and prints nothing otherwise.
+        Compound manipulators combine multiple formatting operations into a single manipulator
+        object. <code>left_width</code> and <code>right_width</code> are examples that combine
+        value formatting with alignment. They are <strong>stateless</strong> &mdash; they apply
+        only to the value they wrap, with no stream state to corrupt.
+      </p>
+      <p>
+        <code>left_width(value, width, fill)</code> formats <code>value</code> and left-aligns it
+        within a field of the given <code>width</code>, padding with <code>fill</code> (defaults to
+        space). Similarly, <code>right_width(value, width, fill)</code> right-aligns. These are
+        useful when you want to combine formatting (like <code>hex</code> or <code>fixed</code>)
+        with alignment in a single, composable expression.
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 
-using namespace fast_io::io;
+using namespace ::fast_io::iomnp;
 
 int main()
 {
-    int score{73};
-    bool passed{score &gt;= 60};
+    // Combine hex formatting with left alignment
+    int value{255};
+    println("|", left_width(hex(value), 10zu), "|");     // | ff        |
+    println("|", right_width(hex(value), 10zu), "|");    // |        ff |
 
-    // prints: result: PASS  score: 73
-    // or:     result: FAIL  score: 73
-    println("result: ",
-            cond(passed, "PASS", "FAIL"),
-            "  score: ", score);
+    // With custom fill character
+    println("|", left_width(hex(value), 10zu, '0'), "|");   // | ff00000000|
+    println("|", right_width(hex(value), 10zu, '*'), "|");  // | ********ff|
 
-    // Print a suffix only when a flag is set
-    bool debug{true};
-    println("loading", cond(debug, " [debug mode]"));
+    // Combine with other manipulators
+    double pi{3.14159};
+    println("|", left_width(fixed(pi, 2zu), 15zu), "|");   // | 3.14         |
+    println("|", right_width(fixed(pi, 2zu), 15zu), "|");  // |           3.14 |
+
+    // These are stateless: each manipulator applies only to its value
+    println(hex(255), " ", 255);  // prints: ff 255 (second value is decimal)
 }
 </code></pre>
+      <p>
+        The key advantage is that these manipulators are <strong>stateless</strong>. There is no
+        stream state to corrupt, no need to manually restore settings. Each manipulator is a
+        self-contained object that applies only to the value it wraps.
+      </p>
     </section>
 
     <section>
@@ -382,7 +397,8 @@ int main()
         <li>Alignment: <code>left</code>, <code>right</code>, <code>middle</code> take a value and a field width, plus an optional fill character.</li>
         <li><code>chvw</code> prints an integral value as a character; <code>rgvw</code> prints a range with a separator.</li>
         <li><code>addrvw</code> and <code>pointervw</code> format pointers as addresses; <code>hex_encode</code> turns byte sequences into hex strings.</li>
-        <li><code>ordinal</code> appends English suffixes; <code>cond</code> selects between two values at run time.</li>
+        <li><code>ordinal</code> appends English suffixes.</li>
+        <li>Compound manipulators: <code>left_width</code> and <code>right_width</code> combine value formatting with alignment. They are stateless and self-contained.</li>
         <li>All manipulators compose with <code>print</code>, <code>println</code>, and <code>scan</code> in the same way as ordinary values &mdash; there is no separate formatting DSL to learn.</li>
       </ul>
     </section>
