@@ -194,6 +194,34 @@
     </section>
 
     <section>
+      <h2>Converting Between Layers</h2>
+      <p>
+        When you need to move between layers, the direction determines the method:
+      </p>
+      <ul>
+        <li>
+          <strong>Lower to higher</strong> (e.g., <code>posix_file</code> &rarr; <code>c_file</code>
+          &rarr; <code>filebuf_file</code>): use <code>::std::move</code>. Ownership of the
+          handle is transferred upward.
+        </li>
+        <li>
+          <strong>Higher to lower</strong> (e.g., <code>filebuf_file</code> &rarr; <code>c_file</code>
+          &rarr; <code>posix_file</code>): use <code>static_cast</code> to the lower layer&rsquo;s
+          <code>io_observer</code>. This gives you a non-owning view of the underlying handle.
+        </li>
+      </ul>
+<pre><code class="language-cpp">
+// Lower to higher: move ownership upward
+::fast_io::posix_file pf(u8"example.txt", ::fast_io::open_mode::out);
+::fast_io::c_file cf(::std::move(pf), ::fast_io::open_mode::out);
+
+// Higher to lower: static_cast to observer for a non-owning view
+auto piob{static_cast&lt;::fast_io::posix_io_observer&gt;(cf)};
+int fd{piob.fd};  // access the raw handle
+</code></pre>
+    </section>
+
+    <section>
       <h2>What Does <code>native_xxx</code> Mean?</h2>
       <p>
         <code>::fast_io::native_file</code> is an alias for the lowest unbuffered layer
@@ -272,17 +300,14 @@ int main()
     </section>
 
     <section>
-      <h2>Descending the Stack: <code>construct_fstream_from_syscall</code></h2>
+      <h2>Building an <code>std::fstream</code> from a Syscall-Level Handle</h2>
       <p>
-        A particularly impressive demonstration of the layered model is
-        <code>::fast_io::construct_fstream_from_syscall</code>. It takes a raw,
-        syscall-level file handle and constructs a fully working
-        <code>std::fstream</code> from it &mdash; traversing <strong>every</strong> layer
-        in between:
+        Because every layer can be constructed from the one below it via <code>::std::move</code>,
+        you can start at the syscall level and ascend through every layer until you reach a
+        fully working <code>::std::fstream</code>:
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
-#include &lt;fast_io_device.h&gt;
 #include &lt;fast_io_legacy.h&gt;
 #include &lt;fstream&gt;
 
@@ -290,21 +315,27 @@ int main()
 {
     using namespace ::fast_io::iomnp;
 
-    // Open at the syscall level.
-    ::fast_io::native_file nf(u8"syscall.txt", ::fast_io::open_mode::out);
+    // Start at the syscall level (posix on Linux/macOS, nt/win32 on Windows).
+    ::fast_io::posix_file pf(u8"syscall.txt", ::fast_io::open_mode::out);
 
-    // Build an std::fstream that reads/writes the same underlying file,
-    // ascending through posix -&gt; c -&gt; filebuf along the way.
-    auto fstream =
-        ::fast_io::construct_fstream_from_syscall(::std::move(nf));
+    // Move up: posix -&gt; c
+    ::fast_io::c_file cf(::std::move(pf), ::fast_io::open_mode::out);
+
+    // Move up: c -&gt; filebuf
+    ::fast_io::filebuf_file fbf(::std::move(cf), ::fast_io::open_mode::out);
+
+    // Transfer the filebuf into an std::ofstream
+    ::std::ofstream fout;
+    *fout.rdbuf() = ::std::move(*fbf.fb);
 
     // Now you can use the fstream like normal C++.
-    fstream &lt;&lt; "Hello from a syscall-originated fstream!\n";
+    fout &lt;&lt; "Hello from a syscall-originated fstream!\n";
 }
       </code></pre>
       <p>
-        This is not a parlor trick: it is the natural consequence of every layer being
-        interoperable with the one next to it.
+        Each <code>::std::move</code> promotes the handle one layer upward. Ownership is
+        transferred, not duplicated. This is not a parlor trick &mdash; it is the natural
+        consequence of every layer being interoperable with the one next to it.
       </p>
     </section>
 
@@ -430,9 +461,9 @@ int main()
           <code>nt_file</code> on Windows NT, <code>win32_file</code> on Windows 9x.
         </li>
         <li>
-          <code>construct_fstream_from_syscall</code> is a showcase of the model: it builds
-          a <code>::std::fstream</code> from a raw syscall-level handle, ascending through
-          every layer.
+          You can build an <code>::std::fstream</code> from a syscall-level handle by moving
+          through each layer: <code>posix_file</code> &rarr; <code>c_file</code> &rarr;
+          <code>filebuf_file</code> &rarr; <code>::std::ofstream::rdbuf()</code>.
         </li>
         <li>
           You can descend in the other direction too: a

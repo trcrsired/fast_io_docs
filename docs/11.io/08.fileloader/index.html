@@ -84,10 +84,10 @@ int main(int argc, char** argv)
     ::fast_io::native_file_loader loader(::fast_io::mnp::os_c_str(argv[1]));
 
     // Print the entire file contents directly
-    print(loader);
+    print(loader,
 
     // Access size and data
-    println("File size: ", loader.size(), " bytes");
+      "File size: ", loader.size(), " bytes\n");
 
     // Iterate over the bytes
     ::std::size_t newline_count{};
@@ -107,7 +107,7 @@ int main(int argc, char** argv)
     }
 
     // Use with algorithms via begin()/end()
-    auto it = ::fast_io::find(loader.begin(), loader.end(), u8'X');
+    auto it = ::std::find(loader.begin(), loader.end(), u8'X');
     if (it != loader.end())
     {
         println("Found 'X' at offset: ", static_cast<::std::size_t>(it - loader.begin()));
@@ -148,10 +148,10 @@ int main(int argc, char** argv)
     ::fast_io::allocation_file_loader loader(::fast_io::mnp::os_c_str(argv[1]));
 
     // Same container-like interface
-    println("File size: ", loader.size(), " bytes");
+    print("File size: ", loader.size(), " bytes\n",
 
     // Print file contents
-    print(loader);
+      loader);
 
     // Access individual bytes
     for (::std::size_t i{}; i &lt; loader.size(); ++i)
@@ -240,8 +240,8 @@ int main()
     auto loader = load_file("example.txt");
 
     // loader now owns the mapped file
-    println("Size in main: ", loader.size());
-    print(loader);
+    print("Size in main: ", loader.size(), "\n",
+      loader);
 
     // Move into another variable
     auto loader2 = ::std::move(loader);
@@ -285,7 +285,7 @@ int main()
         {
             if (ch == u8'\n') ++lines;
         }
-        println(::fast_io::mnp::code_cvt(u8filename(ent)), ": ", lines, " lines");
+        print(::fast_io::mnp::code_cvt(u8filename(ent)), ": ", lines, " lines\n");
     }
 }
       </code></pre>
