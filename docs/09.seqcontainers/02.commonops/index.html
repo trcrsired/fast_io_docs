@@ -16,8 +16,9 @@
       <h2>Overview</h2>
       <p>
         All sequential containers share a large set of common operations. This
-        section presents comprehensive tables showing which operations are available
-        for each container. A <strong>&#10003;</strong> means supported;
+        section presents comprehensive tables showing what each operation does,
+        how to use it, and which containers support it. A
+        <strong>&#10003;</strong> means supported;
         <strong>&mdash;</strong> means not available; a note means the operation
         exists but with different semantics.
       </p>
@@ -25,10 +26,17 @@
 
     <section>
       <h2>1. Type Aliases</h2>
+      <p>
+        Every container exposes a standard set of nested type aliases. These let
+        you write generic code that adapts to the container&rsquo;s element type,
+        size type, and iterator category.
+      </p>
       <table>
         <thead>
           <tr>
             <th>Type Alias</th>
+            <th>Description</th>
+            <th>Example</th>
             <th>vector</th>
             <th>deque</th>
             <th>list</th>
@@ -42,11 +50,15 @@
         <tbody>
           <tr>
             <td><code>value_type</code></td>
+            <td>The type of elements stored in the container.</td>
+            <td><code>::std::vector&lt;T&gt;::value_type x;</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>bool</td><td>&#10003;</td><td>char_type</td>
           </tr>
           <tr>
             <td><code>size_type</code></td>
+            <td>Unsigned integer type for sizes and indices. Always <code>::std::size_t</code>.</td>
+            <td><code>using Sz = C::size_type;</code></td>
             <td><code>size_t</code></td><td><code>size_t</code></td>
             <td><code>size_t</code></td><td><code>size_t</code></td>
             <td><code>size_t</code></td><td><code>size_t</code></td>
@@ -54,6 +66,8 @@
           </tr>
           <tr>
             <td><code>difference_type</code></td>
+            <td>Signed integer type for iterator differences. Always <code>::std::ptrdiff_t</code>.</td>
+            <td><code>auto d = it2 - it1;</code></td>
             <td><code>ptrdiff_t</code></td><td><code>ptrdiff_t</code></td>
             <td><code>ptrdiff_t</code></td><td><code>ptrdiff_t</code></td>
             <td><code>ptrdiff_t</code></td><td><code>ptrdiff_t</code></td>
@@ -61,21 +75,29 @@
           </tr>
           <tr>
             <td><code>reference</code></td>
-            <td>T&</td><td>T&</td><td>T&</td><td>T&</td>
-            <td>T&</td><td>&mdash;</td><td>T&</td><td>const ch&</td>
+            <td>Type returned when dereferencing an iterator. For <code>bitvec</code> this is a proxy, not a real reference.</td>
+            <td><code>T&amp; r = v[0];</code></td>
+            <td>T&amp;</td><td>T&amp;</td><td>T&amp;</td><td>T&amp;</td>
+            <td>T&amp;</td><td>&mdash;</td><td>T&amp;</td><td>ch const&amp;</td>
           </tr>
           <tr>
             <td><code>const_reference</code></td>
-            <td>const T&</td><td>const T&</td><td>const T&</td><td>const T&</td>
-            <td>const T&</td><td>&mdash;</td><td>const T&</td><td>const ch&</td>
+            <td>A const-qualified reference to an element.</td>
+            <td><code>T const&amp; r = v[0];</code></td>
+            <td>T const&amp;</td><td>T const&amp;</td><td>T const&amp;</td><td>T const&amp;</td>
+            <td>T const&amp;</td><td>&mdash;</td><td>T const&amp;</td><td>ch const&amp;</td>
           </tr>
           <tr>
             <td><code>pointer</code></td>
+            <td>Pointer to <code>value_type</code>. For <code>bitvec</code> this is a proxy iterator, not a raw pointer.</td>
+            <td><code>T* p = v.data();</code></td>
             <td>T*</td><td>T*</td><td>T*</td><td>T*</td>
-            <td>T*</td><td>&mdash;</td><td>T*</td><td>const ch*</td>
+            <td>T*</td><td>&mdash;</td><td>T*</td><td>ch const*</td>
           </tr>
           <tr>
             <td><code>iterator</code> category</td>
+            <td>The iterator concept the container supports. Determines which algorithms can be used.</td>
+            <td><code>using ItCat = typename C::iterator_category;</code></td>
             <td>Contiguous</td><td>Random access</td>
             <td>Bidirectional</td><td>Forward</td>
             <td>Contiguous</td><td>&mdash;</td>
@@ -83,8 +105,10 @@
           </tr>
           <tr>
             <td><code>reverse_iterator</code></td>
+            <td>Whether the container supports reverse iteration via <code>rbegin()</code> / <code>rend()</code>.</td>
+            <td><code>for (auto it = v.rbegin(); it != v.rend(); ++it)</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
-            <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
+            <td>&mdash;</td><td>&#10003;</td><td>&mdash;</td>
             <td>&#10003;</td><td>&#10003;</td>
           </tr>
         </tbody>
@@ -93,10 +117,16 @@
 
     <section>
       <h2>2. Capacity Operations</h2>
+      <p>
+        These operations query or adjust the number of elements a container can
+        hold without reallocating.
+      </p>
       <table>
         <thead>
           <tr>
             <th>Operation</th>
+            <th>Description</th>
+            <th>Example</th>
             <th>vector</th>
             <th>deque</th>
             <th>list</th>
@@ -110,44 +140,65 @@
         <tbody>
           <tr>
             <td><code>empty()</code> / <code>is_empty()</code></td>
+            <td>Returns <code>true</code> if the container has no elements.</td>
+            <td><code>if (v.is_empty()) { ... }</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
-            <td><code>size()</code> / <code>size_bytes()</code></td>
-            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td><code>size()</code></td>
+            <td>Returns the number of elements currently stored.</td>
+            <td><code>auto n = v.size();</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
             <td>&mdash; (see note)</td>
             <td>&#10003; (static)</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
+            <td><code>size_bytes()</code></td>
+            <td>Returns the total number of bytes occupied by the elements (<code>size() * sizeof(T)</code>).</td>
+            <td><code>auto bytes = v.size_bytes();</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+          </tr>
+          <tr>
             <td><code>max_size()</code></td>
+            <td>Returns the maximum number of elements the container could theoretically hold.</td>
+            <td><code>auto m = v.max_size();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>capacity()</code></td>
+            <td>Returns the number of elements that can be stored before a reallocation is needed.</td>
+            <td><code>auto c = v.capacity();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&mdash;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
           </tr>
           <tr>
             <td><code>reserve()</code></td>
-            <td>&#10003;</td><td>&mdash; (see <code>reserve_back</code>)</td>
+            <td>Requests that capacity be at least <code>n</code> elements. Does not change <code>size()</code>.</td>
+            <td><code>v.reserve(100zu);</code></td>
+            <td>&#10003;</td>
+            <td>&mdash; (see <code>reserve_back</code>)</td>
             <td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&#10003;</td>
             <td>&mdash;</td><td>&mdash;</td>
           </tr>
           <tr>
             <td><code>shrink_to_fit()</code></td>
+            <td>Requests removal of unused capacity, reducing memory usage. May invalidate iterators.</td>
+            <td><code>v.shrink_to_fit();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&mdash;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
           </tr>
         </tbody>
       </table>
       <p>
-        <strong>Note:</strong> <code>forward_list</code> does not provide
-        <code>size()</code>. Counting elements in a singly-linked list requires
-        O(n) traversal, so the size is intentionally omitted to avoid hiding the
-        cost. Use <code>::std::ranges::distance()</code> if you need it.
+        <strong>Note:</strong> Neither <code>list</code> nor
+        <code>forward_list</code> provides <code>size()</code>. Counting
+        elements in a linked list requires &Theta;(n) traversal, so the size is
+        intentionally omitted to avoid hiding the cost. Use
+        <code>::std::ranges::distance()</code> if you need it.
       </p>
       <p>
         <strong>deque note:</strong> Instead of <code>reserve()</code>, a deque
@@ -159,10 +210,16 @@
 
     <section>
       <h2>3. Element Access</h2>
+      <p>
+        These operations provide direct access to individual elements by index
+        or position.
+      </p>
       <table>
         <thead>
           <tr>
             <th>Operation</th>
+            <th>Description</th>
+            <th>Example</th>
             <th>vector</th>
             <th>deque</th>
             <th>list</th>
@@ -174,37 +231,51 @@
         </thead>
         <tbody>
           <tr>
-            <td><code>operator[]</code> (bounds-checked)</td>
+            <td><code>operator[]</code></td>
+            <td>Access element at index. Bounds-checked: calls <code>fast_terminate()</code> if out of range.</td>
+            <td><code>auto x = v[2zu];</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>index_unchecked()</code></td>
+            <td>Access element at index without bounds checking. Faster but undefined behaviour if out of range.</td>
+            <td><code>auto x = v.index_unchecked(2zu);</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>front()</code></td>
+            <td>Returns a reference to the first element. Undefined behaviour if empty.</td>
+            <td><code>auto x = v.front();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>back()</code></td>
+            <td>Returns a reference to the last element. Undefined behaviour if empty.</td>
+            <td><code>auto x = v.back();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>data()</code></td>
+            <td>Returns a raw pointer to the underlying contiguous storage.</td>
+            <td><code>T* p = v.data();</code></td>
             <td>&#10003;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>front_unchecked()</code></td>
+            <td>Returns a reference to the first element without checking if the container is empty.</td>
+            <td><code>auto x = v.front_unchecked();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>back_unchecked()</code></td>
+            <td>Returns a reference to the last element without checking if the container is empty.</td>
+            <td><code>auto x = v.back_unchecked();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
@@ -214,10 +285,18 @@
 
     <section>
       <h2>4. Iterator Operations</h2>
+      <p>
+        These operations return iterators that delimit the elements of the
+        container. All iterators follow the left-inclusive convention: the range
+        <code>[begin(), end())</code> includes the first element but excludes
+        the past-the-end element.
+      </p>
       <table>
         <thead>
           <tr>
             <th>Operation</th>
+            <th>Description</th>
+            <th>Example</th>
             <th>vector</th>
             <th>deque</th>
             <th>list</th>
@@ -230,21 +309,29 @@
         <tbody>
           <tr>
             <td><code>begin()</code> / <code>end()</code></td>
+            <td>Returns an iterator to the first element / to the position past the last element.</td>
+            <td><code>for (auto it = v.begin(); it != v.end(); ++it)</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>cbegin()</code> / <code>cend()</code></td>
+            <td>Returns a <em>const</em> iterator. The elements cannot be modified through this iterator.</td>
+            <td><code>for (auto it = v.cbegin(); it != v.cend(); ++it)</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>rbegin()</code> / <code>rend()</code></td>
+            <td>Returns a reverse iterator. Iterates from last element to first.</td>
+            <td><code>for (auto it = v.rbegin(); it != v.rend(); ++it)</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>before_begin()</code></td>
+            <td>Returns an iterator to the position before the first element. Only <code>forward_list</code> provides this, for insertion at the front.</td>
+            <td><code>fl.insert_after(fl.before_begin(), val);</code></td>
             <td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&#10003;</td>
             <td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
           </tr>
@@ -254,10 +341,15 @@
 
     <section>
       <h2>5. Modifiers</h2>
+      <p>
+        These operations add, remove, or replace elements in the container.
+      </p>
       <table>
         <thead>
           <tr>
             <th>Operation</th>
+            <th>Description</th>
+            <th>Example</th>
             <th>vector</th>
             <th>deque</th>
             <th>list</th>
@@ -268,61 +360,85 @@
         <tbody>
           <tr>
             <td><code>clear()</code></td>
+            <td>Removes all elements. Memory is <em>not</em> deallocated; capacity is preserved for reuse.</td>
+            <td><code>v.clear();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td>
           </tr>
           <tr>
             <td><code>clear_destroy()</code></td>
+            <td>Removes all elements <em>and</em> deallocates all memory. Equivalent to <code>clear()</code> followed by <code>shrink_to_fit()</code>.</td>
+            <td><code>v.clear_destroy();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td>
           </tr>
           <tr>
             <td><code>push_back()</code></td>
+            <td>Adds a copy of <code>val</code> to the end of the container.</td>
+            <td><code>v.push_back(42zu);</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
             <td>&#10003;</td>
           </tr>
           <tr>
             <td><code>push_front()</code></td>
+            <td>Adds a copy of <code>val</code> to the front of the container.</td>
+            <td><code>v.push_front(42zu);</code></td>
             <td>&mdash;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&mdash;</td>
           </tr>
           <tr>
             <td><code>pop_back()</code></td>
+            <td>Removes the last element. Undefined behaviour if the container is empty.</td>
+            <td><code>v.pop_back();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
             <td>&#10003;</td>
           </tr>
           <tr>
             <td><code>pop_front()</code></td>
+            <td>Removes the first element. Undefined behaviour if the container is empty.</td>
+            <td><code>v.pop_front();</code></td>
             <td>&mdash;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&mdash;</td>
           </tr>
           <tr>
             <td><code>emplace_back()</code></td>
+            <td>Constructs an element in-place at the end, forwarding <code>args...</code> to the constructor.</td>
+            <td><code>v.emplace_back(1zu, 2zu);</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
             <td>&mdash;</td>
           </tr>
           <tr>
             <td><code>emplace_front()</code></td>
+            <td>Constructs an element in-place at the front, forwarding <code>args...</code> to the constructor.</td>
+            <td><code>v.emplace_front(42zu);</code></td>
             <td>&mdash;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&mdash;</td>
           </tr>
           <tr>
             <td><code>resize()</code></td>
+            <td>Changes the number of elements. If growing, new elements are value-initialised. If shrinking, elements at the end are removed.</td>
+            <td><code>v.resize(10zu);</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&#10003;</td>
           </tr>
           <tr>
             <td><code>assign()</code></td>
+            <td>Replaces the entire contents. Overloads: <code>assign(count, val)</code> or <code>assign(first, last)</code>.</td>
+            <td><code>v.assign(5zu, 42zu);</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&mdash;</td>
           </tr>
           <tr>
             <td><code>append_range()</code></td>
+            <td>Appends all elements from a range <code>[first, last)</code> to the end of the container.</td>
+            <td><code>v.append_range(other.begin(), other.end());</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&#10003;</td>
           </tr>
           <tr>
             <td><code>swap()</code></td>
+            <td>Exchanges the contents of two containers of the same type. &Theta;(1) for most containers.</td>
+            <td><code>v.swap(w);</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td>
           </tr>
@@ -334,7 +450,7 @@
       <h2>Key takeaways</h2>
       <ul>
         <li>All containers share a common interface for size, iteration, and element access.</li>
-        <li><code>forward_list</code> is the only container without <code>size()</code> or <code>back()</code>.</li>
+        <li><code>list</code> and <code>forward_list</code> do not provide <code>size()</code>. <code>forward_list</code> also lacks <code>back()</code>.</li>
         <li><code>list</code> and <code>forward_list</code> do not support <code>operator[]</code> or random access.</li>
         <li>Only <code>vector</code>, <code>deque</code>, <code>array</code>, and contiguous views provide <code>data()</code>.</li>
         <li><code>clear()</code> keeps capacity; <code>clear_destroy()</code> deallocates memory.</li>

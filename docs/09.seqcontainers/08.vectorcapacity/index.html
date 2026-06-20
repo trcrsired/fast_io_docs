@@ -23,41 +23,181 @@
         <li><strong>capacity</strong>: the number of elements the vector can hold
           before it must allocate more memory.</li>
       </ul>
-<pre><code class="language-cpp">
-#include &lt;fast_io_dsal/vector.h&gt;
-#include &lt;fast_io.h&gt;
-
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::vector&lt;::std::size_t&gt; v;
-    println("Initial: size=", v.size(), " capacity=", v.capacity());
-
-    v.push_back(1);
-    println("After 1 push: size=", v.size(), " capacity=", v.capacity());
-}
-</code></pre>
     </section>
 
     <section>
-      <h2>1. reserve()</h2>
+      <h2>1. How Growth Works</h2>
+      <p>
+        Internally, a vector is three pointers into a single contiguous heap
+        allocation:
+      </p>
+      <ul>
+        <li><code>begin_ptr</code> &mdash; start of the allocated buffer.</li>
+        <li><code>curr_ptr</code> &mdash; one past the last constructed element (i.e., <code>begin_ptr + size()</code>).</li>
+        <li><code>end_ptr</code> &mdash; one past the end of the allocated buffer (i.e., <code>begin_ptr + capacity()</code>).</li>
+      </ul>
+<pre><code class="language-cpp">
+// Conceptual layout of a vector with size=3, capacity=8:
+//
+//   begin_ptr     curr_ptr                end_ptr
+//       |            |                      |
+//       v            v                      v
+//   +----+----+----+----+----+----+----+----+
+//   | e0 | e1 | e2 |    |    |    |    |    |
+//   +----+----+----+----+----+----+----+----+
+//   ^                       ^
+//   |_______ size=3 ________|
+//   |___________ capacity=8 _________________|
+</code></pre>
+
+      <h3>The hot path: when there is spare capacity</h3>
+      <p>
+        When you call <code>push_back()</code> or <code>emplace_back()</code>,
+        the vector first checks whether <code>curr_ptr != end_ptr</code>. If
+        there is room, the element is constructed in-place at
+        <code>curr_ptr</code> and the pointer is advanced. This is the
+        <strong>hot path</strong> &mdash; a single constructor call and a
+        pointer increment, with no allocation.
+      </p>
+
+      <h3>The cold path: when capacity is exhausted</h3>
+      <p>
+        When <code>curr_ptr == end_ptr</code>, the vector must
+        <strong>reallocate</strong>. The steps are:
+      </p>
+      <ol>
+        <li><strong>Compute new capacity</strong>: the capacity is
+          <strong>doubled</strong> (2&times;). If the current capacity is 0, it
+          grows to 1 element. If doubling would overflow
+          <code>size_t</code>, it clamps to the maximum possible capacity.</li>
+        <li><strong>Allocate</strong> a new buffer of the new capacity.</li>
+        <li><strong>Move elements</strong> from the old buffer to the new one.
+          For <em>trivially-copyable</em> types (like integers, floats, POD
+          structs), this is a single <code>memcpy</code>. For non-trivial types,
+          each element is move-constructed into the new buffer and then
+          destroyed in the old buffer.</li>
+        <li><strong>Deallocate</strong> the old buffer.</li>
+        <li><strong>Update</strong> all three pointers to point into the new
+          buffer.</li>
+      </ol>
+<pre><code class="language-cpp">
+// Growth sequence for a vector&lt;size_t&gt;:
+//
+// capacity: 0 → 1 → 2 → 4 → 8 → 16 → 32 → ...
+// size:     0   1   2   3   4    5    6    ...
+//
+// Each arrow that crosses a power-of-2 boundary triggers reallocation.
+</code></pre>
+
+      <h3>Why doubling gives amortised &Theta;(1)</h3>
+      <p>
+        Consider the total work of <code>n</code> insertions starting from an
+        empty vector. The reallocations happen at sizes 1, 2, 4, 8, &hellip;,
+        up to the largest power of 2 less than <code>n</code>. The total number
+        of element moves is:
+      </p>
+      <p style="text-align: center;">
+        1 + 2 + 4 + 8 + &hellip; + n/2 &lt; n
+      </p>
+      <p>
+        So the <em>total</em> cost of all reallocations is proportional to
+        <code>n</code>, giving an <strong>amortised &Theta;(1)</strong> cost per
+        insertion. Most insertions hit the hot path; only a few trigger the
+        expensive reallocation.
+      </p>
+
+      <h3>Trivially-copyable vs non-trivial types</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Type category</th>
+            <th>Element relocation during reallocation</th>
+            <th>Examples</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Trivially copyable or trivially relocatable</td>
+            <td>Bulk <code>memcpy</code> &mdash; one call copies the entire buffer</td>
+            <td><code>::std::size_t</code>, <code>double</code>, POD structs</td>
+          </tr>
+          <tr>
+            <td>Non-trivial (has custom move constructor or destructor)</td>
+            <td>Element-wise move-construct + destroy</td>
+            <td><code>::fast_io::string</code>, <code>::fast_io::vector</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        This distinction matters for performance: a
+        <code>vector&lt;::std::size_t&gt;</code> of 1 million elements
+        reallocates via a single <code>memcpy</code> of 8&nbsp;MB, which is
+        heavily optimised by the hardware. A
+        <code>vector&lt;::fast_io::string&gt;</code> of 1 million elements must
+        move-construct and destroy each string individually.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. reserve()</h2>
       <p>
         <code>reserve(n)</code> ensures that the vector has enough capacity for at
         least <code>n</code> elements. It does not change the size. If the current
         capacity is already &ge; <code>n</code>, this is a no-op.
       </p>
+      <p>
+        Use <code>reserve()</code> when you know in advance how many elements
+        you will need, to avoid repeated reallocations:
+      </p>
 <pre><code class="language-cpp">
-::fast_io::vector&lt;::std::size_t&gt; v;
-v.reserve(1000zu); // Allocate space for 1000 elements upfront
-// size() == 0, capacity() >= 1000
+#include &lt;fast_io_dsal/vector.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    ::fast_io::vector&lt;::std::size_t&gt; v;
+
+    // Without reserve: push_back triggers reallocations at 1, 2, 4, 8, 16, ...
+    // With reserve: zero reallocations during the loop
+    v.reserve(1000zu);
+    for (::std::size_t i{}; i &lt; 1000zu; ++i) {
+        v.push_back(i);
+    }
+    // size() == 1000, capacity() >= 1000
+}
 </code></pre>
     </section>
 
     <section>
-      <h2>2. shrink_to_fit()</h2>
+      <h2>3. push_back_unchecked()</h2>
+      <p>
+        When you have pre-allocated capacity with <code>reserve()</code>, you can
+        use <code>push_back_unchecked()</code> to skip the capacity check on each
+        insertion. This eliminates a branch from the hot path:
+      </p>
+<pre><code class="language-cpp">
+::fast_io::vector&lt;::std::size_t&gt; v;
+v.reserve(100zu);
+
+// Normal push_back checks: "is curr_ptr == end_ptr?" every iteration.
+// push_back_unchecked skips that check — UB if you exceed capacity.
+for (::std::size_t i{}; i &lt; 100zu; ++i) {
+    v.push_back_unchecked(i);
+}
+// size() == 100, capacity() >= 100
+</code></pre>
+      <p>
+        The pattern <code>reserve()</code> + <code>push_back_unchecked()</code>
+        is the fastest way to fill a vector when the count is known in advance.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. shrink_to_fit()</h2>
       <p>
         <code>shrink_to_fit()</code> requests that the vector reduce its capacity
-        to match its size. This can reclaim memory after erasing many elements.
+        to match its size. This triggers a reallocation if the current capacity
+        exceeds the size, copying elements to a tighter buffer and freeing the
+        old one.
       </p>
 <pre><code class="language-cpp">
 ::fast_io::vector&lt;::std::size_t&gt; v;
@@ -71,24 +211,7 @@ v.shrink_to_fit();
     </section>
 
     <section>
-      <h2>3. push_back_unchecked()</h2>
-      <p>
-        When you have pre-allocated capacity with <code>reserve()</code>, you can
-        use <code>push_back_unchecked()</code> to avoid the capacity check on each
-        insertion:
-      </p>
-<pre><code class="language-cpp">
-::fast_io::vector&lt;::std::size_t&gt; v;
-v.reserve(100zu);
-for (::std::size_t i{}; i &lt; 100zu; ++i) {
-    v.push_back_unchecked(i); // No capacity check - fast!
-}
-// size() == 100, capacity() >= 100
-</code></pre>
-    </section>
-
-    <section>
-      <h2>4. clear() vs clear_destroy()</h2>
+      <h2>5. clear() vs clear_destroy()</h2>
       <p>
         These two operations differ in what happens to the allocated memory:
       </p>
@@ -106,13 +229,13 @@ for (::std::size_t i{}; i &lt; 100zu; ++i) {
             <td><code>clear()</code></td>
             <td>Destroyed</td>
             <td><strong>Retained</strong> (capacity unchanged)</td>
-            <td>You plan to reuse the vector</td>
+            <td>You plan to reuse the vector soon</td>
           </tr>
           <tr>
             <td><code>clear_destroy()</code></td>
             <td>Destroyed</td>
             <td><strong>Deallocated</strong> (capacity becomes 0)</td>
-            <td>You want to free memory</td>
+            <td>You want to free memory back to the allocator</td>
           </tr>
         </tbody>
       </table>
@@ -131,11 +254,12 @@ v.clear_destroy();
     <section>
       <h2>Key takeaways</h2>
       <ul>
-        <li><code>capacity()</code> is the allocated space; <code>size()</code> is the used space.</li>
-        <li><code>reserve(n)</code> pre-allocates but does not change size.</li>
-        <li><code>shrink_to_fit()</code> reduces capacity to match size.</li>
+        <li>A vector is three pointers (<code>begin_ptr</code>, <code>curr_ptr</code>, <code>end_ptr</code>) into one contiguous allocation.</li>
+        <li>Growth is 2&times;: capacity doubles on each reallocation, giving amortised &Theta;(1) <code>push_back</code>.</li>
+        <li>Trivially-copyable types relocate via <code>memcpy</code>; non-trivial types are move-constructed element-wise.</li>
+        <li><code>reserve(n)</code> pre-allocates to avoid reallocations when the count is known.</li>
         <li><code>reserve()</code> + <code>push_back_unchecked()</code> is the fastest way to fill a vector.</li>
-        <li><code>clear()</code> keeps memory; <code>clear_destroy()</code> frees it.</li>
+        <li><code>clear()</code> keeps memory for reuse; <code>clear_destroy()</code> frees it.</li>
       </ul>
     </section>
 

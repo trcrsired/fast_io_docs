@@ -106,12 +106,117 @@ int main() {
     </section>
 
     <section>
+      <h2>3. Why list Is Often Much Slower Than vector and deque</h2>
+      <p>
+        Despite its theoretical &Theta;(1) insertion and removal,
+        <code>list</code> is often <strong>10&times; to 100&times; slower</strong>
+        than <code>vector</code> or <code>deque</code> in real-world workloads.
+        The reason is <strong>data locality</strong> &mdash; how well the
+        container&rsquo;s memory layout matches the CPU cache architecture.
+      </p>
+
+      <h3>Cache line utilisation</h3>
+      <p>
+        Modern CPUs fetch memory in <strong>cache lines</strong> of typically 64
+        bytes. When any byte in a line is accessed, the entire 64 bytes are
+        loaded into the L1 cache. The question is: how much of that cache line
+        is actually useful data?
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Container</th>
+            <th>Layout</th>
+            <th>Useful bytes per 64-byte cache line (for <code>size_t</code>)</th>
+            <th>Efficiency</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>vector</code></td>
+            <td>Contiguous: <code>[e0][e1][e2]...[e7]</code></td>
+            <td>64 / 64 = <strong>64 bytes</strong> (8 elements)</td>
+            <td>100%</td>
+          </tr>
+          <tr>
+            <td><code>deque</code></td>
+            <td>Block-chunked: each block is contiguous</td>
+            <td>64 / 64 = <strong>64 bytes</strong> (8 elements per block)</td>
+            <td>~100% within a block</td>
+          </tr>
+          <tr>
+            <td><code>list</code></td>
+            <td>Scattered nodes: each node is a separate heap allocation</td>
+            <td>8 / 64 = <strong>8 bytes</strong> (1 element per cache line)</td>
+            <td>~12%</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        A <code>list&lt;::std::size_t&gt;</code> node contains the 8-byte value
+        plus two 8-byte pointers (prev/next), totalling ~24&ndash;32 bytes with
+        alignment padding. But each node lives at a <em>different</em> heap
+        address, so each access likely triggers a <strong>cache miss</strong>.
+        The CPU must wait for main memory (~100&nbsp;ns) instead of L1 cache
+        (~1&nbsp;ns).
+      </p>
+
+      <h3>Pointer chasing defeats prefetchers</h3>
+      <p>
+        Modern CPUs use <strong>hardware prefetchers</strong> that detect
+        sequential access patterns and load upcoming cache lines before they are
+        needed. This works perfectly for <code>vector</code> (contiguous,
+        predictable) and reasonably well for <code>deque</code> (sequential
+        blocks). But <code>list</code> requires <strong>pointer chasing</strong>:
+        each node&rsquo;s address is only known after reading the previous
+        node&rsquo;s <code>next</code> pointer. The prefetcher cannot predict
+        these addresses, so every access is a potential cache miss.
+      </p>
+
+      <h3>The constant factor overwhelms the asymptotic advantage</h3>
+      <p>
+        List offers &Theta;(1) insertion/removal vs <code>vector</code>&rsquo;s
+        O(n) (for mid-sequence operations). But the constant factors differ
+        enormously:
+      </p>
+      <ul>
+        <li><code>vector</code> insertion: move ~n elements via
+          <code>memcpy</code> at ~10&ndash;50 GB/s &mdash; a few
+          microseconds for a million elements.</li>
+        <li><code>list</code> insertion: adjust 4 pointers, but each pointer
+          access may be a cache miss at ~100&nbsp;ns &mdash; tens of
+          microseconds even for a modest number of elements.</li>
+      </ul>
+      <p>
+        In practice, <code>vector</code> wins for almost any workload except
+        when you need <strong>stable iterators</strong> (iterators that are not
+        invalidated by insertions/erasures at other positions).
+      </p>
+
+      <h3>When to actually use list</h3>
+      <ul>
+        <li>You need iterators or references to remain valid across
+          insertions and erasures at other positions.</li>
+        <li>You frequently splice elements between containers.</li>
+        <li>The elements are large (so copying is expensive) and you need
+          frequent mid-sequence insertion.</li>
+        <li>You are implementing algorithms that fundamentally require
+          linked structure (e.g., certain graph algorithms).</li>
+      </ul>
+      <p>
+        For almost everything else &mdash; especially iteration-heavy workloads
+        &mdash; prefer <code>vector</code> or <code>deque</code>.
+      </p>
+    </section>
+
+    <section>
       <h2>Key takeaways</h2>
       <ul>
         <li><code>splice()</code> moves elements between lists without copying.</li>
         <li><code>sort()</code>, <code>merge()</code>, and <code>reverse()</code> only adjust pointers.</li>
         <li><code>is_single()</code> and <code>has_multiple()</code> are list-specific queries.</li>
         <li>List operations never invalidate iterators to elements that are not moved or erased.</li>
+        <li><code>list</code> is often 10&ndash;100&times; slower than <code>vector</code> or <code>deque</code> due to scattered heap nodes and poor cache locality &mdash; prefer <code>vector</code> unless you need stable iterators.</li>
       </ul>
     </section>
 

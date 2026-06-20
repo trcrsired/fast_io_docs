@@ -97,7 +97,7 @@ int main() {
           <tr>
             <td>Need to grow at the front</td>
             <td><code>deque</code></td>
-            <td>vector cannot push_front; deque does it in O(1) amortized</td>
+            <td>vector cannot push_front; deque does it in &Theta;(1) amortized</td>
           </tr>
           <tr>
             <td>Need a stack or queue</td>
@@ -116,16 +116,372 @@ int main() {
           </tr>
         </tbody>
       </table>
+
+      <h3>Why deque allocates more efficiently</h3>
+      <p>
+        A <code>vector</code> grows by <strong>doubling its entire buffer</strong>:
+        when capacity is exhausted, it allocates a new buffer of 2&times; the
+        current capacity and <em>copies every existing element</em> into it. For
+        10&nbsp;million elements, the final reallocation moves ~5&nbsp;million
+        elements, the one before ~2.5&nbsp;million, and so on. The total number
+        of element moves across all reallocations is roughly equal to the final
+        size.
+      </p>
+      <p>
+        A <code>deque</code> grows by <strong>allocating a new block</strong>
+        (typically 4&nbsp;KB worth of elements) and adding a pointer to the
+        controller. <strong>No existing elements are ever moved.</strong> Each
+        block is an independent, small allocation. This means:
+      </p>
+      <ul>
+        <li><strong>No copying cost</strong> &mdash; the work per insertion is
+          just one constructor call, regardless of how many elements already
+          exist.</li>
+        <li><strong>No large allocations</strong> &mdash; the allocator never
+          needs to find a single contiguous region large enough for the entire
+          dataset. Many small allocations are easier to satisfy than one huge
+          one.</li>
+        <li><strong>No memory overshoot</strong> &mdash; a <code>vector</code>
+          can use up to 2&times; the needed memory right after a reallocation
+          (size&nbsp;=&nbsp;N, capacity&nbsp;=&nbsp;2N). A <code>deque</code>
+          only allocates the blocks it actually fills.</li>
+      </ul>
+      <p>
+        The effect is visible in benchmarks. Pushing 10&nbsp;million
+        <code>::std::size_t</code> elements:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Container</th>
+            <th>push_back time</th>
+            <th>Total time</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>vector</code> (no reserve)</td>
+            <td>0.187&nbsp;s</td>
+            <td>0.233&nbsp;s</td>
+          </tr>
+          <tr>
+            <td><code>vector</code> + <code>reserve()</code></td>
+            <td>0.095&nbsp;s</td>
+            <td>0.126&nbsp;s</td>
+          </tr>
+          <tr>
+            <td><code>deque</code> (plain)</td>
+            <td>0.095&nbsp;s</td>
+            <td>0.146&nbsp;s</td>
+          </tr>
+          <tr>
+            <td><code>deque</code> + <code>resize_for_overwrite()</code></td>
+            <td>0.080&nbsp;s</td>
+            <td>0.120&nbsp;s</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Plain <code>deque</code> (0.095&nbsp;s) is already <strong>2&times;
+        faster</strong> than <code>vector</code> without <code>reserve</code>
+        (0.187&nbsp;s), because it pays no copying cost. And <code>deque</code>
+        with pre-allocation (0.080&nbsp;s) is even faster than
+        <code>vector</code> with <code>reserve</code> (0.095&nbsp;s), because
+        the deque avoids the single large allocation that <code>reserve</code>
+        requires.
+      </p>
+
+      <h3>Drawbacks of deque</h3>
+      <p>
+        Despite its allocation advantages, <code>deque</code> has two significant
+        drawbacks that make <code>vector</code> the better choice in many
+        situations:
+      </p>
+
+      <h4>1. Not contiguous</h4>
+      <p>
+        A deque&rsquo;s elements are spread across multiple heap-allocated blocks.
+        There is <strong>no single contiguous buffer</strong> you can hand to a
+        C API, a <code>memcpy</code>, SIMD intrinsics, or a library that expects
+        a <code>T*</code> with a count. The <code>data()</code> method does not
+        exist on deque for this reason.
+      </p>
+      <p>
+        If you need to pass elements to an API that requires contiguous memory,
+        you must either copy them into a temporary <code>vector</code> or use
+        the segments API to process one block at a time.
+      </p>
+
+      <h4>2. Large minimum footprint</h4>
+      <p>
+        Each deque allocates at least one full block, even if it contains only a
+        single element. The block size is typically <strong>4&nbsp;KB</strong>
+        (4096 bytes, chosen to match a page or cache line boundary). So a deque
+        holding a single <code>::std::size_t</code> (8 bytes) still consumes
+        ~4&nbsp;KB of memory plus the controller overhead.
+      </p>
+      <p>
+        This makes <code>deque</code> a <strong>terrible choice as an inner
+        dimension</strong> in nested containers:
+      </p>
+<pre><code class="language-cpp">
+// BAD: 1000 inner deques, each allocating ~4 KB even if nearly empty
+::fast_io::vector&lt;::fast_io::deque&lt;::std::size_t&gt;&gt; matrix(1000zu);
+// Minimum memory: 1000 * 4 KB = 4 MB, even if each deque has only 1 element
+
+// GOOD: 1000 inner vectors, each allocating only what they need
+::fast_io::vector&lt;::fast_io::vector&lt;::std::size_t&gt;&gt; matrix(1000zu);
+// Minimum memory: 1000 * ~24 bytes (vector overhead) = ~24 KB
+</code></pre>
+      <p>
+        As a rule of thumb:
+      </p>
+      <ul>
+        <li>Use <code>deque</code> as a <strong>top-level</strong> container
+          when you need fast growth at both ends.</li>
+        <li>Use <code>vector</code> as the <strong>inner dimension</strong> in
+          nested containers (<code>vector&lt;vector&lt;T&gt;&gt;</code>,
+          <code>vector&lt;array&lt;T, N&gt;&gt;</code>, etc.) to avoid the
+          per-instance block overhead.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>4. Fast Iteration with the Segments API</h2>
+      <p>
+        The regular deque iterator checks for block boundaries on
+        <strong>every</strong> element increment:
+      </p>
+<pre><code class="language-cpp">
+// What deque_iterator::operator++ does internally:
+if (++curr_ptr == block_end) [[unlikely]]
+    wrap_to_next_block(); // branch on every element
+</code></pre>
+      <p>
+        This branch is usually predicted correctly (blocks hold ~500 elements for
+        8-byte types), but it prevents the compiler from auto-vectorising the
+        loop and adds latency. The <strong>segments API</strong> lets you iterate
+        block-by-block instead, eliminating the per-element check entirely.
+      </p>
+
+      <h3>Segment methods</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Returns</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>segments_count()</code></td>
+            <td><code>size_type</code></td>
+            <td>Number of blocks currently in use.</td>
+          </tr>
+          <tr>
+            <td><code>nth_segment(pos)</code></td>
+            <td><code>span&lt;T&gt;</code></td>
+            <td>Mutable span over the live elements in block <code>pos</code>.</td>
+          </tr>
+          <tr>
+            <td><code>const_nth_segment(pos)</code></td>
+            <td><code>span&lt;T const&gt;</code></td>
+            <td>Const span over the live elements in block <code>pos</code>.</td>
+          </tr>
+          <tr>
+            <td><code>size_per_segment()</code></td>
+            <td><code>size_type</code> (static)</td>
+            <td>Maximum elements per block (= <code>block_size</code>).</td>
+          </tr>
+          <tr>
+            <td><code>size_bytes_per_segment()</code></td>
+            <td><code>size_type</code> (static)</td>
+            <td>Byte capacity of a full block.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The returned <code>span</code> has <code>.data()</code> and
+        <code>.size()</code>, so the inner loop compiles down to a plain pointer
+        walk &mdash; auto-vectorisable, <code>memcpy</code>-able, and branch-free
+        in the hot path. Only the first and last segments may be partial; middle
+        segments always contain exactly <code>block_size</code> elements.
+      </p>
+
+      <h3>Read-only iteration</h3>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/deque.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    ::fast_io::deque&lt;::std::size_t&gt; dq;
+    for (::std::size_t i{}; i &lt; 10000zu; ++i)
+        dq.push_back(i);
+
+    ::std::size_t sum{};
+
+    // Segment iteration: no per-element bounds check
+    for (::std::size_t i{}, segs{dq.segments_count()}; i != segs; ++i)
+    {
+        for (auto const e : dq.const_nth_segment(i))
+        {
+            sum += e;
+        }
+    }
+
+    ::fast_io::io::println("sum = ", sum);
+}
+</code></pre>
+
+      <h3>Mutable iteration</h3>
+<pre><code class="language-cpp">
+// Write through segments
+for (::std::size_t i{}, segs{dq.segments_count()}; i != segs; ++i)
+{
+    for (auto&amp; e : dq.nth_segment(i))
+    {
+        e *= 2zu;
+    }
+}
+</code></pre>
+
+      <h3>Direct pointer access for memcpy / SIMD</h3>
+<pre><code class="language-cpp">
+// Get raw pointer + count from each segment
+for (::std::size_t i{}, segs{dq.segments_count()}; i != segs; ++i)
+{
+    auto seg = dq.const_nth_segment(i);
+    ::std::size_t const* data = seg.data();
+    ::std::size_t count = seg.size();
+    // pass (data, count) to memcpy, SIMD intrinsics, etc.
+}
+</code></pre>
+
+      <h3>When to use segments vs regular iteration</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Pattern</th>
+            <th>Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Simple range-for, algorithms, <code>std::ranges</code></td>
+            <td>Regular iterator: <code>for (auto const&amp; e : dq)</code></td>
+          </tr>
+          <tr>
+            <td>Inner loop performance matters (sum, transform, SIMD)</td>
+            <td>Segments API: iterate block-by-block</td>
+          </tr>
+          <tr>
+            <td>Need raw pointers for <code>memcpy</code> or C APIs</td>
+            <td>Segments API: <code>seg.data()</code> / <code>seg.size()</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>5. Iterator Invalidation vs Pointer/Reference Stability</h2>
+      <p>
+        A deque&rsquo;s block-map design gives it a unique invalidation
+        property that differs from <code>vector</code>:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Iterators</th>
+            <th>Pointers / References to elements</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>push_back()</code> / <code>push_front()</code></td>
+            <td><strong>All invalidated.</strong> The controller may be reallocated, and iterators encode block positions.</td>
+            <td><strong>Survive</strong> (unless the element is erased). Elements are never moved when growing at the ends &mdash; only new blocks are allocated.</td>
+          </tr>
+          <tr>
+            <td><code>emplace_back()</code> / <code>emplace_front()</code></td>
+            <td><strong>All invalidated.</strong></td>
+            <td><strong>Survive</strong> &mdash; same reason as <code>push_*</code>.</td>
+          </tr>
+          <tr>
+            <td><code>pop_back()</code> / <code>pop_front()</code></td>
+            <td><strong>All invalidated.</strong></td>
+            <td>Pointers/references to the <em>removed</em> element are invalidated. All others <strong>survive</strong>.</td>
+          </tr>
+          <tr>
+            <td><code>insert_index()</code> / <code>erase_index()</code> (middle)</td>
+            <td><strong>All invalidated.</strong></td>
+            <td>Pointers/references to <em>erased</em> elements are invalidated. Others may or may not survive, depending on whether elements are shifted between blocks.</td>
+          </tr>
+          <tr>
+            <td><code>clear()</code> / <code>clear_destroy()</code></td>
+            <td><strong>All invalidated.</strong></td>
+            <td><strong>All invalidated.</strong></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Why iterators are always invalidated:</strong> A deque iterator
+        internally holds a pointer into the controller (the array of block
+        pointers). When the controller grows &mdash; which can happen on any
+        insertion at the front or back &mdash; the old controller is freed and
+        a new one is allocated. Every iterator that pointed into the old
+        controller is now dangling, even though the elements themselves have
+        not moved.
+      </p>
+      <p>
+        <strong>Why pointers and references survive end insertions:</strong>
+        When a deque grows at an end, it either fills spare capacity in the
+        existing end block or allocates a brand-new block. No existing element
+        is copied or moved. So a pointer or reference obtained before the
+        insertion still points to the same memory location.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/deque.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    ::fast_io::deque&lt;::std::size_t&gt; dq{10zu, 20zu, 30zu};
+
+    ::std::size_t&amp; ref = dq[1zu]; // reference to element 20
+
+    // Iterator is invalidated, but the reference survives:
+    dq.push_back(40zu);
+    // ref is still valid and refers to 20
+
+    dq.push_front(5zu);
+    // ref is STILL valid — elements are never moved on end insertions
+
+    ::fast_io::io::println("ref = ", ref); // 20
+}
+</code></pre>
+      <p>
+        <strong>Contrast with <code>vector</code>:</strong> A
+        <code>vector</code> stores all elements in a single contiguous array.
+        When it grows beyond its capacity, it allocates a new array and
+        <em>moves every element</em>. This invalidates <strong>all</strong>
+        iterators, pointers, and references &mdash; there is no partial
+        stability.
+      </p>
     </section>
 
     <section>
       <h2>Key takeaways</h2>
       <ul>
         <li>A <code>deque</code> uses a map of fixed-size blocks, not one contiguous array.</li>
-        <li>It supports O(1) amortized insertion at both front and back.</li>
+        <li>It supports &Theta;(1) amortized insertion at both front and back, with no element copying.</li>
+        <li><code>deque</code> is not contiguous &mdash; no <code>data()</code>, no direct use with C APIs or SIMD.</li>
+        <li>Each <code>deque</code> allocates at least one ~4 KB block, even for a single element. Avoid as an inner dimension in nested containers.</li>
         <li><code>reserve_front()</code> and <code>reserve_back()</code> control capacity independently.</li>
         <li><code>deque</code> supports random access but with slightly worse cache locality than <code>vector</code>.</li>
         <li>Prefer <code>vector</code> by default; use <code>deque</code> when you need front insertion.</li>
+        <li>Use the <strong>segments API</strong> (<code>segments_count()</code>, <code>nth_segment()</code>, <code>const_nth_segment()</code>) for branch-free, auto-vectorisable iteration over a deque.</li>
+        <li><code>deque</code> iterators are always invalidated on insertion, but pointers and references to existing elements survive <code>push_front()</code> / <code>push_back()</code> &mdash; unlike <code>vector</code>, which invalidates everything on reallocation.</li>
       </ul>
     </section>
 

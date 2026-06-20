@@ -69,7 +69,7 @@
             <td><code>::fast_io::list&lt;T&gt;</code></td>
             <td>/lɪst/</td>
             <td>Doubly-linked nodes (heap)</td>
-            <td>Doubly-linked list. O(1) insertion/removal anywhere once positioned.</td>
+            <td>Doubly-linked list. &Theta;(1) insertion/removal anywhere once positioned.</td>
           </tr>
           <tr>
             <td><code>::fast_io::forward_list&lt;T&gt;</code></td>
@@ -170,7 +170,7 @@
         For most workloads, <strong>contiguous storage wins</strong>. The CPU cache
         line is typically 64 bytes. A <code>vector&lt;::std::size_t&gt;</code> brings 16 elements
         per cache line. A <code>list&lt;::std::size_t&gt;</code> brings only 1 element per cache
-        line (and wastes memory on pointers). So even though a list offers O(1)
+        line (and wastes memory on pointers). So even though a list offers &Theta;(1)
         insertion, the constant factor for traversal can be 10&ndash;50&times; worse.
       </p>
     </section>
@@ -205,12 +205,12 @@
         <li>
           <strong>If the program requires random access to elements, use a
           <code>vector</code> or a <code>deque</code>.</strong>
-          Both provide O(1) <code>operator[]</code>. Linked lists do not.
+          Both provide &Theta;(1) <code>operator[]</code>. Linked lists do not.
         </li>
         <li>
           <strong>If the program needs to insert or delete elements in the middle
           of the container, use a <code>list</code> or <code>forward_list</code>.</strong>
-          Once an iterator is positioned, insertion and removal are O(1).
+          Once an iterator is positioned, insertion and removal are &Theta;(1).
         </li>
         <li>
           <strong>If the program needs to insert or delete elements at the front
@@ -260,7 +260,7 @@
         <li>Sequential containers store elements in insertion order.</li>
         <li>The default container is <code>::fast_io::vector</code>.</li>
         <li>Contiguous containers (<code>vector</code>, <code>array</code>, <code>string</code>) have the best cache locality.</li>
-        <li>Linked containers (<code>list</code>, <code>forward_list</code>) have poor cache locality but O(1) insertion/removal.</li>
+        <li>Linked containers (<code>list</code>, <code>forward_list</code>) have poor cache locality but &Theta;(1) insertion/removal.</li>
         <li><code>deque</code> sits in the middle: chunked blocks with random access and fast growth at both ends.</li>
         <li>Avoid containers entirely when I/O operations can do the job.</li>
         <li>Start with <code>vector</code>; switch only when profiling shows a bottleneck.</li>
