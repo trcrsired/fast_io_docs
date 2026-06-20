@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch12.6: Advanced Distributions - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch12.6: Advanced Distributions</h1>
+
+    <section>
+      <h2>Beyond Uniform Integers</h2>
+      <p>
+        C++'s <code>&lt;random&gt;</code> library provides many distributions beyond
+        <code>uniform_int_distribution</code>. All of these work seamlessly with
+        <code>ibuf_white_hole_engine</code> because it satisfies the UniformRandomBitGenerator
+        requirement.
+      </p>
+      <p>
+        Some commonly used distributions include:
+      </p>
+      <ul>
+        <li><code>::std::uniform_real_distribution</code> &mdash; uniform floating-point values</li>
+        <li><code>::std::normal_distribution</code> &mdash; normal (Gaussian) distribution</li>
+        <li><code>::std::bernoulli_distribution</code> &mdash; boolean values with given probability</li>
+        <li><code>::std::binomial_distribution</code> &mdash; number of successes in n trials</li>
+        <li><code>::std::poisson_distribution</code> &mdash; events in a fixed interval</li>
+        <li><code>::std::exponential_distribution</code> &mdash; time between events</li>
+      </ul>
+      <p>
+        For a complete list and detailed documentation, see
+        <a href="https://en.cppreference.com/cpp/numeric/random" target="_blank" rel="noopener">
+        cppreference &mdash; Random number generation</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Example: Normal Distribution</h2>
+      <p>
+        The normal (Gaussian) distribution is commonly used in statistics, simulations, and machine
+        learning. It produces values clustered around a mean with a given standard deviation.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;random&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    // Create secure random engine
+    ::fast_io::ibuf_white_hole_engine eng;
+
+    // Normal distribution: mean = 0.0, standard deviation = 1.0
+    ::std::normal_distribution&lt;double&gt; dist(0.0, 1.0);
+
+    // Generate 10 values from normal distribution
+    println("Values from N(0, 1):");
+    for (::std::size_t i{}; i != 10; ++i) {
+        println(dist(eng));
+    }
+
+    // Different parameters: mean = 100.0, std dev = 15.0 (IQ scores)
+    ::std::normal_distribution&lt;double&gt; iq_dist(100.0, 15.0);
+    println("\nSimulated IQ scores:");
+    for (::std::size_t i{}; i != 5; ++i) {
+        println(iq_dist(eng));
+    }
+}
+</code></pre>
+      <p>
+        The distribution handles all the complexity of transforming uniform random bits into
+        normally-distributed values using algorithms like Box-Muller or Ziggurat.
+      </p>
+    </section>
+
+    <section>
+      <h2>Example: Bernoulli Distribution</h2>
+      <p>
+        The Bernoulli distribution produces boolean values (<code>true</code> or <code>false</code>)
+        with a given probability. It's useful for simulating coin flips, yes/no decisions, or any
+        binary outcome.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;random&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    ::fast_io::ibuf_white_hole_engine eng;
+
+    // Fair coin: 50% heads
+    ::std::bernoulli_distribution fair_coin(0.5);
+
+    // Biased coin: 70% heads
+    ::std::bernoulli_distribution biased_coin(0.7);
+
+    println("Fair coin flips (50% heads):");
+    for (::std::size_t i{}; i != 10; ++i) {
+        print(fair_coin(eng) ? "H" : "T", " ");
+    }
+    println();
+
+    println("Biased coin flips (70% heads):");
+    for (::std::size_t i{}; i != 10; ++i) {
+        print(biased_coin(eng) ? "H" : "T", " ");
+    }
+    println();
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Using Distributions Correctly</h2>
+      <p>
+        Remember the key principles:
+      </p>
+      <ul>
+        <li>
+          <strong>Never use modulo</strong> to generate values in a range. Always use the
+          appropriate distribution.
+        </li>
+        <li>
+          <strong>Choose the right distribution</strong> for your use case &mdash; uniform, normal,
+          Bernoulli, etc.
+        </li>
+        <li>
+          <strong>Use <code>ibuf_white_hole_engine</code></strong> for secure, automatic seeding.
+        </li>
+        <li>
+          For reproducible results, seed <code>::std::mt19937_64</code> with
+          <code>::std::seed_seq</code> from the secure engine.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Further Reading</h2>
+      <p>
+        For complete documentation on all available distributions, their parameters, and usage
+        examples, see:
+      </p>
+      <ul>
+        <li>
+          <a href="https://en.cppreference.com/cpp/numeric/random" target="_blank" rel="noopener">
+          cppreference &mdash; Random number generation</a>
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          C++ provides many distributions beyond <code>uniform_int_distribution</code>, including
+          <code>normal_distribution</code>, <code>bernoulli_distribution</code>, and many others.
+        </li>
+        <li>
+          All distributions work seamlessly with <code>ibuf_white_hole_engine</code>.
+        </li>
+        <li>
+          Choose the appropriate distribution for your use case &mdash; don't manually transform
+          uniform values.
+        </li>
+        <li>
+          For complete documentation, see
+          <a href="https://en.cppreference.com/cpp/numeric/random" target="_blank" rel="noopener">
+          cppreference</a>.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/12.random/05.security/" class="prev-button">&larr; Ch12.5: Security</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/12.random/07.examples/" class="next-button">Ch12.7: Examples &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

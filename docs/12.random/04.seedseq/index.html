@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch12.4: Seeding Reproducible Engines with seed_seq - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch12.4: Seeding Reproducible Engines with seed_seq</h1>
+
+    <section>
+      <h2>When You Need Reproducible Randomness</h2>
+      <p>
+        Sometimes you need a <strong>reproducible</strong> random number generator &mdash; for
+        debugging, testing, or simulations where you want to reproduce the same sequence of random
+        numbers. In these cases, you can't use <code>ibuf_white_hole_engine</code> directly because
+        it's designed to be unpredictable.
+      </p>
+      <p>
+        Instead, use a fast PRNG like <code>::std::mt19937_64</code> and seed it properly. The
+        correct way to seed such engines is with <code>::std::seed_seq</code>, which takes multiple
+        random values from a secure source and combines them into a high-quality seed.
+      </p>
+    </section>
+
+    <section>
+      <h2>Example: Seeding mt19937_64 for Reproducible Randomness</h2>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;random&gt;
+#include &lt;array&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    // Use secure random to generate seed data
+    ::fast_io::ibuf_white_hole_engine secure_eng;
+
+    // Generate enough random values for a high-quality seed
+    ::std::array&lt;::std::uint32_t, 8&gt; seed_data;
+    for (auto&amp; val : seed_data) {
+        val = static_cast&lt;::std::uint32_t&gt;(secure_eng());
+    }
+
+    // Create seed_seq from random data
+    ::std::seed_seq seed(seed_data.begin(), seed_data.end());
+
+    // Seed the Mersenne Twister engine
+    ::std::mt19937_64 reproducible_eng(seed);
+
+    // Use with distributions
+    ::std::uniform_int_distribution&lt;::std::int64_t&gt; dist(1, 100);
+
+    // This sequence is now reproducible if you save and reuse the seed_data
+    for (::std::size_t i{}; i != 5; ++i) {
+        println("Random number: ", dist(reproducible_eng));
+    }
+
+    // For true reproducibility, save seed_data to a file and reload it
+    // Then the same sequence can be reproduced later
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Common Mistakes to Avoid</h2>
+      <div class="warning">
+        <strong>Never use <code>::std::mt19937_64</code> with its default constructor for anything
+        important!</strong> The default seed is fixed (typically 5489u), which means every program
+        run produces the exact same sequence of "random" numbers. This is predictable and insecure.
+      </div>
+
+      <div class="warning">
+        <strong>Never seed with <code>std::time(nullptr)</code>!</strong> This is also predictable
+        and provides very low entropy. Always use <code>::std::seed_seq</code> with values from a
+        secure source like <code>ibuf_white_hole_engine</code>.
+      </div>
+
+      <h3>Bad Examples (Don't Do This)</h3>
+<pre><code class="language-cpp">
+// WRONG: Default seed is predictable
+::std::mt19937_64 eng;  // Always produces the same sequence!
+
+// WRONG: time(nullptr) is low-entropy and predictable
+::std::mt19937_64 eng(::std::time(nullptr));  // Insecure!
+
+// WRONG: Single value seed doesn't use full state space
+::std::mt19937_64 eng(42);  // Only 32 bits of seed for 19937-bit state!
+</code></pre>
+
+      <h3>Good Example (Do This)</h3>
+<pre><code class="language-cpp">
+// CORRECT: Use seed_seq with multiple secure random values
+::fast_io::ibuf_white_hole_engine secure_eng;
+::std::array&lt;::std::uint32_t, 8&gt; seed_data;
+for (auto&amp; val : seed_data) {
+    val = static_cast&lt;::std::uint32_t&gt;(secure_eng());
+}
+::std::seed_seq seed(seed_data.begin(), seed_data.end());
+::std::mt19937_64 eng(seed);  // High-quality, secure seed
+</code></pre>
+    </section>
+
+    <section>
+      <h2>When to Use Each Approach</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Use Case</th>
+            <th>Recommended Approach</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Cryptographic keys, tokens, passwords</td>
+            <td><code>ibuf_white_hole_engine</code> directly</td>
+          </tr>
+          <tr>
+            <td>Security-sensitive applications</td>
+            <td><code>ibuf_white_hole_engine</code> directly</td>
+          </tr>
+          <tr>
+            <td>Debugging random algorithms</td>
+            <td><code>::std::mt19937_64</code> with <code>::std::seed_seq</code></td>
+          </tr>
+          <tr>
+            <td>Unit tests with deterministic behavior</td>
+            <td><code>::std::mt19937_64</code> with <code>::std::seed_seq</code></td>
+          </tr>
+          <tr>
+            <td>Scientific simulations (reproducible)</td>
+            <td><code>::std::mt19937_64</code> with <code>::std::seed_seq</code></td>
+          </tr>
+          <tr>
+            <td>Games (save/load random state)</td>
+            <td><code>::std::mt19937_64</code> with <code>::std::seed_seq</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          For reproducible randomness, use <code>::std::mt19937_64</code> seeded with
+          <code>::std::seed_seq</code> initialized from <code>ibuf_white_hole_engine</code>.
+        </li>
+        <li>
+          <strong>Never use <code>::std::mt19937_64</code> with default seed</strong> &mdash; it's
+          predictable.
+        </li>
+        <li>
+          <strong>Never seed with <code>std::time(nullptr)</code></strong> &mdash; low entropy and
+          predictable.
+        </li>
+        <li>
+          Use <code>ibuf_white_hole_engine</code> directly for security-sensitive applications where
+          unpredictability is required.
+        </li>
+        <li>
+          Save the seed data if you need to reproduce the exact same sequence later.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/12.random/03.ibufwhitehole/" class="prev-button">&larr; Ch12.3: ibuf_white_hole_engine</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/12.random/05.security/" class="next-button">Ch12.5: Security &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

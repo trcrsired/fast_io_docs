@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch12.5: Security Considerations - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch12.5: Security Considerations</h1>
+
+    <section>
+      <h2>Why These Random Sources Are Secure</h2>
+      <p>
+        The <code>ibuf_white_hole_engine</code> and platform-specific random sources are suitable
+        for cryptographic use because they:
+      </p>
+      <ul>
+        <li>
+          <strong>Read from OS entropy sources:</strong> They use the operating system's
+          cryptographically secure random number generator, which collects entropy from hardware
+          sources (timing jitter, hardware random number generators, etc.).
+        </li>
+        <li>
+          <strong>Are unpredictable:</strong> Even if an attacker observes all previous outputs,
+          they cannot predict future outputs.
+        </li>
+        <li>
+          <strong>Have no hidden state:</strong> There's no global state that can be compromised.
+          Each engine instance is independent and thread-safe.
+        </li>
+        <li>
+          <strong>Securely clear memory:</strong> The internal buffer is wiped when the engine is
+          destroyed, protecting cryptographic key material from memory dumps.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>When to Use</h2>
+      <ul>
+        <li>Generating cryptographic keys</li>
+        <li>Creating secure tokens and session IDs</li>
+        <li>Salting passwords</li>
+        <li>Seeding PRNG engines for simulations or games</li>
+        <li>Any security-sensitive application</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>When Not to Use Directly</h2>
+      <ul>
+        <li>
+          <strong>High-performance applications:</strong> When you need millions of random numbers
+          per second, use a fast PRNG like <code>::std::mt19937</code> seeded from a secure source
+          instead.
+        </li>
+        <li>
+          <strong>Reproducible results:</strong> When you need to reproduce the same sequence for
+          debugging or testing, use a seeded PRNG with a fixed seed saved to a file.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Common Mistake: Modulo Bias</h2>
+      <p>
+        <strong>Never use modulo (<code>value % range</code>) to generate random numbers in a
+        range.</strong> This creates biased distributions due to the pigeonhole principle.
+      </p>
+      <p>
+        Always use <code>::std::uniform_int_distribution</code> or other distributions from
+        <code>&lt;random&gt;</code>. The distribution uses rejection sampling to ensure each value
+        in the range has exactly the same probability.
+      </p>
+      <p>
+        See <a href="/docs/12.random/02.pigeonhole/">Ch12.2: The Pigeonhole Principle</a> for
+        details.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <code>ibuf_white_hole_engine</code> is cryptographically secure and suitable for
+          cryptographic applications.
+        </li>
+        <li>
+          Use it for keys, tokens, passwords, and any security-sensitive application.
+        </li>
+        <li>
+          For high-performance or reproducible needs, seed a fast PRNG with
+          <code>::std::seed_seq</code> from the secure engine.
+        </li>
+        <li>
+          <strong>Never use modulo</strong> to generate numbers in a range &mdash; use distributions.
+        </li>
+        <li>
+          The engine securely clears its buffer on destruction, protecting sensitive data.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/12.random/04.seedseq/" class="prev-button">&larr; Ch12.4: seed_seq</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/12.random/06.distributions/" class="next-button">Ch12.6: Distributions &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

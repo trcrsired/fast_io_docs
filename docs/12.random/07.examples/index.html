@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch12.7: Real-World Examples - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch12.7: Real-World Examples</h1>
+
+    <section>
+      <h2>Example 1: Password Generator</h2>
+      <p>
+        This example generates random passwords with lengths between 12 and 20 characters, using
+        alphanumeric characters (0-9, a-z, A-Z). It demonstrates using multiple distributions and
+        mapping random values to character sets.
+      </p>
+      <p>
+        <strong>Source:</strong> <code>examples/0014.random/password.cc</code>
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;random&gt;
+
+using namespace fast_io::io;
+
+int main(int argc, char **argv)
+{
+    ::std::size_t n{100};
+    if (1 &lt; argc)
+    {
+        n = fast_io::to&lt;::std::size_t&gt;(fast_io::mnp::os_c_str(argv[1]));
+    }
+
+    fast_io::u8obuf_file obf(u"password.txt");
+    fast_io::ibuf_white_hole_engine eng;
+
+    // Distribution for character selection (0-61 maps to 62 characters)
+    ::std::uniform_int_distribution&lt;::std::size_t&gt; ud(0, 61);
+
+    // Distribution for password length (12-20 characters)
+    ::std::uniform_int_distribution&lt;::std::size_t&gt; rlen(12, 20);
+
+    for (::std::size_t i{}; i != n; ++i)
+    {
+        // Generate a password of random length
+        for (::std::size_t j{}, s(rlen(eng)); j != s; ++j)
+        {
+            char8_t ch(static_cast&lt;char8_t&gt;(ud(eng)));
+
+            // Map 0-9 to '0'-'9'
+            if (ch &lt; 10u)
+            {
+                ch += u8'0';
+            }
+            // Map 10-35 to 'a'-'z'
+            else if (ch &lt; 36u)
+            {
+                ch = ch - 10u + u8'a';
+            }
+            // Map 36-61 to 'A'-'Z'
+            else
+            {
+                ch = ch - 36u + u8'A';
+            }
+
+            print(obf, fast_io::mnp::chvw(ch));
+        }
+        println(obf);
+    }
+}
+</code></pre>
+      <p>
+        <strong>Key points:</strong>
+      </p>
+      <ul>
+        <li>
+          Uses two distributions: one for character selection, one for password length.
+        </li>
+        <li>
+          Maps the uniform distribution [0, 61] to character ranges (digits, lowercase, uppercase).
+        </li>
+        <li>
+          Each password has a random length between 12 and 20 characters.
+        </li>
+        <li>
+          Uses <code>ibuf_white_hole_engine</code> for cryptographically secure randomness.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Example 2: Birth Simulation with Bernoulli Distribution</h2>
+      <p>
+        This example simulates a scenario where parents keep having children until they have a boy.
+        It uses the natural male-to-female birth ratio (approximately 1.03:1) and demonstrates the
+        <code>bernoulli_distribution</code> for modeling binary outcomes with a given probability.
+      </p>
+      <p>
+        <strong>Source:</strong> <code>examples/0014.random/stop_born_child_until_boy.cc</code>
+      </p>
+<pre><code class="language-cpp">
+#include &lt;random&gt;
+#include &lt;fast_io.h&gt;
+#include &lt;map&gt;
+
+using namespace fast_io::io;
+
+int main(int argc, char **argv)
+{
+    using namespace fast_io::mnp;
+
+    if (argc &lt; 2)
+    {
+        if (argc == 0)
+        {
+            return 1;
+        }
+        perr("Usage: ", os_c_str(*argv), " N\n");
+        return 1;
+    }
+
+    // Natural male-to-female ratio is approximately 1.03:1
+    constexpr auto natural_male_to_female_ratio{1.03};
+    constexpr auto total_ratio{natural_male_to_female_ratio + 1.0};
+    constexpr auto male_probability{natural_male_to_female_ratio / total_ratio};
+
+    fast_io::ibuf_white_hole_engine engine;
+
+    // Bernoulli distribution with probability of male birth
+    ::std::bernoulli_distribution dis(male_probability);
+
+    ::std::uint_least64_t const n{::fast_io::to&lt;::std::uint_least64_t&gt;(os_c_str(argv[1]))};
+    ::std::map&lt;::std::uint_least64_t, ::std::uint_least64_t&gt; map;
+    ::std::uint_least64_t total_population{};
+
+    // Simulate n families
+    for (::std::uint_least64_t i{}; i != n; ++i)
+    {
+        ::std::uint_least64_t j{1};
+
+        // Keep having children until a boy is born
+        for (; !dis(engine); ++j)
+            ;
+
+        ++map[j];
+        total_population += j;
+    }
+
+    fast_io::out_buf_type obf(fast_io::out());
+
+    // Print distribution of family sizes
+    for (auto const &amp;e : map)
+    {
+        print(obf, e.first, " ", e.second, " (",
+              percentage_conventional(e.second, n), ")\n");
+    }
+
+    ::std::uint_least64_t const females{total_population - n};
+    println(obf, "males:", n, "\tfemales:", females,
+            "\n"
+            "total population:",
+            total_population,
+            "\n"
+            "Sex Ratio:",
+            percentage_sex_ratio(n, females));
+}
+</code></pre>
+      <p>
+        <strong>Key points:</strong>
+      </p>
+      <ul>
+        <li>
+          Uses <code>bernoulli_distribution</code> with probability ≈ 0.507 (natural male birth rate).
+        </li>
+        <li>
+          Simulates families having children until a boy is born.
+        </li>
+        <li>
+          Tracks how many children each family has and computes statistics.
+        </li>
+        <li>
+          Demonstrates using distributions for statistical simulations.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Running the Examples</h2>
+      <p>
+        To compile and run these examples:
+      </p>
+<pre><code class="language-bash">
+# Compile password generator
+g++ -std=c++20 -O2 -o password password.cc -I/path/to/fast_io/include
+
+# Generate 50 passwords
+./password 50
+
+# Compile birth simulation
+g++ -std=c++20 -O2 -o birth_sim stop_born_child_until_boy.cc -I/path/to/fast_io/include
+
+# Simulate 10000 families
+./birth_sim 10000
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Percentage Manipulators Reference</h2>
+      <p>
+        The examples above use several percentage-related manipulators from <code>fast_io::mnp</code>.
+        Here's a complete reference:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example Output</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>percentage_conventional(num, den)</code></td>
+            <td>Calculates <code>num/den * 100</code> and formats as percentage with 2 decimal places</td>
+            <td><code>percentage_conventional(1, 4)</code> → <code>25.00%</code></td>
+          </tr>
+          <tr>
+            <td><code>comma_percentage_conventional(num, den)</code></td>
+            <td>Same as above, but uses comma as decimal separator</td>
+            <td><code>comma_percentage_conventional(1, 4)</code> → <code>25,00%</code></td>
+          </tr>
+          <tr>
+            <td><code>percentage_sex_ratio(male, female)</code></td>
+            <td>Calculates male-to-female ratio as <code>X.XX:100</code> format (males per 100 females)</td>
+            <td><code>percentage_sex_ratio(103, 100)</code> → <code>103.00:100</code></td>
+          </tr>
+          <tr>
+            <td><code>comma_percentage_sex_ratio(male, female)</code></td>
+            <td>Same as above, but uses comma as decimal separator</td>
+            <td><code>comma_percentage_sex_ratio(103, 100)</code> → <code>103,00:100</code></td>
+          </tr>
+          <tr>
+            <td><code>base_percentage_conventional&lt;base&gt;(num, den)</code></td>
+            <td>Percentage in different base (2-36)</td>
+            <td><code>base_percentage_conventional&lt;16&gt;(1, 4)</code> → <code>19.00%</code></td>
+          </tr>
+          <tr>
+            <td><code>base_percentage_sex_ratio&lt;base&gt;(male, female)</code></td>
+            <td>Sex ratio in different base (2-36)</td>
+            <td><code>base_percentage_sex_ratio&lt;16&gt;(103, 100)</code> → <code>67.00:100</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Template parameters:</strong> All manipulators accept optional template parameters:
+        <code>&lt;uppercase, full, showpos&gt;</code> to control formatting.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          Real-world applications often combine multiple distributions (uniform for selection,
+          uniform for size, Bernoulli for binary outcomes).
+        </li>
+        <li>
+          <code>ibuf_white_hole_engine</code> provides cryptographically secure randomness suitable
+          for password generation.
+        </li>
+        <li>
+          Distributions like <code>bernoulli_distribution</code> make it easy to model probabilistic
+          events with specific probabilities.
+        </li>
+        <li>
+          Mapping uniform distributions to character sets is a common pattern in password generators.
+        </li>
+        <li>
+          Statistical simulations benefit from using the correct distribution rather than manual
+          transformations.
+        </li>
+        <li>
+          <strong>Sex ratio misconception:</strong> The simulation above demonstrates that even if
+          every family keeps having children until they get a boy, the overall sex ratio at birth
+          remains at the natural ratio (approximately 103:100 male-to-female). This is a common
+          misunderstanding &mdash; stopping rules do not affect the underlying probability. In large
+          samples, the ratio will always converge to the natural biological ratio. The only real-world
+          causes of skewed sex ratios are sex-selective abortion, female infanticide, and other
+          sex-selective technologies, not family planning decisions.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/12.random/06.distributions/" class="prev-button">&larr; Ch12.6: Distributions</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

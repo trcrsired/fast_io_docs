@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch12.3: The ibuf_white_hole_engine - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch12.3: The ibuf_white_hole_engine</h1>
+
+    <section>
+      <h2>What is ibuf_white_hole_engine?</h2>
+      <p>
+        <code>::fast_io::ibuf_white_hole_engine</code> is a cryptographically secure random number
+        engine that reads directly from the operating system's entropy source. The name "white hole"
+        is a metaphor: unlike a black hole that absorbs everything, a white hole <em>emits</em>
+        random bytes.
+      </p>
+      <p>
+        This engine satisfies the C++ <strong>UniformRandomBitGenerator</strong> requirement, which
+        means it works seamlessly with all distributions from <code>&lt;random&gt;</code>, such as
+        <code>::std::uniform_int_distribution</code>, <code>::std::bernoulli_distribution</code>,
+        and others.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Features</h2>
+      <ul>
+        <li>
+          <strong>Buffered I/O:</strong> Reads 8 KB at a time from the OS entropy source, amortizing
+          syscall overhead. Most calls to generate random numbers are just a pointer bump and
+          <code>memcpy</code> &mdash; no syscall.
+        </li>
+        <li>
+          <strong>Secure memory clearing:</strong> The internal buffer is securely wiped when the
+          engine is destroyed, protecting cryptographic key material.
+        </li>
+        <li>
+          <strong>Automatic platform selection:</strong> Uses the best available entropy source for
+          your platform (<code>getrandom()</code>, <code>/dev/urandom</code>,
+          <code>RtlGenRandom</code>, etc.).
+        </li>
+        <li>
+          <strong>Standards-conforming:</strong> Works with any C++ distribution from
+          <code>&lt;random&gt;</code>.
+        </li>
+        <li>
+          <strong>Thread-safe:</strong> Each engine instance is independent. Multiple threads can
+          use separate engine instances without synchronization.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Basic Usage</h2>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;random&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    // Create a cryptographically secure random engine
+    ::fast_io::ibuf_white_hole_engine eng;
+
+    // Use with uniform_int_distribution
+    ::std::uniform_int_distribution&lt;::std::uint32_t&gt; dist(1, 100);
+
+    // Generate random numbers
+    for (::std::size_t i{}; i != 10; ++i) {
+        println("Random number in [1, 100]: ", dist(eng));
+    }
+
+    // Use with bernoulli_distribution for true/false
+    ::std::bernoulli_distribution coin_flip(0.5);
+    for (::std::size_t i{}; i != 5; ++i) {
+        bool heads = coin_flip(eng);
+        println("Coin flip: ", heads ? "heads" : "tails");
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>How It Works</h2>
+      <p>
+        The engine is implemented as a type alias:
+      </p>
+<pre><code class="language-cpp">
+using ibuf_white_hole_engine = basic_white_hole_engine&lt;ibuf_white_hole&gt;;
+</code></pre>
+      <p>
+        Where <code>ibuf_white_hole</code> is an input-buffered wrapper around the platform-specific
+        random source. The buffer mode includes <code>buffer_mode::secure_clear</code>, which ensures
+        the buffer is wiped when destroyed.
+      </p>
+      <p>
+        The <code>operator()()</code> method reads <code>sizeof(::std::size_t)</code> bytes from the
+        buffered source and returns them as a <code>::std::size_t</code>. Most calls are served from
+        the buffer without a syscall.
+      </p>
+    </section>
+
+    <section>
+      <h2>When to Use</h2>
+      <p>
+        Use <code>ibuf_white_hole_engine</code> when:
+      </p>
+      <ul>
+        <li>You need cryptographically secure random numbers</li>
+        <li>Generating cryptographic keys, tokens, or session IDs</li>
+        <li>Salting passwords</li>
+        <li>Any security-sensitive application</li>
+        <li>You don't need reproducible randomness</li>
+      </ul>
+      <p>
+        For reproducible randomness (debugging, testing, simulations), see
+        <a href="/docs/12.random/04.seedseq/">Ch12.4: Seeding Reproducible Engines</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <code>ibuf_white_hole_engine</code> is a cryptographically secure, buffered random engine
+          that automatically uses the best platform-specific entropy source.
+        </li>
+        <li>
+          It satisfies the UniformRandomBitGenerator requirement and works directly with all C++
+          distributions.
+        </li>
+        <li>
+          The 8 KB buffer amortizes syscall overhead, making it fast despite reading from the OS.
+        </li>
+        <li>
+          The buffer is securely cleared on destruction, protecting sensitive data.
+        </li>
+        <li>
+          Use it for security-sensitive applications where unpredictability is required.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/12.random/02.pigeonhole/" class="prev-button">&larr; Ch12.2: Pigeonhole Principle</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/12.random/04.seedseq/" class="next-button">Ch12.4: seed_seq &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

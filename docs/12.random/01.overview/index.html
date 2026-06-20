@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch12.1: Overview and Key Concepts - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch12.1: Overview and Key Concepts</h1>
+
+    <section>
+      <h2>Why Use fast_io's Random Engine?</h2>
+      <p>
+        C++'s <code>&lt;random&gt;</code> library provides powerful tools, but using them correctly
+        requires care:
+      </p>
+      <ul>
+        <li>
+          <strong>Manual seeding is error-prone:</strong> You must seed generators
+          like <code>::std::mt19937</code> with a truly random seed, or all outputs are predictable.
+          Using <code>::std::time(nullptr)</code> is insecure and low-entropy.
+        </li>
+        <li>
+          <strong>Modulo bias:</strong> Converting random values to a range using modulo
+          (<code>value % range</code>) creates biased distributions due to the pigeonhole principle.
+        </li>
+        <li>
+          <strong>Platform selection:</strong> You need to know which OS-specific API to call
+          (<code>getrandom()</code>, <code>/dev/urandom</code>, <code>RtlGenRandom</code>, etc.).
+        </li>
+      </ul>
+      <p>
+        <code>fast_io</code>'s <code>ibuf_white_hole_engine</code> solves all these problems by
+        providing a cryptographically secure, buffered engine that automatically uses the best
+        platform-specific entropy source and works directly with C++ distributions.
+      </p>
+    </section>
+
+    <section>
+      <h2>Platform-Specific Random Sources</h2>
+      <p>
+        <code>fast_io</code> provides several random number sources, each optimized for its platform:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Platform</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>linux_getrandom</code></td>
+            <td>Linux</td>
+            <td><code>getrandom()</code> system call</td>
+          </tr>
+          <tr>
+            <td><code>posix_dev_urandom</code></td>
+            <td>POSIX systems</td>
+            <td><code>/dev/urandom</code> device</td>
+          </tr>
+          <tr>
+            <td><code>bsd_arc4random</code></td>
+            <td>BSD systems</td>
+            <td><code>arc4random()</code> function</td>
+          </tr>
+          <tr>
+            <td><code>win32_crypt_gen_random</code></td>
+            <td>Windows</td>
+            <td><code>CryptGenRandom()</code> API</td>
+          </tr>
+          <tr>
+            <td><code>wasi_random_get</code></td>
+            <td>WASI (WebAssembly)</td>
+            <td>WASI random API</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        All these sources implement the <strong>input stream</strong> concept, meaning you can read
+        random bytes from them using the same API as any other input stream.
+      </p>
+    </section>
+
+    <section>
+      <h2>Reading Raw Random Bytes</h2>
+      <p>
+        You can read raw random bytes from these sources using <code>read_all</code> or other input
+        operations. This is useful when you need random data for seeds, tokens, or other purposes.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    // Create a random source (platform-specific)
+#if defined(__linux__)
+    ::fast_io::linux_getrandom rng;
+#elif defined(_WIN32)
+    ::fast_io::win32_crypt_gen_random rng;
+#else
+    ::fast_io::posix_dev_urandom rng;
+#endif
+
+    // Read 16 random bytes
+    ::std::byte buffer[16];
+    ::fast_io::io::read_all(rng, buffer, buffer + 16);
+
+    // Print the random bytes
+    println("Random bytes:");
+    for (::std::size_t i{}; i != 16; ++i) {
+        print(::fast_io::mnp::hex(::fast_io::mnp::upper(buffer[i])), " ");
+    }
+    println();
+}
+</code></pre>
+      <p>
+        However, for most use cases, you should use <code>ibuf_white_hole_engine</code> with
+        distributions instead of reading raw bytes directly.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/12.random/" class="prev-button">&larr; Ch12: Random Number Generation</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/12.random/02.pigeonhole/" class="next-button">Ch12.2: Pigeonhole Principle &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
