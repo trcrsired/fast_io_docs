@@ -24,7 +24,188 @@
     </section>
 
     <section>
-      <h2>1. write_some / write_all</h2>
+      <h2>1. read_some / read_all</h2>
+      <p>
+        <code>read_some</code> attempts to read into a contiguous buffer from a
+        device. It <strong>may read fewer bytes than requested</strong> and
+        returns a pointer past the last byte read. This mirrors the
+        semantics of POSIX <code>read()</code> &mdash; a short read is not an
+        error (it may indicate EOF or a non-blocking device).
+      </p>
+      <p>
+        <code>read_all</code> loops internally until the buffer is completely
+        filled or EOF/error occurs. This is what you usually want when reading
+        a known amount of data.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    ::fast_io::ibuf_file ibf{"input.txt"};
+
+    char buffer[1024];
+    char* first{buffer};
+    char* last{buffer + sizeof(buffer)};
+
+    // read_some: may do a partial read.
+    // Returns pointer past the last byte read.
+    char* next = ::fast_io::operations::read_some(ibf, first, last);
+
+    // Process what was read
+    ::std::size_t bytes_read = static_cast<::std::size_t>(next - first);
+    println("Read ", bytes_read, " bytes");
+
+    // Read more with read_all (loops until buffer is full or EOF)
+    ::fast_io::operations::read_all(ibf, next, last);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. read_some_bytes / read_all_bytes</h2>
+      <p>
+        Identical to <code>read_some</code> / <code>read_all</code> but
+        operate on <code>::std::byte*</code> instead of
+        <code>char*</code>. Use these for binary data.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;cstddef&gt;
+
+int main() {
+    ::fast_io::ibuf_file ibf{"binary.bin"};
+
+    ::std::byte data[256];
+
+    ::std::byte* first{data};
+    ::std::byte* last{data + 256uz};
+
+    // Read all bytes (loops until buffer is full or EOF)
+    ::fast_io::operations::read_all_bytes(ibf, first, last);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. pread_some / pread_all</h2>
+      <p>
+        <strong>Positional reads</strong> &mdash; read at a given file offset
+        without changing the file&rsquo;s current position. This mirrors
+        POSIX <code>pread()</code>. Useful for concurrent readers that must
+        not disturb each other&rsquo;s file position.
+      </p>
+      <p>
+        The signature takes an extra <code>offset</code> parameter (in bytes
+        from the start of the file).
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    ::fast_io::ibuf_file ibf{"data.bin"};
+
+    char block0[4];
+    char block1[4];
+
+    // Read 4 bytes from offset 1024 without moving the file position
+    ::fast_io::operations::pread_all(ibf, block1, block1 + 4uz, 1024uz);
+
+    // Read 4 bytes from offset 0; file position is still 0
+    ::fast_io::operations::pread_all(ibf, block0, block0 + 4uz, 0uz);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. pread_some_bytes / pread_all_bytes</h2>
+      <p>
+        Same as <code>pread_some</code> / <code>pread_all</code> but accept
+        <code>::std::byte*</code>. Use for binary positional reads.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;cstddef&gt;
+
+int main() {
+    ::fast_io::ibuf_file ibf{"binary.bin"};
+
+    ::std::byte header[4];
+
+    // Read PNG header from offset 0
+    ::fast_io::operations::pread_all_bytes(ibf, header, header + 4uz, 0uz);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. scatter_read_some / scatter_read_all</h2>
+      <p>
+        <strong>Scatter (gather) reads</strong> read into multiple non-contiguous
+        buffers in a single syscall &mdash; equivalent to POSIX
+        <code>readv()</code>. This avoids copying data into a temporary
+        contiguous buffer and then distributing it.
+      </p>
+      <p>
+        The argument is a span of <code>::fast_io::io_scatter_t</code>, each
+        describing one base/length pair.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    ::fast_io::ibuf_file ibf{"scatter.txt"};
+
+    char part1[10];
+    char part2[10];
+    char part3[10];
+
+    ::fast_io::io_scatter_t const scatters[]{
+        {part1, sizeof(part1)},
+        {part2, sizeof(part2)},
+        {part3, sizeof(part3)},
+    };
+
+    // One syscall reads into all three buffers
+    ::fast_io::operations::scatter_read_all(ibf, scatters, scatters + 3uz);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>6. scatter_pread_some / scatter_pread_all</h2>
+      <p>
+        Combines scatter reads with positional reads &mdash; reads into multiple
+        buffers from a given offset without changing the file position. This is
+        the scatter equivalent of <code>preadv()</code>.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    ::fast_io::ibuf_file ibf{"scatter_pos.bin"};
+
+    char part1[3];
+    char part2[3];
+
+    ::fast_io::io_scatter_t const scatters[]{
+        {part1, 3uz},
+        {part2, 3uz},
+    };
+
+    // Read 6 bytes from offset 512 into two buffers, file position unchanged
+    ::fast_io::operations::scatter_pread_all(ibf, scatters, scatters + 2uz, 512uz);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>8. write_some / write_all</h2>
       <p>
         <code>write_some</code> attempts to write a contiguous buffer to a
         device. It <strong>may write fewer bytes than requested</strong> and
@@ -58,7 +239,7 @@ int main() {
     </section>
 
     <section>
-      <h2>2. write_some_bytes / write_all_bytes</h2>
+      <h2>9. write_some_bytes / write_all_bytes</h2>
       <p>
         Identical to <code>write_some</code> / <code>write_all</code> but
         operate on <code>::std::byte const*</code> instead of
@@ -87,7 +268,7 @@ int main() {
     </section>
 
     <section>
-      <h2>3. pwrite_some / pwrite_all</h2>
+      <h2>10. pwrite_some / pwrite_all</h2>
       <p>
         <strong>Positional writes</strong> &mdash; write at a given file offset
         without changing the file&rsquo;s current position. This mirrors
@@ -119,7 +300,7 @@ int main() {
     </section>
 
     <section>
-      <h2>4. pwrite_some_bytes / pwrite_all_bytes</h2>
+      <h2>11. pwrite_some_bytes / pwrite_all_bytes</h2>
       <p>
         Same as <code>pwrite_some</code> / <code>pwrite_all</code> but accept
         <code>::std::byte const*</code>. Use for binary positional writes.
@@ -144,7 +325,7 @@ int main() {
     </section>
 
     <section>
-      <h2>5. scatter_write_some / scatter_write_all</h2>
+      <h2>12. scatter_write_some / scatter_write_all</h2>
       <p>
         <strong>Scatter (gather) writes</strong> write multiple non-contiguous
         buffers in a single syscall &mdash; equivalent to POSIX
@@ -179,7 +360,7 @@ int main() {
     </section>
 
     <section>
-      <h2>6. scatter_pwrite_some / scatter_pwrite_all</h2>
+      <h2>13. scatter_pwrite_some / scatter_pwrite_all</h2>
       <p>
         Combines scatter writes with positional writes &mdash; writes multiple
         buffers at a given offset without changing the file position. This is
@@ -208,7 +389,7 @@ int main() {
     </section>
 
     <section>
-      <h2>7. char_put</h2>
+      <h2>14. char_put</h2>
       <p>
         Writes a single character. All write variants also have a
         <code>char_put</code> counterpart for emitting one character at a time.
@@ -235,12 +416,13 @@ int main() {
     </section>
 
     <section>
-      <h2>8. Complete Reference Table</h2>
+      <h2>15. Complete Reference Table</h2>
       <table>
         <thead>
           <tr>
             <th>Operation</th>
             <th>Pointer Type</th>
+            <th>Read/Write</th>
             <th>Positional?</th>
             <th>Scatter?</th>
             <th>Loops?</th>
@@ -248,8 +430,105 @@ int main() {
         </thead>
         <tbody>
           <tr>
+            <td><code>read_some</code></td>
+            <td><code>char*</code></td>
+            <td>Read</td>
+            <td>No</td>
+            <td>No</td>
+            <td>No (partial OK)</td>
+          </tr>
+          <tr>
+            <td><code>read_all</code></td>
+            <td><code>char*</code></td>
+            <td>Read</td>
+            <td>No</td>
+            <td>No</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><code>read_some_bytes</code></td>
+            <td><code>::std::byte*</code></td>
+            <td>Read</td>
+            <td>No</td>
+            <td>No</td>
+            <td>No (partial OK)</td>
+          </tr>
+          <tr>
+            <td><code>read_all_bytes</code></td>
+            <td><code>::std::byte*</code></td>
+            <td>Read</td>
+            <td>No</td>
+            <td>No</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><code>pread_some</code></td>
+            <td><code>char*</code></td>
+            <td>Read</td>
+            <td>Yes</td>
+            <td>No</td>
+            <td>No (partial OK)</td>
+          </tr>
+          <tr>
+            <td><code>pread_all</code></td>
+            <td><code>char*</code></td>
+            <td>Read</td>
+            <td>Yes</td>
+            <td>No</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><code>pread_some_bytes</code></td>
+            <td><code>::std::byte*</code></td>
+            <td>Read</td>
+            <td>Yes</td>
+            <td>No</td>
+            <td>No (partial OK)</td>
+          </tr>
+          <tr>
+            <td><code>pread_all_bytes</code></td>
+            <td><code>::std::byte*</code></td>
+            <td>Read</td>
+            <td>Yes</td>
+            <td>No</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><code>scatter_read_some</code></td>
+            <td><code>char</code> (scatter)</td>
+            <td>Read</td>
+            <td>No</td>
+            <td>Yes</td>
+            <td>No (partial OK)</td>
+          </tr>
+          <tr>
+            <td><code>scatter_read_all</code></td>
+            <td><code>char</code> (scatter)</td>
+            <td>Read</td>
+            <td>No</td>
+            <td>Yes</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><code>scatter_pread_some</code></td>
+            <td><code>char</code> (scatter)</td>
+            <td>Read</td>
+            <td>Yes</td>
+            <td>Yes</td>
+            <td>No (partial OK)</td>
+          </tr>
+          <tr>
+            <td><code>scatter_pread_all</code></td>
+            <td><code>char</code> (scatter)</td>
+            <td>Read</td>
+            <td>Yes</td>
+            <td>Yes</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
             <td><code>write_some</code></td>
             <td><code>char const*</code></td>
+            <td>Write</td>
             <td>No</td>
             <td>No</td>
             <td>No (partial OK)</td>
@@ -257,6 +536,7 @@ int main() {
           <tr>
             <td><code>write_all</code></td>
             <td><code>char const*</code></td>
+            <td>Write</td>
             <td>No</td>
             <td>No</td>
             <td>Yes</td>
@@ -264,6 +544,7 @@ int main() {
           <tr>
             <td><code>write_some_bytes</code></td>
             <td><code>::std::byte const*</code></td>
+            <td>Write</td>
             <td>No</td>
             <td>No</td>
             <td>No (partial OK)</td>
@@ -271,6 +552,7 @@ int main() {
           <tr>
             <td><code>write_all_bytes</code></td>
             <td><code>::std::byte const*</code></td>
+            <td>Write</td>
             <td>No</td>
             <td>No</td>
             <td>Yes</td>
@@ -278,6 +560,7 @@ int main() {
           <tr>
             <td><code>pwrite_some</code></td>
             <td><code>char const*</code></td>
+            <td>Write</td>
             <td>Yes</td>
             <td>No</td>
             <td>No (partial OK)</td>
@@ -285,6 +568,7 @@ int main() {
           <tr>
             <td><code>pwrite_all</code></td>
             <td><code>char const*</code></td>
+            <td>Write</td>
             <td>Yes</td>
             <td>No</td>
             <td>Yes</td>
@@ -292,6 +576,7 @@ int main() {
           <tr>
             <td><code>pwrite_some_bytes</code></td>
             <td><code>::std::byte const*</code></td>
+            <td>Write</td>
             <td>Yes</td>
             <td>No</td>
             <td>No (partial OK)</td>
@@ -299,6 +584,7 @@ int main() {
           <tr>
             <td><code>pwrite_all_bytes</code></td>
             <td><code>::std::byte const*</code></td>
+            <td>Write</td>
             <td>Yes</td>
             <td>No</td>
             <td>Yes</td>
@@ -306,6 +592,7 @@ int main() {
           <tr>
             <td><code>scatter_write_some</code></td>
             <td><code>char</code> (scatter)</td>
+            <td>Write</td>
             <td>No</td>
             <td>Yes</td>
             <td>No (partial OK)</td>
@@ -313,6 +600,7 @@ int main() {
           <tr>
             <td><code>scatter_write_all</code></td>
             <td><code>char</code> (scatter)</td>
+            <td>Write</td>
             <td>No</td>
             <td>Yes</td>
             <td>Yes</td>
@@ -320,6 +608,7 @@ int main() {
           <tr>
             <td><code>scatter_pwrite_some</code></td>
             <td><code>char</code> (scatter)</td>
+            <td>Write</td>
             <td>Yes</td>
             <td>Yes</td>
             <td>No (partial OK)</td>
@@ -327,6 +616,7 @@ int main() {
           <tr>
             <td><code>scatter_pwrite_all</code></td>
             <td><code>char</code> (scatter)</td>
+            <td>Write</td>
             <td>Yes</td>
             <td>Yes</td>
             <td>Yes</td>
@@ -334,6 +624,7 @@ int main() {
           <tr>
             <td><code>char_put</code></td>
             <td>single <code>char</code></td>
+            <td>Write</td>
             <td>No</td>
             <td>No</td>
             <td>N/A</td>
@@ -345,13 +636,16 @@ int main() {
     <section>
       <h2>Key takeaways</h2>
       <ul>
+        <li><code>read_some</code> may do a partial read &mdash; it returns past the last byte read. <code>read_all</code> loops until the buffer is full or EOF.</li>
         <li><code>write_some</code> may do a partial write &mdash; it returns the first unwritten position. <code>write_all</code> loops until everything is written.</li>
-        <li>Every operation has a <code>_bytes</code> variant that takes <code>::std::byte const*</code> for binary data.</li>
+        <li>Every operation has a <code>_bytes</code> variant that takes <code>::std::byte*</code> (or <code>::std::byte const*</code> for writes) for binary data.</li>
+        <li><code>pread_*</code> operations read at a given offset without changing the file position (like POSIX <code>pread()</code>).</li>
         <li><code>pwrite_*</code> operations write at a given offset without changing the file position (like POSIX <code>pwrite()</code>).</li>
+        <li><code>scatter_read_*</code> reads into multiple buffers in one syscall (like POSIX <code>readv()</code>) &mdash; avoids copying into a temporary contiguous buffer.</li>
         <li><code>scatter_write_*</code> writes multiple buffers in one syscall (like POSIX <code>writev()</code>) &mdash; avoids copying into a temporary contiguous buffer.</li>
-        <li><code>scatter_pwrite_*</code> combines scatter and positional writes.</li>
+        <li><code>scatter_pread_*</code> and <code>scatter_pwrite_*</code> combine scatter with positional reads/writes.</li>
         <li><code>char_put</code> writes a single character &mdash; cheap on buffered devices, catastrophically slow on unbuffered ones.</li>
-        <li>Prefer <code>write_all</code> (or buffered <code>::fast_io::println</code>) for most code. Reach for <code>write_some</code> only when you need to handle partial writes yourself.</li>
+        <li>Prefer <code>read_all</code> / <code>write_all</code> (or buffered <code>::fast_io::io::print</code> / <code>::fast_io::io::scan</code>) for most code. Reach for <code>read_some</code> / <code>write_some</code> only when you need to handle partial reads/writes yourself.</li>
       </ul>
     </section>
 
