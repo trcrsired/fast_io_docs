@@ -65,13 +65,15 @@
 
 int main()
 {
+    using namespace ::fast_io::iomnp;
+
     // Opens a file through the Wine host layer.
     ::fast_io::wine_file wf(u8"hello_wine.txt", ::fast_io::open_mode::out);
 
-    ::fast_io::println(wf, u8"Hello from wine_file!");
+    println(wf, u8"Hello from wine_file!");
 
     ::std::size_t const n{42zu};
-    ::fast_io::println(wf, u8"The answer is: ", n);
+    println(wf, u8"The answer is: ", n);
 }
       </code></pre>
     </section>
@@ -89,10 +91,12 @@ int main()
 
 void write_via_wine(int host_fd)
 {
+    using namespace ::fast_io::iomnp;
+
     // Non-owning view over Wine's host fd.
     ::fast_io::wine_io_observer observer{
         static_cast<::fast_io::wine_io_observer::native_handle_type>(host_fd)};
-    ::fast_io::println(observer, u8"Written through a wine_io_observer\n");
+    println(observer, u8"Written through a wine_io_observer\n");
 }
       </code></pre>
     </section>

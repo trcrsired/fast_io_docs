@@ -176,17 +176,19 @@ using basic_iobuf_file = ::fast_io::basic_iobuf&lt;
 
 int main()
 {
+    using namespace ::fast_io::iomnp;
+
     // Start at the bottom: a POSIX file descriptor.
     ::fast_io::posix_file pf(u8"mixed.txt", ::fast_io::open_mode::out);
-    ::fast_io::println(pf, u8"Line 1 via posix_file");
+    println(pf, u8"Line 1 via posix_file");
 
     // Move it up to a C FILE*.
     ::fast_io::c_file cf(::std::move(pf), ::fast_io::open_mode::out);
-    ::fast_io::println(cf, u8"Line 2 via c_file");
+    println(cf, u8"Line 2 via c_file");
 
     // Move it up again to a C++ std::filebuf.
     ::fast_io::filebuf_file fbf(::std::move(cf), ::fast_io::open_mode::out);
-    ::fast_io::println(fbf, u8"Line 3 via filebuf_file");
+    println(fbf, u8"Line 3 via filebuf_file");
 
     // All three lines end up in the same file, in order.
 }
@@ -214,6 +216,8 @@ int main()
 
 int main()
 {
+    using namespace ::fast_io::iomnp;
+
     // Open at the syscall level.
     ::fast_io::native_file nf(u8"syscall.txt", ::fast_io::open_mode::out);
 
@@ -245,9 +249,11 @@ int main()
 
 int main()
 {
+    using namespace ::fast_io::iomnp;
+
     // iobuf_file is buffered I/O on top of native_file.
     ::fast_io::iobuf_file bf(u8"demo.txt", ::fast_io::open_mode::out);
-    ::fast_io::println(bf, u8"Buffered write");
+    println(bf, u8"Buffered write");
 
     // Flush so everything hits the underlying file before we peek at it.
     ::fast_io::flush(bf);
@@ -260,7 +266,7 @@ int main()
     // Step 2: pull the raw int fd out of the observer.
     int const fd{piob.fd};
 
-    ::fast_io::println(u8"The underlying fd is: ",
+    println(u8"The underlying fd is: ",
         static_cast&lt;::std::size_t&gt;(static_cast&lt;unsigned&gt;(fd)));
 
     // The fd is still owned by `bf`; we only borrowed a view.

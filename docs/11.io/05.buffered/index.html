@@ -87,19 +87,19 @@
 
 int main() {
     // Unbuffered: every write is a syscall
-    ::fast_io::native_file out{"bulk.bin",
+    ::fast_io::native_file obf{"bulk.bin",
         ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
 
     // Good: one big syscall for a large block
     char const big_buffer[65536]{};
     ::fast_io::operations::write_all(
-        ::fast_io::out_handle(out),
+        ::fast_io::out_handle(obf),
         big_buffer, big_buffer + 65536uz);
 
     // BAD: 65536 individual syscalls!
     for (::std::size_t i{}; i &lt; 65536uz; ++i) {
         ::fast_io::operations::char_put(
-            ::fast_io::out_handle(out), 'A');
+            ::fast_io::out_handle(obf), 'A');
     }
 }
 </code></pre>
@@ -126,13 +126,13 @@ int main() {
 
 int main() {
     // Buffered: writes accumulate in user space
-    ::fast_io::obuf_file out{"fast.bin"};
+    ::fast_io::obuf_file obf{"fast.bin"};
 
     // Even 65536 char_puts are cheap &mdash; they hit the user buffer,
     // not the kernel. The buffer flushes automatically when full.
     for (::std::size_t i{}; i &lt; 65536uz; ++i) {
         ::fast_io::operations::char_put(
-            ::fast_io::out_handle(out), 'A');
+            ::fast_io::out_handle(obf), 'A');
     }
     // Buffer is flushed here when `out` goes out of scope.
 }
@@ -205,8 +205,8 @@ int main() {
     // ----- Buffered: ibuf_file / obuf_file -----
     // Use this when operating on many small items (lines, integers, etc.)
     {
-        ::fast_io::ibuf_file in{"numbers.txt"};
-        ::fast_io::obuf_file out{"sum.txt"};
+        ::fast_io::ibuf_file ibf{"numbers.txt"};
+        ::fast_io::obuf_file obf{"sum.txt"};
 
         ::std::int64_t sum{};
         ::std::int64_t value{};

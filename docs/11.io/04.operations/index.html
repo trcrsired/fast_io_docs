@@ -41,7 +41,7 @@
 #include &lt;fast_io_device.h&gt;
 
 int main() {
-    ::fast_io::obuf_file out{"output.txt"};
+    ::fast_io::obuf_file obf{"output.txt"};
 
     char const message[] = "Hello, fast_io operations!\n";
     char const* first{message};
@@ -50,11 +50,11 @@ int main() {
     // write_some: may do a partial write.
     // Returns pointer to first unwritten char.
     char const* next = ::fast_io::operations::write_some(
-        ::fast_io::out_handle(out), first, last);
+        ::fast_io::out_handle(obf), first, last);
 
     // Write the rest with write_all (loops until done)
     ::fast_io::operations::write_all(
-        ::fast_io::out_handle(out), next, last);
+        ::fast_io::out_handle(obf), next, last);
 }
 </code></pre>
     </section>
@@ -72,7 +72,7 @@ int main() {
 #include &lt;cstddef&gt;
 
 int main() {
-    ::fast_io::obuf_file out{"binary.bin"};
+    ::fast_io::obuf_file obf{"binary.bin"};
 
     ::std::byte const data[]{
         ::std::byte{0xDE}, ::std::byte{0xAD},
@@ -84,7 +84,7 @@ int main() {
 
     // Write all bytes (loops until complete)
     ::fast_io::operations::write_all_bytes(
-        ::fast_io::out_handle(out), first, last);
+        ::fast_io::out_handle(obf), first, last);
 }
 </code></pre>
     </section>
@@ -106,7 +106,7 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 
 int main() {
-    ::fast_io::obuf_file out{"data.bin",
+    ::fast_io::obuf_file obf{"data.bin",
         ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
 
     char const block0[] = "AAAA";
@@ -114,13 +114,13 @@ int main() {
 
     // Write "BBBB" at offset 1024 without moving the file position
     ::fast_io::operations::pwrite_all(
-        ::fast_io::out_handle(out),
+        ::fast_io::out_handle(obf),
         block1, block1 + 4uz,
         static_cast&lt;::std::uintmax_t&gt;(1024uz));
 
     // Write "AAAA" at offset 0; file position is still 0
     ::fast_io::operations::pwrite_all(
-        ::fast_io::out_handle(out),
+        ::fast_io::out_handle(obf),
         block0, block0 + 4uz,
         static_cast&lt;::std::uintmax_t&gt;(0uz));
 }
@@ -139,7 +139,7 @@ int main() {
 #include &lt;cstddef&gt;
 
 int main() {
-    ::fast_io::obuf_file out{"binary.bin",
+    ::fast_io::obuf_file obf{"binary.bin",
         ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
 
     ::std::byte const header[]{
@@ -148,7 +148,7 @@ int main() {
     };
 
     ::fast_io::operations::pwrite_all_bytes(
-        ::fast_io::out_handle(out),
+        ::fast_io::out_handle(obf),
         header, header + 4uz,
         static_cast&lt;::std::uintmax_t&gt;(0uz));
 }
@@ -172,7 +172,7 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 
 int main() {
-    ::fast_io::obuf_file out{"scatter.txt"};
+    ::fast_io::obuf_file obf{"scatter.txt"};
 
     char const part1[] = "Hello, ";
     char const part2[] = "scatter ";
@@ -186,7 +186,7 @@ int main() {
 
     // One syscall writes all three parts
     ::fast_io::operations::scatter_write_all(
-        ::fast_io::out_handle(out),
+        ::fast_io::out_handle(obf),
         scatters, scatters + 3uz);
 }
 </code></pre>
@@ -204,7 +204,7 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 
 int main() {
-    ::fast_io::obuf_file out{"scatter_pos.bin",
+    ::fast_io::obuf_file obf{"scatter_pos.bin",
         ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
 
     char const part1[] = "AAA";
@@ -217,7 +217,7 @@ int main() {
 
     // Write "AAABBB" at offset 512, file position unchanged
     ::fast_io::operations::scatter_pwrite_all(
-        ::fast_io::out_handle(out),
+        ::fast_io::out_handle(obf),
         scatters, scatters + 2uz,
         static_cast&lt;::std::uintmax_t&gt;(512uz));
 }
@@ -235,11 +235,11 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 
 int main() {
-    ::fast_io::obuf_file out{"chars.txt"};
+    ::fast_io::obuf_file obf{"chars.txt"};
 
-    ::fast_io::operations::char_put(::fast_io::out_handle(out), 'H');
-    ::fast_io::operations::char_put(::fast_io::out_handle(out), 'i');
-    ::fast_io::operations::char_put(::fast_io::out_handle(out), '\n');
+    ::fast_io::operations::char_put(::fast_io::out_handle(obf), 'H');
+    ::fast_io::operations::char_put(::fast_io::out_handle(obf), 'i');
+    ::fast_io::operations::char_put(::fast_io::out_handle(obf), '\n');
 }
 </code></pre>
       <p>
