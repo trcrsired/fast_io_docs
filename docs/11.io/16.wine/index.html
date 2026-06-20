@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.16: Wine File APIs - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.16: Wine File APIs</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <a href="https://www.winehq.org/" target="_blank" rel="noopener noreferrer">Wine</a>
+        (&ldquo;Wine Is Not an Emulator&rdquo;) lets Windows binaries run on POSIX systems
+        such as Linux and FreeBSD. Wine implements the Win32 and NT APIs by translating them
+        into host system calls &mdash; and those host system calls ultimately use POSIX file
+        descriptors.
+      </p>
+      <p>
+        When <code>fast_io</code> is built as part of Wine itself (or for code running under
+        Wine that needs to talk to the host directly), it exposes this layer through:
+      </p>
+      <ul>
+        <li>
+          <code>::fast_io::wine_file</code> &mdash; an RAII owning wrapper over a Wine host
+          file descriptor.
+        </li>
+        <li>
+          <code>::fast_io::wine_io_observer</code> &mdash; a non-owning view over an existing
+          Wine host file descriptor.
+        </li>
+      </ul>
+      <div class="callout">
+        <p>
+          <strong>Note:</strong> The Wine layer is not yet finished in upstream
+          <code>fast_io</code>. This section describes the design as it is intended to land.
+          The concepts, however, follow exactly the same RAII / observer pattern you have
+          already seen for POSIX, Win32, and NT.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>The Pattern Is the Same</h2>
+      <p>
+        Every layer in <code>fast_io</code> follows the same shape:
+      </p>
+      <ol>
+        <li>An owning RAII type named <code>xxx_file</code>.</li>
+        <li>A non-owning observer type named <code>xxx_io_observer</code>.</li>
+        <li>Full support for <code>print</code>, <code>println</code>, and <code>scan</code>.</li>
+        <li>The ability to wrap raw handles from outside code.</li>
+      </ol>
+      <p>
+        <code>wine_file</code> is no exception. Conceptually it looks like this:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    // Opens a file through the Wine host layer.
+    ::fast_io::wine_file wf(u8"hello_wine.txt", ::fast_io::open_mode::out);
+
+    ::fast_io::println(wf, u8"Hello from wine_file!");
+
+    ::std::size_t const n{42zu};
+    ::fast_io::println(wf, u8"The answer is: ", n);
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Wrapping a Wine Host File Descriptor</h2>
+      <p>
+        When Wine translates a Windows <code>CreateFileW</code> call, it eventually produces
+        a host POSIX file descriptor. You can wrap that descriptor in a
+        <code>wine_io_observer</code> to continue working with it through <code>fast_io</code>:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+void write_via_wine(int host_fd)
+{
+    // Non-owning view over Wine's host fd.
+    ::fast_io::wine_io_observer observer{
+        static_cast<::fast_io::wine_io_observer::native_handle_type>(host_fd)};
+    ::fast_io::println(observer, u8"Written through a wine_io_observer\n");
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Why Does This Layer Exist?</h2>
+      <p>
+        Wine is a complex piece of infrastructure. Code that lives inside Wine (for example,
+        Wine's own implementation of <code>ntdll.dll</code> or <code>kernel32.dll</code>)
+        needs to:
+      </p>
+      <ul>
+        <li>
+          Receive a Windows <code>HANDLE</code> from guest code.
+        </li>
+        <li>
+          Translate it into a host <code>int fd</code> via Wine's internal table.
+        </li>
+        <li>
+          Perform host I/O on that <code>fd</code> while still being able to surface errors
+          back to the guest as NTSTATUS codes.
+        </li>
+      </ul>
+      <p>
+        <code>wine_file</code> gives Wine developers the same RAII / observer ergonomics
+        they get from the other layers, without having to write manual resource management
+        for every call site.
+      </p>
+    </section>
+
+    <section>
+      <h2>Relationship to the Other Layers</h2>
+      <p>
+        On a POSIX host running Wine, the full layering looks like this:
+      </p>
+      <ul>
+        <li>
+          A guest Windows binary calls <code>WriteFile</code>. That resolves, inside Wine,
+          to <code>ntdll!NtWriteFile</code>.
+        </li>
+        <li>
+          Wine's <code>ntdll</code> translates that to a host POSIX <code>write(2)</code>
+          call on a host fd &mdash; and that fd is what <code>wine_file</code> wraps.
+        </li>
+      </ul>
+      <p>
+        So from the guest's point of view, the I/O went through the NT layer. From the
+        host's point of view, it went through POSIX. <code>wine_file</code> lives at the
+        seam between the two.
+      </p>
+    </section>
+
+    <section>
+      <h2>Summary</h2>
+      <ul>
+        <li>
+          <code>::fast_io::wine_file</code> is the RAII wrapper for Wine host file
+          descriptors.
+        </li>
+        <li>
+          <code>::fast_io::wine_io_observer</code> is the non-owning view.
+        </li>
+        <li>
+          The Wine layer is still a work in progress, but its design follows the exact
+          same pattern as <code>posix_file</code>, <code>win32_file</code>, and
+          <code>nt_file</code>.
+        </li>
+        <li>
+          It lives at the boundary between a Windows guest and the POSIX host that Wine
+          runs on.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/15.nt/" class="prev-button">&larr; Ch11.15: NT File APIs</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/17.layers/" class="next-button">Ch11.17: Relationship Between File Layers &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

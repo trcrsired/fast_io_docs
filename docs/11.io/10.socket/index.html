@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.10: Socket Files - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.10: Socket Files</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>fast_io</code> treats sockets as files. Once you have a socket file
+        object, you use the familiar <code>print</code>, <code>println</code>, and
+        <code>scan</code> APIs to send and receive data &mdash; no separate socket
+        library needed. This section covers the two main socket types and the free
+        functions that create them.
+      </p>
+    </section>
+
+    <section>
+      <h2>::fast_io::native_socket_file</h2>
+      <p>
+        <code>::fast_io::native_socket_file</code> is a thin wrapper around the
+        platform's raw socket handle:
+      </p>
+      <ul>
+        <li>
+          <strong>POSIX</strong> (Linux, macOS, FreeBSD, &hellip;): a regular file
+          descriptor. On POSIX systems, sockets <em>are</em> file descriptors, so
+          this is just an <code>int</code> wrapper.
+        </li>
+        <li>
+          <strong>Windows</strong>: a <code>SOCKET</code> handle wrapper. Windows
+          sockets are not file descriptors, so this type carries the native
+          <code>SOCKET</code> value instead.
+        </li>
+      </ul>
+      <p>
+        <code>native_socket_file</code> gives you unbuffered, raw access. For
+        typical TCP I/O you will want the buffered variant below.
+      </p>
+    </section>
+
+    <section>
+      <h2>::fast_io::iobuf_socket_file</h2>
+      <p>
+        <code>::fast_io::iobuf_socket_file</code> wraps a
+        <code>native_socket_file</code> in a <code>basic_iobuf</code>, adding
+        user-space buffering. This is the <strong>standard type for TCP
+        I/O</strong>:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_driver/tcp.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+    // Connect to example.com on port 80
+    ::fast_io::iobuf_socket_file sock{::fast_io::tcp_connect("example.com", 80u16)};
+
+    // Send an HTTP GET request using the normal print API
+    println(sock,
+        "GET / HTTP/1.1\r\n"
+        "Host: example.com\r\n"
+        "Connection: close\r\n"
+        "\r\n");
+
+    // Read the response line by line using the normal scan API
+    ::fast_io::string line;
+    while (scan&lt;::fast_io::getline&gt;(sock, line)) {
+        println(line);
+    }
+}
+</code></pre>
+      <p>
+        Because the socket is buffered, many small <code>print</code> calls are
+        coalesced into fewer system calls, just like with
+        <code>iobuf_file</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>::fast_io::u8http_header_buffer</h2>
+      <p>
+        <code>::fast_io::u8http_header_buffer</code> is a specialised buffer for
+        parsing HTTP response (or request) headers. It is <strong>scannable</strong>
+        via <code>scan_context_define</code>, so you can feed it directly into the
+        normal <code>scan</code> pipeline:
+      </p>
+      <ul>
+        <li><code>header_length</code> &mdash; total number of bytes consumed by the header.</li>
+        <li><code>request()</code> &mdash; the request method (for request headers).</li>
+        <li><code>code()</code> &mdash; the HTTP status code (for response headers).</li>
+        <li><code>reason()</code> &mdash; the reason phrase (e.g. <code>"OK"</code>, <code>"Not Found"</code>).</li>
+      </ul>
+      <p>
+        The default internal buffer size is <strong>4096 bytes</strong>, which is
+        enough for the vast majority of real-world HTTP headers.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_driver/tcp.h&gt;
+#include &lt;fast_io_http.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+    ::fast_io::iobuf_socket_file sock{::fast_io::tcp_connect("example.com", 80u16)};
+
+    println(sock,
+        "GET / HTTP/1.1\r\n"
+        "Host: example.com\r\n"
+        "Connection: close\r\n"
+        "\r\n");
+
+    // Parse the HTTP response header
+    ::fast_io::u8http_header_buffer hdr;
+    scan(sock, hdr);
+
+    println("Status code: ", hdr.code());
+    println("Reason:      ", hdr.reason());
+    println("Header len:  ", hdr.header_length);
+
+    // The socket is now positioned at the start of the body.
+    // Continue reading the body with normal scan / print calls.
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Free Functions for Sockets</h2>
+      <p>
+        The following free functions create and configure socket connections. They
+        return handles that can be used to construct
+        <code>native_socket_file</code> or <code>iobuf_socket_file</code> objects.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>tcp_connect(host, port)</code></td>
+            <td>
+              Open a TCP connection to <code>host:port</code>. Returns a
+              <code>native_socket_file</code>.
+            </td>
+          </tr>
+          <tr>
+            <td><code>tcp_listen(port)</code></td>
+            <td>
+              Create a TCP listening socket on the given <code>port</code>.
+            </td>
+          </tr>
+          <tr>
+            <td><code>posix_bind(address)</code></td>
+            <td>
+              Bind a POSIX socket to the specified address.
+            </td>
+          </tr>
+          <tr>
+            <td><code>posix_listen(sockfd, backlog)</code></td>
+            <td>
+              Mark a bound POSIX socket as listening, with the given
+              <code>backlog</code> queue size.
+            </td>
+          </tr>
+          <tr>
+            <td><code>posix_accept(sockfd)</code></td>
+            <td>
+              Accept an incoming connection on a listening POSIX socket. Returns a
+              new <code>native_socket_file</code> for the accepted connection.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>TCP Server Example</h2>
+      <p>
+        Putting it all together, here is a minimal TCP server that listens on
+        port 8080, accepts one connection, sends a greeting, and closes:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_driver/tcp.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+    // Listen on port 8080
+    auto listener = ::fast_io::tcp_listen(8080u16);
+
+    // Accept one incoming connection
+    ::fast_io::native_socket_file conn{::fast_io::posix_accept(listener)};
+
+    // Wrap in a buffered socket for convenient I/O
+    ::fast_io::iobuf_socket_file buf_conn{::fast_io::io::transmit(conn)};
+
+    // Send a greeting using the normal print API
+    ::fast_io::io::println(buf_conn, "Hello from fast_io server!\n");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <code>::fast_io::native_socket_file</code> wraps the raw socket handle
+          &mdash; a file descriptor on POSIX, a <code>SOCKET</code> on Windows.
+        </li>
+        <li>
+          <code>::fast_io::iobuf_socket_file</code> adds user-space buffering and
+          is the standard type for TCP I/O. Use it with <code>print</code>,
+          <code>println</code>, and <code>scan</code>.
+        </li>
+        <li>
+          <code>::fast_io::u8http_header_buffer</code> parses HTTP headers via
+          <code>scan</code>. It exposes <code>header_length</code>,
+          <code>request()</code>, <code>code()</code>, and <code>reason()</code>.
+          Default buffer size is 4096 bytes.
+        </li>
+        <li>
+          Free functions: <code>tcp_connect()</code>, <code>tcp_listen()</code>,
+          <code>posix_bind()</code>, <code>posix_listen()</code>,
+          <code>posix_accept()</code>.
+        </li>
+        <li>
+          Sockets are files in <code>fast_io</code> &mdash; the same
+          <code>print</code>, <code>scan</code>, and customisation points you
+          already know work for sockets too.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/09.stringrelation/" class="prev-button">&larr; Ch11.9: Relationship with String</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/11.cstyle/" class="next-button">Ch11.11: C-Style I/O &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

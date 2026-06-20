@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.6: Mutex I/O - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <main>
+    <h1>Ch11.6: Mutex I/O</h1>
+
+    <section>
+      <h2>Thread-Safe I/O Overview</h2>
+      <p>
+        When multiple threads need to write to or read from the same file, you must synchronize
+        access to avoid data races and interleaved output. <code>fast_io</code> provides
+        lockable file variants that contain an internal mutex, making all I/O operations
+        on them thread-safe without requiring you to manage external synchronization.
+      </p>
+    </section>
+
+    <section>
+      <h2>Lockable File Types</h2>
+      <p>
+        For each standard buffered file type, there is a corresponding lockable variant:
+      </p>
+      <ul>
+        <li>
+          <code>::fast_io::ibuf_file_lockable</code> — buffered input file with internal mutex
+        </li>
+        <li>
+          <code>::fast_io::obuf_file_lockable</code> — buffered output file with internal mutex
+        </li>
+        <li>
+          <code>::fast_io::iobuf_file_lockable</code> — buffered input/output file with internal mutex
+        </li>
+      </ul>
+      <p>
+        These types behave exactly like their non-lockable counterparts, except every call to
+        <code>scan</code>, <code>print</code>, or <code>println</code> acquires the internal
+        mutex before performing I/O and releases it afterward. This guarantees that operations
+        from different threads do not interleave.
+      </p>
+    </section>
+
+    <section>
+      <h2>Using Lockable Files</h2>
+      <p>
+        Here is an example showing multiple threads writing to a shared output file safely:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;thread&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+    ::fast_io::obuf_file_lockable obfl(u8"shared_output.txt");
+
+    auto writer = [&amp;obfl](::std::size_t id, ::std::size_t count)
+    {
+        for (::std::size_t i{}; i &lt; count; ++i)
+        {
+            println(obfl, "Thread ", id, " iteration ", i);
+        }
+    };
+
+    ::std::thread t1(writer, 1zu, 100zu);
+    ::std::thread t2(writer, 2zu, 100zu);
+    ::std::thread t3(writer, 3zu, 100zu);
+
+    t1.join();
+    t2.join();
+    t3.join();
+}
+      </code></pre>
+      <p>
+        In this example, three threads concurrently print to the same <code>obuf_file_lockable</code>.
+        Because each <code>println</code> call acquires the internal mutex, the output lines never
+        interleave &mdash; each line is written atomically.
+      </p>
+    </section>
+
+    <section>
+      <h2>::fast_io::mutex for Manual Locking</h2>
+      <p>
+        If you need to protect a sequence of operations as a single atomic unit, or if you want
+        to use an unbuffered/non-lockable file type in a thread-safe manner, you can use
+        <code>::fast_io::mutex</code> directly. This is a portable mutex type provided by
+        <code>fast_io</code>.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;thread&gt;
+
+::fast_io::mutex mtx;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+    ::fast_io::obuf_file obf(u8"manual_lock_output.txt");
+
+    auto writer = [&amp;](::std::size_t id, ::std::size_t count)
+    {
+        for (::std::size_t i{}; i &lt; count; ++i)
+        {
+            ::fast_io::io_lock_guard guard(mtx);
+            print(obf, "Thread ");
+            print(obf, id);
+            print(obf, " line ");
+            println(obf, i);
+            // guard releases mutex when it goes out of scope
+        }
+    };
+
+    ::std::thread t1(writer, 1zu, 50zu);
+    ::std::thread t2(writer, 2zu, 50zu);
+
+    t1.join();
+    t2.join();
+}
+      </code></pre>
+      <p>
+        <code>::fast_io::io_lock_guard</code> locks the mutex upon construction and releases
+        it upon destruction (RAII). This lets you protect a group of related I/O calls as a
+        single critical section, ensuring they appear as one uninterrupted block.
+      </p>
+    </section>
+
+    <section>
+      <h2>When to Use Lockable Files vs. Manual Mutex</h2>
+      <p>
+        Use lockable file types (<code>*_lockable</code>) when:
+      </p>
+      <ul>
+        <li>Each individual <code>print</code>/<code>println</code>/<code>scan</code> call should be atomic.</li>
+        <li>You want a simple, drop-in thread-safe file with minimal boilerplate.</li>
+      </ul>
+      <p>
+        Use <code>::fast_io::mutex</code> with <code>::fast_io::io_lock_guard</code> when:
+      </p>
+      <ul>
+        <li>You need to protect a multi-step sequence of operations as a single atomic group.</li>
+        <li>You are working with non-lockable file types and need external synchronization.</li>
+        <li>You need to synchronize I/O with other shared state.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/05.filetypelayers/" class="prev-button">&larr; Ch11.5: File Type Layers</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/07.randomaccess/" class="next-button">Ch11.7: Random Access I/O &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

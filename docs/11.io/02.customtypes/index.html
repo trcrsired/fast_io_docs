@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.2: Custom Types - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.2: Defining Custom Types for I/O</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>fast_io</code> uses <strong>customization points</strong> to let
+        you define how your types are printed and scanned. There are four main
+        customization points, each with different trade-offs.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. Customization Points Overview</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Customization Point</th>
+            <th>Best For</th>
+            <th>Speed</th>
+            <th>Safety</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>print_reserve_define</code></td>
+            <td>Fixed-size types (ints, floats, enums, small structs)</td>
+            <td>Fastest</td>
+            <td>Unsafe if size is computed wrong</td>
+          </tr>
+          <tr>
+            <td><code>print_scatter_define</code></td>
+            <td>Types already stored as contiguous strings (string literals, enum names)</td>
+            <td>Zero-copy</td>
+            <td>Safe</td>
+          </tr>
+          <tr>
+            <td><code>print_define</code></td>
+            <td>Complex/composite types (most flexible)</td>
+            <td>Moderate</td>
+            <td>Safe</td>
+          </tr>
+          <tr>
+            <td><code>scan_context_define</code></td>
+            <td>Types that span multiple buffer fills (streaming parse)</td>
+            <td>N/A (input)</td>
+            <td>Safe</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. print_reserve_define &mdash; Fastest (but dangerous)</h2>
+      <p>
+        <code>print_reserve_define</code> writes directly into the I/O buffer.
+        It is <strong>the fastest method</strong> &mdash; even faster than
+        returning an array, because it reuses the existing I/O buffer memory
+        with zero extra allocation or copying.
+      </p>
+      <div class="warning">
+        <strong>Danger:</strong> You must compute the buffer size correctly.
+        If <code>print_reserve_size</code> returns a value that is too small,
+        you will overflow the buffer &mdash; this is undefined behaviour and
+        can corrupt memory.
+      </div>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+struct Point {
+    int x;
+    int y;
+};
+
+// Step 1: Tell fast_io the maximum buffer size needed
+template &lt;::std::integral char_type&gt;
+inline constexpr ::std::size_t print_reserve_size(
+    ::fast_io::io_reserve_type_t&lt;char_type, Point&gt;) noexcept
+{
+    // Two ints, a comma, parentheses, and a space
+    // Max int: 10 digits + sign = 11 chars each
+    // "(x, y)" = 1 + 11 + 2 + 11 + 1 = 26
+    return 26;
+}
+
+// Step 2: Write into the buffer, return pointer past last written char
+template &lt;::std::integral char_type&gt;
+inline constexpr char_type* print_reserve_define(
+    ::fast_io::io_reserve_type_t&lt;char_type, Point&gt;,
+    char_type* iter, Point p) noexcept
+{
+    *iter++ = static_cast&lt;char_type&gt;('(');
+    iter = ::fast_io::detail::print_reserve_define_integer&lt;10&gt;(iter, p.x);
+    *iter++ = static_cast&lt;char_type&gt;(',');
+    *iter++ = static_cast&lt;char_type&gt;(' ');
+    iter = ::fast_io::detail::print_reserve_define_integer&lt;10&gt;(iter, p.y);
+    *iter++ = static_cast&lt;char_type&gt;(')');
+    return iter;
+}
+
+int main() {
+    Point p{42, 100};
+    ::fast_io::println("Point: ", p); // Output: Point: (42, 100)
+}
+</code></pre>
+      <p>
+        <strong>When to use:</strong> When your type has a fixed, small textual
+        representation and you can compute the size precisely at compile time.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. print_scatter_define &mdash; Zero-copy</h2>
+      <p>
+        <code>print_scatter_define</code> returns a pointer and length to
+        existing data. No copying is needed &mdash; the I/O system references
+        your data directly.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+enum class Color { Red, Green, Blue };
+
+template &lt;::std::integral char_type&gt;
+inline constexpr ::fast_io::basic_io_scatter_t&lt;char_type&gt;
+print_scatter_define(::fast_io::io_reserve_type_t&lt;char_type, Color&gt;, Color c) noexcept
+{
+    switch (c) {
+        case Color::Red:   return {u8"Red", 3};
+        case Color::Green: return {u8"Green", 5};
+        case Color::Blue:  return {u8"Blue", 4};
+    }
+    return {u8"Unknown", 7};
+}
+
+int main() {
+    ::fast_io::println("Color: ", Color::Green); // Output: Color: Green
+}
+</code></pre>
+      <p>
+        <strong>When to use:</strong> When your type&rsquo;s textual
+        representation is already a contiguous string in memory (string
+        literals, enum names, etc.).
+      </p>
+    </section>
+
+    <section>
+      <h2>4. print_define &mdash; Most flexible</h2>
+      <p>
+        <code>print_define</code> writes to an output stream using
+        <code>print_freestanding</code>. It is the most flexible but also the
+        slowest of the three print methods (still fast &mdash; just not as fast
+        as <code>print_reserve_define</code>).
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+struct Person {
+    ::fast_io::string name;
+    int age;
+};
+
+template &lt;::std::integral char_type, typename T&gt;
+inline constexpr void print_define(
+    ::fast_io::io_reserve_type_t&lt;char_type, Person&gt;,
+    T&amp; out, Person const&amp; p)
+{
+    ::fast_io::print_freestanding(out, p.name, " (age: ", p.age, ")");
+}
+
+int main() {
+    Person alice{::fast_io::string{"Alice"}, 30};
+    ::fast_io::println("Person: ", alice); // Output: Person: Alice (age: 30)
+}
+</code></pre>
+      <p>
+        <strong>When to use:</strong> For complex types where the output
+        depends on runtime data, or when you are composing multiple sub-objects.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. scan_context_define &mdash; Multi-call scanning</h2>
+      <p>
+        <code>scan_context_define</code> is for types whose textual
+        representation may span multiple buffer fills. It uses a
+        <strong>context</strong> to track parsing state across calls.
+      </p>
+      <p>
+        You must provide three functions:
+      </p>
+      <ol>
+        <li><code>scan_context_type</code> &mdash; declares the context type</li>
+        <li><code>scan_context_define</code> &mdash; parses from the buffer, returns partial/ok/invalid</li>
+        <li><code>scan_context_eof_define</code> &mdash; handles end-of-input</li>
+      </ol>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+struct MyType {
+    int value;
+};
+
+// Context type holds partial parse state
+struct MyContext {
+    int accumulated{};
+    bool started{};
+};
+
+// Step 1: Declare context type
+template &lt;::std::integral char_type&gt;
+inline constexpr auto scan_context_type(
+    ::fast_io::io_reserve_type_t&lt;char_type, MyType&gt;) noexcept
+{
+    return ::fast_io::io_type_t&lt;MyContext&gt;{};
+}
+
+// Step 2: Parse from buffer
+template &lt;::std::integral char_type&gt;
+inline constexpr ::fast_io::parse_result&lt;char_type const*&gt;
+scan_context_define(
+    ::fast_io::io_reserve_type_t&lt;char_type, MyType&gt;,
+    MyContext&amp; ctx,
+    char_type const* first, char_type const* last,
+    MyType&amp; t) noexcept
+{
+    // Parse digits, accumulating into ctx.accumulated
+    for (auto it = first; it != last; ++it) {
+        char_type ch = *it;
+        if (ch &gt;= static_cast&lt;char_type&gt;('0') &amp;&amp;
+            ch &lt;= static_cast&lt;char_type&gt;('9')) {
+            ctx.accumulated = ctx.accumulated * 10 +
+                (static_cast&lt;int&gt;(ch) - static_cast&lt;int&gt;('0'));
+            ctx.started = true;
+        } else {
+            t.value = ctx.accumulated;
+            return {it, ::fast_io::parse_code::ok};
+        }
+    }
+    return {last, ::fast_io::parse_code::partial}; // need more data
+}
+
+// Step 3: Handle EOF
+template &lt;::std::integral char_type&gt;
+inline constexpr ::fast_io::parse_code
+scan_context_eof_define(
+    ::fast_io::io_reserve_type_t&lt;char_type, MyType&gt;,
+    MyContext&amp; ctx, MyType&amp; t) noexcept
+{
+    if (ctx.started) {
+        t.value = ctx.accumulated;
+        return ::fast_io::parse_code::ok;
+    }
+    return ::fast_io::parse_code::invalid;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>6. Which One Should I Use?</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Your type is...</th>
+            <th>Use...</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Fixed-size, computable at compile time (ints, small structs)</td>
+            <td><code>print_reserve_define</code> (fastest)</td>
+          </tr>
+          <tr>
+            <td>Already a contiguous string (enum names, literals)</td>
+            <td><code>print_scatter_define</code> (zero-copy)</td>
+          </tr>
+          <tr>
+            <td>Complex, composed of multiple parts</td>
+            <td><code>print_define</code> (most flexible)</td>
+          </tr>
+          <tr>
+            <td>May span multiple buffer reads (streaming parse)</td>
+            <td><code>scan_context_define</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>print_reserve_define</code> is the fastest &mdash; writes directly into the I/O buffer with zero extra allocation. But compute the size correctly or you will overflow the buffer.</li>
+        <li><code>print_scatter_define</code> returns a pointer to existing data &mdash; zero copy. Best for enum names and string-like types.</li>
+        <li><code>print_define</code> is the most flexible &mdash; writes to a stream using <code>print_freestanding</code>.</li>
+        <li><code>scan_context_define</code> handles types that span multiple buffer fills &mdash; uses a context to track parse state.</li>
+        <li>Choose the simplest method that fits your type. Use <code>print_reserve_define</code> only when you can compute the size precisely.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/01.fileio/" class="prev-button">&larr; Ch11.1: File I/O</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/03.manipulators/" class="next-button">Ch11.3: Manipulators &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.3: Manipulators - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.3: Manipulators</h1>
+
+    <section>
+      <h2>What Are Manipulators?</h2>
+      <p>
+        A <strong>manipulator</strong> is a small helper object that wraps a value (or values) and
+        tells <code>print</code> / <code>println</code> / <code>scan</code> <em>how</em> to
+        format or parse that value. Instead of format strings like <code>"%x"</code> or
+        <code>std::hex</code>, fast_io expresses formatting in the type system: the manipulator
+        is an object with its own type, so the compiler can check and inline it away completely.
+      </p>
+      <p>
+        All manipulators live in the namespace
+        <code>::fast_io::manipulators</code>, which has the convenient shorthand
+        <code>::fast_io::mnp</code>. Most programs just add:
+      </p>
+      <pre><code class="language-cpp">
+using namespace ::fast_io::mnp;
+</code></pre>
+      <p>
+        and then use the manipulators directly. Every example below assumes this using-declaration.
+      </p>
+    </section>
+
+    <section>
+      <h2>Numeric Bases: hex, oct, bin, dec</h2>
+      <p>
+        The most common manipulators change the base used to print or scan an integer.
+        <code>hex</code>, <code>oct</code>, <code>bin</code>, and <code>dec</code> produce
+        lowercase digits. Their uppercase siblings <code>hexupper</code> / <code>octupper</code> /
+        <code>binupper</code> exist too. For scanning, use the <code>_get</code> variants:
+        <code>hex_get</code>, <code>oct_get</code>, <code>bin_get</code>, <code>dec_get</code>.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    ::std::size_t n{0xBEEFz};
+
+    // Output
+    println("hex    : ", hex(n));
+    println("oct    : ", oct(n));
+    println("bin    : ", bin(n));
+    println("dec    : ", dec(n));
+    println("hexup  : ", hexupper(n));
+
+    // Input: read a and b as hexadecimal
+    ::std::size_t a{}, b{};
+    scan(hex_get(a), hex_get(b));
+    println("sum = ", hex(a + b));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>hex0x &mdash; Hex With 0x Prefix</h2>
+      <p>
+        <code>hex0x</code> prints an integer in lowercase hexadecimal with the usual
+        <code>0x</code> prefix. Use <code>hex0xupper</code> for uppercase digits and
+        <code>0X</code>. These are ideal when producing output that a human will read and
+        then copy back into source code.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    ::std::size_t flags{0xCAFEz};
+    // prints: flags = 0xcafe
+    println("flags = ", hex0x(flags));
+    // prints: flags = 0XCAFE
+    println("flags = ", hex0xupper(flags));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>boolalpha</h2>
+      <p>
+        By default, <code>bool</code> prints as <code>1</code> or <code>0</code>. The
+        <code>boolalpha</code> manipulator prints it as <code>true</code> / <code>false</code>
+        instead (or uppercase <code>TRUE</code> / <code>FALSE</code> with the template
+        argument).
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    bool ok{true};
+    println("raw       : ", ok);              // 1
+    println("alpha     : ", boolalpha(ok));    // true
+    println("alpha up  : ", boolalpha&lt;true&gt;(ok)); // TRUE
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Floating-Point Formats: fixed, scientific, general</h2>
+      <p>
+        Three manipulators control the notation used for floating-point output:
+      </p>
+      <ul>
+        <li><code>fixed(x)</code> &mdash; plain decimal notation, e.g. <code>1234.5678</code>.</li>
+        <li><code>scientific(x)</code> &mdash; scientific notation, e.g. <code>1.2345678e3</code>.</li>
+        <li><code>general(x)</code> &mdash; lets the library choose the shorter form.</li>
+      </ul>
+      <p>
+        Each has a <code>comma_</code> sibling (<code>comma_fixed</code>,
+        <code>comma_scientific</code>, <code>comma_general</code>) that inserts thousands
+        separators. An optional second argument controls the number of digits after the
+        decimal point.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    double pi{3.14159265358979};
+    double big{1234567.875};
+
+    println("fixed       : ", fixed(pi));
+    println("scientific  : ", scientific(pi));
+    println("general     : ", general(pi));
+
+    // Fixed precision: 2 digits after the decimal point
+    println("fixed(2)    : ", fixed(pi, 2zu));
+
+    // With thousands separators
+    println("comma_fixed : ", comma_fixed(big, 2zu));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>comma_decimal &mdash; Thousands Separators</h2>
+      <p>
+        When you only want commas (or other grouping separators) without changing the
+        floating-point notation, the <code>comma_*</code> family is what you reach for.
+        <code>comma_decimal</code> is the most common &mdash; it formats a number in plain
+        decimal notation with group separators inserted.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    ::std::size_t population{8110700zu};
+    // prints something like: 8,110,700
+    println("people: ", comma_decimal(population));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Alignment: left, right, middle</h2>
+      <p>
+        <code>left</code>, <code>right</code>, and <code>middle</code> pad a value to a given
+        field width. The first argument is the value, the second is the width, and an optional
+        third argument is the fill character (defaults to space).
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    int n{-42};
+
+    // default fill is ' '
+    println("|", left(n, 10zu), "|");     // | -42       |
+    println("|", right(n, 10zu), "|");    // |       -42 |
+    println("|", middle(n, 10zu), "|");   // |    -42    |
+
+    // custom fill character
+    println("|", left(n, 10zu, '*'), "|");   // | -42*******|
+    println("|", right(n, 10zu, '0'), "|");  // | 0000000-42|
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>chvw &mdash; Print an Integer as a Character</h2>
+      <p>
+        <code>chvw(ch)</code> treats an integral value as a character and prints it.
+        This is useful when you have a <code>char</code> stored in an integer, or when
+        you want to print a code point without going through a string.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    char c{'A'};
+    // Prints the character A followed by its integer value
+    println("char = ", chvw(c), " code = ", static_cast&lt;int&gt;(c));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>rgvw &mdash; Range View</h2>
+      <p>
+        <code>rgvw(range, sep)</code> prints every element of a range, separated by the given
+        string or character. It is the idiomatic way to dump the contents of a container without
+        writing a loop. The separator may be a C string, a single character, or an
+        <code>os_c_str</code>-like object.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    ::fast_io::vector&lt;int&gt; v{1, 2, 3, 4, 5};
+    // prints: 1, 2, 3, 4, 5
+    println(rgvw(v, ", "));
+
+    // Any separator works
+    // prints: 1 | 2 | 3 | 4 | 5
+    println(rgvw(v, " | "));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>addrvw and pointervw</h2>
+      <p>
+        <code>addrvw(p)</code> prints the numeric value of a pointer in full-width hexadecimal
+        with a <code>0x</code> prefix &mdash; a classic "address" format.
+        <code>pointervw(p)</code> is similar but aimed at generic pointer-like objects, giving
+        a clean address-style output. Both work on raw pointers and pointer-like types.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    int x{42};
+    int *p{&amp;x};
+
+    // prints: &amp;x = 0x00007ffd...
+    println("&amp;x = ", addrvw(p));
+    // prints: ptr = 0x00007ffd...
+    println("ptr = ", pointervw(p));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>hex_encode &mdash; Binary Data as Hex String</h2>
+      <p>
+        <code>hex_encode(first, last)</code> (or the range overload <code>hex_encode(range)</code>)
+        turns a sequence of bytes into a hex string, which is perfect for printing hashes, keys,
+        or raw buffers. <code>hex_encode_upper</code> produces uppercase letters.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    ::fast_io::vector&lt;::std::uint8_t&gt; digest{
+        0xDEz, 0xADz, 0xBEz, 0xEFz, 0x01z, 0x23z
+    };
+    // prints: deadbeef0123
+    println(hex_encode(digest));
+    // prints: DEADBEEF0123
+    println(hex_encode_upper(digest));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>ordinal &mdash; 1st, 2nd, 3rd&hellip;</h2>
+      <p>
+        <code>ordinal(n)</code> prints an integer with its English ordinal suffix:
+        <code>1st</code>, <code>2nd</code>, <code>3rd</code>, <code>4th</code>,
+        <code>21st</code>, and so on. Useful for ranking, leaderboards, and dated log messages.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    for (int i{1}; i &lt;= 5; ++i)
+    {
+        // prints: 1st, 2nd, 3rd, 4th, 5th
+        println(ordinal(i));
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>cond &mdash; Conditional Printing</h2>
+      <p>
+        <code>cond(predicate, value_if_true, value_if_false)</code> evaluates the predicate at
+        run time and prints one of two values. Both branches must be printable and, ideally,
+        have the same type so the compiler can pick a single reservation size. There is also
+        a one-argument overload: <code>cond(pred, value)</code> prints <code>value</code> when
+        <code>pred</code> is true and prints nothing otherwise.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    int score{73};
+    bool passed{score &gt;= 60};
+
+    // prints: result: PASS  score: 73
+    // or:     result: FAIL  score: 73
+    println("result: ",
+            cond(passed, "PASS", "FAIL"),
+            "  score: ", score);
+
+    // Print a suffix only when a flag is set
+    bool debug{true};
+    println("loading", cond(debug, " [debug mode]"));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Full Appendix</h2>
+      <p>
+        The manipulators shown above are only the most common ones. The library also
+        provides base-N I/O (<code>base&lt;N&gt;</code>, <code>base_get&lt;N&gt;</code>),
+        ISO timestamps, IP address formatting, hex floats, percentage formatters,
+        transcode manipulators, and more.
+      </p>
+      <p>
+        For the complete reference, see the
+        <a href="01.manipulators/">Appendix: Manipulators</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>Manipulators are ordinary objects in <code>::fast_io::manipulators</code> (shorthand: <code>::fast_io::mnp</code>) that control how values are formatted or parsed.</li>
+        <li>Base manipulators: <code>hex</code>, <code>oct</code>, <code>bin</code>, <code>dec</code> for output; <code>hex_get</code>, <code>oct_get</code>, <code>bin_get</code>, <code>dec_get</code> for input. <code>hex0x</code> adds the <code>0x</code> prefix.</li>
+        <li><code>boolalpha</code> switches between <code>1</code>/<code>0</code> and <code>true</code>/<code>false</code>.</li>
+        <li>Floating-point formatting: <code>fixed</code>, <code>scientific</code>, <code>general</code>, with optional precision and <code>comma_*</code> variants for thousands separators.</li>
+        <li>Alignment: <code>left</code>, <code>right</code>, <code>middle</code> take a value and a field width, plus an optional fill character.</li>
+        <li><code>chvw</code> prints an integral value as a character; <code>rgvw</code> prints a range with a separator.</li>
+        <li><code>addrvw</code> and <code>pointervw</code> format pointers as addresses; <code>hex_encode</code> turns byte sequences into hex strings.</li>
+        <li><code>ordinal</code> appends English suffixes; <code>cond</code> selects between two values at run time.</li>
+        <li>All manipulators compose with <code>print</code>, <code>println</code>, and <code>scan</code> in the same way as ordinary values &mdash; there is no separate formatting DSL to learn.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/02.customtypes/" class="prev-button">&larr; Ch11.2: Custom Types</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/04.operations/" class="next-button">Ch11.4: Operations &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

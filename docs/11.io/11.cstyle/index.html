@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.11: C-Style I/O - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.11: C-Style I/O</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        C provides a set of I/O facilities built around <code>FILE*</code>, along with functions such
+        as <code>fopen</code>, <code>fclose</code>, <code>printf</code>, <code>scanf</code>,
+        <code>fprintf</code>, and <code>fscanf</code>. These are the oldest and most widely used
+        I/O primitives in the C and C++ ecosystems.
+      </p>
+      <p>
+        <code>fast_io</code> wraps the C <code>FILE*</code> interface so that you can use it with
+        <code>print</code>/<code>println</code>/<code>scan</code> while keeping RAII semantics, type
+        safety, and performance.
+      </p>
+    </section>
+
+    <section>
+      <h2>fast_io Wrappers for <code>FILE*</code></h2>
+      <p>
+        There are four types you need to know:
+      </p>
+      <ul>
+        <li>
+          <code>::fast_io::c_file</code> &mdash; an owning wrapper around <code>FILE*</code>.
+          It closes the file automatically on destruction (RAII). This is the
+          <strong>locked</strong> variant: every operation acquires the C stream&rsquo;s internal
+          lock, so it is safe to share across threads.
+        </li>
+        <li>
+          <code>::fast_io::c_file_unlocked</code> &mdash; same as <code>c_file</code>, but it does
+          <strong>not</strong> acquire the internal lock. Use this when you manage locking yourself
+          (for example, with <code>::fast_io::mutex</code>) or when you know the stream is only
+          accessed from one thread.
+        </li>
+        <li>
+          <code>::fast_io::c_io_observer</code> &mdash; a non-owning view over a <code>FILE*</code>.
+          It does <strong>not</strong> close the file on destruction. Like <code>c_file</code>, it
+          is the locked variant.
+        </li>
+        <li>
+          <code>::fast_io::c_io_observer_unlocked</code> &mdash; a non-owning view that does not
+          lock. Use it when you control synchronization externally.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Using <code>c_file</code> with <code>print</code>/<code>println</code></h2>
+      <p>
+        <code>c_file</code> opens a file from a path and exposes it to <code>fast_io</code>&rsquo;s
+        I/O system. You can use <code>print</code>, <code>println</code>, and <code>scan</code> on
+        it just like any other <code>fast_io</code> file type.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_legacy.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Open a file for writing using C's fopen under the hood.
+    ::fast_io::c_file cf("output.txt", ::fast_io::open_mode::out);
+
+    // Use fast_io's print with the c_file wrapper.
+    print(cf, "Hello from c_file!\n");
+
+    ::std::size_t const answer{42zu};
+    println(cf, "The answer is: ", answer);
+
+    // cf is closed automatically when it goes out of scope.
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Wrapping an Existing <code>FILE*</code></h2>
+      <p>
+        If you already have a <code>FILE*</code> from C code (for example, from a library or from
+        <code>stdout</code>), use <code>c_io_observer</code> to wrap it without taking ownership.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;cstdio&gt;
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_legacy.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Open a file with standard C API.
+    FILE* fp{::std::fopen("data.txt", "w")};
+    if (!fp)
+    {
+        return 1;
+    }
+
+    {
+        // Wrap the raw FILE* in a non-owning observer.
+        ::fast_io::c_io_observer ciob{fp};
+        print(ciob, "Written through c_io_observer\n");
+
+        ::std::size_t const n{100zu};
+        println(ciob, "Count: ", n);
+    }
+
+    // You are still responsible for closing the FILE* yourself.
+    ::std::fclose(fp);
+}
+</code></pre>
+      <p>
+        To take ownership of an existing <code>FILE*</code>, construct a <code>c_file</code> with
+        <code>::fast_io::from FILE</code> or the appropriate constructor so that it is closed
+        automatically:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;cstdio&gt;
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_legacy.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    FILE* fp{::std::fopen("owned.txt", "w")};
+    if (!fp)
+    {
+        return 1;
+    }
+
+    // Take ownership: c_file will call fclose on destruction.
+    ::fast_io::c_file cf{fp};
+    print(cf, "Now owned by fast_io::c_file\n");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Thread Safety with <code>::fast_io::mutex</code></h2>
+      <p>
+        The locked variants (<code>c_file</code> and <code>c_io_observer</code>) rely on the C
+        stream&rsquo;s own internal lock. If you are using the <strong>unlocked</strong> variants,
+        you must synchronize access yourself. <code>::fast_io::mutex</code> provides a portable,
+        fast mutex for this purpose.
+      </p>
+      <p>
+        The key performance insight: instead of locking and unlocking the mutex for every single
+        write, you should <strong>lock once</strong>, then use the unlocked handle to write as much
+        data as you need, and finally release the lock. This avoids the overhead of acquiring and
+        releasing the mutex repeatedly.
+      </p>
+      <p>
+        A common use case is writing to <code>stdout</code>. The standard streams are shared across
+        the whole process, so if you want to use the fast unlocked variants, you need your own
+        mutex.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_legacy.h&gt;
+
+::fast_io::mutex stdout_mtx;
+
+void print_report()
+{
+    // Get the raw FILE* for stdout and wrap it unlocked.
+    ::fast_io::c_io_observer_unlocked ciob{stdout};
+
+    // Lock once, print everything, then unlock.
+    ::fast_io::io_lock_guard guard{stdout_mtx};
+
+    // All prints inside this scope use the unlocked handle
+    // without any further locking overhead.
+    print(ciob, "=== Report ===\n");
+    for (int i{}; i != 100; ++i)
+    {
+        print(ciob, "Row ", i, ": ", i * i, "\n");
+    }
+    print(ciob, "=== End ===\n");
+}
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+    print_report();
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Important: Format String Safety</h2>
+      <p>
+        When you call C&rsquo;s <code>printf</code> family, you <strong>must</strong> never pass a
+        runtime string directly as the format string. If the string contains a <code>%</code>
+        character, <code>printf</code> will try to interpret it as a format specifier, which leads
+        to undefined behaviour, crashes, or security vulnerabilities.
+      </p>
+      <div class="warning">
+        <strong>Wrong &mdash; format string vulnerability:</strong>
+      </div>
+<pre><code class="language-cpp">
+// DANGEROUS: If `user_input` contains "%s" or "%n", this is undefined behaviour.
+char const* user_input{"helloworld\n"};
+printf(user_input);   // WRONG
+</code></pre>
+      <div class="warning">
+        <strong>Right &mdash; always use a format specifier:</strong>
+      </div>
+<pre><code class="language-cpp">
+// SAFE: The format string is a compile-time literal; the data is passed as an argument.
+char const* user_input{"helloworld\n"};
+printf("%s", user_input);   // RIGHT
+</code></pre>
+      <p>
+        With <code>fast_io</code>, this class of bugs does not exist. <code>print</code> and
+        <code>println</code> do not use format strings at all &mdash; every argument is typed and
+        formatted independently.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // No format string, no vulnerability.
+    char const* user_input{"helloworld\n"};
+    // Wrap the C-string with os_c_str manipulator
+    print(::fast_io::mnp::os_c_str(user_input));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Reading with <code>scan</code></h2>
+      <p>
+        Just as <code>fscanf</code> reads formatted input from a <code>FILE*</code>, you can use
+        <code>scan</code> on a <code>c_file</code> or <code>c_io_observer</code>.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_legacy.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::c_file cf("input.txt", ::fast_io::open_mode::in);
+
+    ::std::size_t a{};
+    ::std::size_t b{};
+    scan(cf, a, b);
+
+    ::fast_io::c_io_observer ciob_stdout{stdout};
+    println(ciob_stdout, "a + b = ", a + b);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Standard Streams: <code>c_stdin</code>, <code>c_stdout</code>, <code>c_stderr</code></h2>
+      <p>
+        <code>fast_io</code> provides convenient functions to access the standard streams:
+      </p>
+      <ul>
+        <li><code>::fast_io::c_stdin()</code> &mdash; returns a <code>c_io_observer</code> wrapping <code>stdin</code></li>
+        <li><code>::fast_io::c_stdout()</code> &mdash; returns a <code>c_io_observer</code> wrapping <code>stdout</code></li>
+        <li><code>::fast_io::c_stderr()</code> &mdash; returns a <code>c_io_observer</code> wrapping <code>stderr</code></li>
+      </ul>
+      <p>
+        When you call <code>print()</code> or <code>scan()</code> without specifying a device as the first parameter,
+        they automatically use <code>::fast_io::c_stdout()</code> and <code>::fast_io::c_stdin()</code> respectively:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_legacy.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // print() without device defaults to c_stdout()
+    print("Enter a number: ");
+
+    // scan() without device defaults to c_stdin()
+    ::std::size_t n{};
+    scan(n);
+
+    // println() without device also defaults to c_stdout()
+    println("You entered: ", n);
+
+    // You can also be explicit:
+    print(::fast_io::c_stdout(), "Same as above\n");
+    scan(::fast_io::c_stdin(), n);
+
+    // Use c_stderr() for error messages
+    if (n == 0) {
+        print(::fast_io::c_stderr(), "Error: number is zero\n");
+    }
+}
+</code></pre>
+      <p>
+        These functions return non-owning observers, so they don't close the underlying streams.
+        The implicit default to stdout/stdin makes simple I/O very concise.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <code>::fast_io::c_file</code> wraps <code>FILE*</code> with RAII &mdash; the file is
+          closed automatically.
+        </li>
+        <li>
+          <code>::fast_io::c_io_observer</code> is a non-owning view over an existing
+          <code>FILE*</code>.
+        </li>
+        <li>
+          The <code>_unlocked</code> variants skip internal locking. Use <code>::fast_io::mutex</code>
+          to synchronize them manually when needed.
+        </li>
+        <li>
+          Never pass a runtime string as the format argument to <code>printf</code>. Always use a
+          literal format string: <code>printf("%s", str)</code>, not <code>printf(str)</code>.
+        </li>
+        <li>
+          Prefer <code>::fast_io::print</code>/<code>println</code>/<code>scan</code> over the C
+          functions &mdash; they are type-safe, faster, and immune to format string attacks.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/10.socket/" class="prev-button">&larr; Ch11.10: Sockets</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/12.iostream/" class="next-button">Ch11.12: C++ iostream &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

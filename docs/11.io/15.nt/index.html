@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.15: NT File APIs - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.15: NT File APIs</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        Modern Windows (NT, 2000, XP, 7, 10, 11) is built on the NT kernel. The lowest-level
+        user-mode entry points for file I/O are the native system calls:
+      </p>
+      <ul>
+        <li><code>NtCreateFile</code></li>
+        <li><code>NtReadFile</code></li>
+        <li><code>NtWriteFile</code></li>
+        <li><code>NtClose</code></li>
+      </ul>
+      <p>
+        These live in <code>ntdll.dll</code> and are the same functions the Win32 subsystem
+        itself calls. A parallel set of entry points with the <code>Zw</code> prefix
+        (<code>ZwCreateFile</code>, &hellip;) exist as well; they differ only in whether the
+        previous-mode parameter is set to <em>KernelMode</em> or <em>UserMode</em>. For
+        user-mode code they behave identically.
+      </p>
+      <p>
+        <code>fast_io</code> exposes the NT layer through:
+      </p>
+      <ul>
+        <li>
+          <code>::fast_io::nt_file</code> &mdash; an RAII owning wrapper. The constructor
+          invokes <code>NtCreateFile</code>; the destructor calls <code>NtClose</code>.
+        </li>
+        <li>
+          <code>::fast_io::nt_io_observer</code> &mdash; a non-owning view over an existing
+          NT <code>HANDLE</code>. Trivially copyable, no destructor.
+        </li>
+      </ul>
+      <p>
+        The programming model is exactly the same pattern as <code>posix_file</code> and
+        <code>win32_file</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Opening a File with nt_file</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // The constructor translates open_mode into the corresponding
+    // NtCreateFile parameters (DesiredAccess, CreateDisposition, ...).
+    ::fast_io::nt_file nf(u8"hello_nt.txt", ::fast_io::open_mode::out);
+
+    println(nf, u8"Hello from nt_file!");
+
+    ::std::size_t const n{42zu};
+    println(nf, u8"The answer is: ", n);
+    // NtClose is invoked automatically when `nf` goes out of scope.
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Wrapping an Existing HANDLE</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+void inspect(void* nt_handle)
+{
+    using namespace ::fast_io::iomnp;
+
+    // Non-owning view. No NtClose on destruction.
+    ::fast_io::nt_io_observer observer{
+        static_cast<::fast_io::nt_io_observer::native_handle_type>(nt_handle)};
+
+    println(observer, u8"Written through an nt_io_observer\n");
+    println(::fast_io::mnp::handlevw(observer.native_handle()));
+}
+
+int main()
+{
+    ::fast_io::nt_file nf(u8"inspect.txt", ::fast_io::open_mode::out);
+    inspect(nf.native_handle());
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Relative Opens</h2>
+      <p>
+        Because <code>NtCreateFile</code> natively accepts a
+        <em>RootDirectory</em> handle and a relative <em>ObjectName</em>, the NT layer is
+        the most natural home for <code>at(dir)</code> on Windows:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main(int argc, char** argv)
+{
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::nt_file dir{::fast_io::mnp::os_c_str(argv[1]),
+                           ::fast_io::open_mode::directory};
+    ::fast_io::nt_file nf(at(dir), u8"relative.txt",
+                          ::fast_io::open_mode::out);
+    println(nf, u8"Opened through NtCreateFile with a root directory\n");
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Why Use nt_file Directly?</h2>
+      <p>
+        Most programs should just use <code>::fast_io::native_file</code> (which aliases to
+        <code>nt_file</code> on NT) or <code>::fast_io::iobuf_file</code>. You reach for
+        <code>nt_file</code> directly when you need:
+      </p>
+      <ul>
+        <li>Direct kernel access without going through <code>kernel32.dll</code>.</li>
+        <li>Fine-grained control over <code>NtCreateFile</code> parameters.</li>
+        <li>Relative opens, which map cleanly onto the native API.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Summary</h2>
+      <ul>
+        <li>
+          <code>::fast_io::nt_file</code> wraps the NT kernel's <code>NtCreateFile</code> /
+          <code>NtClose</code> with RAII.
+        </li>
+        <li>
+          <code>::fast_io::nt_io_observer</code> is a non-owning view over an existing NT
+          <code>HANDLE</code>.
+        </li>
+        <li>
+          The API surface mirrors <code>posix_file</code> and <code>win32_file</code>: once
+          you know one layer, the others are trivial.
+        </li>
+        <li>
+          On modern Windows, <code>::fast_io::native_file</code> is an alias for
+          <code>nt_file</code>.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/14.win32/" class="prev-button">&larr; Ch11.14: Win32 File APIs</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/16.wine/" class="next-button">Ch11.16: Wine File APIs &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

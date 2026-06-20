@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.12: C++ iostream - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.12: C++ iostream</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        C++&rsquo;s standard I/O library provides <code>std::fstream</code>, <code>std::ifstream</code>,
+        and <code>std::ofstream</code>. These stream classes are built on top of
+        <code>std::basic_filebuf</code>, which is the C++ runtime&rsquo;s buffered file abstraction.
+      </p>
+      <p>
+        <code>fast_io</code> provides wrappers that let you bring <code>std::basic_filebuf</code>
+        into the <code>fast_io</code> I/O system, so you can use <code>print</code>,
+        <code>println</code>, and <code>scan</code> on them.
+      </p>
+    </section>
+
+    <section>
+      <h2>fast_io Wrappers for <code>std::basic_filebuf</code></h2>
+      <p>
+        There are two key types:
+      </p>
+      <ul>
+        <li>
+          <code>::fast_io::filebuf_file</code> &mdash; an owning wrapper around
+          <code>std::basic_filebuf*</code>. It takes ownership of the underlying buffer and destroys
+          it on destruction (RAII).
+        </li>
+        <li>
+          <code>::fast_io::filebuf_io_observer</code> &mdash; a non-owning view over an existing
+          <code>std::basic_filebuf*</code>. It does <strong>not</strong> destroy the buffer on
+          destruction.
+        </li>
+      </ul>
+      <p>
+        Note: unlike the <code>c_file</code> family, <code>filebuf_file</code> only comes in two
+        character-type variants: <code>::fast_io::filebuf_file</code> (narrow) and
+        <code>::fast_io::wfilebuf_file</code> (wide). The C++ standard library never implemented
+        <code>basic_filebuf</code> for other character types such as <code>char8_t</code> or
+        <code>char32_t</code>, so <code>fast_io</code> cannot offer them either.
+      </p>
+    </section>
+
+    <section>
+      <h2>Wrapping an Existing <code>std::fstream</code></h2>
+      <p>
+        If you already have an <code>std::fstream</code> (or <code>ifstream</code>/<code>ofstream</code>)
+        and want to use <code>fast_io</code> operations on it, wrap its <code>rdbuf()</code> with
+        <code>filebuf_io_observer</code>. This is a non-owning view, so the <code>fstream</code>
+        remains responsible for the buffer&rsquo;s lifetime.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_legacy.h&gt;
+#include &lt;fstream&gt;
+
+int main()
+{
+    ::std::ofstream fout("output.txt");
+    if (!fout)
+    {
+        return 1;
+    }
+
+    // Wrap the fstream's buffer in a non-owning observer.
+    ::fast_io::filebuf_io_observer fiob{fout.rdbuf()};
+
+    // Now you can use fast_io's print/println on it.
+    ::fast_io::println(fiob, "Hello from fast_io via fstream!");
+
+    ::std::size_t const n{42zu};
+    ::fast_io::println(fiob, "The answer is: ", n);
+
+    // fout still owns the buffer and will close the file on destruction.
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Reading with <code>scan</code></h2>
+      <p>
+        Just as with <code>c_file</code> and <code>c_io_observer</code>, you can use
+        <code>scan</code> on a <code>filebuf_io_observer</code> to read typed values.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_legacy.h&gt;
+#include &lt;fstream&gt;
+
+int main()
+{
+    ::std::ifstream fin("input.txt");
+    if (!fin)
+    {
+        return 1;
+    }
+
+    ::fast_io::filebuf_io_observer fiob{fin.rdbuf()};
+
+    ::std::size_t a{};
+    ::std::size_t b{};
+    ::fast_io::scan(fiob, a, b);
+
+    ::fast_io::println("a + b = ", a + b);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Owning an <code>fstream</code>&rsquo;s Buffer with <code>filebuf_file</code></h2>
+      <p>
+        If you want to transfer ownership of the buffer out of an <code>fstream</code> and into
+        <code>fast_io</code>, you can move the <code>filebuf</code> into a <code>filebuf_file</code>.
+        After the move, the original <code>fstream</code> no longer owns the buffer.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_legacy.h&gt;
+#include &lt;fstream&gt;
+
+int main()
+{
+    ::std::ofstream fout;
+
+    // Create a filebuf_file from scratch using open_mode.
+    ::fast_io::filebuf_file fbf("owned.txt", ::fast_io::open_mode::out);
+
+    // Transfer the buffer into the ofstream.
+    *fout.rdbuf() = ::std::move(*fbf.fb);
+
+    // Now fout owns the buffer.
+    fout &lt;&lt; "Written through std::ofstream after move\n";
+
+    // You can still use fast_io on the fbf observer, but the
+    // buffer has been moved, so be careful with the lifetimes.
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Constructing an <code>fstream</code> from Syscalls (Preview)</h2>
+      <p>
+        <code>fast_io</code> can also go in the other direction: instead of wrapping an existing
+        <code>fstream</code>, you can open a file with <code>fast_io</code>&rsquo;s low-level
+        syscall-based file types (such as <code>posix_file</code> or <code>nt_file</code>) and then
+        construct a <code>std::fstream</code> on top of it.
+      </p>
+      <p>
+        This gives you the best of both worlds &mdash; <code>fast_io</code>&rsquo;s fast, direct
+        syscall path for opening and configuring the file, and then the ability to hand the file
+        off to existing code that expects an <code>std::fstream</code>.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_legacy.h&gt;
+#include &lt;fstream&gt;
+
+int main()
+{
+    // Open the file via fast_io's low-level syscall layer.
+    ::fast_io::posix_file pf("syscall_file.txt", ::fast_io::open_mode::out);
+
+    // Wrap it in a filebuf_file (the C++ streambuffer layer).
+    ::fast_io::filebuf_file fbf{::std::move(pf), ::fast_io::open_mode::out};
+
+    // Move the filebuf into an ofstream.
+    ::std::ofstream fout;
+    *fout.rdbuf() = ::std::move(*fbf.fb);
+
+    fout &lt;&lt; "Opened via syscall, written via fstream\n";
+}
+</code></pre>
+      <p>
+        This technique &mdash; constructing an <code>fstream</code> from system calls &mdash; will
+        be covered in more detail in <strong>Ch11.17: Layers</strong>. For now, it is enough to know
+        that the path from syscalls to <code>fstream</code> exists and is well supported.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <code>::fast_io::filebuf_file</code> owns a <code>std::basic_filebuf*</code> with RAII
+          semantics.
+        </li>
+        <li>
+          <code>::fast_io::filebuf_io_observer</code> is a non-owning view over an existing
+          <code>std::basic_filebuf*</code>, perfect for wrapping an <code>fstream</code>&rsquo;s
+          <code>rdbuf()</code>.
+        </li>
+        <li>
+          Only narrow (<code>filebuf_file</code>) and wide (<code>wfilebuf_file</code>) variants
+          exist, because the C++ standard library does not provide <code>basic_filebuf</code> for
+          other character types.
+        </li>
+        <li>
+          You can construct an <code>std::fstream</code> from <code>fast_io</code>&rsquo;s syscall
+          layer by moving a <code>filebuf_file</code>&rsquo;s buffer into the stream&rsquo;s
+          <code>rdbuf()</code>. This will be explored further in Ch11.17.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/11.cstyle/" class="prev-button">&larr; Ch11.11: C-Style I/O</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/13.posix/" class="next-button">Ch11.13: POSIX &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

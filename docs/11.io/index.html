@@ -3,79 +3,52 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch1: Compile - C++ Tutorial with fast_io</title>
+  <title>Ch11: I/O - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch1: Compile</h1>
+    <h1>Ch11: I/O</h1>
 
     <section>
+      <h2>Overview</h2>
       <p>
-        The <code>Compile</code> chapter begins with the most minimal C++ program:
-      </p>
-      <pre><code>int main() {}</code></pre>
-      <p>
-        There is no printing, no input, just the bare minimum entry point.  
-        From here, we explore how to turn this source code into a binary executable.
+        This chapter covers <code>fast_io</code>&rsquo;s I/O system &mdash; the
+        core of the library. We will learn how to perform file I/O, define
+        custom types for printing and scanning, use manipulators, understand
+        the operations layer, and work with every level of the OS file API.
       </p>
     </section>
 
     <section>
-      <h2>Tools We Will Use</h2>
-      <p>
-        To keep things modern and lightweight, we will use:
-      </p>
+      <h2>Sub-chapters</h2>
       <ul>
-        <li><strong><a href="http://pwa-store-7x5.pages.dev/" target="_blank" rel="noopener noreferrer">PWA Store</a></strong> — to install Progressive Web Apps.</li>
-        <li><strong><a href="https://insiders.vscode.dev/" target="_blank" rel="noopener noreferrer">VS Code (Insiders PWA)</a></strong> or <strong><a href="https://vscode.dev/" target="_blank" rel="noopener noreferrer">VS Code (PWA)</a></strong> — to write and edit our C++ code directly in the browser.</li>
-        <li><strong><a href="https://github.com/trcrsired/gcc-releases/releases" target="_blank" rel="noopener noreferrer">gcc</a></strong> — GNU Compiler Collection for building C++ programs.</li>
-        <li><strong><a href="https://github.com/trcrsired/llvm-releases/releases" target="_blank" rel="noopener noreferrer">clang/LLVM</a></strong> — modern compiler infrastructure for C++.</li>
+        <li><a href="/docs/11.io/01.fileio/">Ch11.1: File I/O</a> &mdash; ibuf_file, obuf_file, iobuf_file, u8iobuf_file</li>
+        <li><a href="/docs/11.io/02.customtypes/">Ch11.2: Custom Types</a> &mdash; print_define, print_reserve_define, print_scatter_define, scan_context_define</li>
+        <li><a href="/docs/11.io/03.manipulators/">Ch11.3: Manipulators</a> &mdash; hex, oct, bin, boolalpha, alignment, and more</li>
+        <li><a href="/docs/11.io/04.operations/">Ch11.4: I/O Operations</a> &mdash; write_some, write_all, pwrite, scatter_write</li>
+        <li><a href="/docs/11.io/05.buffered/">Ch11.5: Buffered vs Unbuffered I/O</a> &mdash; native_file vs iobuf_file</li>
+        <li><a href="/docs/11.io/06.mutex/">Ch11.6: Mutex I/O</a> &mdash; thread-safe I/O with lockable file types</li>
+        <li><a href="/docs/11.io/07.randomaccess/">Ch11.7: Random Access I/O</a> &mdash; seek, tell, positional I/O</li>
+        <li><a href="/docs/11.io/08.fileloader/">Ch11.8: File Loader</a> &mdash; memory-mapped files with native_file_loader and allocation_file_loader</li>
+        <li><a href="/docs/11.io/09.stringrelation/">Ch11.9: Relationship with String</a> &mdash; concat_fast_io and to&lt;T&gt; use the same I/O system</li>
+        <li><a href="/docs/11.io/10.socket/">Ch11.10: Socket Files</a> &mdash; native_socket_file, iobuf_socket_file, u8http_header_buffer</li>
+        <li><a href="/docs/11.io/11.cstyle/">Ch11.11: C-Style I/O</a> &mdash; FILE*, c_file, c_io_observer, printf safety</li>
+        <li><a href="/docs/11.io/12.iostream/">Ch11.12: C++ iostream</a> &mdash; fstream, filebuf_file, filebuf_io_observer</li>
+        <li><a href="/docs/11.io/13.posix/">Ch11.13: POSIX File APIs</a> &mdash; open, openat, posix_file, posix_io_observer</li>
+        <li><a href="/docs/11.io/14.win32/">Ch11.14: Win32 File APIs</a> &mdash; CreateFileW/A, win32_file, win32_io_observer</li>
+        <li><a href="/docs/11.io/15.nt/">Ch11.15: NT File APIs</a> &mdash; NtCreateFile, nt_file, nt_io_observer</li>
+        <li><a href="/docs/11.io/16.wine/">Ch11.16: Wine File APIs</a> &mdash; Wine compatibility layer</li>
+        <li><a href="/docs/11.io/17.layers/">Ch11.17: Relationship Between File Layers</a> &mdash; the full layer hierarchy and interoperability</li>
       </ul>
-      <p>
-        We will not use MSVC in this tutorial.
-      </p>
-    </section>
-
-    <section>
-      <h2>Compiling Across Platforms</h2>
-      <p>
-        Using pure terminal commands, we will learn how to produce different kinds of binaries:
-      </p>
-      <ul>
-        <li><strong>Windows</strong>: <code>.exe</code> files</li>
-        <li><strong>Linux / FreeBSD</strong>: <code>ELF</code> binaries</li>
-        <li><strong>macOS</strong>: <code>Mach-O</code> binaries</li>
-      </ul>
-      <p>
-        This chapter emphasizes understanding compilation without relying on IDEs or build systems.  
-        Just the command line, the compiler, and the simplest C++ program.
-      </p>
-    </section>
-
-    <section>
-      <h2>Workflow</h2>
-      <p>
-        The workflow is straightforward:
-      </p>
-      <ol>
-        <li>Install the <a href="http://pwa-store-7x5.pages.dev/" target="_blank" rel="noopener noreferrer">PWA Store</a> and <a href="https://vscode.dev/" target="_blank" rel="noopener noreferrer">PWA version of VS Code</a>.</li>
-        <li>Write <code>int main() {}</code> in a new file <code>main.cpp</code>.</li>
-        <li>Open a terminal and run <code>gcc main.cpp -o main</code> or <code>clang main.cpp -o main</code>.</li>
-        <li>Observe the generated binary (<code>main.exe</code>, <code>a.out</code>, or <code>main</code> depending on platform).</li>
-      </ol>
-      <p>
-        This exercise shows how C++ source code becomes a runnable program, even with no output.
-      </p>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/docs/intro/" class="prev-button">← Introduction</a>
-      <a href="/" class="main-button">↑ Main Page</a>
-      <a href="/docs/01.compile/01.pwastore/" class="next-button">Ch1.1: PWA Store →</a>
+      <a href="/docs/09.seqcontainers/16.std/" class="prev-button">&larr; Ch9.16: C++ Standard Library Containers</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
     </div>
   </main>
 </body>

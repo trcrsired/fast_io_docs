@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.14: Win32 File APIs - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.14: Win32 File APIs</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        On Windows, user-mode applications talk to the kernel through <code>kernel32.dll</code>.
+        The two entry points for opening files are:
+      </p>
+      <ul>
+        <li>
+          <code>CreateFileW</code> &mdash; the wide-character (UTF-16) variant, used on every
+          modern Windows release (NT, 2000, XP, 7, 10, 11).
+        </li>
+        <li>
+          <code>CreateFileA</code> &mdash; the ANSI variant, still encountered on the Windows 9x
+          family (95, 98, ME).
+        </li>
+      </ul>
+      <p>
+        <code>fast_io</code> hides this difference behind two types, mirroring the POSIX layer:
+      </p>
+      <ul>
+        <li>
+          <code>::fast_io::win32_file</code> &mdash; an RAII owning wrapper that calls
+          <code>CreateFileW</code> (or <code>CreateFileA</code> on 9x) in its constructor and
+          <code>CloseHandle</code> in its destructor.
+        </li>
+        <li>
+          <code>::fast_io::win32_io_observer</code> &mdash; a non-owning view over an existing
+          <code>HANDLE</code>. Trivially copyable, no destructor.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Choosing Between ANSI and Wide: win32_api_family</h2>
+      <p>
+        The Win32 layer exposes a traits type called
+        <code>::fast_io::win32_api_family</code>. It selects which variant of the API should
+        be used on a given Windows target:
+      </p>
+      <ul>
+        <li>
+          On the NT family (the default for any supported compiler today), the family picks
+          <code>CreateFileW</code> and the wide-character overloads.
+        </li>
+        <li>
+          On the 9x family, the family picks <code>CreateFileA</code> and the ANSI overloads.
+        </li>
+      </ul>
+      <p>
+        In practice you almost never need to touch <code>win32_api_family</code> directly:
+        <code>win32_file</code> consults it automatically when you pass a filename.
+      </p>
+    </section>
+
+    <section>
+      <h2>Opening a File with win32_file</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // The constructor picks CreateFileW or CreateFileA through
+    // ::fast_io::win32_api_family.
+    ::fast_io::win32_file wf(u8"hello_win32.txt", ::fast_io::open_mode::out);
+
+    println(wf, u8"Hello from win32_file!");
+
+    ::std::size_t const n{42zu};
+    println(wf, u8"The answer is: ", n);
+    // CloseHandle is invoked automatically when `wf` goes out of scope.
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Wrapping an Existing HANDLE</h2>
+      <p>
+        Just like <code>posix_io_observer</code>, you can build a non-owning view over a
+        <code>HANDLE</code> you obtained elsewhere:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+void write_via_handle(void* h)
+{
+    using namespace ::fast_io::iomnp;
+
+    // Non-owning: does NOT call CloseHandle on destruction.
+    ::fast_io::win32_io_observer observer{
+        static_cast<::fast_io::win32_io_observer::native_handle_type>(h)};
+    println(observer, u8"Written through a win32_io_observer\n");
+}
+
+int main()
+{
+    ::fast_io::win32_file wf(u8"legacy_handle.txt", ::fast_io::open_mode::out);
+    write_via_handle(wf.native_handle());
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Reading and Open-at</h2>
+      <p>
+        Reading uses <code>scan</code>. Opening relative to a directory handle uses
+        <code>NtCreateFile</code> under the hood because the Win32 API itself has no
+        <code>*at</code> equivalent:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::win32_file inpf(u8"input.txt", ::fast_io::open_mode::in);
+    ::std::size_t value{};
+    ::fast_io::scan(inpf, value);
+
+    ::fast_io::win32_file outpf(u8"output.txt", ::fast_io::open_mode::out);
+    println(outpf, u8"Read the value: ", value);
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Summary</h2>
+      <ul>
+        <li>
+          <code>::fast_io::win32_file</code> wraps the Win32 <code>CreateFileW</code> /
+          <code>CreateFileA</code> entry point with RAII.
+        </li>
+        <li>
+          <code>::fast_io::win32_io_observer</code> is a non-owning view over an existing
+          <code>HANDLE</code>.
+        </li>
+        <li>
+          <code>::fast_io::win32_api_family</code> selects between the ANSI and Wide variants
+          based on the target Windows family. You normally do not need to interact with it
+          directly.
+        </li>
+        <li>
+          All standard <code>fast_io</code> algorithms &mdash; <code>print</code>,
+          <code>println</code>, <code>scan</code> &mdash; work on these types.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/13.posix/" class="prev-button">&larr; Ch11.13: POSIX File APIs</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/15.nt/" class="next-button">Ch11.15: NT File APIs &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

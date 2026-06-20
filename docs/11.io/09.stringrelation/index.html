@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.9: Relationship with String - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.9: Relationship with String</h1>
+
+    <section>
+      <h2>One System, Everywhere</h2>
+      <p>
+        The <code>concat_fast_io</code> and <code>to&lt;T&gt;</code> APIs introduced
+        in <a href="/docs/09.seqcontainers/12.string/">Ch9.12</a> are not a separate
+        string-formatting pipeline &mdash; they are <em>the same</em> I/O system that
+        powers <code>print</code>, <code>println</code>, and <code>scan</code>. Every
+        string operation in <code>fast_io</code> funnels through the library's core
+        I/O layer.
+      </p>
+      <p>
+        This means the customisation points you learned for console and file output
+        &mdash; <code>print_define</code> and <code>print_reserve_define</code>
+        &mdash; automatically make your types work with string APIs too. There is
+        nothing extra to implement.
+      </p>
+    </section>
+
+    <section>
+      <h2>concat_fast_io Uses print_reserve_define</h2>
+      <p>
+        When you call <code>concat_fast_io</code>, the library formats each argument
+        into a string by invoking the same <code>print_reserve_define</code> (or
+        <code>print_define</code>) that <code>println</code> uses. If your type is
+        printable to the console, it is printable into a string &mdash; for free.
+      </p>
+      <p>
+        For example, suppose we defined <code>print_reserve_define</code> for a
+        <code>Point</code> struct back in
+        <a href="/docs/11.io/02.customtypes/">Ch11.2</a>:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+
+struct Point {
+    double x;
+    double y;
+};
+
+inline constexpr void print_reserve_define(::fast_io::io_reserve_type_t&lt;char, Point&gt;,
+                                           char* iter,
+                                           Point const&amp; p) {
+    // Format: "(x, y)"
+    *iter++ = '(';
+    iter = ::fast_io::detail::print_reserve_integral(iter, p.x);
+    *iter++ = ',';
+    *iter++ = ' ';
+    iter = ::fast_io::detail::print_reserve_integral(iter, p.y);
+    *iter++ = ')';
+}
+
+int main() {
+    using namespace ::fast_io::iomnp;
+    Point p{3.0, 4.0};
+
+    // Works on the console
+    println("Console: ", p);
+
+    // Also works in concat_fast_io &mdash; same customisation point
+    ::fast_io::string s = ::fast_io::concat_fast_io("Point: ", p);
+    // s == "Point: (3, 4)"
+
+    println(s);
+}
+</code></pre>
+      <p>
+        No separate <code>to_string</code> function, no
+        <code>std::format</code> specialisation, no <code>operator&lt;&lt;</code>
+        overload. One definition, every output target.
+      </p>
+    </section>
+
+    <section>
+      <h2>to&lt;T&gt; Uses the Same I/O Pipeline</h2>
+      <p>
+        <code>to&lt;T&gt;</code> works in two stages, both of which go through the
+        standard I/O pipeline:
+      </p>
+      <ol>
+        <li>
+          <strong>Format</strong> &mdash; the arguments are formatted into a
+          temporary string using <code>concat_fast_io</code> (and therefore
+          <code>print_reserve_define</code>).
+        </li>
+        <li>
+          <strong>Parse</strong> &mdash; the resulting string is scanned into the
+          target type <code>T</code> using <code>scan_define</code>, the same
+          customisation point that <code>scan</code> uses.
+        </li>
+      </ol>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+    // Format 42 as a string ("42"), then parse it back as a double
+    double d = ::fast_io::to&lt;double&gt;(42);  // d == 42.0
+
+    // Concatenate multiple arguments, then parse the result
+    ::std::size_t n = ::fast_io::to&lt;::std::size_t&gt;(1zu, 23zu);
+    // "1" + "23" -> "123" -> 123
+
+    println("d = ", d, ", n = ", n);
+}
+</code></pre>
+      <p>
+        Because both stages reuse the standard pipeline, any custom type that
+        implements <code>print_reserve_define</code> <em>and</em>
+        <code>scan_define</code> can round-trip through <code>to&lt;T&gt;</code>
+        without any additional glue code.
+      </p>
+    </section>
+
+    <section>
+      <h2>The Unified Design</h2>
+      <p>
+        The takeaway is that <code>fast_io</code> has <em>one</em> set of
+        customisation points for <em>every</em> output target:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Customisation Point</th>
+            <th>Used By</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>print_define</code> / <code>print_reserve_define</code></td>
+            <td>
+              <code>println</code>, <code>print</code>, <code>concat_fast_io</code>,
+              <code>concatln_fast_io</code>, <code>to&lt;T&gt;</code>
+            </td>
+          </tr>
+          <tr>
+            <td><code>scan_define</code> / <code>scan_context_define</code></td>
+            <td><code>scan</code>, <code>to&lt;T&gt;</code> (parse stage)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Console, file, buffered I/O, string, socket &mdash; they all share the same
+        formatting and parsing layer. Define your type once and it works everywhere.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <code>concat_fast_io</code> is not a separate formatter &mdash; it calls
+          <code>print_reserve_define</code> internally, the same entry point
+          <code>println</code> uses.
+        </li>
+        <li>
+          <code>to&lt;T&gt;</code> formats to a string via
+          <code>concat_fast_io</code>, then parses with <code>scan_define</code>.
+          Both stages use the standard I/O pipeline.
+        </li>
+        <li>
+          Any custom type that implements <code>print_reserve_define</code>
+          automatically works with <code>concat_fast_io</code> and the format
+          stage of <code>to&lt;T&gt;</code>.
+        </li>
+        <li>
+          Implement both <code>print_reserve_define</code> and
+          <code>scan_define</code> and your type can round-trip through
+          <code>to&lt;T&gt;</code> for free.
+        </li>
+        <li>
+          This is the unified design: one set of customisation points for console,
+          file, string, and socket output.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/08.fileloader/" class="prev-button">&larr; Ch11.8: File Loader</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/10.socket/" class="next-button">Ch11.10: Socket Files &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

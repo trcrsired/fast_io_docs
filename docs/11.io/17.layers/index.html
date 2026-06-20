@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.17: Relationship Between File Layers - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.17: Relationship Between File Layers</h1>
+
+    <section>
+      <h2>Why This Chapter Matters</h2>
+      <p>
+        So far we have met six families of file types: <code>wine</code>, <code>nt</code>,
+        <code>win32</code>, <code>posix</code>, <code>c</code>, and <code>filebuf</code>.
+        They look like separate, parallel APIs &mdash; but they are not. They form a
+        <strong>stack</strong>, and every layer is implemented in terms of the one below it.
+      </p>
+      <p>
+        Understanding this stack is the key to using <code>fast_io</code> well. It explains
+        why <code>iobuf_file</code> &ldquo;just works&rdquo; on every platform, why you can
+        freely mix layers, and what <code>native_file</code> really means.
+      </p>
+    </section>
+
+    <section>
+      <h2>The Layer Hierarchy</h2>
+      <p>
+        From the lowest layer (closest to the kernel) to the highest layer (closest to the
+        user):
+      </p>
+      <ul>
+        <li><code>wine</code></li>
+        <li><code>nt</code></li>
+        <li><code>win32</code></li>
+        <li><code>posix</code></li>
+        <li><code>c</code></li>
+        <li><code>filebuf</code></li>
+      </ul>
+      <p>
+        Written as a chain, with the arrow meaning &ldquo;is built on top of&rdquo;:
+      </p>
+      <pre><code>
+    wine  =&gt;  nt  =&gt;  win32  =&gt;  posix  =&gt;  c  =&gt;  filebuf
+      </code></pre>
+      <p>
+        Each layer <strong>wraps the one below it</strong>. When that is not possible
+        (because the layer below does not expose a usable API), the layer calls the
+        underlying system call directly and wraps <em>that</em>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Layer Diagram</h2>
+      <p>
+        A concrete picture of the stack:
+      </p>
+      <pre><code>
+    +------------------------------------------------+
+    |       std::filebuf  (C++ stdlib)               |  &lt;- filebuf_file
+    +------------------------------------------------+
+                 |
+                 v
+    +------------------------------------------------+
+    |               FILE*  (C stdlib)                |  &lt;- c_file
+    +------------------------------------------------+
+                 |
+                 v
+    +------------------------------------------------+
+    |        POSIX file descriptors (int fd)         |  &lt;- posix_file
+    +------------------------------------------------+
+                 |
+                 v
+    +------------------------------------------------+
+    |   Win32 HANDLE  (CreateFileW / CreateFileA)    |  &lt;- win32_file
+    +------------------------------------------------+
+                 |
+                 v
+    +------------------------------------------------+
+    |   NT HANDLE  (NtCreateFile / ZwCreateFile)     |  &lt;- nt_file
+    +------------------------------------------------+
+                 |
+                 v
+    +------------------------------------------------+
+    |   Wine host fd  (Wine translating NT to host)  |  &lt;- wine_file
+    +------------------------------------------------+
+                 |
+                 v
+              [ kernel ]
+      </code></pre>
+      <p>
+        On Linux, FreeBSD, and macOS, only the <code>posix</code> branch is used. On
+        Windows, the <code>nt</code> and <code>win32</code> branches are used. The
+        <code>wine</code> branch is only used when running under Wine on a POSIX host.
+      </p>
+    </section>
+
+    <section>
+      <h2>The Golden Rule of Wrapping</h2>
+      <p>
+        <code>fast_io</code> provides a wrapper for <strong>every</strong> layer, and each
+        wrapper does one of two things:
+      </p>
+      <ol>
+        <li>
+          <strong>Wraps the API of the layer below.</strong> For example,
+          <code>c_file</code> is built on top of <code>posix_file</code> because the C
+          stdlib on POSIX is itself built on top of POSIX file descriptors.
+        </li>
+        <li>
+          <strong>Calls the lower syscall directly</strong> when the runtime below does not
+          expose a usable API. This is often the case going from <code>c_file</code> down
+          to <code>posix_file</code>, because libc does not publicly expose its internal
+          fd &mdash; so <code>fast_io</code> goes straight to the syscall and wraps the
+          result.
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>What Does <code>native_xxx</code> Mean?</h2>
+      <p>
+        <code>::fast_io::native_file</code> is an alias for the lowest unbuffered layer
+        that <code>fast_io</code> wants to use on the current platform. It is chosen at
+        compile time:
+      </p>
+      <ul>
+        <li>
+          <strong>Linux, FreeBSD, macOS, &hellip;</strong> &rarr;
+          <code>::fast_io::native_file</code> = <code>::fast_io::posix_file</code>
+        </li>
+        <li>
+          <strong>Windows NT family</strong> (NT, 2000, XP, 7, 10, 11) &rarr;
+          <code>::fast_io::native_file</code> = <code>::fast_io::nt_file</code>
+        </li>
+        <li>
+          <strong>Windows 9x family</strong> (95, 98, ME) &rarr;
+          <code>::fast_io::native_file</code> = <code>::fast_io::win32_file</code>
+        </li>
+      </ul>
+      <p>
+        The same aliasing rule applies to the observers: <code>native_io_observer</code> is
+        <code>posix_io_observer</code> on POSIX systems, <code>nt_io_observer</code> on
+        Windows NT.
+      </p>
+      <p>
+        The buffered type <code>basic_iobuf_file</code> is then defined in terms of
+        <code>basic_native_file</code>:
+      </p>
+      <pre><code class="language-cpp">
+template&lt;::std::integral char_type&gt;
+using basic_iobuf_file = ::fast_io::basic_iobuf&lt;
+    ::fast_io::basic_native_file&lt;char_type&gt;&gt;;
+      </code></pre>
+      <p>
+        So when you write <code>::fast_io::iobuf_file f(u8"x.txt", open_mode::out);</code>,
+        you are getting buffered I/O on top of whichever layer <code>fast_io</code> considers
+        native for your platform.
+      </p>
+    </section>
+
+    <section>
+      <h2>Mixing Layers</h2>
+      <p>
+        Because every layer exposes the same <code>print</code> / <code>scan</code> interface
+        through concepts, you can mix them freely:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;fast_io_legacy.h&gt;
+
+int main()
+{
+    // Start at the bottom: a POSIX file descriptor.
+    ::fast_io::posix_file pf(u8"mixed.txt", ::fast_io::open_mode::out);
+    ::fast_io::println(pf, u8"Line 1 via posix_file");
+
+    // Move it up to a C FILE*.
+    ::fast_io::c_file cf(::std::move(pf), ::fast_io::open_mode::out);
+    ::fast_io::println(cf, u8"Line 2 via c_file");
+
+    // Move it up again to a C++ std::filebuf.
+    ::fast_io::filebuf_file fbf(::std::move(cf), ::fast_io::open_mode::out);
+    ::fast_io::println(fbf, u8"Line 3 via filebuf_file");
+
+    // All three lines end up in the same file, in order.
+}
+      </code></pre>
+      <p>
+        Each <code>::std::move</code> promotes the handle one layer upward. Ownership is
+        transferred, not duplicated.
+      </p>
+    </section>
+
+    <section>
+      <h2>Descending the Stack: <code>construct_fstream_from_syscall</code></h2>
+      <p>
+        A particularly impressive demonstration of the layered model is
+        <code>::fast_io::construct_fstream_from_syscall</code>. It takes a raw,
+        syscall-level file handle and constructs a fully working
+        <code>std::fstream</code> from it &mdash; traversing <strong>every</strong> layer
+        in between:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;fast_io_legacy.h&gt;
+#include &lt;fstream&gt;
+
+int main()
+{
+    // Open at the syscall level.
+    ::fast_io::native_file nf(u8"syscall.txt", ::fast_io::open_mode::out);
+
+    // Build an std::fstream that reads/writes the same underlying file,
+    // ascending through posix -&gt; c -&gt; filebuf along the way.
+    auto fstream =
+        ::fast_io::construct_fstream_from_syscall(::std::move(nf));
+
+    // Now you can use the fstream like normal C++.
+    fstream &lt;&lt; "Hello from a syscall-originated fstream!\n";
+}
+      </code></pre>
+      <p>
+        This is not a parlor trick: it is the natural consequence of every layer being
+        interoperable with the one next to it.
+      </p>
+    </section>
+
+    <section>
+      <h2>Getting the Raw File Descriptor Out of an <code>iobuf_file</code></h2>
+      <p>
+        Because the layers are transparent, you can start at the top and descend all the
+        way back down to a raw <code>int fd</code>. The idiomatic way is through
+        <code>static_cast</code> to the appropriate observer type:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    // iobuf_file is buffered I/O on top of native_file.
+    ::fast_io::iobuf_file bf(u8"demo.txt", ::fast_io::open_mode::out);
+    ::fast_io::println(bf, u8"Buffered write");
+
+    // Flush so everything hits the underlying file before we peek at it.
+    ::fast_io::flush(bf);
+
+    // Step 1: obtain a posix_io_observer from the iobuf_file.
+    //         On POSIX systems, iobuf_file's native file is posix_file,
+    //         so this static_cast is lossless.
+    auto piob{static_cast&lt;::fast_io::posix_io_observer&gt;(bf)};
+
+    // Step 2: pull the raw int fd out of the observer.
+    int const fd{piob.fd};
+
+    ::fast_io::println(u8"The underlying fd is: ",
+        static_cast&lt;::std::size_t&gt;(static_cast&lt;unsigned&gt;(fd)));
+
+    // The fd is still owned by `bf`; we only borrowed a view.
+}
+      </code></pre>
+      <p>
+        On Windows the same idea works, but you descend to
+        <code>::fast_io::nt_io_observer</code> (or <code>::fast_io::win32_io_observer</code>)
+        and the raw handle is a <code>void*</code> rather than an <code>int</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>The Complete Layer Reference</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Owning type</th>
+            <th>Observer type</th>
+            <th>Wraps</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>wine</td>
+            <td><code>::fast_io::wine_file</code></td>
+            <td><code>::fast_io::wine_io_observer</code></td>
+            <td>Wine host fd</td>
+          </tr>
+          <tr>
+            <td>nt</td>
+            <td><code>::fast_io::nt_file</code></td>
+            <td><code>::fast_io::nt_io_observer</code></td>
+            <td><code>NtCreateFile</code> / <code>ZwCreateFile</code></td>
+          </tr>
+          <tr>
+            <td>win32</td>
+            <td><code>::fast_io::win32_file</code></td>
+            <td><code>::fast_io::win32_io_observer</code></td>
+            <td><code>CreateFileW</code> / <code>CreateFileA</code></td>
+          </tr>
+          <tr>
+            <td>posix</td>
+            <td><code>::fast_io::posix_file</code></td>
+            <td><code>::fast_io::posix_io_observer</code></td>
+            <td><code>open</code> / <code>openat</code></td>
+          </tr>
+          <tr>
+            <td>c</td>
+            <td><code>::fast_io::c_file</code></td>
+            <td><code>::fast_io::c_io_observer</code></td>
+            <td><code>FILE*</code> / <code>fopen</code></td>
+          </tr>
+          <tr>
+            <td>filebuf</td>
+            <td><code>::fast_io::filebuf_file</code></td>
+            <td><code>::fast_io::filebuf_io_observer</code></td>
+            <td><code>::std::filebuf*</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          The six layers form a strict hierarchy:
+          <code>wine =&gt; nt =&gt; win32 =&gt; posix =&gt; c =&gt; filebuf</code>.
+        </li>
+        <li>
+          Each layer wraps the one below it. When the layer below does not expose a usable
+          API, <code>fast_io</code> calls the kernel directly and wraps that instead.
+        </li>
+        <li>
+          <code>fast_io</code> provides a wrapper for <strong>every</strong> layer and lets
+          you mix layers together freely.
+        </li>
+        <li>
+          <code>native_xxx</code> is the layer <code>fast_io</code> wants at the lowest
+          level on the current platform: <code>posix_file</code> on POSIX systems,
+          <code>nt_file</code> on Windows NT, <code>win32_file</code> on Windows 9x.
+        </li>
+        <li>
+          <code>construct_fstream_from_syscall</code> is a showcase of the model: it builds
+          a <code>::std::fstream</code> from a raw syscall-level handle, ascending through
+          every layer.
+        </li>
+        <li>
+          You can descend in the other direction too: a
+          <code>static_cast</code> to the appropriate <code>xxx_io_observer</code> gives
+          you a non-owning view, and the observer exposes the raw native handle.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/16.wine/" class="prev-button">&larr; Ch11.16: Wine File APIs</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

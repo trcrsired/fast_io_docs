@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.3.1: Manipulators Reference - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+  <style>
+    table.manipulator-ref {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1em 0 2em 0;
+    }
+    table.manipulator-ref th,
+    table.manipulator-ref td {
+      border: 1px solid #555;
+      padding: 0.5em 0.75em;
+      text-align: left;
+      vertical-align: top;
+    }
+    table.manipulator-ref th {
+      background-color: #2a2a2a;
+      color: #f0f0f0;
+    }
+    table.manipulator-ref tr:nth-child(even) {
+      background-color: #1e1e1e;
+    }
+    table.manipulator-ref td code {
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Ch11.3.1: Manipulators Reference</h1>
+
+    <section>
+      <p>
+        This page is a complete reference of every manipulator provided by <code>fast_io</code>.
+        Manipulators live in the namespace <code>::fast_io::manipulators</code>, which is
+        aliased as <code>::fast_io::mnp</code> for convenience. They are passed directly to
+        <code>print</code>, <code>println</code>, or <code>scan</code> to control how values
+        are formatted or parsed — no format strings, no implicit conversions, no surprises.
+      </p>
+      <p>
+        Each section below groups the manipulators by purpose. The tables list the manipulator
+        signature, a short description, and a small usage example using the
+        <code>::fast_io::mnp::</code> prefix.
+      </p>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 1. Integer Base                                               -->
+    <!-- ============================================================ -->
+    <section>
+      <h2>1. Integer Base Manipulators</h2>
+      <p>
+        Control the numeric base used when printing or scanning integers. The
+        <code>base&lt;N&gt;</code> family accepts any base from 2 to 36. Shorthand
+        manipulators are provided for the most common bases: decimal (10), octal (8),
+        binary (2), and hexadecimal (16). The <code>upper</code> variants emit
+        uppercase digits <code>A–F</code> instead of <code>a–f</code>.
+      </p>
+      <table class="manipulator-ref">
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::mnp::base&lt;N&gt;(t)</code></td>
+            <td>Print or scan <code>t</code> in base <em>N</em> (2&nbsp;≤&nbsp;N&nbsp;≤&nbsp;36) with lowercase digits.</td>
+            <td><code>::fast_io::mnp::base&lt;36&gt;(value)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::baseupper&lt;N&gt;(t)</code></td>
+            <td>Like <code>base&lt;N&gt;</code>, but uses uppercase letters <code>A–Z</code> for digit values ≥&nbsp;10.</td>
+            <td><code>::fast_io::mnp::baseupper&lt;16&gt;(value)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::hex(t)</code></td>
+            <td>Print or scan <code>t</code> in lowercase hexadecimal (base&nbsp;16).</td>
+            <td><code>::fast_io::mnp::hex(0xDEAD)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::hexupper(t)</code></td>
+            <td>Print or scan <code>t</code> in uppercase hexadecimal (base&nbsp;16, digits <code>A–F</code>).</td>
+            <td><code>::fast_io::mnp::hexupper(0xBEEF)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::hex0x(t)</code></td>
+            <td>Like <code>hex</code>, but prefixes the output with <code>0x</code>.</td>
+            <td><code>::fast_io::mnp::hex0x(42)</code> → <code>0x2a</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::hex0xupper(t)</code></td>
+            <td>Like <code>hexupper</code>, but prefixes the output with <code>0x</code>.</td>
+            <td><code>::fast_io::mnp::hex0xupper(42)</code> → <code>0x2A</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::dec(t)</code></td>
+            <td>Print or scan <code>t</code> in decimal (base&nbsp;10). This is the default for integers.</td>
+            <td><code>::fast_io::mnp::dec(1234)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::oct(t)</code></td>
+            <td>Print or scan <code>t</code> in octal (base&nbsp;8).</td>
+            <td><code>::fast_io::mnp::oct(0777)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::bin(t)</code></td>
+            <td>Print or scan <code>t</code> in binary (base&nbsp;2).</td>
+            <td><code>::fast_io::mnp::bin(0b1010)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::uhexfull(t)</code></td>
+            <td>Print <code>t</code> as a zero-padded, full-width lowercase hexadecimal value (all nibbles shown).</td>
+            <td><code>::fast_io::mnp::uhexfull(std::uint32_t{0xFF})</code> → <code>000000ff</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::uhexupperfull(t)</code></td>
+            <td>Like <code>uhexfull</code>, but uses uppercase hex digits <code>A–F</code>.</td>
+            <td><code>::fast_io::mnp::uhexupperfull(std::uint32_t{0xFF})</code> → <code>000000FF</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 2. Pointer / Address                                          -->
+    <!-- ============================================================ -->
+    <section>
+      <h2>2. Pointer / Address Manipulators</h2>
+      <p>
+        Format pointers, addresses, and callable references in a platform-appropriate
+        hexadecimal representation. Each manipulator targets a specific kind of address
+        so the output is unambiguous.
+      </p>
+      <table class="manipulator-ref">
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::mnp::addrvw(t)</code></td>
+            <td>Print a generic address (pointer, handle, etc.) in hexadecimal with full width and <code>0x</code> prefix.</td>
+            <td><code>::fast_io::mnp::addrvw(ptr)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::pointervw(t)</code></td>
+            <td>Print an ordinary object pointer in hexadecimal address form.</td>
+            <td><code>::fast_io::mnp::pointervw(&amp;obj)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::itervw(t)</code></td>
+            <td>Print an iterator's underlying address in hexadecimal.</td>
+            <td><code>::fast_io::mnp::itervw(vec.begin())</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::funcvw(t)</code></td>
+            <td>Print a function pointer in hexadecimal address form.</td>
+            <td><code>::fast_io::mnp::funcvw(&amp;main)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::fieldptrvw(t)</code></td>
+            <td>Print a pointer-to-data-member in hexadecimal form.</td>
+            <td><code>::fast_io::mnp::fieldptrvw(&amp;MyStruct::field)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::methodvw(t)</code></td>
+            <td>Print a pointer-to-member-function in hexadecimal form.</td>
+            <td><code>::fast_io::mnp::methodvw(&amp;MyClass::doWork)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::handlevw(t)</code></td>
+            <td>Print an OS handle or file descriptor value in hexadecimal form.</td>
+            <td><code>::fast_io::mnp::handlevw(posix_file.fd())</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 3. Boolean                                                    -->
+    <!-- ============================================================ -->
+    <section>
+      <h2>3. Boolean Manipulators</h2>
+      <p>
+        Control how <code>bool</code> values are printed. By default, booleans print
+        as <code>1</code> or <code>0</code>. The <code>boolalpha</code> manipulators
+        switch to textual representation.
+      </p>
+      <table class="manipulator-ref">
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::mnp::boolalpha(b)</code></td>
+            <td>Print <code>b</code> as <code>"true"</code> or <code>"false"</code> (lowercase).</td>
+            <td><code>::fast_io::mnp::boolalpha(flag)</code> → <code>true</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::boolalpha&lt;true&gt;(b)</code></td>
+            <td>Print <code>b</code> as <code>"TRUE"</code> or <code>"FALSE"</code> (uppercase).</td>
+            <td><code>::fast_io::mnp::boolalpha&lt;true&gt;(flag)</code> → <code>TRUE</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 4. Floating-Point                                             -->
+    <!-- ============================================================ -->
+    <section>
+      <h2>4. Floating-Point Manipulators</h2>
+      <p>
+        Choose the notation used when printing floating-point values. An optional second
+        argument <code>n</code> controls the precision (number of digits after the radix
+        point). The <code>comma_</code> variants insert locale-style thousand separators
+        into the integer part of the output.
+      </p>
+      <table class="manipulator-ref">
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::mnp::hexfloat(t)</code><br>
+                <code>::fast_io::mnp::hexfloat(t, n)</code></td>
+            <td>Print <code>t</code> in hexadecimal floating-point notation (e.g. <code>0x1.921fb6p+2</code>).</td>
+            <td><code>::fast_io::mnp::hexfloat(3.14)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::decimal(t)</code><br>
+                <code>::fast_io::mnp::decimal(t, n)</code></td>
+            <td>Print <code>t</code> in plain decimal floating-point notation with <code>n</code> fractional digits.</td>
+            <td><code>::fast_io::mnp::decimal(3.14, 4)</code> → <code>3.1400</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::general(t)</code><br>
+                <code>::fast_io::mnp::general(t, n)</code></td>
+            <td>Print <code>t</code> using the shorter of <code>decimal</code> or <code>scientific</code>, with up to <code>n</code> significant digits.</td>
+            <td><code>::fast_io::mnp::general(123456.0, 3)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::fixed(t)</code><br>
+                <code>::fast_io::mnp::fixed(t, n)</code></td>
+            <td>Print <code>t</code> in fixed-point notation with <code>n</code> digits after the decimal point.</td>
+            <td><code>::fast_io::mnp::fixed(3.14, 2)</code> → <code>3.14</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::scientific(t)</code><br>
+                <code>::fast_io::mnp::scientific(t, n)</code></td>
+            <td>Print <code>t</code> in scientific (exponential) notation with <code>n</code> fractional digits.</td>
+            <td><code>::fast_io::mnp::scientific(3.14, 2)</code> → <code>3.14e+00</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::comma_hexfloat(t)</code><br>
+                <code>::fast_io::mnp::comma_hexfloat(t, n)</code></td>
+            <td>Like <code>hexfloat</code>, with thousand separators in the integer part.</td>
+            <td><code>::fast_io::mnp::comma_hexfloat(4096.0)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::comma_decimal(t)</code><br>
+                <code>::fast_io::mnp::comma_decimal(t, n)</code></td>
+            <td>Like <code>decimal</code>, with thousand separators.</td>
+            <td><code>::fast_io::mnp::comma_decimal(1234567.89, 2)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::comma_general(t)</code><br>
+                <code>::fast_io::mnp::comma_general(t, n)</code></td>
+            <td>Like <code>general</code>, with thousand separators.</td>
+            <td><code>::fast_io::mnp::comma_general(9876543.21)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::comma_fixed(t)</code><br>
+                <code>::fast_io::mnp::comma_fixed(t, n)</code></td>
+            <td>Like <code>fixed</code>, with thousand separators.</td>
+            <td><code>::fast_io::mnp::comma_fixed(12345.678, 2)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::comma_scientific(t)</code><br>
+                <code>::fast_io::mnp::comma_scientific(t, n)</code></td>
+            <td>Like <code>scientific</code>, with thousand separators.</td>
+            <td><code>::fast_io::mnp::comma_scientific(1234567.89, 2)</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 5. Width / Alignment                                          -->
+    <!-- ============================================================ -->
+    <section>
+      <h2>5. Width / Alignment Manipulators</h2>
+      <p>
+        Pad the output of <code>t</code> to a minimum field width of <code>n</code>
+        columns. An optional third argument <code>ch</code> sets the fill character
+        (default is a space). These mirror the alignment options familiar from
+        <code>&lt;iomanip&gt;</code> but are resolved entirely at compile time where
+        possible.
+      </p>
+      <table class="manipulator-ref">
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::mnp::left(t, n)</code></td>
+            <td>Left-align <code>t</code> in a field of width <code>n</code>, padded with spaces.</td>
+            <td><code>::fast_io::mnp::left("hi", 10)</code> → <code>"hi&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::left(t, n, ch)</code></td>
+            <td>Left-align <code>t</code> in a field of width <code>n</code>, padded with <code>ch</code>.</td>
+            <td><code>::fast_io::mnp::left("hi", 10, '.')</code> → <code>"hi........"</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::right(t, n)</code></td>
+            <td>Right-align <code>t</code> in a field of width <code>n</code>, padded with spaces.</td>
+            <td><code>::fast_io::mnp::right("hi", 10)</code> → <code>"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hi"</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::right(t, n, ch)</code></td>
+            <td>Right-align <code>t</code> in a field of width <code>n</code>, padded with <code>ch</code>.</td>
+            <td><code>::fast_io::mnp::right("hi", 10, '_')</code> → <code>"________hi"</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::middle(t, n)</code></td>
+            <td>Center <code>t</code> in a field of width <code>n</code>, padded with spaces.</td>
+            <td><code>::fast_io::mnp::middle("hi", 10)</code> → <code>"&nbsp;&nbsp;&nbsp;&nbsp;hi&nbsp;&nbsp;&nbsp;&nbsp;"</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::middle(t, n, ch)</code></td>
+            <td>Center <code>t</code> in a field of width <code>n</code>, padded with <code>ch</code>.</td>
+            <td><code>::fast_io::mnp::middle("hi", 10, '=')</code> → <code>"====hi===="</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::internal(t, n)</code></td>
+            <td>Pad after any sign or base prefix but before the digits, in a field of width <code>n</code>, with spaces.</td>
+            <td><code>::fast_io::mnp::internal(-42, 8)</code> → <code>"-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;42"</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::internal(t, n, ch)</code></td>
+            <td>Like <code>internal</code>, but uses <code>ch</code> as the fill character.</td>
+            <td><code>::fast_io::mnp::internal(-42, 8, '0')</code> → <code>"-0000042"</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 6. Conditional                                                -->
+    <!-- ============================================================ -->
+    <section>
+      <h2>6. Conditional Manipulators</h2>
+      <p>
+        Select between two alternative outputs at runtime based on a boolean predicate.
+        When the predicate is <code>true</code>, <code>t1</code> is printed; otherwise
+        <code>t2</code> is printed. The single-argument overload omits the
+        <em>else</em> branch (printing nothing when the predicate is false).
+      </p>
+      <table class="manipulator-ref">
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::mnp::cond(pred, t1, t2)</code></td>
+            <td>Print <code>t1</code> if <code>pred</code> is <code>true</code>; otherwise print <code>t2</code>.</td>
+            <td><code>::fast_io::mnp::cond(ok, "pass", "fail")</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::cond(pred, t1)</code></td>
+            <td>Print <code>t1</code> if <code>pred</code> is <code>true</code>; otherwise print nothing.</td>
+            <td><code>::fast_io::mnp::cond(showDetail, extra)</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 7. Percentage                                                 -->
+    <!-- ============================================================ -->
+    <section>
+      <h2>7. Percentage Manipulators</h2>
+      <p>
+        Format the ratio <code>num&nbsp;/&nbsp;deno</code> as a human-readable percentage.
+        <code>percentage_conventional</code> multiplies by 100 and appends <code>%</code>.
+        The <code>base_percentage_conventional&lt;N&gt;</code> variant lets you specify
+        the output base <em>N</em> (default 10) for the percentage digits.
+      </p>
+      <table class="manipulator-ref">
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::mnp::percentage_conventional(num, deno)</code></td>
+            <td>Print <code>num/deno</code> as a conventional base-10 percentage (e.g. <code>75%</code>).</td>
+            <td><code>::fast_io::mnp::percentage_conventional(3, 4)</code> → <code>75%</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::base_percentage_conventional&lt;N&gt;(num, deno)</code></td>
+            <td>Print <code>num/deno</code> as a percentage in base <em>N</em>.</td>
+            <td><code>::fast_io::mnp::base_percentage_conventional&lt;16&gt;(0xFF, 0x100)</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 8. Ordinal                                                    -->
+    <!-- ============================================================ -->
+    <section>
+      <h2>8. Ordinal Manipulator</h2>
+      <p>
+        Append the English ordinal suffix (<code>st</code>, <code>nd</code>,
+        <code>rd</code>, or <code>th</code>) to an integer.
+      </p>
+      <table class="manipulator-ref">
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::mnp::ordinal(t)</code></td>
+            <td>Print integer <code>t</code> with its English ordinal suffix: <code>1st</code>, <code>2nd</code>, <code>3rd</code>, <code>4th</code>, etc.</td>
+            <td><code>::fast_io::mnp::ordinal(42)</code> → <code>42nd</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 9. Range View                                                 -->
+    <!-- ============================================================ -->
+    <section>
+      <h2>9. Range View Manipulator</h2>
+      <p>
+        Print every element of a range, separated by a given delimiter. This replaces
+        the need for manual loops when displaying containers such as
+        <code>std::vector</code>, <code>std::array</code>, or any
+        <code>std::ranges::range</code>.
+      </p>
+      <table class="manipulator-ref">
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::mnp::rgvw(r, sep)</code></td>
+            <td>Print every element of range <code>r</code>, inserting the string <code>sep</code> between consecutive elements.</td>
+            <td><code>::fast_io::mnp::rgvw(vec, ",")</code> → <code>1,2,3</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 10. Character / String                                        -->
+    <!-- ============================================================ -->
+    <section>
+      <h2>10. Character / String Manipulators</h2>
+      <p>
+        Low-level helpers for printing individual characters and C-style string
+        pointers without relying on null-termination assumptions.
+      </p>
+      <table class="manipulator-ref">
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::mnp::chvw(ch)</code></td>
+            <td>Print a single character <code>ch</code>.</td>
+            <td><code>::fast_io::mnp::chvw('A')</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::small_scatter(s)</code></td>
+            <td>Print a small string literal or compile-time-known string <code>s</code> without a heap allocation.</td>
+            <td><code>::fast_io::mnp::small_scatter("hello")</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::os_c_str(ch, n)</code></td>
+            <td>Print <code>n</code> characters from the C string pointer <code>ch</code>, without requiring null termination.</td>
+            <td><code>::fast_io::mnp::os_c_str(buf, len)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::os_c_str_null_terminated(ch, n)</code></td>
+            <td>Print up to <code>n</code> characters from the null-terminated C string <code>ch</code>, stopping at the first <code>'\0'</code>.</td>
+            <td><code>::fast_io::mnp::os_c_str_null_terminated(cstr, maxLen)</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 11. Hex Encoding                                              -->
+    <!-- ============================================================ -->
+    <section>
+      <h2>11. Hex Encoding Manipulators</h2>
+      <p>
+        Encode a contiguous sequence of bytes as a hexadecimal string. These
+        manipulators accept either a pair of iterators <code>[first,&nbsp;last)</code>
+        or an entire contiguous range (such as <code>std::vector&lt;std::byte&gt;</code>).
+      </p>
+      <table class="manipulator-ref">
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::mnp::hex_encode(first, last)</code></td>
+            <td>Encode bytes in <code>[first,&nbsp;last)</code> as a lowercase hex string.</td>
+            <td><code>::fast_io::mnp::hex_encode(buf.data(), buf.data() + buf.size())</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::hex_encode_upper(first, last)</code></td>
+            <td>Encode bytes in <code>[first,&nbsp;last)</code> as an uppercase hex string.</td>
+            <td><code>::fast_io::mnp::hex_encode_upper(buf.data(), buf.data() + buf.size())</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::hex_encode(range)</code></td>
+            <td>Encode every byte in the contiguous range <code>range</code> as a lowercase hex string.</td>
+            <td><code>::fast_io::mnp::hex_encode(digest)</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::hex_encode_upper(range)</code></td>
+            <td>Encode every byte in the contiguous range <code>range</code> as an uppercase hex string.</td>
+            <td><code>::fast_io::mnp::hex_encode_upper(digest)</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 12. Crypto Hash File                                          -->
+    <!-- ============================================================ -->
+    <section>
+      <h2>12. Crypto Hash File Manipulators</h2>
+      <p>
+        Adapt a crypto-hash context (e.g. <code>sha256_context</code>,
+        <code>md5_context</code>) so it can be written to as if it were an output
+        stream. The <code>as_file</code> family wraps the context reference and
+        selects the character type of the output stream. Once the hashing is done,
+        use the hex-encoding manipulators above or <code>hash_digest</code> to
+        retrieve the result.
+      </p>
+      <table class="manipulator-ref">
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::mnp::as_file(hashctx)</code></td>
+            <td>Wrap <code>hashctx</code> as a narrow (<code>char</code>) output file for incremental hashing.</td>
+            <td><code>print(::fast_io::mnp::as_file(ctx), data);</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::u8as_file(hashctx)</code></td>
+            <td>Wrap <code>hashctx</code> as a <code>char8_t</code> output file.</td>
+            <td><code>print(::fast_io::mnp::u8as_file(ctx), u8"data");</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::was_file(hashctx)</code></td>
+            <td>Wrap <code>hashctx</code> as a <code>wchar_t</code> output file.</td>
+            <td><code>print(::fast_io::mnp::was_file(ctx), L"data");</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::u16as_file(hashctx)</code></td>
+            <td>Wrap <code>hashctx</code> as a <code>char16_t</code> output file.</td>
+            <td><code>print(::fast_io::mnp::u16as_file(ctx), u"data");</code></td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::mnp::u32as_file(hashctx)</code></td>
+            <td>Wrap <code>hashctx</code> as a <code>char32_t</code> output file.</td>
+            <td><code>print(::fast_io::mnp::u32as_file(ctx), U"data");</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        A complete hashing example:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_crypto_hash.h&gt;
+
+using namespace fast_io::io;
+
+int main()
+{
+    ::fast_io::sha256_context ctx;
+    print(::fast_io::mnp::as_file(ctx), "Hello, fast_io!\n");
+    ctx.do_final();
+    println(::fast_io::mnp::hash_digest(ctx));
+}
+</code></pre>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- Summary                                                       -->
+    <!-- ============================================================ -->
+    <section>
+      <h2>Summary</h2>
+      <p>
+        Every manipulator in <code>::fast_io::mnp::</code> is a lightweight,
+        trivially-copyable wrapper that carries formatting intent through the type
+        system. There are no global formatting flags, no locale-dependent surprises,
+        and no format strings to get wrong. Combined with
+        <code>print</code> / <code>println</code> / <code>scan</code>, they give
+        you full control over input and output formatting — safely and efficiently.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/03.manipulators/" class="prev-button">&larr; Ch11.3: Manipulators</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/04.fileio/" class="next-button">Ch11.4: File I/O &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

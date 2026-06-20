@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.5: Buffered vs Unbuffered I/O - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.5: Buffered vs Unbuffered I/O</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>fast_io</code> provides two families of file types that differ in
+        a single, critical way: <strong>buffering</strong>. Choosing the right
+        one can be the difference between a program that runs in milliseconds
+        and one that takes seconds.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. The Two Families</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Direction</th>
+            <th>Buffered?</th>
+            <th>Best For</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::native_file</code></td>
+            <td>In / Out</td>
+            <td>No (unbuffered)</td>
+            <td>Large bulk transfers</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::ibuf_file</code></td>
+            <td>Input only</td>
+            <td>Yes</td>
+            <td>Many small reads</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::obuf_file</code></td>
+            <td>Output only</td>
+            <td>Yes</td>
+            <td>Many small writes</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::iobuf_file</code></td>
+            <td>In / Out</td>
+            <td>Yes</td>
+            <td>Mixed small reads and writes</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. native_file &mdash; Unbuffered (one syscall per operation)</h2>
+      <p>
+        <code>native_file</code> is a thin wrapper over the OS file handle.
+        Every <code>write_some</code> or <code>read_some</code> call goes
+        <strong>directly to the kernel</strong>. There is no user-space buffer
+        between your code and the OS.
+      </p>
+      <p>
+        This is fine &mdash; even ideal &mdash; when you are transferring large
+        blocks of data (e.g. reading a 1&nbsp;MiB chunk at a time). The syscall
+        overhead is negligible compared to the amount of data moved.
+      </p>
+      <p>
+        It is <strong>disastrously slow</strong> when you issue many small
+        operations. Each <code>char_put</code> or small <code>print</code>
+        becomes a separate syscall, and context-switching into the kernel
+        dominates the runtime.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    // Unbuffered: every write is a syscall
+    ::fast_io::native_file out{"bulk.bin",
+        ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
+
+    // Good: one big syscall for a large block
+    char const big_buffer[65536]{};
+    ::fast_io::operations::write_all(
+        ::fast_io::out_handle(out),
+        big_buffer, big_buffer + 65536uz);
+
+    // BAD: 65536 individual syscalls!
+    for (::std::size_t i{}; i &lt; 65536uz; ++i) {
+        ::fast_io::operations::char_put(
+            ::fast_io::out_handle(out), 'A');
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. iobuf_file &mdash; Buffered (user-space batching)</h2>
+      <p>
+        <code>iobuf_file</code> (and its input/output-only siblings) wraps the
+        native handle with a <strong>user-space buffer</strong>, typically
+        several KiB in size. Writes accumulate in this buffer; only when the
+        buffer fills does <code>fast_io</code> issue a single large syscall to
+        flush it. Reads work the same way in reverse: one syscall fetches a
+        large block, and subsequent <code>char_get</code> calls serve from the
+        buffer.
+      </p>
+      <p>
+        This turns thousands of tiny syscalls into a handful of large ones,
+        which is dramatically faster.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    // Buffered: writes accumulate in user space
+    ::fast_io::obuf_file out{"fast.bin"};
+
+    // Even 65536 char_puts are cheap &mdash; they hit the user buffer,
+    // not the kernel. The buffer flushes automatically when full.
+    for (::std::size_t i{}; i &lt; 65536uz; ++i) {
+        ::fast_io::operations::char_put(
+            ::fast_io::out_handle(out), 'A');
+    }
+    // Buffer is flushed here when `out` goes out of scope.
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. Conceptual Benchmark</h2>
+      <p>
+        The following conceptual numbers illustrate the difference. Writing
+        1&nbsp;MiB one byte at a time on a modern Linux system:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>Syscalls Issued</th>
+            <th>Approximate Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>native_file</code></td>
+            <td>1&nbsp;048&nbsp;576</td>
+            <td>~200&ndash;500&nbsp;ms</td>
+          </tr>
+          <tr>
+            <td><code>obuf_file</code></td>
+            <td>~16 (one per 64&nbsp;KiB buffer fill)</td>
+            <td>~1&ndash;3&nbsp;ms</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        That is a <strong>100&times;&ndash;500&times; speedup</strong> for the
+        exact same bytes written. The difference is purely the cost of
+        syscalls.
+      </p>
+      <p>
+        For large bulk transfers (reading or writing megabytes at a time),
+        the two are comparable because the syscall overhead is amortized over
+        a lot of data. The gap only appears with many small operations.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Side-by-Side Example</h2>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    // ----- Unbuffered: native_file -----
+    // Use this when you already have large buffers in hand.
+    {
+        ::fast_io::native_file src{"big_input.bin", ::fast_io::open_mode::in};
+        ::fast_io::native_file dst{"big_output.bin",
+            ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
+
+        char buffer[131072]; // 128 KiB
+        while (true) {
+            char const* read_end = ::fast_io::operations::read_some(
+                ::fast_io::in_handle(src), buffer, buffer + 131072uz);
+            if (read_end == buffer) break; // EOF
+            ::fast_io::operations::write_all(
+                ::fast_io::out_handle(dst), buffer, read_end);
+        }
+    }
+
+    // ----- Buffered: ibuf_file / obuf_file -----
+    // Use this when operating on many small items (lines, integers, etc.)
+    {
+        ::fast_io::ibuf_file in{"numbers.txt"};
+        ::fast_io::obuf_file out{"sum.txt"};
+
+        ::std::int64_t sum{};
+        ::std::int64_t value{};
+        while (::fast_io::scan(in, value)) {
+            sum += value;
+        }
+        ::fast_io::println(out, "Sum: ", sum);
+    }
+
+    // ----- Buffered bidirectional: iobuf_file -----
+    // Use when you need both reading and writing on the same file.
+    {
+        ::fast_io::iobuf_file iof{"patched.bin",
+            ::fast_io::open_mode::in | ::fast_io::open_mode::out};
+
+        // Read a header
+        ::std::uint32_t magic{};
+        ::fast_io::scan(iof, magic);
+
+        // Jump to offset 1024 and patch a field
+        ::fast_io::seek(iof, 1024);
+        ::fast_io::println(iof, "patched");
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>6. When to Use Which</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Scenario</th>
+            <th>Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Copying multi-megabyte blobs in large chunks</td>
+            <td><code>native_file</code> (bulk transfer, no buffer overhead)</td>
+          </tr>
+          <tr>
+            <td>Reading a file line by line with <code>getline</code></td>
+            <td><code>ibuf_file</code></td>
+          </tr>
+          <tr>
+            <td>Writing millions of small records, integers, or characters</td>
+            <td><code>obuf_file</code></td>
+          </tr>
+          <tr>
+            <td>Reading then writing to the same file (e.g. patching a header)</td>
+            <td><code>iobuf_file</code></td>
+          </tr>
+          <tr>
+            <td>Single-character or single-byte writes in a loop</td>
+            <td><code>obuf_file</code> &mdash; <em>never</em> <code>native_file</code></td>
+          </tr>
+          <tr>
+            <td>Memory-mapped / zero-copy bulk I/O</td>
+            <td><code>native_file</code> + <code>file_loader</code> (see Ch11.8)</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>::fast_io::native_file</code> is <strong>unbuffered</strong>: every read or write is a syscall. Fast for large bulk transfers, catastrophically slow for many small operations.</li>
+        <li><code>::fast_io::iobuf_file</code> (and <code>ibuf_file</code> / <code>obuf_file</code>) are <strong>buffered</strong>: they batch small operations in a user-space buffer and flush with a single syscall when full &mdash; orders of magnitude faster for small I/O.</li>
+        <li>Use <code>ibuf_file</code> for input-only, <code>obuf_file</code> for output-only, <code>iobuf_file</code> for bidirectional I/O.</li>
+        <li>Rule of thumb: if your individual read/write size is smaller than the buffer (typically 4&ndash;64&nbsp;KiB), use a buffered type. If you are already moving data in multi-KiB chunks, <code>native_file</code> avoids the extra buffer copy.</li>
+        <li>Never use <code>native_file</code> with <code>char_put</code> in a loop &mdash; use <code>obuf_file</code> instead.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/04.operations/" class="prev-button">&larr; Ch11.4: I/O Operations</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/06.mutex/" class="next-button">Ch11.6: Mutex &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

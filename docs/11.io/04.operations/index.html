@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.4: I/O Operations - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.4: I/O Operations</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        All low-level I/O operations live in the <code>::fast_io::operations</code>
+        namespace. These are the raw building blocks that higher-level functions
+        like <code>::fast_io::println</code> and <code>::fast_io::read</code> are
+        built on. You rarely need to call them directly, but understanding them
+        is important for performance-critical code and for writing custom devices.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. write_some / write_all</h2>
+      <p>
+        <code>write_some</code> attempts to write a contiguous buffer to a
+        device. It <strong>may write fewer bytes than requested</strong> and
+        returns a pointer to the first unwritten character. This mirrors the
+        semantics of POSIX <code>write()</code> &mdash; a short write is not an
+        error.
+      </p>
+      <p>
+        <code>write_all</code> loops internally until every byte has been
+        written or a hard error occurs. This is what you usually want.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    ::fast_io::obuf_file out{"output.txt"};
+
+    char const message[] = "Hello, fast_io operations!\n";
+    char const* first{message};
+    char const* last{message + sizeof(message) - 1}; // exclude null terminator
+
+    // write_some: may do a partial write.
+    // Returns pointer to first unwritten char.
+    char const* next = ::fast_io::operations::write_some(
+        ::fast_io::out_handle(out), first, last);
+
+    // Write the rest with write_all (loops until done)
+    ::fast_io::operations::write_all(
+        ::fast_io::out_handle(out), next, last);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. write_some_bytes / write_all_bytes</h2>
+      <p>
+        Identical to <code>write_some</code> / <code>write_all</code> but
+        operate on <code>::std::byte const*</code> instead of
+        <code>char const*</code>. Use these for binary data.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;cstddef&gt;
+
+int main() {
+    ::fast_io::obuf_file out{"binary.bin"};
+
+    ::std::byte const data[]{
+        ::std::byte{0xDE}, ::std::byte{0xAD},
+        ::std::byte{0xBE}, ::std::byte{0xEF}
+    };
+
+    ::std::byte const* first{data};
+    ::std::byte const* last{data + 4uz};
+
+    // Write all bytes (loops until complete)
+    ::fast_io::operations::write_all_bytes(
+        ::fast_io::out_handle(out), first, last);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. pwrite_some / pwrite_all</h2>
+      <p>
+        <strong>Positional writes</strong> &mdash; write at a given file offset
+        without changing the file&rsquo;s current position. This mirrors
+        POSIX <code>pwrite()</code>. Useful for concurrent writers that must
+        not disturb each other&rsquo;s file position.
+      </p>
+      <p>
+        The signature takes an extra <code>offset</code> parameter (in bytes
+        from the start of the file).
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    ::fast_io::obuf_file out{"data.bin",
+        ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
+
+    char const block0[] = "AAAA";
+    char const block1[] = "BBBB";
+
+    // Write "BBBB" at offset 1024 without moving the file position
+    ::fast_io::operations::pwrite_all(
+        ::fast_io::out_handle(out),
+        block1, block1 + 4uz,
+        static_cast&lt;::std::uintmax_t&gt;(1024uz));
+
+    // Write "AAAA" at offset 0; file position is still 0
+    ::fast_io::operations::pwrite_all(
+        ::fast_io::out_handle(out),
+        block0, block0 + 4uz,
+        static_cast&lt;::std::uintmax_t&gt;(0uz));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. pwrite_some_bytes / pwrite_all_bytes</h2>
+      <p>
+        Same as <code>pwrite_some</code> / <code>pwrite_all</code> but accept
+        <code>::std::byte const*</code>. Use for binary positional writes.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;cstddef&gt;
+
+int main() {
+    ::fast_io::obuf_file out{"binary.bin",
+        ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
+
+    ::std::byte const header[]{
+        ::std::byte{0x89}, ::std::byte{0x50},
+        ::std::byte{0x4E}, ::std::byte{0x47}
+    };
+
+    ::fast_io::operations::pwrite_all_bytes(
+        ::fast_io::out_handle(out),
+        header, header + 4uz,
+        static_cast&lt;::std::uintmax_t&gt;(0uz));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. scatter_write_some / scatter_write_all</h2>
+      <p>
+        <strong>Scatter (gather) writes</strong> write multiple non-contiguous
+        buffers in a single syscall &mdash; equivalent to POSIX
+        <code>writev()</code>. This avoids copying scattered data into a
+        temporary contiguous buffer.
+      </p>
+      <p>
+        The argument is a span of <code>::fast_io::io_scatter_t</code>, each
+        describing one base/length pair.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    ::fast_io::obuf_file out{"scatter.txt"};
+
+    char const part1[] = "Hello, ";
+    char const part2[] = "scatter ";
+    char const part3[] = "write!\n";
+
+    ::fast_io::io_scatter_t const scatters[]{
+        {part1, sizeof(part1) - 1uz},
+        {part2, sizeof(part2) - 1uz},
+        {part3, sizeof(part3) - 1uz},
+    };
+
+    // One syscall writes all three parts
+    ::fast_io::operations::scatter_write_all(
+        ::fast_io::out_handle(out),
+        scatters, scatters + 3uz);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>6. scatter_pwrite_some / scatter_pwrite_all</h2>
+      <p>
+        Combines scatter writes with positional writes &mdash; writes multiple
+        buffers at a given offset without changing the file position. This is
+        the scatter equivalent of <code>pwritev()</code>.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    ::fast_io::obuf_file out{"scatter_pos.bin",
+        ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
+
+    char const part1[] = "AAA";
+    char const part2[] = "BBB";
+
+    ::fast_io::io_scatter_t const scatters[]{
+        {part1, 3uz},
+        {part2, 3uz},
+    };
+
+    // Write "AAABBB" at offset 512, file position unchanged
+    ::fast_io::operations::scatter_pwrite_all(
+        ::fast_io::out_handle(out),
+        scatters, scatters + 2uz,
+        static_cast&lt;::std::uintmax_t&gt;(512uz));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>7. char_put</h2>
+      <p>
+        Writes a single character. All write variants also have a
+        <code>char_put</code> counterpart for emitting one character at a time.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    ::fast_io::obuf_file out{"chars.txt"};
+
+    ::fast_io::operations::char_put(::fast_io::out_handle(out), 'H');
+    ::fast_io::operations::char_put(::fast_io::out_handle(out), 'i');
+    ::fast_io::operations::char_put(::fast_io::out_handle(out), '\n');
+}
+</code></pre>
+      <p>
+        For buffered devices (<code>obuf_file</code>), repeated
+        <code>char_put</code> calls are cheap &mdash; they just write into the
+        user-space buffer. For unbuffered devices (<code>native_file</code>),
+        each <code>char_put</code> is a syscall &mdash; extremely slow. See
+        <a href="/docs/11.io/05.buffered/">Ch11.5</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Complete Reference Table</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Pointer Type</th>
+            <th>Positional?</th>
+            <th>Scatter?</th>
+            <th>Loops?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>write_some</code></td>
+            <td><code>char const*</code></td>
+            <td>No</td>
+            <td>No</td>
+            <td>No (partial OK)</td>
+          </tr>
+          <tr>
+            <td><code>write_all</code></td>
+            <td><code>char const*</code></td>
+            <td>No</td>
+            <td>No</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><code>write_some_bytes</code></td>
+            <td><code>::std::byte const*</code></td>
+            <td>No</td>
+            <td>No</td>
+            <td>No (partial OK)</td>
+          </tr>
+          <tr>
+            <td><code>write_all_bytes</code></td>
+            <td><code>::std::byte const*</code></td>
+            <td>No</td>
+            <td>No</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><code>pwrite_some</code></td>
+            <td><code>char const*</code></td>
+            <td>Yes</td>
+            <td>No</td>
+            <td>No (partial OK)</td>
+          </tr>
+          <tr>
+            <td><code>pwrite_all</code></td>
+            <td><code>char const*</code></td>
+            <td>Yes</td>
+            <td>No</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><code>pwrite_some_bytes</code></td>
+            <td><code>::std::byte const*</code></td>
+            <td>Yes</td>
+            <td>No</td>
+            <td>No (partial OK)</td>
+          </tr>
+          <tr>
+            <td><code>pwrite_all_bytes</code></td>
+            <td><code>::std::byte const*</code></td>
+            <td>Yes</td>
+            <td>No</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><code>scatter_write_some</code></td>
+            <td><code>char</code> (scatter)</td>
+            <td>No</td>
+            <td>Yes</td>
+            <td>No (partial OK)</td>
+          </tr>
+          <tr>
+            <td><code>scatter_write_all</code></td>
+            <td><code>char</code> (scatter)</td>
+            <td>No</td>
+            <td>Yes</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><code>scatter_pwrite_some</code></td>
+            <td><code>char</code> (scatter)</td>
+            <td>Yes</td>
+            <td>Yes</td>
+            <td>No (partial OK)</td>
+          </tr>
+          <tr>
+            <td><code>scatter_pwrite_all</code></td>
+            <td><code>char</code> (scatter)</td>
+            <td>Yes</td>
+            <td>Yes</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><code>char_put</code></td>
+            <td>single <code>char</code></td>
+            <td>No</td>
+            <td>No</td>
+            <td>N/A</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>write_some</code> may do a partial write &mdash; it returns the first unwritten position. <code>write_all</code> loops until everything is written.</li>
+        <li>Every operation has a <code>_bytes</code> variant that takes <code>::std::byte const*</code> for binary data.</li>
+        <li><code>pwrite_*</code> operations write at a given offset without changing the file position (like POSIX <code>pwrite()</code>).</li>
+        <li><code>scatter_write_*</code> writes multiple buffers in one syscall (like POSIX <code>writev()</code>) &mdash; avoids copying into a temporary contiguous buffer.</li>
+        <li><code>scatter_pwrite_*</code> combines scatter and positional writes.</li>
+        <li><code>char_put</code> writes a single character &mdash; cheap on buffered devices, catastrophically slow on unbuffered ones.</li>
+        <li>Prefer <code>write_all</code> (or buffered <code>::fast_io::println</code>) for most code. Reach for <code>write_some</code> only when you need to handle partial writes yourself.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/03.manipulators/" class="prev-button">&larr; Ch11.3: Manipulators</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/05.buffered/" class="next-button">Ch11.5: Buffered vs Unbuffered I/O &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.1: File I/O - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.1: File I/O</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>fast_io</code> provides high-performance file I/O through several
+        buffered file types. These wrap the native file handle with user-space
+        buffering for maximum throughput.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. File Types</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Direction</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::ibuf_file</code></td>
+            <td>Input only</td>
+            <td>Buffered input file. Use for reading.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::obuf_file</code></td>
+            <td>Output only</td>
+            <td>Buffered output file. Use for writing.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::iobuf_file</code></td>
+            <td>Input/Output</td>
+            <td>Buffered bidirectional file. Use for both reading and writing.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::u8iobuf_file</code></td>
+            <td>Input/Output</td>
+            <td>Same as <code>iobuf_file</code> but for UTF-8 (<code>char8_t</code>).</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        All file types are RAII-managed: the file is automatically closed when
+        the object goes out of scope.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Hello World Example</h2>
+      <p>
+        Here is a complete file I/O example:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // Write to a file
+    {
+        ::fast_io::obuf_file obf{"hello.txt"};
+        print(obf, "Hello, File I/O!\n"
+                   "Line 2: ", 42, " + ", 100, " = ", 142);
+    } // file closed automatically here
+
+    // Read from the file line by line
+    {
+        ::fast_io::ibuf_file ibf{"hello.txt"};
+        for (::fast_io::string line; scan&lt;true&gt;(ibf, str_line_get(line)); ) {
+            println(line);
+        }
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. Opening Modes</h2>
+      <p>
+        Use <code>::fast_io::open_mode</code> to control how files are opened:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>open_mode::in</code></td>
+            <td>Open for reading.</td>
+          </tr>
+          <tr>
+            <td><code>open_mode::out</code></td>
+            <td>Open for writing.</td>
+          </tr>
+          <tr>
+            <td><code>open_mode::app</code></td>
+            <td>Append mode (writes go to end).</td>
+          </tr>
+          <tr>
+            <td><code>open_mode::trunc</code></td>
+            <td>Truncate existing file to zero length.</td>
+          </tr>
+          <tr>
+            <td><code>open_mode::binary</code></td>
+            <td>Binary mode (no text translation).</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Combine flags with <code>|</code>:
+      </p>
+<pre><code class="language-cpp">
+// Open for writing, create if not exists, truncate if exists
+::fast_io::obuf_file out{"data.bin", ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
+
+// Open for reading and writing
+::fast_io::iobuf_file iof{"data.txt", ::fast_io::open_mode::in | ::fast_io::open_mode::out};
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. UTF-8 File I/O</h2>
+      <p>
+        For UTF-8 text files, use the <code>u8</code> variants:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::u8obuf_file u8obf{"utf8.txt"};
+    print(u8obf, u8"Unicode: 你好世界 🌍\n");
+
+    // Read UTF-8 file line by line
+    {
+        ::fast_io::u8ibuf_file u8ibf{"utf8.txt"};
+        for (::fast_io::u8string line; scan&lt;true&gt;(u8ibf, str_line_get(line)); ) {
+            println(line);
+        }
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>ibuf_file</code> for reading, <code>obuf_file</code> for writing, <code>iobuf_file</code> for both.</li>
+        <li><code>u8ibuf_file</code>, <code>u8obuf_file</code>, <code>u8iobuf_file</code> for UTF-8 text files.</li>
+        <li>Files are RAII-managed &mdash; automatically closed on scope exit.</li>
+        <li>Use <code>open_mode</code> flags to control opening behavior.</li>
+        <li>Use <code>using namespace ::fast_io::iomnp;</code> (which includes <code>::fast_io::io</code>) then call <code>println</code> / <code>print</code> / <code>scan</code> and manipulators like <code>str_line_get</code> directly.</li>
+        <li>Use <code>scan</code> with the <code>str_line_get</code> manipulator for line-by-line reading: <code>for (::fast_io::string line; scan&lt;true&gt;(in, str_line_get(line)); ) { ... }</code></li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/" class="prev-button">&larr; Ch11: I/O</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/02.customtypes/" class="next-button">Ch11.2: Custom Types &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
