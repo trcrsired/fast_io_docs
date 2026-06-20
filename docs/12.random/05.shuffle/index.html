@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch12.8: Shuffling with std::shuffle - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch12.8: Shuffling with std::shuffle</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>::std::shuffle</code> from <code>&lt;algorithm&gt;</code> randomly reorders elements
+        in a range. It requires a <strong>UniformRandomBitGenerator</strong>, which
+        <code>ibuf_white_hole_engine</code> satisfies, giving you cryptographically secure shuffling.
+      </p>
+      <p>
+        Shuffling is essential for:
+      </p>
+      <ul>
+        <li>Card games and board games</li>
+        <li>Lotteries and random drawings</li>
+        <li>Randomized algorithms</li>
+        <li>Monte Carlo simulations</li>
+        <li>Any application requiring unpredictable ordering</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Basic Usage</h2>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;vector&gt;
+#include &lt;algorithm&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    // Create a secure random engine
+    ::fast_io::ibuf_white_hole_engine eng;
+
+    // Create a deck of cards (1-52)
+    ::fast_io::vector&lt;int&gt; deck;
+    for (int i{1}; i != 53; ++i) {
+        deck.push_back(i);
+    }
+
+    println("Before shuffle:");
+    for (::std::size_t i{}; i != 10; ++i) {
+        print(deck[i], " ");
+    }
+    println("...");
+
+    // Shuffle the deck
+    ::std::shuffle(deck.begin(), deck.end(), eng);
+
+    println("\nAfter shuffle:");
+    for (::std::size_t i{}; i != 10; ++i) {
+        print(deck[i], " ");
+    }
+    println("...");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Shuffling Different Container Types</h2>
+      <p>
+        <code>::std::shuffle</code> works with any container that provides random-access iterators:
+      </p>
+
+      <h3>Shuffling Strings</h3>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;algorithm&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    ::fast_io::ibuf_white_hole_engine eng;
+
+    ::fast_io::string text = u8"The quick brown fox";
+    println("Original: ", text);
+
+    ::std::shuffle(text.begin(), text.end(), eng);
+    println("Shuffled: ", text);
+}
+</code></pre>
+
+      <h3>Shuffling Custom Objects</h3>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;vector&gt;
+#include &lt;algorithm&gt;
+
+struct Card {
+    int suit;  // 0-3
+    int rank;  // 1-13
+};
+
+int main() {
+    using namespace ::fast_io::io;
+
+    ::fast_io::ibuf_white_hole_engine eng;
+
+    // Create a deck of Card objects
+    ::fast_io::vector&lt;Card&gt; deck;
+    for (int suit{}; suit != 4; ++suit) {
+        for (int rank{1}; rank != 14; ++rank) {
+            deck.push_back({suit, rank});
+        }
+    }
+
+    // Shuffle the deck
+    ::std::shuffle(deck.begin(), deck.end(), eng);
+
+    // Print first 5 cards
+    println("First 5 cards:");
+    for (::std::size_t i{}; i != 5; ++i) {
+        println("  Suit: ", deck[i].suit, ", Rank: ", deck[i].rank);
+    }
+}
+</code></pre>
+
+      <h3>Shuffling Arrays</h3>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;array&gt;
+#include &lt;algorithm&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    ::fast_io::ibuf_white_hole_engine eng;
+
+    ::std::array&lt;int, 10&gt; numbers{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+
+    println("Before: ");
+    for (auto n : numbers) {
+        print(n, " ");
+    }
+    print("\n");
+
+    ::std::shuffle(numbers.begin(), numbers.end(), eng);
+
+    println("After:  ");
+    for (auto n : numbers) {
+        print(n, " ");
+    }
+    print("\n");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Partial Shuffling</h2>
+      <p>
+        Sometimes you only need to shuffle part of a container, or you need to draw random samples
+        without full shuffling. You can use iterator ranges:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;vector&gt;
+#include &lt;algorithm&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    ::fast_io::ibuf_white_hole_engine eng;
+
+    // Create a vector of 100 elements
+    ::fast_io::vector&lt;int&gt; data;
+    for (int i{}; i != 100; ++i) {
+        data.push_back(i);
+    }
+
+    // Shuffle only the first 10 elements
+    ::std::shuffle(data.begin(), data.begin() + 10, eng);
+
+    println("First 10 elements (shuffled):");
+    for (::std::size_t i{}; i != 10; ++i) {
+        print(data[i], " ");
+    }
+    print("\n");
+
+    println("Elements 10-19 (unchanged):");
+    for (::std::size_t i{10}; i != 20; ++i) {
+        print(data[i], " ");
+    }
+    print("\n");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Shuffling vs Sampling</h2>
+      <p>
+        If you need to draw a random sample without modifying the original container, consider
+        using <code>::std::sample</code> (C++17) instead of shuffling:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;vector&gt;
+#include &lt;algorithm&gt;
+#include &lt;iterator&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    ::fast_io::ibuf_white_hole_engine eng;
+
+    // Original data
+    ::fast_io::vector&lt;int&gt; population;
+    for (int i{}; i != 100; ++i) {
+        population.push_back(i);
+    }
+
+    // Draw 10 random samples without modifying population
+    ::fast_io::vector&lt;int&gt; sample;
+    ::std::sample(population.begin(), population.end(),
+                  ::std::back_inserter(sample), 10, eng);
+
+    println("Population (unchanged): ");
+    for (::std::size_t i{}; i != 10; ++i) {
+        print(population[i], " ");
+    }
+    println("...");
+
+    println("\nRandom sample of 10:");
+    for (auto val : sample) {
+        print(val, " ");
+    }
+    print("\n");
+}
+</code></pre>
+      <p>
+        <code>::std::sample</code> is more efficient than shuffling when you only need a few random
+        elements from a large container.
+      </p>
+    </section>
+
+    <section>
+      <h2>Security Considerations</h2>
+      <p>
+        Using <code>ibuf_white_hole_engine</code> with <code>::std::shuffle</code> provides
+        cryptographically secure shuffling. However, be aware of these considerations:
+      </p>
+      <ul>
+        <li>
+          <strong>Performance:</strong> Secure shuffling is slower than using a fast PRNG like
+          <code>::std::mt19937_64</code>. For non-security applications (games, simulations),
+          consider using a seeded fast PRNG instead.
+        </li>
+        <li>
+          <strong>Predictability:</strong> If an attacker can observe enough shuffles, they might
+          infer patterns. For high-security applications, create a new engine instance for each
+          shuffle operation.
+        </li>
+        <li>
+          <strong>Reproducibility:</strong> If you need reproducible shuffles (for testing), use
+          <code>::std::mt19937_64</code> seeded with <code>::std::seed_seq</code> from a secure
+          source (see <a href="/docs/12.random/04.seedseq/">Ch12.4</a>).
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <code>::std::shuffle</code> requires a UniformRandomBitGenerator, which
+          <code>ibuf_white_hole_engine</code> satisfies.
+        </li>
+        <li>
+          Use <code>::std::shuffle</code> with <code>ibuf_white_hole_engine</code> for
+          cryptographically secure shuffling in games, lotteries, and security-sensitive applications.
+        </li>
+        <li>
+          Works with any container providing random-access iterators: <code>::fast_io::vector</code>,
+          <code>::std::array</code>, <code>::fast_io::string</code>, etc.
+        </li>
+        <li>
+          Use iterator ranges for partial shuffling.
+        </li>
+        <li>
+          For random sampling without full shuffling, use <code>::std::sample</code> (C++17).
+        </li>
+        <li>
+          For non-security applications, consider using a fast PRNG like
+          <code>::std::mt19937_64</code> for better performance.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/12.random/04.seedseq/" class="prev-button">&larr; Ch12.4: seed_seq</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/12.random/06.security/" class="next-button">Ch12.6: Security &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

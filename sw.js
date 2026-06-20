@@ -1,4 +1,4 @@
-const CACHE_NAME = "fast_io-docs-v40.16";
+const CACHE_NAME = "fast_io-docs-v40.18";
 const urlsToCache = [
   "/",
   "/style.css",
@@ -168,12 +168,13 @@ const urlsToCache = [
   '/docs/11.io/19.temp/',
   '/docs/12.random/',
   '/docs/12.random/01.overview/',
-  '/docs/12.random/02.pigeonhole/',
+  '/docs/12.random/02.distributions/',
   '/docs/12.random/03.ibufwhitehole/',
   '/docs/12.random/04.seedseq/',
-  '/docs/12.random/05.security/',
-  '/docs/12.random/06.distributions/',
-  '/docs/12.random/07.examples/',
+  '/docs/12.random/05.shuffle/',
+  '/docs/12.random/06.security/',
+  '/docs/12.random/07.distributions/',
+  '/docs/12.random/08.examples/',
 ];
 
 // Install: pre-cache resources

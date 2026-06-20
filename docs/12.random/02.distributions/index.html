@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch12.2: Distributions - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch12.2: Distributions</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        Random number engines produce raw random bits, but most applications need random values in
+        specific ranges or following specific statistical distributions. C++'s
+        <code>&lt;random&gt;</code> library provides <strong>distributions</strong> that transform
+        raw random bits into the desired output format.
+      </p>
+      <p>
+        Common distributions include:
+      </p>
+      <ul>
+        <li><code>::std::uniform_int_distribution</code> &mdash; uniform integers in a range</li>
+        <li><code>::std::uniform_real_distribution</code> &mdash; uniform floating-point values</li>
+        <li><code>::std::bernoulli_distribution</code> &mdash; boolean values with given probability</li>
+        <li><code>::std::normal_distribution</code> &mdash; normal (Gaussian) distribution</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>uniform_int_distribution</h2>
+      <p>
+        Generates uniformly distributed integers in a specified range <code>[min, max]</code>.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;random&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    ::std::mt19937_64 eng{12345u};  // Seeded for reproducibility
+
+    // Generate integers in [1, 6] (like a die roll)
+    ::std::uniform_int_distribution&lt;int&gt; die_dist(1, 6);
+
+    println("Rolling a die 10 times:");
+    for (::std::size_t i{}; i != 10; ++i) {
+        print(die_dist(eng), " ");
+    }
+    print("\n");
+
+    // Generate integers in [0, 99]
+    ::std::uniform_int_distribution&lt;int&gt; percent_dist(0, 99);
+
+    println("Random percentages:");
+    for (::std::size_t i{}; i != 10; ++i) {
+        print(percent_dist(eng), "% ");
+    }
+    print("\n");
+}
+</code></pre>
+      <div class="warning">
+        <strong>Never use modulo to generate ranges!</strong> Using <code>eng() % 100</code> to get
+        values in [0, 99] creates biased distributions due to the pigeonhole principle. Always use
+        <code>::std::uniform_int_distribution</code> which uses rejection sampling to ensure perfect
+        uniformity.
+      </div>
+    </section>
+
+    <section>
+      <h2>bernoulli_distribution</h2>
+      <p>
+        Generates boolean values (<code>true</code> or <code>false</code>) with a specified
+        probability <code>p</code> of being <code>true</code>.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;random&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    ::std::mt19937_64 eng{12345u};
+
+    // Fair coin: 50% heads
+    ::std::bernoulli_distribution fair_coin(0.5);
+
+    println("Flipping a fair coin 10 times:");
+    for (::std::size_t i{}; i != 10; ++i) {
+        print(fair_coin(eng) ? "H" : "T", " ");
+    }
+    print("\n");
+
+    // Biased coin: 70% heads
+    ::std::bernoulli_distribution biased_coin(0.7);
+
+    println("Flipping a biased coin (70% heads):");
+    for (::std::size_t i{}; i != 10; ++i) {
+        print(biased_coin(eng) ? "H" : "T", " ");
+    }
+    print("\n");
+
+    // Rare event: 5% chance
+    ::std::bernoulli_distribution rare_event(0.05);
+
+    println("Simulating rare events (5% chance):");
+    ::std::size_t count{};
+    for (::std::size_t i{}; i != 100; ++i) {
+        if (rare_event(eng)) {
+            ++count;
+        }
+    }
+    println("Occurred ", count, " times out of 100");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Combining Distributions</h2>
+      <p>
+        You can use multiple distributions together for complex scenarios:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;random&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    ::std::mt19937_64 eng{12345u};
+
+    // Distribution for number of items (1-5)
+    ::std::uniform_int_distribution&lt;int&gt; count_dist(1, 5);
+
+    // Distribution for item values (10-99)
+    ::std::uniform_int_distribution&lt;int&gt; value_dist(10, 99);
+
+    // Generate random number of random values
+    int num_items = count_dist(eng);
+    println("Generating ", num_items, " items:");
+
+    for (int i{}; i != num_items; ++i) {
+        println("  Item ", i + 1, ": ", value_dist(eng));
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Distribution Properties</h2>
+      <p>
+        All distributions provide these methods:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>operator()(gen)</code></td>
+            <td>Generates the next random value using the engine</td>
+          </tr>
+          <tr>
+            <td><code>min()</code></td>
+            <td>Returns the minimum value the distribution can produce</td>
+          </tr>
+          <tr>
+            <td><code>max()</code></td>
+            <td>Returns the maximum value the distribution can produce</td>
+          </tr>
+          <tr>
+            <td><code>reset()</code></td>
+            <td>Resets the distribution's internal state</td>
+          </tr>
+          <tr>
+            <td><code>param()</code></td>
+            <td>Gets or sets the distribution parameters</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          Distributions transform raw random bits from engines into values with specific statistical
+          properties.
+        </li>
+        <li>
+          Use <code>::std::uniform_int_distribution</code> for integers in a range &mdash; never use
+          modulo.
+        </li>
+        <li>
+          Use <code>::std::bernoulli_distribution</code> for boolean values with a given probability.
+        </li>
+        <li>
+          Distributions work with any engine, including <code>::std::mt19937_64</code> and
+          <code>::fast_io::ibuf_white_hole_engine</code>.
+        </li>
+        <li>
+          For cryptographically secure randomness, use <code>ibuf_white_hole_engine</code> instead
+          of <code>mt19937_64</code>.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/12.random/01.overview/" class="prev-button">&larr; Ch12.1: Engine</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/12.random/03.ibufwhitehole/" class="next-button">Ch12.3: ibuf_white_hole_engine &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -88,6 +88,15 @@ int main() {
     </section>
 
     <section>
+      <h2>Related Topics</h2>
+      <p>
+        The <code>ibuf_white_hole_engine</code> also works with <code>::std::shuffle</code> for
+        cryptographically secure container shuffling. See
+        <a href="/docs/12.random/05.shuffle/">Ch12.5: Shuffling with std::shuffle</a> for details.
+      </p>
+    </section>
+
+    <section>
       <h2>How It Works</h2>
       <p>
         The engine is implemented as a type alias:
@@ -104,6 +113,57 @@ using ibuf_white_hole_engine = basic_white_hole_engine&lt;ibuf_white_hole&gt;;
         The <code>operator()()</code> method reads <code>sizeof(::std::size_t)</code> bytes from the
         buffered source and returns them as a <code>::std::size_t</code>. Most calls are served from
         the buffer without a syscall.
+      </p>
+    </section>
+
+    <section>
+      <h2>Reading Raw Bytes with ibuf_white_hole</h2>
+      <p>
+        If you need raw random bytes (for example, to create cryptographic keys or tokens), you can
+        use <code>::fast_io::ibuf_white_hole</code> directly as an input stream:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;array&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    // Create a buffered white hole (input stream)
+    ::fast_io::ibuf_white_hole rng;
+
+    // Read 32 random bytes
+    ::std::array&lt;::std::byte, 32&gt; buffer;
+    ::fast_io::io::read_all(rng, buffer.data(), buffer.data() + buffer.size());
+
+    // Print as hex
+    println("Random bytes (hex):");
+    for (::std::size_t i{}; i != buffer.size(); ++i) {
+        print(::fast_io::mnp::hex(::fast_io::mnp::upper(buffer[i])), " ");
+        if ((i + 1) % 16 == 0) {
+            print("\n");
+        }
+    }
+
+    // Use for generating a UUID (16 bytes)
+    ::std::array&lt;::std::byte, 16&gt; uuid_bytes;
+    ::fast_io::io::read_all(rng, uuid_bytes.data(), uuid_bytes.data() + uuid_bytes.size());
+
+    println("\nUUID bytes:");
+    for (::std::size_t i{}; i != uuid_bytes.size(); ++i) {
+        print(::fast_io::mnp::hex(uuid_bytes[i]));
+        if (i == 3 || i == 5 || i == 7 || i == 9) {
+            print('-');
+        }
+    }
+    print("\n");
+}
+</code></pre>
+      <p>
+        <code>ibuf_white_hole</code> is the underlying input stream type. It provides the same
+        buffered, cryptographically secure random bytes as the engine, but through the standard
+        I/O interface (<code>read_all</code>, <code>read_some</code>, etc.).
       </p>
     </section>
 
