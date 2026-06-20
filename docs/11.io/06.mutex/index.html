@@ -19,6 +19,22 @@
         lockable file variants that contain an internal mutex, making all I/O operations
         on them thread-safe without requiring you to manage external synchronization.
       </p>
+      <p>
+        <strong>Important:</strong> These lockable types only provide <strong>thread safety</strong>
+        (synchronization within a single process). They do <strong>not</strong> provide
+        <strong>process safety</strong> (synchronization across multiple processes). If multiple
+        processes need to write to the same file, consider using <code>::fast_io::native_file</code>
+        directly, where each operation becomes a syscall &mdash; the OS may provide atomicity
+        guarantees for certain operations (e.g., <code>O_APPEND</code> writes on POSIX).
+      </p>
+      <p>
+        Note that if the OS provides atomicity guarantees for syscalls, those are also thread-safe
+        within a process. However, buffered output types accumulate data in user-space buffers
+        before flushing, which can break atomicity even if individual syscalls are atomic. The
+        order of outputs can also become chaotic because buffering splits logical units across
+        multiple flushes. For true atomic writes (both thread-safe and process-safe with
+        guaranteed ordering), use unbuffered <code>::fast_io::native_file</code>.
+      </p>
     </section>
 
     <section>
@@ -38,10 +54,15 @@
         </li>
       </ul>
       <p>
-        These types behave exactly like their non-lockable counterparts, except every call to
+        These types behave exactly like their non-lockable counterparts. By default, every call to
         <code>scan</code>, <code>print</code>, or <code>println</code> acquires the internal
         mutex before performing I/O and releases it afterward. This guarantees that operations
         from different threads do not interleave.
+      </p>
+      <p>
+        For better performance when performing multiple operations, you can manually lock the
+        mutex, obtain the unlocked handle, and use that for all your operations. This avoids
+        the overhead of acquiring and releasing the mutex for each individual operation.
       </p>
     </section>
 

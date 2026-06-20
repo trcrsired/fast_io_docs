@@ -92,14 +92,11 @@ int main() {
 
     // Good: one big syscall for a large block
     char const big_buffer[65536]{};
-    ::fast_io::operations::write_all(
-        ::fast_io::out_handle(obf),
-        big_buffer, big_buffer + 65536uz);
+    ::fast_io::operations::write_all(obf, big_buffer, big_buffer + 65536uz);
 
     // BAD: 65536 individual syscalls!
     for (::std::size_t i{}; i &lt; 65536uz; ++i) {
-        ::fast_io::operations::char_put(
-            ::fast_io::out_handle(obf), 'A');
+        ::fast_io::operations::char_put(obf, 'A');
     }
 }
 </code></pre>
@@ -131,12 +128,17 @@ int main() {
     // Even 65536 char_puts are cheap &mdash; they hit the user buffer,
     // not the kernel. The buffer flushes automatically when full.
     for (::std::size_t i{}; i &lt; 65536uz; ++i) {
-        ::fast_io::operations::char_put(
-            ::fast_io::out_handle(obf), 'A');
+        ::fast_io::operations::char_put(obf, 'A');
     }
     // Buffer is flushed here when `obf` goes out of scope.
 }
 </code></pre>
+      <p>
+        For <code>iobuf_file</code> (bidirectional), the input and output buffers are
+        <strong>tied together</strong>: whenever the input buffer needs to fetch more data
+        from the file, it first flushes any pending output. This means you can safely
+        alternate between reading and writing without manually calling <code>flush</code>.
+      </p>
     </section>
 
     <section>
@@ -194,11 +196,9 @@ int main() {
 
         char buffer[131072]; // 128 KiB
         while (true) {
-            char const* read_end = ::fast_io::operations::read_some(
-                ::fast_io::in_handle(src), buffer, buffer + 131072uz);
+            char const* read_end = ::fast_io::operations::read_some(src, buffer, buffer + 131072uz);
             if (read_end == buffer) break; // EOF
-            ::fast_io::operations::write_all(
-                ::fast_io::out_handle(dst), buffer, read_end);
+            ::fast_io::operations::write_all(dst, buffer, read_end);
         }
     }
 
@@ -229,7 +229,7 @@ int main() {
         scan(iof, magic);
 
         // Jump to offset 1024 and patch a field
-        ::fast_io::seek(iof, 1024);
+        ::fast_io::operations::io_stream_seek(iof, 1024);
         println(iof, "patched");
     }
 }

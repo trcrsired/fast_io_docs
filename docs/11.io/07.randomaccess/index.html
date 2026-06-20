@@ -12,18 +12,20 @@
     <h1>Ch11.7: Random Access I/O</h1>
 
     <section>
-      <h2>Seek and Tell</h2>
+      <h2>Seek Operations</h2>
       <p>
-        <code>fast_io</code> provides <code>::fast_io::seek()</code> and <code>::fast_io::tell()</code>
-        to move the file position and query the current position. These work on any file type that
-        supports random access, including <code>obuf_file</code>, <code>ibuf_file</code>,
-        <code>iobuf_file</code>, and their unbuffered counterparts.
+        <code>fast_io</code> provides seek operations in the <code>::fast_io::operations</code>
+        namespace to move the file position. The operation you use depends on the direction of
+        the file:
       </p>
+      <ul>
+        <li><code>::fast_io::operations::input_stream_seek</code> &mdash; for input files (<code>ibuf_file</code>).</li>
+        <li><code>::fast_io::operations::output_stream_seek</code> &mdash; for output files (<code>obuf_file</code>).</li>
+        <li><code>::fast_io::operations::io_stream_seek</code> &mdash; for bidirectional files (<code>iobuf_file</code>).</li>
+      </ul>
       <p>
-        <code>::fast_io::seek()</code> takes a file reference and a seek operation. The seek operation
-        can be constructed using <code>::fast_io::seek_set(offset)</code>, <code>::fast_io::seek_cur(offset)</code>,
-        or <code>::fast_io::seek_end(offset)</code>, analogous to <code>SEEK_SET</code>,
-        <code>SEEK_CUR</code>, and <code>SEEK_END</code> in the C standard library.
+        There are also <code>_rewind</code> variants to seek back to the beginning, and
+        <code>_seek_bytes</code> variants that take a byte offset directly.
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -37,32 +39,31 @@ int main()
     // Write some data
     println(obf, "Hello, World!");
 
-    // Get current position
-    auto pos = ::fast_io::tell(obf);
-    println("Current position: ", pos);
+    // Seek back to the beginning (output_stream_rewind)
+    ::fast_io::operations::output_stream_rewind(obf);
 
-    // Seek back to the beginning
-    ::fast_io::seek(obf, ::fast_io::seek_set(0));
-
-    // Verify position
-    auto new_pos = ::fast_io::tell(obf);
-    println("After seek_set(0): ", new_pos);
+    // Or seek to a specific offset
+    ::fast_io::operations::output_stream_seek(obf, 0);
 }
       </code></pre>
     </section>
 
     <section>
-      <h2>Positional I/O (pread/pwrite)</h2>
+      <h2>Positional I/O (pwrite/pread)</h2>
       <p>
         Positional I/O lets you read from or write to a specific offset in a file
         <strong>without changing</strong> the file's current position. This is the
         equivalent of POSIX <code>pread(2)</code> and <code>pwrite(2)</code>.
       </p>
       <p>
-        In <code>fast_io</code>, this is done with <code>::fast_io::pwrite()</code> and
-        <code>::fast_io::pread()</code>. These functions take an additional offset argument.
-        The file position remains unchanged after the call, which makes positional I/O
-        inherently thread-safe for concurrent writes to different offsets of the same file.
+        In <code>fast_io</code>, use the operations namespace:
+      </p>
+      <ul>
+        <li><code>::fast_io::operations::output_stream_pwrite</code> &mdash; positional write.</li>
+        <li><code>::fast_io::operations::input_stream_pread</code> &mdash; positional read.</li>
+      </ul>
+      <p>
+        The file position remains unchanged after the call.
       </p>
     </section>
 
@@ -77,14 +78,10 @@ int main()
     using namespace ::fast_io::iomnp;
     ::fast_io::obuf_file obf(u8"positional_write.txt", ::fast_io::open_mode::out);
 
-    // Reserve space by seeking to a known size
-    ::fast_io::seek(obf, ::fast_io::seek_set(256zu));
-    print(obf, "");
-
     // Write at specific offsets without disturbing file position
-    ::fast_io::pwrite(obf, "AAAA", ::fast_io::seek_set(0zu));
-    ::fast_io::pwrite(obf, "BBBB", ::fast_io::seek_set(100zu));
-    ::fast_io::pwrite(obf, "CCCC", ::fast_io::seek_set(200zu));
+    ::fast_io::operations::output_stream_pwrite(obf, "AAAA", 0uz);
+    ::fast_io::operations::output_stream_pwrite(obf, "BBBB", 100uz);
+    ::fast_io::operations::output_stream_pwrite(obf, "CCCC", 200uz);
 }
       </code></pre>
       <p>
@@ -103,16 +100,15 @@ int main()
 int main()
 {
     using namespace ::fast_io::iomnp;
-    ::fast_io::ibuf_file ibf(u8"positional_write.txt");
+    ::fast_io::ibuf_file ibf(u8"positional_write.txt", ::fast_io::open_mode::in);
 
     char buf1[5]{};
     char buf2[5]{};
 
     // Read from specific offsets
-    ::fast_io::pread(ibf, ::fast_io::as_bytes(::fast_io::span{buf1, 4zu}), ::fast_io::seek_set(0zu));
-    ::fast_io::pread(ibf, ::fast_io::as_bytes(::fast_io::span{buf2, 4zu}), ::fast_io::seek_set(100zu));
+    ::fast_io::operations::input_stream_pread(ibf, ::fast_io::as_bytes(::fast_io::span{buf1, 4uz}), 0uz);
+    ::fast_io::operations::input_stream_pread(ibf, ::fast_io::as_bytes(::fast_io::span{buf2, 4uz}), 100uz);
 
-    // buf1 contains "AAAA", buf2 contains "BBBB"
     println("At offset 0:   ", ::fast_io::mnp::os_c_str(buf1));
     println("At offset 100: ", ::fast_io::mnp::os_c_str(buf2));
 }
@@ -120,61 +116,20 @@ int main()
     </section>
 
     <section>
-      <h2>Thread Safety of Positional I/O</h2>
+      <h2>Thread Safety</h2>
       <p>
-        Because <code>pread</code> and <code>pwrite</code> do not modify the file position, they
-        are safe to call from multiple threads on the same file handle simultaneously, as long as
-        each thread accesses a non-overlapping region. This makes positional I/O an excellent
-        choice for parallel file processing.
-      </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_device.h&gt;
-#include &lt;thread&gt;
-
-int main()
-{
-    ::fast_io::iobuf_file iobf(u8"parallel.bin",
-        ::fast_io::open_mode::out | ::fast_io::open_mode::in);
-
-    constexpr ::std::size_t chunk_size{4096zu};
-    constexpr ::std::size_t thread_count{4zu};
-
-    auto worker = [&amp;](::std::size_t id)
-    {
-        // Each thread writes to its own region
-        ::std::byte data[chunk_size];
-        // ... fill data ...
-        ::fast_io::pwrite(iobf,
-            ::fast_io::as_bytes(::fast_io::span{data, chunk_size}),
-            ::fast_io::seek_set(id * chunk_size));
-    };
-
-    ::std::thread threads[thread_count];
-    for (::std::size_t i{}; i &lt; thread_count; ++i)
-    {
-        threads[i] = ::std::thread(worker, i);
-    }
-    for (auto&amp; t : threads)
-    {
-        t.join();
-    }
-}
-      </code></pre>
-      <p>
-        Each thread writes to a distinct region of the file using <code>pwrite</code> with a
-        different offset, so no locking is required.
+        If multiple threads need to write to the same file concurrently, use a lockable
+        file type like <code>::fast_io::obuf_file_lockable</code>. Lock it, get the unlocked handle,
+        then use that for better performance. See <a href="/docs/11.io/06.mutex/">Ch11.6</a>.
       </p>
     </section>
 
     <section>
-      <h2>Summary</h2>
+      <h2>Key Takeaways</h2>
       <ul>
-        <li><code>::fast_io::seek(file, op)</code> &mdash; move the file position.</li>
-        <li><code>::fast_io::tell(file)</code> &mdash; get the current file position.</li>
-        <li><code>::fast_io::seek_set(offset)</code>, <code>::fast_io::seek_cur(offset)</code>, <code>::fast_io::seek_end(offset)</code> &mdash; seek operation constructors.</li>
-        <li><code>::fast_io::pwrite(file, data, op)</code> &mdash; write at offset without changing position.</li>
-        <li><code>::fast_io::pread(file, buffer, op)</code> &mdash; read from offset without changing position.</li>
+        <li>Use <code>::fast_io::operations::input_stream_seek</code>, <code>output_stream_seek</code>, or <code>io_stream_seek</code> to move the file position.</li>
+        <li>Use <code>::fast_io::operations::output_stream_pwrite</code> for positional writes &mdash; writes at a specific offset without changing the file position.</li>
+        <li>Use <code>::fast_io::operations::input_stream_pread</code> for positional reads.</li>
       </ul>
     </section>
 

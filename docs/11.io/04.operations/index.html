@@ -49,12 +49,10 @@ int main() {
 
     // write_some: may do a partial write.
     // Returns pointer to first unwritten char.
-    char const* next = ::fast_io::operations::write_some(
-        ::fast_io::out_handle(obf), first, last);
+    char const* next = ::fast_io::operations::write_some(obf, first, last);
 
     // Write the rest with write_all (loops until done)
-    ::fast_io::operations::write_all(
-        ::fast_io::out_handle(obf), next, last);
+    ::fast_io::operations::write_all(obf, next, last);
 }
 </code></pre>
     </section>
@@ -83,8 +81,7 @@ int main() {
     ::std::byte const* last{data + 4uz};
 
     // Write all bytes (loops until complete)
-    ::fast_io::operations::write_all_bytes(
-        ::fast_io::out_handle(obf), first, last);
+    ::fast_io::operations::write_all_bytes(obf, first, last);
 }
 </code></pre>
     </section>
@@ -113,16 +110,10 @@ int main() {
     char const block1[] = "BBBB";
 
     // Write "BBBB" at offset 1024 without moving the file position
-    ::fast_io::operations::pwrite_all(
-        ::fast_io::out_handle(obf),
-        block1, block1 + 4uz,
-        static_cast&lt;::std::uintmax_t&gt;(1024uz));
+    ::fast_io::operations::pwrite_all(obf, block1, block1 + 4uz, 1024uz);
 
     // Write "AAAA" at offset 0; file position is still 0
-    ::fast_io::operations::pwrite_all(
-        ::fast_io::out_handle(obf),
-        block0, block0 + 4uz,
-        static_cast&lt;::std::uintmax_t&gt;(0uz));
+    ::fast_io::operations::pwrite_all(obf, block0, block0 + 4uz, 0uz);
 }
 </code></pre>
     </section>
@@ -147,10 +138,7 @@ int main() {
         ::std::byte{0x4E}, ::std::byte{0x47}
     };
 
-    ::fast_io::operations::pwrite_all_bytes(
-        ::fast_io::out_handle(obf),
-        header, header + 4uz,
-        static_cast&lt;::std::uintmax_t&gt;(0uz));
+    ::fast_io::operations::pwrite_all_bytes(obf, header, header + 4uz, 0uz);
 }
 </code></pre>
     </section>
@@ -185,9 +173,7 @@ int main() {
     };
 
     // One syscall writes all three parts
-    ::fast_io::operations::scatter_write_all(
-        ::fast_io::out_handle(obf),
-        scatters, scatters + 3uz);
+    ::fast_io::operations::scatter_write_all(obf, scatters, scatters + 3uz);
 }
 </code></pre>
     </section>
@@ -216,10 +202,7 @@ int main() {
     };
 
     // Write "AAABBB" at offset 512, file position unchanged
-    ::fast_io::operations::scatter_pwrite_all(
-        ::fast_io::out_handle(obf),
-        scatters, scatters + 2uz,
-        static_cast&lt;::std::uintmax_t&gt;(512uz));
+    ::fast_io::operations::scatter_pwrite_all(obf, scatters, scatters + 2uz, 512uz);
 }
 </code></pre>
     </section>
@@ -237,9 +220,9 @@ int main() {
 int main() {
     ::fast_io::obuf_file obf{"chars.txt"};
 
-    ::fast_io::operations::char_put(::fast_io::out_handle(obf), 'H');
-    ::fast_io::operations::char_put(::fast_io::out_handle(obf), 'i');
-    ::fast_io::operations::char_put(::fast_io::out_handle(obf), '\n');
+    ::fast_io::operations::char_put(obf, 'H');
+    ::fast_io::operations::char_put(obf, 'i');
+    ::fast_io::operations::char_put(obf, '\n');
 }
 </code></pre>
       <p>
