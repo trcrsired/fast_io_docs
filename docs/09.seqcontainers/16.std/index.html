@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.16: C++ Standard Library Containers - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.16: C++ Standard Library Containers</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        The C++ standard library ships its own set of containers in the
+        <code>std::</code> namespace. If you are coming from another language or
+        have not used C++ before, you may encounter these in existing codebases.
+        This section introduces them and explains how they differ from
+        <code>fast_io</code>.
+      </p>
+      <p>
+        <strong>In short: prefer <code>fast_io</code> containers.</strong> They
+        are safer, faster, and more consistent. But you should still recognise
+        the <code>std::</code> equivalents so you can read other people&rsquo;s
+        code and understand the ecosystem.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. Available Containers</h2>
+      <table>
+        <thead>
+          <tr>
+            <th><code>std::</code> container</th>
+            <th><code>fast_io::</code> equivalent</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>std::vector&lt;T&gt;</code></td>
+            <td><code>::fast_io::vector&lt;T&gt;</code></td>
+            <td>Dynamic contiguous array.</td>
+          </tr>
+          <tr>
+            <td><code>std::deque&lt;T&gt;</code></td>
+            <td><code>::fast_io::deque&lt;T&gt;</code></td>
+            <td>Double-ended queue (block-map layout).</td>
+          </tr>
+          <tr>
+            <td><code>std::list&lt;T&gt;</code></td>
+            <td><code>::fast_io::list&lt;T&gt;</code></td>
+            <td>Doubly-linked list.</td>
+          </tr>
+          <tr>
+            <td><code>std::forward_list&lt;T&gt;</code></td>
+            <td><code>::fast_io::forward_list&lt;T&gt;</code></td>
+            <td>Singly-linked list.</td>
+          </tr>
+          <tr>
+            <td><code>std::array&lt;T, N&gt;</code></td>
+            <td><code>::fast_io::array&lt;T, N&gt;</code></td>
+            <td>Fixed-size array.</td>
+          </tr>
+          <tr>
+            <td><code>std::string</code></td>
+            <td><code>::fast_io::string</code></td>
+            <td>Dynamic, null-terminated character sequence.</td>
+          </tr>
+          <tr>
+            <td><code>std::string_view</code></td>
+            <td><code>::fast_io::string_view</code></td>
+            <td>Non-owning view over characters.</td>
+          </tr>
+          <tr>
+            <td><code>std::span&lt;T&gt;</code></td>
+            <td><code>::fast_io::span&lt;T&gt;</code></td>
+            <td>Non-owning view over a contiguous sequence.</td>
+          </tr>
+          <tr>
+            <td><code>std::stack&lt;T&gt;</code></td>
+            <td><code>::fast_io::stack&lt;T&gt;</code></td>
+            <td>LIFO adaptor.</td>
+          </tr>
+          <tr>
+            <td><code>std::queue&lt;T&gt;</code></td>
+            <td><code>::fast_io::queue&lt;T&gt;</code></td>
+            <td>FIFO adaptor.</td>
+          </tr>
+          <tr>
+            <td><code>std::priority_queue&lt;T&gt;</code></td>
+            <td><code>::fast_io::priority_queue&lt;T&gt;</code></td>
+            <td>Priority-based adaptor.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. Basic Usage</h2>
+      <p>
+        The <code>std::</code> containers are used in much the same way as
+        <code>fast_io</code> ones. The main differences are in the header paths
+        and the lack of some <code>fast_io</code>-specific features:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;vector&gt;
+#include &lt;deque&gt;
+#include &lt;string&gt;
+#include &lt;iostream&gt;
+
+int main() {
+    // std::vector — dynamic contiguous array
+    ::std::vector&lt;int&gt; v;
+    v.push_back(1);
+    v.push_back(2);
+    v.push_back(3);
+    ::std::cout &lt;&lt; "Size: " &lt;&lt; v.size() &lt;&lt; '\n';
+
+    // std::deque — double-ended queue
+    ::std::deque&lt;int&gt; d;
+    d.push_front(10);
+    d.push_back(20);
+
+    // std::string — dynamic character sequence
+    ::std::string s = "Hello";
+    s += ", World!";
+    ::std::cout &lt;&lt; s &lt;&lt; '\n';
+}
+</code></pre>
+
+      <div class="warning">
+        <strong>Note:</strong> This tutorial uses <code>fast_io</code>
+        throughout. You do not need to learn the <code>std::</code> containers
+        to follow along &mdash; everything we cover uses <code>fast_io</code>.
+      </div>
+    </section>
+
+    <section>
+      <h2>3. Key Differences</h2>
+      <p>
+        If you do encounter <code>std::</code> containers, be aware of these
+        differences:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Aspect</th>
+            <th><code>std::</code> containers</th>
+            <th><code>fast_io::</code> containers</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Bounds checking</strong></td>
+            <td><code>operator[]</code> is unchecked &mdash; out-of-bounds is undefined behaviour. <code>at()</code> throws <code>std::out_of_range</code>, but this adds significant overhead for bounds checking. Worse, an out-of-bounds access is already a bug &mdash; catching an exception at that point does not fix the underlying problem. Trying to recover from a program bug makes things worse compared to just terminating and restarting.</td>
+            <td><code>operator[]</code> is bounds-checked. Out-of-bounds calls <code>fast_terminate()</code> immediately &mdash; deterministic, no exception overhead, no false sense of recovery.</td>
+          </tr>
+          <tr>
+            <td><strong>Allocation failure</strong></td>
+            <td>Throws <code>std::bad_alloc</code>. A failed heap allocation means the abstract machine is corrupted &mdash; there is no meaningful way to continue. Throwing an exception invites buggy recovery code that tries to limp along on a broken heap.</td>
+            <td>Calls <code>fast_terminate()</code> &mdash; no exception unwinding, no attempt to recover from an unrecoverable state. The program is already corrupt; crash deterministically.</td>
+          </tr>
+          <tr>
+            <td><strong>Logic bugs (empty front/back, OOB)</strong></td>
+            <td>Undefined behaviour. Silent memory corruption in release builds.</td>
+            <td>Deterministic termination. Bugs are caught immediately.</td>
+          </tr>
+          <tr>
+            <td><strong>Growth relocation</strong></td>
+            <td>Uses move constructors. For types with non-trivial moves, this can be slow.</td>
+            <td>Uses <code>memcpy</code> when types are trivially relocatable &mdash; much faster.</td>
+          </tr>
+          <tr>
+            <td><strong>Index-based operations</strong></td>
+            <td>No <code>insert_index</code> / <code>erase_index</code>. Must use iterators.</td>
+            <td>Bounds-checked <code>insert_index</code> / <code>erase_index</code> on all eligible containers.</td>
+          </tr>
+          <tr>
+            <td><strong>String formatting</strong></td>
+            <td><code>std::format</code> (C++20) or <code>std::stringstream</code> &mdash; relatively slow.</td>
+            <td><code>concat_fast_io</code> + <code>to&lt;T&gt;</code> &mdash; compile-time optimised.</td>
+          </tr>
+          <tr>
+            <td><strong>Unchecked variants</strong></td>
+            <td>None. Only <code>operator[]</code> is unchecked; everything else is checked via exceptions.</td>
+            <td>Explicit <code>_unchecked</code> variants for performance-critical code.</td>
+          </tr>
+          <tr>
+            <td><strong>Bit vector</strong></td>
+            <td><code>std::vector&lt;bool&gt;</code> is a specialisation that packs bits but has a broken interface (proxy references).</td>
+            <td><code>::fast_io::bitvec</code> is a separate, clean type with proper bit-level operations.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>4. A Note on C++26 Hardening</h2>
+      <p>
+        C++26 introduces <strong>hardening</strong> for standard library
+        containers &mdash; bounds checks on <code>operator[]</code>,
+        <code>front()</code>, <code>back()</code>, and iterator validity
+        assertions. However, these containers were <em>not</em> designed to be
+        hardened from the ground up. Retrofitting safety checks onto decades of
+        existing ABI leads to problems:
+      </p>
+      <ul>
+        <li><strong>ODR violations</strong> &mdash; translation units compiled with
+          different hardening levels see different class layouts, violating the
+          One Definition Rule.</li>
+        <li><strong>Inconsistent coverage</strong> &mdash; some checks are
+          opt-in, some are implementation-defined, and the exact set of checks
+          varies between standard library vendors.</li>
+        <li><strong>Still no index-based API</strong> &mdash; hardening adds
+          checks but does not add <code>insert_index</code> /
+          <code>erase_index</code>. You still need iterators for index-based
+          manipulation.</li>
+      </ul>
+      <p>
+        <code>fast_io</code> containers were designed with safety from the
+        start &mdash; no ODR issues, no opt-in confusion, and consistent
+        deterministic termination across all builds.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Code Comparison</h2>
+      <p>
+        Here is the same program written with both libraries:
+      </p>
+
+      <h3>With <code>fast_io</code> (preferred)</h3>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/vector.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    ::fast_io::vector&lt;::std::size_t&gt; v;
+    v.push_back(1zu);
+    v.push_back(2zu);
+    v.push_back(3zu);
+
+    // Bounds-checked — terminates on out-of-bounds
+    ::fast_io::io::println("v[0] = ", v[0zu]);
+
+    // Index-based insert and erase
+    v.insert_index(1zu, 99zu);  // [1, 99, 2, 3]
+    v.erase_index(0zu);         // [99, 2, 3]
+
+    // String formatting
+    ::fast_io::string s = ::fast_io::concat_fast_io("Count: ", v.size());
+    ::fast_io::io::println(s);
+}
+</code></pre>
+
+      <h3>With <code>std::</code></h3>
+<pre><code class="language-cpp">
+#include &lt;vector&gt;
+#include &lt;string&gt;
+#include &lt;format&gt;
+#include &lt;iostream&gt;
+
+int main() {
+    ::std::vector&lt;::std::size_t&gt; v;
+    v.push_back(1zu);
+    v.push_back(2zu);
+    v.push_back(3zu);
+
+    // operator[] is unchecked — UB if out of bounds
+    ::std::cout &lt;&lt; "v[0] = " &lt;&lt; v[0] &lt;&lt; '\n';
+    // v.at(0) is checked but throws an exception
+
+    // Must use iterators for insert/erase
+    v.insert(v.begin() + 1, 99zu);   // [1, 99, 2, 3]
+    v.erase(v.begin());               // [99, 2, 3]
+
+    // String formatting
+    ::std::string s = ::std::format("Count: {}", v.size());
+    ::std::cout &lt;&lt; s &lt;&lt; '\n';
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>6. Further Reading</h2>
+      <p>
+        For full documentation of the <code>std::</code> containers, see
+        <a href="https://en.cppreference.com/cpp/container" target="_blank" rel="noopener">
+        cppreference &mdash; Container library</a>. It provides exhaustive
+        reference material for every <code>std::</code> type, method, and
+        overload.
+      </p>
+      <p>
+        However, for new code in this tutorial&rsquo;s projects, always reach
+        for the <code>fast_io</code> equivalent first.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>C++ ships its own containers in <code>std::</code>: <code>vector</code>, <code>deque</code>, <code>list</code>, <code>forward_list</code>, <code>array</code>, <code>string</code>, <code>stack</code>, <code>queue</code>, <code>priority_queue</code>, etc.</li>
+        <li>Their usage patterns are similar to <code>fast_io</code> &mdash; but they lack bounds checking, index operations, and deterministic termination.</li>
+        <li><code>std::vector&lt;bool&gt;</code> is a broken specialisation; use <code>::fast_io::bitvec</code> instead.</li>
+        <li>C++26 adds hardening to <code>std::</code> containers, but retrofitting safety onto existing ABIs causes ODR violations and inconsistent coverage. <code>fast_io</code> was designed safe from the start.</li>
+        <li>Prefer <code>fast_io</code> containers for safety, performance, and consistency.</li>
+        <li>For <code>std::</code> container documentation, see <a href="https://en.cppreference.com/cpp/container" target="_blank" rel="noopener">cppreference</a>.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/15.algorithms/" class="prev-button">&larr; Ch9.15: Algorithms</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/10.associativecontainers/" class="next-button">Ch10: Associative Containers &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,4 +1,4 @@
-const CACHE_NAME = "fast_io-docs-v38"; // bump version here
+const CACHE_NAME = "fast_io-docs-v39"; // bump version here
 const urlsToCache = [
   "/",
   "/style.css",
@@ -137,7 +137,7 @@ const urlsToCache = [
   '/docs/09.seqcontainers/13.stringview/01.ops/',
   '/docs/09.seqcontainers/14.adapters/',
   '/docs/09.seqcontainers/15.algorithms/',
-  '/docs/09.seqcontainers/16.stdcomparison/',
+  '/docs/09.seqcontainers/16.std/',
 ];
 
 // Install: pre-cache resources
