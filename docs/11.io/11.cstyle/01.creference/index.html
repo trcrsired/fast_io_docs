@@ -35,7 +35,7 @@
 int main() {
     // Using c_file for RAII
     ::fast_io::c_file cf(u8"test.txt", ::fast_io::open_mode::out);
-    std::fprintf(cf.fp, "%s\n", "Hello, World!");
+    std::fprintf(cf.fp, "%s", "Hello, World!\n");
     std::fflush(cf.fp);  // Force write to disk
     // File is automatically closed when cf goes out of scope
     return 0;
@@ -72,19 +72,19 @@ int main() {
     int x{42};
     double pi{3.14159};
 
-    // printf to stdout
-    std::printf("x = %d, pi = %.2f\n", x, pi);
+    // printf to stdout (format string has only specifiers, all literals in args)
+    std::printf("%s%d%s%.2f%s", "x = ", x, ", pi = ", pi, "\n");
 
     // fprintf to file (with RAII)
     ::fast_io::c_file cf(u8"output.txt", ::fast_io::open_mode::out);
-    std::fprintf(cf.fp, "x = %d\n", x);
+    std::fprintf(cf.fp, "%s%d%s", "x = ", x, "\n");
 
     // sprintf to string buffer
     char buffer[100];
-    std::sprintf(buffer, "Value: %d", x);
+    std::sprintf(buffer, "%s%d", "Value: ", x);
 
     // snprintf with size limit (safer)
-    std::snprintf(buffer, sizeof(buffer), "Value: %d", x);
+    std::snprintf(buffer, sizeof(buffer), "%s%d", "Value: ", x);
 
     return 0;
 }
@@ -110,6 +110,7 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 #include &lt;cstdio&gt;
+#include &lt;memory&gt;
 
 int main() {
     int x{};
@@ -117,15 +118,15 @@ int main() {
 
     // scanf from stdin
     std::printf("Enter two numbers: ");
-    std::scanf("%d %lf", &amp;x, &amp;y);
+    std::scanf("%d%lf", ::std::addressof(x), ::std::addressof(y));
 
     // fscanf from file (with RAII)
     ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::in);
-    std::fscanf(cf.fp, "%d %lf", &amp;x, &amp;y);
+    std::fscanf(cf.fp, "%d%lf", ::std::addressof(x), ::std::addressof(y));
 
     // sscanf from string
     char const* str{"42 3.14"};
-    std::sscanf(str, "%d %lf", &amp;x, &amp;y);
+    std::sscanf(str, "%d%lf", ::std::addressof(x), ::std::addressof(y));
 
     return 0;
 }
@@ -366,7 +367,7 @@ int main() {
 
     // Create temporary file using fast_io's io_temp (RAII)
     ::fast_io::c_file tmp(::fast_io::io_temp);
-    std::fprintf(tmp.fp, "%s\n", "Temporary data");
+    std::fprintf(tmp.fp, "%s", "Temporary data\n");
     // File is automatically deleted when tmp goes out of scope
 
     return 0;

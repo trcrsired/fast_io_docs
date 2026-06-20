@@ -41,7 +41,7 @@ int main() {
         return 1;
     }
 
-    if (fprintf(fp, "%s\n", "Hello") &lt; 0) {
+    if (fprintf(fp, "%s", "Hello\n") &lt; 0) {
         perror("fprintf failed");
         fclose(fp);
         return 1;
@@ -114,16 +114,16 @@ int main() {
     char const* name = "Alice";
 
     // printf: write to stdout
-    std::printf("Name: %s, Age: %d, Pi: %.2f\n", name, x, pi);
+    std::printf("%s%s%s%d%s%.2f%s", "Name: ", name, ", Age: ", x, ", Pi: ", pi, "\n");
 
     // fprintf: write to a FILE*
     FILE* fp = std::fopen("data.txt", "w");
-    std::fprintf(fp, "x = %d, pi = %f\n", x, pi);
+    std::fprintf(fp, "%s%d%s%f%s", "x = ", x, ", pi = ", pi, "\n");
     std::fclose(fp);
 
     // sprintf: write to a string buffer
     char buffer[100];
-    std::sprintf(buffer, "Value: %d", x);
+    std::sprintf(buffer, "%s%d", "Value: ", x);
 }
 </code></pre>
       <p>
@@ -146,29 +146,76 @@ int main() {
       <h3>Formatted Input: <code>scanf</code>, <code>fscanf</code></h3>
 <pre><code class="language-cpp">
 #include &lt;cstdio&gt;
+#include &lt;memory&gt;
 
 int main() {
     int x;
     double y;
 
     // scanf: read from stdin
-    std::printf("Enter two numbers: ");
-    std::scanf("%d %lf", &amp;x, &amp;y);
+    std::fputs("Enter two numbers: ", stdout);
+    std::scanf("%d%lf", ::std::addressof(x), ::std::addressof(y));
 
-    // fscanf: read from a FILE*
+    // fscanf: read from a FILE* (format string has only specifiers)
     FILE* fp = std::fopen("data.txt", "r");
-    std::fscanf(fp, "x = %d, y = %lf", &amp;x, &amp;y);
+    std::fscanf(fp, "%d%lf", ::std::addressof(x), ::std::addressof(y));  // Input file should contain: 42 3.14
     std::fclose(fp);
 
     // sscanf: read from a string
     char const* input = "42 3.14";
-    std::sscanf(input, "%d %lf", &amp;x, &amp;y);
+    std::sscanf(input, "%d%lf", ::std::addressof(x), ::std::addressof(y));
 }
 </code></pre>
       <p>
-        <strong>Warning:</strong> The <code>scanf</code> family is prone to buffer overflows and
-        format string vulnerabilities. Always validate input and never pass user-controlled strings
-        as format specifiers.
+        <strong>Warning:</strong> The <code>scanf</code> family is extremely dangerous and should be
+        avoided. Problems include:
+      </p>
+      <ul>
+        <li>Buffer overflows with <code>%s</code> (use <code>fgets</code> instead)</li>
+        <li>
+          Format string vulnerabilities (CWE-134: Use of Externally-Controlled Format String)
+          if format is user-controlled &mdash; attackers can read/write arbitrary memory
+        </li>
+        <li>Difficult error handling (checking return values is complex)</li>
+        <li>Whitespace handling is confusing and error-prone</li>
+        <li>No bounds checking on numeric input</li>
+      </ul>
+      <p>
+        Use <code>::fast_io::scan</code> instead, which is type-safe, handles errors explicitly,
+        and immune to these issues.
+      </p>
+
+      <h3>The Complexity of printf Format Specifiers</h3>
+      <p>
+        The <code>printf</code> family has an extremely complex format specifier syntax. From
+        <a href="https://en.cppreference.com/c/io/fprintf" target="_blank">cppreference</a>,
+        format specifiers include:
+      </p>
+      <ul>
+        <li><strong>Type specifiers:</strong> <code>%d</code>, <code>%i</code>, <code>%u</code>, <code>%x</code>, <code>%X</code>, <code>%o</code>, <code>%f</code>, <code>%F</code>, <code>%e</code>, <code>%E</code>, <code>%g</code>, <code>%G</code>, <code>%a</code>, <code>%A</code>, <code>%s</code>, <code>%c</code>, <code>%p</code>, <code>%n</code></li>
+        <li><strong>Length modifiers:</strong> <code>h</code>, <code>hh</code>, <code>l</code>, <code>ll</code>, <code>j</code>, <code>z</code>, <code>t</code>, <code>L</code></li>
+        <li><strong>Flags:</strong> <code>-</code>, <code>+</code>, <code> </code>, <code>#</code>, <code>0</code></li>
+        <li><strong>Width and precision:</strong> <code>%10d</code>, <code>%.2f</code>, <code>%10.2f</code>, <code>%*d</code></li>
+      </ul>
+      <p>
+        Combinations like <code>%#0+10.5lld</code> are valid but nearly impossible to remember.
+        This complexity makes <code>printf</code> extremely error-prone:
+      </p>
+      <ul>
+        <li>Wrong type specifier for the argument type (e.g., <code>%d</code> for <code>long</code>)</li>
+        <li>Wrong length modifier (e.g., missing <code>l</code> for <code>long</code>)</li>
+        <li>Forgetting precision for floating-point</li>
+        <li>Mixing up similar specifiers (<code>%x</code> vs <code>%X</code>, <code>%f</code> vs <code>%e</code>)</li>
+      </ul>
+      <p>
+        Most programmers cannot remember all these rules correctly. This is why format string bugs
+        and I/O buffer overflows are among the most common security vulnerabilities. Nearly all
+        command-line I/O buffer exploits come from <code>stdio</code> misuse.
+      </p>
+      <p>
+        <code>fast_io</code> eliminates this complexity entirely. There are no format strings to
+        remember. The library automatically determines the correct formatting based on the argument
+        type, making it impossible to mismatch types and format specifiers.
       </p>
 
       <h3>Character and Line I/O</h3>
@@ -354,7 +401,7 @@ int main() {
     println(cf, "fast_io output");
 
     // Access the underlying FILE* for C API calls
-    std::fprintf(cf.fp, "C API output\n");
+    std::fprintf(cf.fp, "%s", "C API output\n");
 
     // File is closed automatically
 }
@@ -406,7 +453,7 @@ int main() {
 
 // C library function
 void c_library_function(FILE* fp) {
-    std::fprintf(fp, "%s\n", "From C library");
+    std::fprintf(fp, "%s", "From C library\n");
 }
 
 int main() {
@@ -453,10 +500,24 @@ int main() {
           to synchronize them manually when needed.
         </li>
         <li>
-          Never pass a variable or runtime string as the format argument to <code>printf</code>.
-          This is a format string vulnerability: <code>printf(str)</code> is dangerous if
-          <code>str</code> contains <code>%</code> characters. Always use a literal format string:
-          <code>printf("%s", str)</code> &mdash; or better, use <code>::fast_io::print</code>.
+          Format strings should <strong>only</strong> contain format specifiers (<code>%s</code>,
+          <code>%d</code>, etc.), nothing else. Never include literal text, newlines, or other
+          characters in the format string. Put all literal content in the arguments instead:
+          <code>printf("%s", "text\n")</code>, not <code>printf("text\n")</code> or
+          <code>printf("%s\n", "text")</code>. Or better, use <code>fputs</code> for plain strings
+          or <code>::fast_io::print</code> for type-safe output. Never pass user-controlled strings
+          as format strings (CWE-134: Use of Externally-Controlled Format String).
+        </li>
+        <li>
+          Always use <code>::std::addressof()</code> instead of <code>&amp;</code> when passing
+          pointers to <code>scanf</code>/<code>fscanf</code>/<code>sscanf</code>. This works
+          correctly even if the type has overloaded <code>operator&amp;</code>.
+        </li>
+        <li>
+          <code>printf</code> format specifiers are extremely complex and nearly impossible to
+          remember correctly (see
+          <a href="https://en.cppreference.com/c/io/fprintf" target="_blank">cppreference</a>).
+          This complexity leads to constant bugs and security vulnerabilities.
         </li>
         <li>
           Prefer <code>::fast_io::print</code>/<code>println</code>/<code>scan</code> over the C
