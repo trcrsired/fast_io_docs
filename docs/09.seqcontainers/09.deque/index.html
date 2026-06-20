@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.9: deque - How It Works - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.9: deque &mdash; How It Works</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        A <code>::fast_io::deque&lt;T&gt;</code> (pronounced &ldquo;deck&rdquo;)
+        provides efficient insertion and removal at <strong>both ends</strong>
+        while still supporting random access via <code>operator[]</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. Internal Structure</h2>
+      <p>
+        Unlike a vector, which stores all elements in one contiguous block, a deque
+        uses a <strong>map of blocks</strong> design:
+      </p>
+      <ul>
+        <li>Elements are stored in fixed-size <strong>blocks</strong> (chunks).</li>
+        <li>A central <strong>controller</strong> maintains an array of pointers to
+          these blocks.</li>
+        <li>Each block holds <code>block_size</code> elements (implementation-defined,
+          typically large enough to fill a cache line or page).</li>
+      </ul>
+<pre><code class="language-cpp">
+// Conceptual layout of a deque:
+//
+// Controller: [ptr_to_block0] [ptr_to_block1] [ptr_to_block2] ...
+//                    |               |               |
+//               Block 0:        Block 1:        Block 2:
+//             [e0][e1]..[eN]  [e0][e1]..[eN]  [e0][e1]..[eN]
+</code></pre>
+      <p>
+        When the deque needs to grow at the front, it allocates a new block and
+        adds a pointer to the front of the controller. No existing elements need
+        to be moved. The same applies at the back. This is the key advantage over
+        <code>vector</code>, which must copy all elements when growing at the front.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Deque-Specific Capacity</h2>
+      <p>
+        Because a deque grows at both ends, it has separate capacity for each end:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/deque.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::deque&lt;::std::size_t&gt; dq;
+
+    // Reserve at each end independently
+    dq.reserve_back(1000zu);
+    dq.reserve_front(500zu);
+
+    println("Front capacity: ", dq.front_capacity());
+    println("Back capacity: ", dq.back_capacity());
+
+    // Segment introspection
+    println("Block size: ", decltype(dq)::block_size);
+    println("Segments: ", dq.segments_count());
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. When Is deque Superior to vector?</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Scenario</th>
+            <th>Prefer</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Most general-purpose use</td>
+            <td><code>vector</code></td>
+            <td>Better cache locality, simpler, faster iteration</td>
+          </tr>
+          <tr>
+            <td>Need to grow at the front</td>
+            <td><code>deque</code></td>
+            <td>vector cannot push_front; deque does it in O(1) amortized</td>
+          </tr>
+          <tr>
+            <td>Need a stack or queue</td>
+            <td><code>deque</code></td>
+            <td>Default underlying container for <code>stack</code> and <code>queue</code></td>
+          </tr>
+          <tr>
+            <td>Very large data sets with push_back</td>
+            <td><code>deque</code></td>
+            <td>vector reallocation copies all elements; deque only allocates a new block</td>
+          </tr>
+          <tr>
+            <td>Tight iteration performance</td>
+            <td><code>vector</code></td>
+            <td>Contiguous memory is prefetch-friendly</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>A <code>deque</code> uses a map of fixed-size blocks, not one contiguous array.</li>
+        <li>It supports O(1) amortized insertion at both front and back.</li>
+        <li><code>reserve_front()</code> and <code>reserve_back()</code> control capacity independently.</li>
+        <li><code>deque</code> supports random access but with slightly worse cache locality than <code>vector</code>.</li>
+        <li>Prefer <code>vector</code> by default; use <code>deque</code> when you need front insertion.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/08.vectorcapacity/" class="prev-button">&larr; Ch9.8: vector Capacity</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/09.seqcontainers/10.span/" class="next-button">Ch9.10: span &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

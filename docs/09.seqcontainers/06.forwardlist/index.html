@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.6: forward_list Special Operations - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.6: forward_list Special Operations</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>::fast_io::forward_list</code> is unique among the containers because
+        it uses an &ldquo;insert after&rdquo; model. Instead of inserting
+        <em>at</em> an iterator, you insert <em>after</em> an iterator. This
+        design avoids the need for a <code>size()</code> method and keeps the
+        per-node overhead to a single pointer.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. before_begin()</h2>
+      <p>
+        <code>forward_list</code> provides a <code>before_begin()</code> iterator
+        that points to the position <em>before</em> the first element. This allows
+        insertion at the very front of the list:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/forward_list.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    ::fast_io::forward_list&lt;::std::size_t&gt; fl{10zu, 20zu, 30zu};
+
+    // Insert at the front using before_begin()
+    fl.insert_after(fl.before_begin(), 5zu);
+    // fl is now {5zu, 10zu, 20zu, 30zu}
+
+    // Emplace at the front
+    fl.emplace_after(fl.before_begin(), 1zu);
+    // fl is now {1zu, 5zu, 10zu, 20zu, 30zu}
+
+    // cbefore_begin() for const context
+    auto cbi = fl.cbefore_begin();
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. _after Operations</h2>
+      <p>
+        All insertion and erasure operations on <code>forward_list</code> use the
+        <code>_after</code> suffix:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>insert_after(pos, val)</code></td>
+            <td>Insert <code>val</code> after the element pointed to by <code>pos</code></td>
+          </tr>
+          <tr>
+            <td><code>emplace_after(pos, args...)</code></td>
+            <td>Construct element in-place after <code>pos</code></td>
+          </tr>
+          <tr>
+            <td><code>erase_after(pos)</code></td>
+            <td>Erase the element <em>after</em> <code>pos</code></td>
+          </tr>
+          <tr>
+            <td><code>erase_after(first, last)</code></td>
+            <td>Erase range <code>(first, last)</code> (exclusive of <code>first</code>)</td>
+          </tr>
+          <tr>
+            <td><code>splice_before_after(pos, beforeit)</code></td>
+            <td>Move the element after <code>beforeit</code> to after <code>pos</code></td>
+          </tr>
+          <tr>
+            <td><code>reverse_after(beforeit)</code></td>
+            <td>Reverse the subrange starting after <code>beforeit</code></td>
+          </tr>
+          <tr>
+            <td><code>sort_after(beforeit, cmp)</code></td>
+            <td>Sort the subrange starting after <code>beforeit</code></td>
+          </tr>
+          <tr>
+            <td><code>merge_after(beforeit, other, cmp)</code></td>
+            <td>Merge <code>other</code> into the subrange after <code>beforeit</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>3. Complete Example</h2>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/forward_list.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    ::fast_io::forward_list&lt;::std::size_t&gt; fl{30zu, 10zu, 20zu};
+
+    // Sort the entire list
+    fl.sort();
+    // fl is now {10zu, 20zu, 30zu}
+
+    // Reverse the entire list
+    fl.reverse();
+    // fl is now {30zu, 20zu, 10zu}
+
+    // Erase element after begin (removes 20)
+    fl.erase_after(fl.begin());
+    // fl is now {30zu, 10zu}
+
+    // Erase range: erase everything after before_begin up to end
+    fl.erase_after(fl.before_begin(), fl.end());
+    // fl is now empty
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>forward_list</code> uses an &ldquo;insert after&rdquo; model.</li>
+        <li><code>before_begin()</code> enables insertion at the very front.</li>
+        <li>All mutation operations use the <code>_after</code> suffix.</li>
+        <li><code>forward_list</code> has no <code>size()</code> and no <code>back()</code>.</li>
+        <li>Per-node overhead is only one pointer (vs two for <code>list</code>).</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/05.unchecked/" class="prev-button">&larr; Ch9.5: Unchecked Operations</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/09.seqcontainers/07.listspecialops/" class="next-button">Ch9.7: list Special Ops &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

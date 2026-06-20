@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.10: span and index_span - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.10: span and index_span</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>::fast_io::span&lt;T&gt;</code> and
+        <code>::fast_io::index_span&lt;T, N&gt;</code> are non-owning views over
+        contiguous memory. They do not allocate or free memory &mdash; they just
+        point to data owned by something else.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. span&lt;T&gt;</h2>
+      <p>
+        A <code>span</code> is a pointer and a size. Use it as a function parameter
+        type to accept any contiguous container without copying:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/span.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+#include &lt;fast_io_dsal/array.h&gt;
+#include &lt;fast_io.h&gt;
+
+// Accepts vector, array, span, C-array - anything contiguous
+void print_all(::fast_io::span&lt;::std::size_t const&gt; data) {
+    for (auto const&amp; e : data) {
+        ::fast_io::io::println(e);
+    }
+}
+
+int main() {
+    ::fast_io::vector&lt;::std::size_t&gt; v{1zu, 2zu, 3zu};
+    ::fast_io::array&lt;::std::size_t, 3zu&gt; a{4zu, 5zu, 6zu};
+
+    print_all(::fast_io::span(v.data(), v.size()));
+    print_all(::fast_io::span(a.data(), a.size()));
+}
+</code></pre>
+
+      <h3>Sub-span operations</h3>
+<pre><code class="language-cpp">
+::fast_io::span&lt;::std::size_t&gt; sp(vec.data(), vec.size());
+
+auto first_half = sp.subspan_front(sp.size() / 2);
+auto last_quarter = sp.subspan_back(sp.size() / 4);
+auto middle = sp.subspan(1zu, 3zu); // 3 elements starting at index 1
+
+// Unchecked variants for performance-critical code
+auto fast_sub = sp.subspan_front_unchecked(5zu);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. index_span&lt;T, N&gt;</h2>
+      <p>
+        An <code>index_span</code> is a span with a <strong>compile-time fixed
+        size</strong>. The size <code>N</code> is part of the type, so the compiler
+        can verify it:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/index_span.h&gt;
+#include &lt;fast_io.h&gt;
+
+// Requires exactly 4 elements
+void process_quad(::fast_io::index_span&lt;double, 4zu&gt; quad) {
+    for (::std::size_t i{}; i != quad.size(); ++i) {
+        ::fast_io::io::println(quad[i]);
+    }
+}
+
+int main() {
+    double coords[]{1.0, 2.0, 3.0, 4.0};
+    ::fast_io::index_span&lt;double, 4zu&gt; ispan(
+        ::fast_io::containers::index_unchecked,
+        coords
+    );
+    process_quad(ispan);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>span&lt;T&gt;</code> is a non-owning view (pointer + dynamic size).</li>
+        <li><code>index_span&lt;T, N&gt;</code> has a compile-time fixed size.</li>
+        <li>Both are zero-cost abstractions: just a pointer and a size.</li>
+        <li>Use <code>span</code> as function parameters to accept any contiguous container.</li>
+        <li>Sub-span operations: <code>subspan_front()</code>, <code>subspan_back()</code>, <code>subspan()</code>.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/09.deque/" class="prev-button">&larr; Ch9.9: deque</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/09.seqcontainers/11.bitvec/" class="next-button">Ch9.11: bitvec &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

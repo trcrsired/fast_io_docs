@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.11: bitvec - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.11: bitvec</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        A <code>::fast_io::bitvec</code> stores a dynamic sequence of individual
+        bits, packed 8 per byte. Unlike <code>std::vector&lt;bool&gt;</code>, it
+        is a distinct type with rich bit-level operations.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. Basic Usage</h2>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/bitvec.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    ::fast_io::bitvec bv;
+
+    // Push individual bits
+    bv.push_back(true);
+    bv.push_back(false);
+    bv.push_back(true);
+
+    // Test bits (bounds-checked)
+    ::fast_io::io::println("Bit 0: ", bv.test(0zu)); // true
+    ::fast_io::io::println("Bit 1: ", bv.test(1zu)); // false
+
+    // Set, reset, flip
+    bv.set(1zu);       // Set bit 1 to true
+    bv.reset(0zu);     // Set bit 0 to false
+    bv.flip(2zu);      // Toggle bit 2
+
+    // Front and back shortcuts
+    bv.set_front(true);
+    bv.reset_back();
+    bool last = bv.pop_back(); // Remove and return the last bit
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. Bitwise Operations</h2>
+<pre><code class="language-cpp">
+::fast_io::bitvec a{true, false, true, true};
+::fast_io::bitvec b{true, true, false, true};
+
+// Bitwise AND, OR, XOR
+auto c = a &amp; b; // {1, 0, 0, 1}
+auto d = a | b; // {1, 1, 1, 1}
+auto e = a ^ b; // {0, 1, 1, 0}
+
+// Shifts
+auto f = a &lt;&lt; 2; // Shift left by 2
+auto g = a &gt;&gt; 1; // Shift right by 1
+
+// Complement
+auto h = ~a;     // {0, 1, 0, 0}
+
+// In-place compound assignment
+a &amp;= b;
+a |= b;
+a ^= b;
+a &lt;&lt;= 3;
+a &gt;&gt;= 1;
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. Bit Inspection</h2>
+<pre><code class="language-cpp">
+::fast_io::bitvec bv{true, false, true, false, false};
+
+bv.popcount();     // 2 (number of set bits)
+bv.countl_zero();  // 0 (leading zeros)
+bv.countr_zero();  // 0 (trailing zeros)
+bv.bit_width();    // 3 (position of highest set bit + 1)
+bv.has_single_bit(); // false (not a power of two)
+bv.is_all_zero();  // false
+
+// Bulk operations
+bv.set_all();   // All bits to 1
+bv.reset_all(); // All bits to 0
+bv.flip_all();  // Toggle all bits
+
+// Rotation
+bv.rotl_assign(2); // Rotate left by 2
+bv.rotr_assign(1); // Rotate right by 1
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. Memory Efficiency</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Bits per element</th>
+            <th>1 million flags</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>vector&lt;bool&gt;</code> (STL)</td>
+            <td>1 (specialized) or 8&ndash;32 (not specialized)</td>
+            <td>125 KB (or more)</td>
+          </tr>
+          <tr>
+            <td><code>vector&lt;char&gt;</code></td>
+            <td>8</td>
+            <td>1 MB</td>
+          </tr>
+          <tr>
+            <td><code>bitvec</code></td>
+            <td>1</td>
+            <td>125 KB</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>bitvec</code> stores individual bits, packed 8 per byte.</li>
+        <li>Supports bitwise operations: <code>&amp;</code>, <code>|</code>, <code>^</code>, <code>&lt;&lt;</code>, <code>&gt;&gt;</code>, <code>~</code>.</li>
+        <li>Provides <code>&lt;bit&gt;</code>-style inspection: <code>popcount()</code>, <code>countl_zero()</code>, etc.</li>
+        <li>8&times; more memory-efficient than <code>vector&lt;char&gt;</code> for boolean data.</li>
+        <li>Supports <code>insert_index()</code> and <code>erase_index()</code> at bit-level granularity.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/10.span/" class="prev-button">&larr; Ch9.10: span</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/09.seqcontainers/12.string/" class="next-button">Ch9.12: string &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

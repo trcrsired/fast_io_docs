@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.16: C++ Standard Library Containers vs fast_io - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.16: C++ Standard Library Containers vs fast_io</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        The C++ standard library provides its own set of containers
+        (<code>std::vector</code>, <code>std::deque</code>, <code>std::list</code>,
+        etc.). You should <strong>prefer <code>fast_io</code> containers</strong>
+        for the following reasons.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. Comparison Table</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Aspect</th>
+            <th><code>std::</code> containers</th>
+            <th><code>fast_io::</code> containers</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Bounds checking</strong></td>
+            <td><code>operator[]</code> is unchecked; <code>at()</code> throws</td>
+            <td><code>operator[]</code> is bounds-checked; calls <code>fast_terminate()</code></td>
+          </tr>
+          <tr>
+            <td><strong>Allocation failure</strong></td>
+            <td>Throws <code>std::bad_alloc</code></td>
+            <td>Calls <code>fast_terminate()</code> &mdash; no exception unwinding</td>
+          </tr>
+          <tr>
+            <td><strong>Logic bugs</strong></td>
+            <td>Undefined behaviour (empty front/back, OOB access)</td>
+            <td>Deterministic termination on logic bugs</td>
+          </tr>
+          <tr>
+            <td><strong>Trivial relocation</strong></td>
+            <td>Uses move constructors (may be slow for complex types)</td>
+            <td>Uses <code>memcpy</code> when types are trivially relocatable</td>
+          </tr>
+          <tr>
+            <td><strong>Index operations</strong></td>
+            <td>No <code>insert_index</code> / <code>erase_index</code></td>
+            <td>Bounds-checked index operations on all eligible containers</td>
+          </tr>
+          <tr>
+            <td><strong>String handling</strong></td>
+            <td><code>std::string</code> + <code>std::format</code> (slow)</td>
+            <td><code>concat_fast_io</code> + <code>to&lt;T&gt;</code> (compile-time optimized)</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. Summary</h2>
+      <p>
+        In short, <code>fast_io</code> containers are <strong>memory safer</strong>
+        (bounds checking everywhere, deterministic termination),
+        <strong>faster</strong> (trivial relocation, no exception overhead), and
+        <strong>more consistent</strong> (uniform <code>_index</code> operations,
+        <code>_unchecked</code> variants).
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>fast_io</code> containers are bounds-checked by default.</li>
+        <li>Allocation failure terminates deterministically, not via exception unwinding.</li>
+        <li>Trivially relocatable types use <code>memcpy</code> instead of move constructors.</li>
+        <li><code>insert_index</code> / <code>erase_index</code> provide safe index-based operations not available in <code>std::</code>.</li>
+        <li><code>concat_fast_io</code> and <code>to&lt;T&gt;</code> are faster than <code>std::format</code> and <code>std::stoi</code>.</li>
+        <li>Prefer <code>fast_io</code> containers over <code>std::</code> equivalents.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/15.algorithms/" class="prev-button">&larr; Ch9.15: Algorithms</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/10.associativecontainers/" class="next-button">Ch10: Associative Containers &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

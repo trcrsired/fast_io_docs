@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.7: list Special Operations - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.7: list Special Operations</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>::fast_io::list</code> provides several operations that manipulate
+        the list structure directly without copying elements. These are more
+        efficient than the equivalent operations on a vector because they only
+        adjust pointers.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. Special Operations Table</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>splice(pos, it)</code></td>
+            <td>Move the element pointed to by <code>it</code> to before <code>pos</code></td>
+          </tr>
+          <tr>
+            <td><code>splice(pos, first, last)</code></td>
+            <td>Move range <code>[first, last)</code> to before <code>pos</code></td>
+          </tr>
+          <tr>
+            <td><code>splice(pos, other)</code></td>
+            <td>Move all elements from <code>other</code> to before <code>pos</code></td>
+          </tr>
+          <tr>
+            <td><code>sort()</code> / <code>sort(cmp)</code></td>
+            <td>Sort the entire list in-place</td>
+          </tr>
+          <tr>
+            <td><code>sort(first, last)</code></td>
+            <td>Sort a subrange in-place</td>
+          </tr>
+          <tr>
+            <td><code>merge(other)</code> / <code>merge(other, cmp)</code></td>
+            <td>Merge sorted <code>other</code> into this sorted list</td>
+          </tr>
+          <tr>
+            <td><code>reverse()</code></td>
+            <td>Reverse the order of all elements</td>
+          </tr>
+          <tr>
+            <td><code>is_single()</code></td>
+            <td>Returns <code>true</code> if exactly one element</td>
+          </tr>
+          <tr>
+            <td><code>has_multiple()</code></td>
+            <td>Returns <code>true</code> if two or more elements</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. Complete Example</h2>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/list.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    ::fast_io::list&lt;::std::size_t&gt; a{10zu, 30zu, 50zu};
+    ::fast_io::list&lt;::std::size_t&gt; b{20zu, 40zu};
+
+    // Splice: move element from b to a
+    auto bit = b.begin(); // points to 20
+    auto ait = a.begin() + 1; // points to 30
+    a.splice(ait, bit);
+    // a is now {10zu, 20zu, 30zu, 50zu}
+    // b is now {40zu}
+
+    // Sort
+    a.sort(); // a is now {10zu, 20zu, 30zu, 50zu} (already sorted)
+
+    // Merge two sorted lists
+    b.sort(); // b = {40}
+    a.merge(::std::move(b));
+    // a is now {10zu, 20zu, 30zu, 40zu, 50zu}
+    // b is now empty
+
+    // Reverse
+    a.reverse();
+    // a is now {50zu, 40zu, 30zu, 20zu, 10zu}
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>splice()</code> moves elements between lists without copying.</li>
+        <li><code>sort()</code>, <code>merge()</code>, and <code>reverse()</code> only adjust pointers.</li>
+        <li><code>is_single()</code> and <code>has_multiple()</code> are list-specific queries.</li>
+        <li>List operations never invalidate iterators to elements that are not moved or erased.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/06.forwardlist/" class="prev-button">&larr; Ch9.6: forward_list</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/09.seqcontainers/08.vectorcapacity/" class="next-button">Ch9.8: vector Capacity &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

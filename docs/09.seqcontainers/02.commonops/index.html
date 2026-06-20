@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.2: Common Operations - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.2: Common Operations</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        All sequential containers share a large set of common operations. This
+        section presents comprehensive tables showing which operations are available
+        for each container. A <strong>&#10003;</strong> means supported;
+        <strong>&mdash;</strong> means not available; a note means the operation
+        exists but with different semantics.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. Type Aliases</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Type Alias</th>
+            <th>vector</th>
+            <th>deque</th>
+            <th>list</th>
+            <th>forward_list</th>
+            <th>array</th>
+            <th>bitvec</th>
+            <th>span</th>
+            <th>string_view</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>value_type</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&#10003;</td><td>bool</td><td>&#10003;</td><td>char_type</td>
+          </tr>
+          <tr>
+            <td><code>size_type</code></td>
+            <td><code>size_t</code></td><td><code>size_t</code></td>
+            <td><code>size_t</code></td><td><code>size_t</code></td>
+            <td><code>size_t</code></td><td><code>size_t</code></td>
+            <td><code>size_t</code></td><td><code>size_t</code></td>
+          </tr>
+          <tr>
+            <td><code>difference_type</code></td>
+            <td><code>ptrdiff_t</code></td><td><code>ptrdiff_t</code></td>
+            <td><code>ptrdiff_t</code></td><td><code>ptrdiff_t</code></td>
+            <td><code>ptrdiff_t</code></td><td><code>ptrdiff_t</code></td>
+            <td><code>ptrdiff_t</code></td><td><code>ptrdiff_t</code></td>
+          </tr>
+          <tr>
+            <td><code>reference</code></td>
+            <td>T&</td><td>T&</td><td>T&</td><td>T&</td>
+            <td>T&</td><td>&mdash;</td><td>T&</td><td>const ch&</td>
+          </tr>
+          <tr>
+            <td><code>const_reference</code></td>
+            <td>const T&</td><td>const T&</td><td>const T&</td><td>const T&</td>
+            <td>const T&</td><td>&mdash;</td><td>const T&</td><td>const ch&</td>
+          </tr>
+          <tr>
+            <td><code>pointer</code></td>
+            <td>T*</td><td>T*</td><td>T*</td><td>T*</td>
+            <td>T*</td><td>&mdash;</td><td>T*</td><td>const ch*</td>
+          </tr>
+          <tr>
+            <td><code>iterator</code> category</td>
+            <td>Contiguous</td><td>Random access</td>
+            <td>Bidirectional</td><td>Forward</td>
+            <td>Contiguous</td><td>&mdash;</td>
+            <td>Contiguous</td><td>Contiguous (const)</td>
+          </tr>
+          <tr>
+            <td><code>reverse_iterator</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
+            <td>&#10003;</td><td>&#10003;</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. Capacity Operations</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>vector</th>
+            <th>deque</th>
+            <th>list</th>
+            <th>forward_list</th>
+            <th>array</th>
+            <th>bitvec</th>
+            <th>span</th>
+            <th>string_view</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>empty()</code> / <code>is_empty()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>size()</code> / <code>size_bytes()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&mdash; (see note)</td>
+            <td>&#10003; (static)</td><td>&#10003;</td>
+            <td>&#10003;</td><td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>max_size()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>capacity()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
+            <td>&mdash;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
+          </tr>
+          <tr>
+            <td><code>reserve()</code></td>
+            <td>&#10003;</td><td>&mdash; (see <code>reserve_back</code>)</td>
+            <td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&#10003;</td>
+            <td>&mdash;</td><td>&mdash;</td>
+          </tr>
+          <tr>
+            <td><code>shrink_to_fit()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
+            <td>&mdash;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Note:</strong> <code>forward_list</code> does not provide
+        <code>size()</code>. Counting elements in a singly-linked list requires
+        O(n) traversal, so the size is intentionally omitted to avoid hiding the
+        cost. Use <code>::std::ranges::distance()</code> if you need it.
+      </p>
+      <p>
+        <strong>deque note:</strong> Instead of <code>reserve()</code>, a deque
+        provides <code>reserve_back(n)</code> and <code>reserve_front(n)</code>
+        for reserving capacity at each end independently. It also provides
+        <code>front_capacity()</code> and <code>back_capacity()</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Element Access</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>vector</th>
+            <th>deque</th>
+            <th>list</th>
+            <th>forward_list</th>
+            <th>array</th>
+            <th>span</th>
+            <th>string_view</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>operator[]</code> (bounds-checked)</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>index_unchecked()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>front()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>back()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>data()</code></td>
+            <td>&#10003;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>front_unchecked()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>back_unchecked()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>4. Iterator Operations</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>vector</th>
+            <th>deque</th>
+            <th>list</th>
+            <th>forward_list</th>
+            <th>array</th>
+            <th>span</th>
+            <th>string_view</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>begin()</code> / <code>end()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>cbegin()</code> / <code>cend()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>rbegin()</code> / <code>rend()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>before_begin()</code></td>
+            <td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&#10003;</td>
+            <td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>5. Modifiers</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>vector</th>
+            <th>deque</th>
+            <th>list</th>
+            <th>forward_list</th>
+            <th>bitvec</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>clear()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>clear_destroy()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>push_back()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
+            <td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>push_front()</code></td>
+            <td>&mdash;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&mdash;</td>
+          </tr>
+          <tr>
+            <td><code>pop_back()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
+            <td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>pop_front()</code></td>
+            <td>&mdash;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&mdash;</td>
+          </tr>
+          <tr>
+            <td><code>emplace_back()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
+            <td>&mdash;</td>
+          </tr>
+          <tr>
+            <td><code>emplace_front()</code></td>
+            <td>&mdash;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&mdash;</td>
+          </tr>
+          <tr>
+            <td><code>resize()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
+            <td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>assign()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
+            <td>&mdash;</td>
+          </tr>
+          <tr>
+            <td><code>append_range()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
+            <td>&#10003;</td>
+          </tr>
+          <tr>
+            <td><code>swap()</code></td>
+            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+            <td>&#10003;</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>All containers share a common interface for size, iteration, and element access.</li>
+        <li><code>forward_list</code> is the only container without <code>size()</code> or <code>back()</code>.</li>
+        <li><code>list</code> and <code>forward_list</code> do not support <code>operator[]</code> or random access.</li>
+        <li>Only <code>vector</code>, <code>deque</code>, <code>array</code>, and contiguous views provide <code>data()</code>.</li>
+        <li><code>clear()</code> keeps capacity; <code>clear_destroy()</code> deallocates memory.</li>
+        <li><code>deque</code> is the only container with <code>push_front()</code> and capacity at both ends.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/01.overview/" class="prev-button">&larr; Ch9.1: Overview</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/09.seqcontainers/03.inserteraseindex/" class="next-button">Ch9.3: Insert/Erase by Index &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

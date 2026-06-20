@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.1: Overview of Sequential Containers - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.1: Overview of Sequential Containers</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        This section introduces all sequential containers available in
+        <code>fast_io_dsal</code>. Sequential containers store elements in order
+        &mdash; the first element added is at position 0, the second at position 1,
+        and so on. We present every container, explain data locality, and give
+        rules of thumb for choosing the right container.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. Container Catalogue</h2>
+      <p>
+        The following tables list every container. The <em>IPA</em> column shows
+        how each name is pronounced using the International Phonetic Alphabet.
+      </p>
+
+      <h3>Owning Containers</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Container</th>
+            <th>IPA</th>
+            <th>Memory Layout</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::array&lt;T, N&gt;</code></td>
+            <td>/əˈreɪ/</td>
+            <td>Contiguous (stack or static)</td>
+            <td>Fixed-size, compile-time known number of elements.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::vector&lt;T&gt;</code></td>
+            <td>/ˈvɛktər/</td>
+            <td>Contiguous (heap)</td>
+            <td><strong>Default container.</strong> Dynamic-size, contiguous storage.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::string</code></td>
+            <td>/strɪŋ/</td>
+            <td>Contiguous (heap)</td>
+            <td>Dynamic character sequence. Alias for <code>basic_string&lt;char&gt;</code>.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::deque&lt;T&gt;</code></td>
+            <td>/dɛk/</td>
+            <td>Chunked blocks (heap)</td>
+            <td>Double-ended queue. Fast insertion/removal at both ends, with random access.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::list&lt;T&gt;</code></td>
+            <td>/lɪst/</td>
+            <td>Doubly-linked nodes (heap)</td>
+            <td>Doubly-linked list. O(1) insertion/removal anywhere once positioned.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::forward_list&lt;T&gt;</code></td>
+            <td>/ˈfɔɹwəɹd lɪst/</td>
+            <td>Singly-linked nodes (heap)</td>
+            <td>Singly-linked list. Minimal per-element overhead, forward iteration only.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::bitvec</code></td>
+            <td>/bɪt vɛk/</td>
+            <td>Packed bits (heap)</td>
+            <td>Dynamic bit vector. Stores individual bits, not <code>bool</code> values.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>View Types (Non-owning)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>View Type</th>
+            <th>IPA</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::span&lt;T&gt;</code></td>
+            <td>/spæn/</td>
+            <td>Non-owning view over contiguous memory with dynamic size.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::index_span&lt;T, N&gt;</code></td>
+            <td>/ˈɪndɛks spæn/</td>
+            <td>Non-owning view with compile-time fixed size <em>N</em>.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::string_view</code></td>
+            <td>/strɪŋ vjuː/</td>
+            <td>Non-owning view over a character sequence.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::cstring_view</code></td>
+            <td>/ˈsiː strɪŋ vjuː/</td>
+            <td>Non-owning view with a null-termination guarantee.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. Data Locality and Performance</h2>
+      <p>
+        The way a container stores its elements in memory has a profound effect on
+        performance. Modern CPUs rely heavily on <strong>caches</strong> (L1, L2, L3).
+        When elements are stored contiguously, accessing one element typically brings
+        its neighbours into cache, making subsequent accesses nearly free.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Layout</th>
+            <th>Containers</th>
+            <th>Cache Behaviour</th>
+            <th>Iteration Speed</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Contiguous</strong></td>
+            <td><code>array</code>, <code>vector</code>, <code>string</code></td>
+            <td>Excellent &mdash; hardware prefetcher works perfectly</td>
+            <td>Fastest</td>
+          </tr>
+          <tr>
+            <td><strong>Chunked</strong></td>
+            <td><code>deque</code></td>
+            <td>Good within a block, occasional cache miss at block boundaries</td>
+            <td>Near-contiguous for large containers</td>
+          </tr>
+          <tr>
+            <td><strong>Linked nodes</strong></td>
+            <td><code>list</code>, <code>forward_list</code></td>
+            <td>Poor &mdash; each node is a separate heap allocation</td>
+            <td>Slowest &mdash; pointer chasing</td>
+          </tr>
+          <tr>
+            <td><strong>Packed bits</strong></td>
+            <td><code>bitvec</code></td>
+            <td>Excellent &mdash; 64&times; more compact than <code>vector&lt;bool&gt;</code></td>
+            <td>Fast, but individual bits require masking</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        For most workloads, <strong>contiguous storage wins</strong>. The CPU cache
+        line is typically 64 bytes. A <code>vector&lt;::std::size_t&gt;</code> brings 16 elements
+        per cache line. A <code>list&lt;::std::size_t&gt;</code> brings only 1 element per cache
+        line (and wastes memory on pointers). So even though a list offers O(1)
+        insertion, the constant factor for traversal can be 10&ndash;50&times; worse.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Choosing a Container</h2>
+      <p>
+        Here are rules of thumb for selecting which container to use:
+      </p>
+
+      <div class="tip">
+        <strong>Avoid containers entirely if you can.</strong> If you can accomplish
+        the task with I/O operations (e.g. printing &ldquo;Hello, World!&rdquo;),
+        do that instead. I/O provides an abstraction for processing an unbounded
+        amount of data without dynamic allocation. I/O buffers are often more
+        efficient than both stack and heap allocations.
+      </div>
+
+      <ol>
+        <li>
+          <strong>Unless you have a reason to use another container, use
+          <code>::fast_io::vector</code>.</strong>
+          It offers the best cache locality and is the fastest for almost all
+          operations.
+        </li>
+        <li>
+          <strong>If your program has lots of small elements and space overhead
+          matters, don&rsquo;t use <code>list</code> or <code>forward_list</code>.</strong>
+          Each node in a linked list carries at least one pointer (8 bytes on
+          64-bit systems) of overhead.
+        </li>
+        <li>
+          <strong>If the program requires random access to elements, use a
+          <code>vector</code> or a <code>deque</code>.</strong>
+          Both provide O(1) <code>operator[]</code>. Linked lists do not.
+        </li>
+        <li>
+          <strong>If the program needs to insert or delete elements in the middle
+          of the container, use a <code>list</code> or <code>forward_list</code>.</strong>
+          Once an iterator is positioned, insertion and removal are O(1).
+        </li>
+        <li>
+          <strong>If the program needs to insert or delete elements at the front
+          and the back, but not in the middle, use a <code>deque</code>.</strong>
+          A <code>vector</code> can only efficiently grow at the back.
+        </li>
+        <li>
+          <strong>If the program needs to insert elements in the middle only while
+          reading input, and subsequently needs random access:</strong>
+          <ul>
+            <li>
+              First, consider whether you actually need middle insertion. It is
+              often easier to append to a <code>vector</code> and then call
+              <code>::std::ranges::sort</code> afterwards.
+            </li>
+            <li>
+              If you must insert into the middle, consider using a <code>list</code>
+              during the input phase. Once input is complete, copy the list into a
+              <code>vector</code>.
+            </li>
+          </ul>
+        </li>
+      </ol>
+
+      <div class="tip">
+        <strong>Best Practice:</strong> If you are not sure which container to use,
+        write your code so that it uses only operations common to both vectors and
+        lists: use iterators (or <code>_index</code> operations) and avoid assuming
+        random access. That way it will be easy to switch to either a
+        <code>vector</code> or a <code>list</code> as necessary.
+      </div>
+
+      <p>
+        What if the program needs random access <em>and</em> needs to insert or
+        delete elements in the middle? The answer depends on the relative cost of
+        accessing elements in a linked list versus the cost of inserting or deleting
+        in a vector or deque. In general, the predominant operation of the
+        application (whether it does more access or more insertion/deletion) will
+        determine the choice. In such cases, performance testing with both containers
+        will probably be necessary.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>Sequential containers store elements in insertion order.</li>
+        <li>The default container is <code>::fast_io::vector</code>.</li>
+        <li>Contiguous containers (<code>vector</code>, <code>array</code>, <code>string</code>) have the best cache locality.</li>
+        <li>Linked containers (<code>list</code>, <code>forward_list</code>) have poor cache locality but O(1) insertion/removal.</li>
+        <li><code>deque</code> sits in the middle: chunked blocks with random access and fast growth at both ends.</li>
+        <li>Avoid containers entirely when I/O operations can do the job.</li>
+        <li>Start with <code>vector</code>; switch only when profiling shows a bottleneck.</li>
+        <li>View types (<code>span</code>, <code>string_view</code>) do not own memory.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/" class="prev-button">&larr; Ch9: Sequential Containers</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/09.seqcontainers/02.commonops/" class="next-button">Ch9.2: Common Operations &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

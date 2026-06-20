@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.12: string - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.12: string</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>::fast_io::string</code> is a dynamic, null-terminated character
+        sequence. The string type has many details that can easily be overlooked.
+        This section covers the essentials: character type variants,
+        <code>concat_fast_io</code>, and <code>to&lt;T&gt;</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. Character Type Variants</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Alias</th>
+            <th>Character Type</th>
+            <th>Allocator</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::string</code></td>
+            <td><code>char</code></td>
+            <td>Global (default)</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::wstring</code></td>
+            <td><code>wchar_t</code></td>
+            <td>Global</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::u8string</code></td>
+            <td><code>char8_t</code></td>
+            <td>Global</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::u16string</code></td>
+            <td><code>char16_t</code></td>
+            <td>Global</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::u32string</code></td>
+            <td><code>char32_t</code></td>
+            <td>Global</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Thread-local allocator variants are available in the <code>::fast_io::tlc</code>
+        namespace: <code>::fast_io::tlc::string</code>, <code>::fast_io::tlc::wstring</code>,
+        etc.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. concat_fast_io &mdash; String Concatenation</h2>
+      <p>
+        <code>concat_fast_io</code> formats all its arguments into a new string and
+        returns it. It is the string-producing counterpart to <code>print</code>:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    // Concatenate mixed types into a string
+    ::fast_io::string s = ::fast_io::concat_fast_io(
+        "Hello, ", "user #", 42, " (score: ", 3.14, ")");
+    // s == "Hello, user #42 (score: 3.14)"
+
+    ::fast_io::io::println(s);
+
+    // concatln_fast_io appends a newline
+    ::fast_io::string line = ::fast_io::concatln_fast_io("done");
+    // line == "done\n"
+
+    // Wide-string variants
+    ::fast_io::wstring ws = ::fast_io::wconcat_fast_io(L"wide: ", 100);
+
+    // UTF-8, UTF-16, UTF-32 variants
+    ::fast_io::u8string u8s = ::fast_io::u8concat_fast_io(u8"utf8: ", 100);
+    ::fast_io::u16string u16s = ::fast_io::u16concat_fast_io(u"utf16: ", 100);
+    ::fast_io::u32string u32s = ::fast_io::u32concat_fast_io(U"utf32: ", 100);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. to&lt;T&gt; &mdash; Parse from Print</h2>
+      <p>
+        <code>to&lt;T&gt;</code> is the reverse of <code>print</code>: it formats
+        its arguments, then parses the result into type <code>T</code>. Think of it
+        as <code>sprintf</code> + <code>sscanf</code> in one step, but compile-time
+        optimized:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main() {
+    // Print 42, parse it back as a double
+    double d = ::fast_io::to&lt;double&gt;(42); // d == 42.0
+
+    // Concatenate then parse
+    ::std::size_t n = ::fast_io::to&lt;::std::size_t&gt;(1zu, 23zu); // "1" + "23" -> 123
+
+    // In-place version (writes into existing variable)
+    double x{};
+    ::fast_io::inplace_to(x, "3.14");
+    // x == 3.14
+
+    // Wide-string variants
+    ::std::size_t w = ::fast_io::wto&lt;::std::size_t&gt;(L"42");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>string</code>, <code>wstring</code>, <code>u8string</code>, <code>u16string</code>, <code>u32string</code> cover all character types.</li>
+        <li><code>tlc::</code> namespace provides thread-local allocator variants.</li>
+        <li><code>concat_fast_io(args...)</code> formats arguments into a new string.</li>
+        <li><code>concatln_fast_io(args...)</code> appends a newline.</li>
+        <li><code>to&lt;T&gt;(args...)</code> prints then parses the result into type <code>T</code>.</li>
+        <li><code>inplace_to(t, args...)</code> parses into an existing variable.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/11.bitvec/" class="prev-button">&larr; Ch9.11: bitvec</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/09.seqcontainers/13.stringview/" class="next-button">Ch9.13: string_view &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

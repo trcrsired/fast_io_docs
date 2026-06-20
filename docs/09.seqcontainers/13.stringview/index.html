@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.13: string_view and cstring_view - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.13: string_view and cstring_view</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>::fast_io::string_view</code> and <code>::fast_io::cstring_view</code>
+        are non-owning views over character sequences. They are lightweight
+        (pointer + size) and avoid copying. The key difference is that
+        <code>cstring_view</code> guarantees null-termination.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. basic_string_view</h2>
+      <p>
+        A <code>string_view</code> is just a pointer and a size. Use it to pass
+        strings to functions without overhead:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/string_view.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io.h&gt;
+
+void greet(::fast_io::string_view name) {
+    ::fast_io::io::println("Hello, ", name, "!");
+}
+
+int main() {
+    ::fast_io::string str{"Alice"};
+    greet(str);           // From string (implicit conversion)
+    greet("Bob");         // From string literal
+
+    // Sub-view operations
+    ::fast_io::string_view sv{"Hello, World!"};
+    auto prefix = sv.subview_front(5zu);  // "Hello"
+    auto suffix = sv.subview_back(6zu);   // "World!"
+    auto middle = sv.subview(7zu, 5zu);   // "World"
+
+    // Trim operations
+    ::fast_io::string_view padded{"  hello  "};
+    auto trimmed = padded.trim_subview_c_space(); // "hello"
+
+    // Search
+    auto pos = sv.find_character('W'); // 7
+    bool has = sv.contains_character('o'); // true
+}
+</code></pre>
+
+      <h3>Character type variants</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Alias</th>
+            <th>Character Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>::fast_io::string_view</code></td><td><code>char</code></td></tr>
+          <tr><td><code>::fast_io::wstring_view</code></td><td><code>wchar_t</code></td></tr>
+          <tr><td><code>::fast_io::u8string_view</code></td><td><code>char8_t</code></td></tr>
+          <tr><td><code>::fast_io::u16string_view</code></td><td><code>char16_t</code></td></tr>
+          <tr><td><code>::fast_io::u32string_view</code></td><td><code>char32_t</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. cstring_view</h2>
+      <p>
+        <code>::fast_io::cstring_view</code> is a <code>string_view</code> with a
+        <strong>null-termination guarantee</strong>. It can be constructed from
+        <code>string</code> (which is always null-terminated) and from string
+        literals. Use it when interfacing with C APIs:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io_dsal/cstring_view.h&gt;
+#include &lt;fast_io.h&gt;
+
+void c_api_wrapper(::fast_io::cstring_view csv) {
+    // Safe to pass .c_str() to C functions
+    // ::some_c_function(csv.c_str());
+}
+
+int main() {
+    ::fast_io::string str{"Hello"};
+    ::fast_io::cstring_view csv{str}; // OK: string is always null-terminated
+    c_api_wrapper(csv);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. Dangling string_view</h2>
+      <div class="warning">
+        <strong>Danger:</strong> A <code>string_view</code> does not own its data.
+        If the underlying string is destroyed or reallocated, the
+        <code>string_view</code> becomes <strong>dangling</strong> &mdash; it
+        points to freed memory. This is undefined behaviour.
+      </div>
+<pre><code class="language-cpp">
+// DANGER: dangling string_view
+::fast_io::string_view get_name() {
+    ::fast_io::string temp{"hello"};
+    return temp; // temp is destroyed here!
+    // returned string_view points to freed memory
+}
+</code></pre>
+      <p>
+        To detect dangling string views, you can use
+        <strong>Wasm MemTag</strong> (WebAssembly memory tagging). When compiled
+        for Wasm with memory tagging enabled, accesses to freed memory are caught
+        at runtime, making dangling string_view bugs detectable during testing.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>string_view</code> is a non-owning pointer + size. Zero-cost to pass.</li>
+        <li><code>cstring_view</code> adds a null-termination guarantee for C API interop.</li>
+        <li>All character type variants are available: <code>string_view</code>, <code>wstring_view</code>, <code>u8string_view</code>, etc.</li>
+        <li><code>string_view</code> iterators are always const (immutable view).</li>
+        <li>Dangling <code>string_view</code> is undefined behaviour. Use Wasm MemTag to detect it.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/12.string/" class="prev-button">&larr; Ch9.12: string</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/09.seqcontainers/14.adapters/" class="next-button">Ch9.14: Adaptors &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

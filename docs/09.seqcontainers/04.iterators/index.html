@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.4: Iterators, Ranges, and Invalidation - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.4: Iterators, Left-Inclusive Ranges, and Invalidation</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        This section explains the left-inclusive range convention used by all
+        <code>fast_io</code> containers, discusses iterator invalidation rules,
+        and explains why you should prefer <code>_index</code> operations when
+        possible.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. Left-Inclusive Ranges</h2>
+      <p>
+        All <code>fast_io</code> containers use the <strong>left-inclusive</strong>
+        (also called <em>half-open</em>) range convention: a range is denoted by
+        <code>[first, last)</code>, meaning it includes the element pointed to by
+        <code>first</code> but <em>excludes</em> the element pointed to by
+        <code>last</code>.
+      </p>
+      <p>This convention has several advantages:</p>
+      <ul>
+        <li><code>begin()</code> to <code>end()</code> covers all elements.</li>
+        <li>An empty range is simply <code>first == last</code>.</li>
+        <li>The distance <code>last - first</code> equals the number of elements.</li>
+      </ul>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/vector.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    ::fast_io::vector&lt;::std::size_t&gt; v{10zu, 20zu, 30zu, 40zu, 50zu};
+
+    // Erase elements in range [begin()+1, begin()+3)
+    // This removes elements at positions 1 and 2 (values 20 and 30)
+    v.erase(v.begin() + 1, v.begin() + 3);
+    // v is now {10zu, 40zu, 50zu}
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. Iterator Invalidation</h2>
+      <p>
+        When you modify a container, existing iterators may become invalid (pointing
+        to freed or relocated memory). Understanding which operations invalidate
+        which iterators is critical:
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Container</th>
+            <th>Insertion invalidates</th>
+            <th>Erasure invalidates</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>vector</code></td>
+            <td><strong>All</strong> iterators (reallocation may occur)</td>
+            <td>Iterator to erased element and all after it</td>
+          </tr>
+          <tr>
+            <td><code>deque</code></td>
+            <td><strong>All</strong> iterators (insertion at either end may
+              reallocate the block map)</td>
+            <td>Iterator to erased element; all iterators if erasing at
+              front or back; only erased iterators if erasing in the middle</td>
+          </tr>
+          <tr>
+            <td><code>list</code></td>
+            <td><strong>None</strong> &mdash; existing iterators remain valid</td>
+            <td>Only the iterator to the erased element</td>
+          </tr>
+          <tr>
+            <td><code>forward_list</code></td>
+            <td><strong>None</strong> &mdash; existing iterators remain valid</td>
+            <td>Only the iterator to the erased element</td>
+          </tr>
+          <tr>
+            <td><code>array</code></td>
+            <td>N/A &mdash; fixed size, no insertion</td>
+            <td>N/A &mdash; fixed size, no erasure</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="warning">
+        <strong>Danger:</strong> After a <code>vector::push_back()</code>,
+        <em>every</em> iterator, reference, and pointer into the vector may be
+        invalidated because the vector might have reallocated its storage. Never
+        cache iterators across insertions on a <code>vector</code>.
+      </div>
+    </section>
+
+    <section>
+      <h2>3. Prefer _index Operations</h2>
+      <p>
+        Because iterators can be invalidated unexpectedly, prefer the index-based
+        operations (<code>insert_index</code>, <code>erase_index</code>, and
+        <code>operator[]</code>) when working with <code>vector</code> and
+        <code>deque</code>. They are bounds-checked and do not suffer from
+        invalidation issues:
+      </p>
+<pre><code class="language-cpp">
+// Preferred: index-based
+for (::std::size_t i{}; i != v.size(); ++i) {
+    if (v[i] == target) {
+        v.erase_index(i);
+        break;
+    }
+}
+
+// Dangerous: iterator-based (iterator invalidated by erase)
+// for (auto it = v.begin(); it != v.end(); ++it) {
+//     if (*it == target) { v.erase(it); break; }  // OK with break
+// }
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>All containers use left-inclusive <code>[first, last)</code> ranges.</li>
+        <li><code>vector</code> and <code>deque</code> invalidate all iterators on insertion.</li>
+        <li><code>list</code> and <code>forward_list</code> never invalidate existing iterators on insertion.</li>
+        <li>Never cache iterators across insertions on contiguous containers.</li>
+        <li>Prefer <code>_index</code> operations for safety on <code>vector</code> and <code>deque</code>.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/03.inserteraseindex/" class="prev-button">&larr; Ch9.3: Insert/Erase by Index</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/09.seqcontainers/05.unchecked/" class="next-button">Ch9.5: Unchecked Operations &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

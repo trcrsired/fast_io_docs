@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.3: Insert and Erase by Index - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.3: Insert and Erase by Index</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>fast_io</code> containers provide <code>insert_index</code> and
+        <code>erase_index</code> operations. These are <strong>bounds-checked</strong>
+        alternatives to iterator-based insertion and erasure. If the index is out
+        of range, they call <code>fast_terminate()</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. insert_index</h2>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/vector.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    ::fast_io::vector&lt;::std::size_t&gt; v{10zu, 20zu, 30zu, 40zu};
+
+    // Insert 25 at index 2 (between 20 and 30)
+    v.insert_index(2zu, 25zu);
+
+    // v is now {10zu, 20zu, 25zu, 30zu, 40zu}
+
+    // Out-of-range index terminates the program
+    v.insert_index(100zu, 99zu); // fast_terminate()
+}
+</code></pre>
+
+      <p>Available on:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Container</th>
+            <th>Single element</th>
+            <th>Multiple copies</th>
+            <th>Range</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>vector</code></td>
+            <td><code>insert_index(idx, val)</code></td>
+            <td>&mdash;</td><td>&mdash;</td>
+          </tr>
+          <tr>
+            <td><code>deque</code></td>
+            <td><code>insert_index(idx, val)</code></td>
+            <td><code>insert_index(idx, count, val)</code></td>
+            <td><code>insert_range_index(idx, rg)</code></td>
+          </tr>
+          <tr>
+            <td><code>bitvec</code></td>
+            <td><code>insert_index(idx, bit)</code></td>
+            <td>&mdash;</td><td>&mdash;</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. erase_index</h2>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/vector.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    ::fast_io::vector&lt;::std::size_t&gt; v{10zu, 20zu, 30zu, 40zu, 50zu};
+
+    // Erase element at index 2 (removes 30)
+    v.erase_index(2zu);
+    // v is now {10zu, 20zu, 40zu, 50zu}
+
+    // Erase range [1, 3) (removes elements at index 1 and 2)
+    v.erase_index(1zu, 3zu);
+    // v is now {10zu, 50zu}
+}
+</code></pre>
+
+      <p>Available on:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Container</th>
+            <th>Single element</th>
+            <th>Range [first, last)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>vector</code></td>
+            <td><code>erase_index(idx)</code></td>
+            <td><code>erase_index(first, last)</code></td>
+          </tr>
+          <tr>
+            <td><code>deque</code></td>
+            <td><code>erase_index(idx)</code></td>
+            <td><code>erase_index(first, last)</code></td>
+          </tr>
+          <tr>
+            <td><code>bitvec</code></td>
+            <td><code>erase_index(idx)</code></td>
+            <td><code>erase_index(first, last)</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        <strong>Preference:</strong> Prefer <code>insert_index</code> /
+        <code>erase_index</code> over iterator-based operations. They are simpler
+        to use, harder to misuse, and provide bounds checking for free.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>insert_index(idx, val)</code> inserts at a position with bounds checking.</li>
+        <li><code>erase_index(idx)</code> removes one element; <code>erase_index(first, last)</code> removes a range.</li>
+        <li>Available on <code>vector</code>, <code>deque</code>, and <code>bitvec</code>.</li>
+        <li>Out-of-range indices call <code>fast_terminate()</code>.</li>
+        <li>Prefer <code>_index</code> operations over iterator-based insert/erase for safety.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/02.commonops/" class="prev-button">&larr; Ch9.2: Common Operations</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/09.seqcontainers/04.iterators/" class="next-button">Ch9.4: Iterators &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

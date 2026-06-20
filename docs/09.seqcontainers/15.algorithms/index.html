@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.15: Using Container Ranges with Algorithms - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.15: Using Container Ranges with Algorithms</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        All <code>fast_io</code> containers provide <code>begin()</code> and
+        <code>end()</code> iterators, which means they work with the C++ standard
+        library algorithms via <code>&lt;algorithm&gt;</code> and
+        <code>&lt;ranges&gt;</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. Using std::ranges with fast_io Containers</h2>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/vector.h&gt;
+#include &lt;algorithm&gt;
+#include &lt;ranges&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    ::fast_io::vector&lt;::std::size_t&gt; v{5zu, 3zu, 1zu, 4zu, 2zu};
+
+    // Sort using std::ranges
+    ::std::ranges::sort(v);
+    // v is now {1zu, 2zu, 3zu, 4zu, 5zu}
+
+    // Find an element
+    auto it = ::std::ranges::find(v, 3zu);
+    if (it != v.end()) {
+        ::fast_io::io::println("Found 3 at index ",
+            static_cast&lt;::std::size_t&gt;(it - v.begin()));
+    }
+
+    // Count elements greater than 2
+    auto count = ::std::ranges::count_if(v, [](::std::size_t x) { return x > 2zu; });
+    ::fast_io::io::println("Count > 2: ", count); // 3
+
+    // Erase-remove idiom
+    ::fast_io::vector&lt;::std::size_t&gt; w{1zu, 2zu, 3zu, 2zu, 4zu, 2zu, 5zu};
+    auto new_end = ::std::ranges::remove(w, 2zu);
+    w.erase(new_end, w.end());
+    // w is now {1zu, 3zu, 4zu, 5zu}
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. Free Functions: erase() and erase_if()</h2>
+      <p>
+        You can also use the free functions <code>erase()</code> and
+        <code>erase_if()</code> that are provided for all containers:
+      </p>
+<pre><code class="language-cpp">
+::fast_io::vector&lt;::std::size_t&gt; v{1zu, 2zu, 3zu, 2zu, 4zu, 2zu, 5zu};
+
+// Remove all 2s
+auto removed = erase(v, 2zu);
+// v is now {1zu, 3zu, 4zu, 5zu}, removed == 3
+
+// Remove elements matching a predicate
+auto removed2 = erase_if(v, [](::std::size_t x) { return x > 3zu; });
+// v is now {1zu, 3zu}, removed2 == 2
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>All <code>fast_io</code> containers work with <code>std::ranges::</code> algorithms.</li>
+        <li>The free functions <code>erase()</code> and <code>erase_if()</code> are provided for all containers.</li>
+        <li><code>std::ranges::sort</code>, <code>std::ranges::find</code>, <code>std::ranges::count_if</code> all work directly.</li>
+        <li>The erase-remove idiom works with <code>std::ranges::remove</code> followed by <code>erase()</code>.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/14.adapters/" class="prev-button">&larr; Ch9.14: Adaptors</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/09.seqcontainers/16.stdcomparison/" class="next-button">Ch9.16: std vs fast_io &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

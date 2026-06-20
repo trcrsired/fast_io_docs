@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.5: Unchecked Operations - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.5: Unchecked Operations</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        Every checked operation has a corresponding <code>_unchecked</code> variant
+        that skips bounds checking. Use these only when you have already verified
+        that the index or condition is valid. Using an unchecked operation with
+        invalid arguments is <strong>undefined behaviour</strong>.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. Unchecked Operation Table</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Checked (safe)</th>
+            <th>Unchecked (fast)</th>
+            <th>Applies to</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>operator[](idx)</code></td>
+            <td><code>index_unchecked(idx)</code></td>
+            <td>vector, deque, array, span, index_span, string_view</td>
+          </tr>
+          <tr>
+            <td><code>front()</code></td>
+            <td><code>front_unchecked()</code></td>
+            <td>All owning containers, span, string_view</td>
+          </tr>
+          <tr>
+            <td><code>back()</code></td>
+            <td><code>back_unchecked()</code></td>
+            <td>All except forward_list</td>
+          </tr>
+          <tr>
+            <td><code>pop_back()</code></td>
+            <td><code>pop_back_unchecked()</code></td>
+            <td>vector, deque, list, bitvec</td>
+          </tr>
+          <tr>
+            <td><code>pop_front()</code></td>
+            <td><code>pop_front_unchecked()</code></td>
+            <td>deque, list, forward_list</td>
+          </tr>
+          <tr>
+            <td><code>push_back()</code></td>
+            <td><code>push_back_unchecked()</code></td>
+            <td>vector, bitvec</td>
+          </tr>
+          <tr>
+            <td><code>emplace_back()</code></td>
+            <td><code>emplace_back_unchecked()</code></td>
+            <td>vector</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. Example: reserve + push_back_unchecked</h2>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/vector.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    ::fast_io::vector&lt;::std::size_t&gt; v;
+    v.reserve(100zu); // Pre-allocate space for 100 elements
+
+    // Safe: push_back checks capacity and may reallocate
+    v.push_back(42zu);
+
+    // Fast: assumes capacity is available (we just reserved 100)
+    for (::std::size_t i{}; i &lt; 50zu; ++i) {
+        v.push_back_unchecked(i); // No capacity check
+    }
+}
+</code></pre>
+
+      <div class="tip">
+        <strong>Tip:</strong> Use <code>reserve()</code> + <code>push_back_unchecked()</code>
+        in tight loops where you know the final size. This avoids repeated capacity
+        checks and is significantly faster than calling <code>push_back()</code>
+        in a loop.
+      </div>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>Every checked operation has an <code>_unchecked</code> counterpart.</li>
+        <li>Unchecked operations skip bounds/capacity checks &mdash; undefined behaviour on invalid input.</li>
+        <li>Use <code>reserve()</code> + <code>push_back_unchecked()</code> for fast bulk insertion.</li>
+        <li>Only use unchecked operations when you can prove the preconditions hold.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/04.iterators/" class="prev-button">&larr; Ch9.4: Iterators</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/09.seqcontainers/06.forwardlist/" class="next-button">Ch9.6: forward_list &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
