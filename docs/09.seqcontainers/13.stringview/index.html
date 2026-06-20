@@ -111,25 +111,66 @@ int main() {
 
     <section>
       <h2>3. Dangling string_view</h2>
-      <div class="warning">
-        <strong>Danger:</strong> A <code>string_view</code> does not own its data.
-        If the underlying string is destroyed or reallocated, the
-        <code>string_view</code> becomes <strong>dangling</strong> &mdash; it
-        points to freed memory. This is undefined behaviour.
-      </div>
+      <p>
+        <code>string_view</code> does not own its data. It is a pointer and a
+        size &mdash; if the underlying buffer moves or is freed, the view
+        becomes <strong>dangling</strong>.
+      </p>
+
+      <h3>What is safe: no dangling from temporaries</h3>
+      <p>
+        <code>fast_io::string_view</code> and <code>fast_io::span</code> only
+        accept <strong>lvalue references</strong>. This means you cannot
+        accidentally create a view from a temporary &mdash; the compiler
+        rejects it:
+      </p>
 <pre><code class="language-cpp">
-// DANGER: dangling string_view
+// This does NOT compile — string_view only binds to lvalues
 ::fast_io::string_view get_name() {
     ::fast_io::string temp{"hello"};
-    return temp; // temp is destroyed here!
-    // returned string_view points to freed memory
+    return temp; // ERROR: cannot create string_view from a local that is about to die
 }
 </code></pre>
       <p>
-        To detect dangling string views, you can use
+        So the classic dangling pattern from other languages is not possible
+        here. The compiler protects you from views over destroyed objects.
+      </p>
+
+      <h3>What is dangerous: reallocation invalidates views</h3>
+      <div class="warning">
+        <strong>Danger:</strong> A <code>string_view</code> over a
+        <code>string</code> becomes dangling when the <code>string</code>
+        <strong>reallocates</strong>. Operations like <code>push_back()</code>,
+        <code>insert_index()</code>, <code>replace_index()</code>,
+        <code>append()</code>, and <code>operator+=</code> may trigger a
+        reallocation, moving the buffer to new memory. Any existing
+        <code>string_view</code> still points to the old (freed) buffer.
+      </div>
+<pre><code class="language-cpp">
+::fast_io::string s{"Hello, World!"};
+::fast_io::string_view sv{s}; // sv points into s's buffer
+
+// DANGER: this may reallocate s's internal buffer
+s.append(" this is a long string that forces reallocation");
+
+// sv is now dangling — it points to freed memory
+// Reading sv is undefined behaviour
+</code></pre>
+      <p>
+        The same applies to <code>span</code> over <code>vector</code> or
+        <code>deque</code>: any operation that grows the container may
+        invalidate existing views.
+      </p>
+      <p>
+        <strong>Rule of thumb:</strong> do not hold a <code>string_view</code>
+        (or <code>span</code>) across any operation that might mutate the
+        underlying container.
+      </p>
+      <p>
+        To detect dangling views during testing, you can use
         <strong>Wasm MemTag</strong> (WebAssembly memory tagging). When compiled
         for Wasm with memory tagging enabled, accesses to freed memory are caught
-        at runtime, making dangling string_view bugs detectable during testing.
+        at runtime, making dangling-view bugs detectable.
       </p>
     </section>
 
@@ -140,7 +181,9 @@ int main() {
         <li><code>cstring_view</code> adds a null-termination guarantee for C API interop.</li>
         <li>All character type variants are available: <code>string_view</code>, <code>wstring_view</code>, <code>u8string_view</code>, etc.</li>
         <li><code>string_view</code> iterators are always const (immutable view).</li>
-        <li>Dangling <code>string_view</code> is undefined behaviour. Use Wasm MemTag to detect it.</li>
+        <li><code>string_view</code> only binds to lvalue references &mdash; the compiler prevents dangling from temporaries.</li>
+        <li>However, <code>string_view</code> still dangles when the underlying <code>string</code> reallocates (via <code>insert_index</code>, <code>replace_index</code>, <code>append</code>, etc.). Do not hold a view across mutations.</li>
+        <li>Use Wasm MemTag to detect dangling views during testing.</li>
         <li>See <a href="01.ops/">Appendix &sect;9.13.1</a> for the full operations reference.</li>
       </ul>
     </section>
