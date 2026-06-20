@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch9.12.1: String Operations Reference - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch9.12.1: String Operations Reference</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        This appendix documents all string-specific operations. Return here when
+        you need a particular feature.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. npos</h2>
+      <p>
+        <code>::fast_io::containers::npos</code> is defined as
+        <code>::std::numeric_limits&lt;::std::size_t&gt;::max()</code>. It serves
+        two purposes:
+      </p>
+      <ul>
+        <li><strong>&ldquo;Not found&rdquo;</strong> &mdash; returned by all
+          <code>find*</code> operations when the search fails.</li>
+        <li><strong>&ldquo;Through end&rdquo;</strong> &mdash; default
+          <code>count</code> parameter for <code>subview()</code>,
+          <code>substr()</code>, meaning &ldquo;to the end of the string&rdquo;.</li>
+      </ul>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io.h&gt;
+using ::fast_io::containers::npos;
+
+int main() {
+    ::fast_io::string s{"Hello, World!"};
+
+    // npos as "not found"
+    auto pos = s.find_character('z');
+    if (pos == npos) {
+        ::fast_io::io::println("'z' not found");
+    }
+
+    // npos as "to end"
+    auto view = s.subview(7zu); // default count = npos → "World!"
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. Search / Find Operations</h2>
+      <p>
+        All search operations return <code>size_type</code>. They return
+        <code>npos</code> when the target is not found.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>find_character(ch, pos=0)</code></td>
+            <td>Find first occurrence of character <code>ch</code> starting at <code>pos</code>.</td>
+            <td><code>s.find_character('o')</code> → 4</td>
+          </tr>
+          <tr>
+            <td><code>find_not_character(ch, pos=0)</code></td>
+            <td>Find first character that is <em>not</em> <code>ch</code>.</td>
+            <td><code>s.find_not_character('H')</code> → 1</td>
+          </tr>
+          <tr>
+            <td><code>rfind_character(ch, pos=npos)</code></td>
+            <td>Find last occurrence of <code>ch</code>, searching backward from <code>pos</code>.</td>
+            <td><code>s.rfind_character('l')</code> → 10</td>
+          </tr>
+          <tr>
+            <td><code>rfind_not_character(ch, pos=npos)</code></td>
+            <td>Find last character that is <em>not</em> <code>ch</code>.</td>
+            <td><code>s.rfind_not_character('!')</code> → 11</td>
+          </tr>
+          <tr>
+            <td><code>find(view, pos=0)</code></td>
+            <td>Find first occurrence of substring <code>view</code>.</td>
+            <td><code>s.find("World")</code> → 7</td>
+          </tr>
+          <tr>
+            <td><code>rfind(view, pos=0)</code></td>
+            <td>Find last occurrence of substring <code>view</code>.</td>
+            <td><code>s.rfind("l")</code> → 10</td>
+          </tr>
+          <tr>
+            <td><code>find_first_of(view, pos)</code></td>
+            <td>Find first character that matches <em>any</em> character in <code>view</code>.</td>
+            <td><code>s.find_first_of("aeiou")</code> → 1 ('e')</td>
+          </tr>
+          <tr>
+            <td><code>find_first_not_of(view, pos)</code></td>
+            <td>Find first character that does <em>not</em> match any in <code>view</code>.</td>
+            <td><code>s.find_first_not_of("Helo")</code> → 5 (',')</td>
+          </tr>
+          <tr>
+            <td><code>find_last_of(view, pos)</code></td>
+            <td>Find last character matching any in <code>view</code>.</td>
+            <td><code>s.find_last_of("aeiou")</code> → 8 ('o')</td>
+          </tr>
+          <tr>
+            <td><code>find_last_not_of(view, pos)</code></td>
+            <td>Find last character not matching any in <code>view</code>.</td>
+            <td><code>s.find_last_not_of(" !")</code> → 11 ('d')</td>
+          </tr>
+          <tr>
+            <td><code>contains_character(ch)</code></td>
+            <td>Returns <code>true</code> if <code>ch</code> exists in the string.</td>
+            <td><code>s.contains_character('W')</code> → true</td>
+          </tr>
+          <tr>
+            <td><code>contains(view)</code></td>
+            <td>Returns <code>true</code> if substring <code>view</code> exists.</td>
+            <td><code>s.contains("World")</code> → true</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>3. Substring / Subview Operations</h2>
+      <p>
+        <code>subview*</code> returns a <strong>non-owning view</strong>
+        (<code>string_view</code>); <code>substr*</code> returns an
+        <strong>owning copy</strong> (<code>string</code>).
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Returns</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>subview(pos, count=npos)</code></td>
+            <td><code>string_view</code></td>
+            <td>View of <code>count</code> characters starting at <code>pos</code>.</td>
+          </tr>
+          <tr>
+            <td><code>subview_front(count)</code></td>
+            <td><code>string_view</code></td>
+            <td>View of the first <code>count</code> characters.</td>
+          </tr>
+          <tr>
+            <td><code>subview_back(count)</code></td>
+            <td><code>cstring_view</code></td>
+            <td>View of the last <code>count</code> characters (null-terminated).</td>
+          </tr>
+          <tr>
+            <td><code>substr(idx, count=npos)</code></td>
+            <td><code>string</code></td>
+            <td>Copy of <code>count</code> characters starting at <code>idx</code>.</td>
+          </tr>
+          <tr>
+            <td><code>substr_front(count)</code></td>
+            <td><code>string</code></td>
+            <td>Copy of the first <code>count</code> characters.</td>
+          </tr>
+          <tr>
+            <td><code>substr_back(count)</code></td>
+            <td><code>string</code></td>
+            <td>Copy of the last <code>count</code> characters.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        All <code>subview*</code> and <code>substr*</code> methods have
+        <code>_unchecked</code> variants that skip bounds checking.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. starts_with / ends_with</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>starts_with(view)</code></td>
+            <td>Returns <code>true</code> if string begins with <code>view</code>.</td>
+            <td><code>s.starts_with("Hello")</code> → true</td>
+          </tr>
+          <tr>
+            <td><code>starts_with_character(ch)</code></td>
+            <td>Returns <code>true</code> if first character is <code>ch</code>.</td>
+            <td><code>s.starts_with_character('H')</code> → true</td>
+          </tr>
+          <tr>
+            <td><code>ends_with(view)</code></td>
+            <td>Returns <code>true</code> if string ends with <code>view</code>.</td>
+            <td><code>s.ends_with("!")</code> → true</td>
+          </tr>
+          <tr>
+            <td><code>ends_with_character(ch)</code></td>
+            <td>Returns <code>true</code> if last character is <code>ch</code>.</td>
+            <td><code>s.ends_with_character('!')</code> → true</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>5. Trim Operations</h2>
+      <p>
+        Trim operations remove leading and/or trailing characters. The
+        <code>_c_space</code> variants trim C whitespace (space, tab, newline,
+        etc.).
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Modifies?</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>trim_c_space()</code></td>
+            <td>Yes (returns <code>string&amp;</code>)</td>
+            <td>Remove leading and trailing whitespace in-place.</td>
+          </tr>
+          <tr>
+            <td><code>trim_prefix_c_space()</code></td>
+            <td>Yes</td>
+            <td>Remove leading whitespace only.</td>
+          </tr>
+          <tr>
+            <td><code>trim_suffix_c_space()</code></td>
+            <td>Yes</td>
+            <td>Remove trailing whitespace only.</td>
+          </tr>
+          <tr>
+            <td><code>trim_subview_c_space()</code></td>
+            <td>No (returns <code>string_view</code>)</td>
+            <td>Return a view with whitespace removed (does not modify the string).</td>
+          </tr>
+          <tr>
+            <td><code>trim_prefix_subview_c_space()</code></td>
+            <td>No</td>
+            <td>Return a view with leading whitespace removed.</td>
+          </tr>
+          <tr>
+            <td><code>trim_suffix_subview_c_space()</code></td>
+            <td>No</td>
+            <td>Return a view with trailing whitespace removed.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        There are also generic <code>trim()</code>, <code>trim_prefix()</code>,
+        <code>trim_suffix()</code> overloads that accept a character category
+        trait for custom character sets.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Replace / Insert / Erase</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>replace_index(first, last, view)</code></td>
+            <td>Replace range <code>[first, last)</code> with <code>view</code>.</td>
+          </tr>
+          <tr>
+            <td><code>insert_index(idx, view)</code></td>
+            <td>Insert <code>view</code> at index <code>idx</code>.</td>
+          </tr>
+          <tr>
+            <td><code>erase_index(idx)</code></td>
+            <td>Erase character at index <code>idx</code>.</td>
+          </tr>
+          <tr>
+            <td><code>erase_index(first, last)</code></td>
+            <td>Erase range <code>[first, last)</code>.</td>
+          </tr>
+          <tr>
+            <td><code>remove_suffix(n)</code></td>
+            <td>Remove the last <code>n</code> characters.</td>
+          </tr>
+          <tr>
+            <td><code>assign(view)</code></td>
+            <td>Replace entire contents with <code>view</code>.</td>
+          </tr>
+          <tr>
+            <td><code>assign_characters(n, ch)</code></td>
+            <td>Replace contents with <code>n</code> copies of <code>ch</code>.</td>
+          </tr>
+          <tr>
+            <td><code>append(view)</code></td>
+            <td>Append <code>view</code> to the end.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>7. Comparison</h2>
+      <p>
+        Strings and string views support <code>==</code> and
+        <code>&lt;=&gt;</code> (C++20 three-way comparison). Comparison is
+        lexicographic.
+      </p>
+<pre><code class="language-cpp">
+::fast_io::string a{"abc"};
+::fast_io::string b{"abd"};
+
+bool eq = (a == b);          // false
+auto cmp = (a &lt;=&gt; b);       // std::strong_ordering::less
+</code></pre>
+    </section>
+
+    <section>
+      <h2>8. c_str()</h2>
+      <p>
+        <code>c_str()</code> returns a null-terminated <code>const char*</code>
+        for interfacing with C APIs. Since <code>fast_io::string</code> is
+        always null-terminated, this is a &Theta;(1) pointer return.
+      </p>
+    </section>
+
+    <section>
+      <h2>9. resize_and_overwrite()</h2>
+      <p>
+        C++23-style method: resize the string to a given size, then call a user
+        callback with a pointer to the raw buffer. Useful for filling the string
+        from a C API or custom logic without an extra copy.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/09.seqcontainers/12.string/" class="prev-button">&larr; Ch9.12: string</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/09.seqcontainers/13.stringview/" class="next-button">Ch9.13: string_view &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

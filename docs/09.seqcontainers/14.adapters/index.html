@@ -86,9 +86,87 @@ int main() {
 </code></pre>
 
       <p>
-        All adaptors provide <code>pop_element()</code> &mdash; a fast_io extension
-        that moves the top element out and pops in one operation. They also provide
-        <code>get_container()</code> to access the underlying container.
+        All adaptors provide <code>pop_element()</code> &mdash; it moves the top
+        element out and pops in one operation, returning the moved value. This is
+        more efficient than calling <code>top()</code> then <code>pop()</code>
+        separately. They also provide <code>get_container()</code> to access the
+        underlying container.
+      </p>
+
+      <h3>pop_element() example</h3>
+<pre><code class="language-cpp">
+// Stack: pop_element() moves and returns the top element
+::fast_io::stack&lt;::fast_io::string&gt; stk;
+stk.push(::fast_io::string{"hello"});
+stk.push(::fast_io::string{"world"});
+
+// Move the top element out and pop in one step
+::fast_io::string top = stk.pop_element(); // top == "world", stk has 1 element
+
+// Queue: pop_element() moves and returns the front element
+::fast_io::queue&lt;::fast_io::string&gt; q;
+q.push(::fast_io::string{"first"});
+q.push(::fast_io::string{"second"});
+
+::fast_io::string front = q.pop_element(); // front == "first", q has 1 element
+
+// Priority queue: pop_element() moves and returns the highest-priority element
+::fast_io::priority_queue&lt;::std::size_t&gt; pq;
+pq.push(3zu);
+pq.push(1zu);
+pq.push(2zu);
+
+::std::size_t highest = pq.pop_element(); // highest == 3, pq has 2 elements
+</code></pre>
+
+      <p>
+        There is also <code>pop_element_unchecked()</code> which skips the empty
+        check for performance-critical code.
+      </p>
+
+      <h3>get_container() — Accessing the Underlying Container</h3>
+      <p>
+        <code>get_container()</code> returns a reference to the underlying
+        container. This lets you iterate over all elements, query
+        <code>size()</code>, or use any method the container provides:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/stack.h&gt;
+#include &lt;fast_io_dsal/queue.h&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    // Stack backed by deque (default)
+    ::fast_io::stack&lt;::std::size_t&gt; stk;
+    stk.push(10zu);
+    stk.push(20zu);
+    stk.push(30zu);
+
+    // Query the underlying container
+    ::fast_io::io::println("Size: ", stk.get_container().size()); // 3
+
+    // Iterate over all elements in the underlying container
+    for (auto const&amp; elem : stk.get_container()) {
+        ::fast_io::io::println(elem);
+    }
+    // Prints: 10, 20, 30 (bottom to top of stack)
+
+    // Queue: iterate over elements in FIFO order
+    ::fast_io::queue&lt;::fast_io::string&gt; q;
+    q.push(::fast_io::string{"first"});
+    q.push(::fast_io::string{"second"});
+    q.push(::fast_io::string{"third"});
+
+    for (auto const&amp; elem : q.get_container()) {
+        ::fast_io::io::println(elem);
+    }
+    // Prints: first, second, third (front to back of queue)
+}
+</code></pre>
+      <p>
+        The non-const overload returns a mutable reference, so you can modify
+        the underlying container directly. Both const and non-const overloads
+        are provided.
       </p>
     </section>
 
@@ -98,7 +176,7 @@ int main() {
         <li><code>stack</code> provides LIFO access (default: <code>deque</code> underneath).</li>
         <li><code>queue</code> provides FIFO access (default: <code>deque</code> underneath).</li>
         <li><code>priority_queue</code> keeps the highest-priority element on top (default: <code>vector</code> underneath).</li>
-        <li><code>pop_element()</code> is a fast_io extension that moves and pops in one step.</li>
+        <li><code>pop_element()</code> moves the top/front element out and pops in one step, returning the moved value.</li>
         <li><code>get_container()</code> gives access to the underlying container.</li>
       </ul>
     </section>
