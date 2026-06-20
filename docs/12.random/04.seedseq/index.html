@@ -39,13 +39,11 @@ int main() {
     using namespace ::fast_io::io;
 
     // Use secure random to generate seed data
-    ::fast_io::ibuf_white_hole_engine secure_eng;
+    ::fast_io::native_white_hole rng;
 
-    // Generate enough random values for a high-quality seed
-    ::std::array&lt;::std::uint32_t, 8&gt; seed_data;
-    for (auto&amp; val : seed_data) {
-        val = static_cast&lt;::std::uint32_t&gt;(secure_eng());
-    }
+    // Generate enough random bytes for a high-quality seed
+    ::fast_io::array&lt;::std::uint32_t, 8&gt; seed_data;
+    ::fast_io::operations::read_all(rng, reinterpret_cast&lt;::std::byte*&gt;(seed_data.data()), reinterpret_cast&lt;::std::byte*&gt;(seed_data.data() + seed_data.size()));
 
     // Create seed_seq from random data
     ::std::seed_seq seed(seed_data.begin(), seed_data.end());
@@ -96,11 +94,9 @@ int main() {
       <h3>Good Example (Do This)</h3>
 <pre><code class="language-cpp">
 // CORRECT: Use seed_seq with multiple secure random values
-::fast_io::ibuf_white_hole_engine secure_eng;
-::std::array&lt;::std::uint32_t, 8&gt; seed_data;
-for (auto&amp; val : seed_data) {
-    val = static_cast&lt;::std::uint32_t&gt;(secure_eng());
-}
+::fast_io::native_white_hole rng;
+::fast_io::array&lt;::std::uint32_t, 8&gt; seed_data;
+::fast_io::operations::read_all(rng, reinterpret_cast&lt;::std::byte*&gt;(seed_data.data()), reinterpret_cast&lt;::std::byte*&gt;(seed_data.data() + seed_data.size()));
 ::std::seed_seq seed(seed_data.begin(), seed_data.end());
 ::std::mt19937_64 eng(seed);  // High-quality, secure seed
 </code></pre>

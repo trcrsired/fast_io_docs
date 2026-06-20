@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Appendix: Mathematical Proof - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Appendix: Mathematical Proof - Why "Until Boy" Doesn't Affect Sex Ratio</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        It seems intuitive that if every family keeps having children until they get a boy, there
+        would be more boys than girls. But this is mathematically false. Here's the proof.
+      </p>
+    </section>
+
+    <section>
+      <h2>Setup</h2>
+      <p>
+        Let <em>p</em> be the probability of a boy (≈ 0.507) and <em>q = 1 - p</em> be the
+        probability of a girl (≈ 0.493). Each birth is an independent event.
+      </p>
+    </section>
+
+    <section>
+      <h2>Expected Values Per Family</h2>
+      <p>
+        Using the geometric distribution, we can calculate the expected number of children per family:
+      </p>
+      <ul>
+        <li>
+          <strong>Expected boys per family:</strong> Every family stops when they have exactly 1 boy,
+          so <em>E[boys] = 1</em>
+        </li>
+        <li>
+          <strong>Expected girls per family:</strong> The number of girls before the first boy follows
+          a geometric distribution with expected value <em>E[girls] = q/p</em>
+        </li>
+        <li>
+          <strong>Expected total children per family:</strong>
+          <em>E[total] = E[boys] + E[girls] = 1 + q/p = (p + q)/p = 1/p</em>
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Sex Ratio at Population Level</h2>
+      <p>
+        For <em>N</em> families, the expected totals are:
+      </p>
+      <ul>
+        <li>Total boys = <em>N × 1 = N</em></li>
+        <li>Total girls = <em>N × (q/p)</em></li>
+        <li>Total children = <em>N × (1/p)</em></li>
+      </ul>
+      <p>
+        The sex ratio (boys per 100 females) is:
+      </p>
+<pre><code>
+Sex Ratio = (Total boys / Total girls) × 100
+          = (N / (N × q/p)) × 100
+          = (p/q) × 100
+          = (0.507 / 0.493) × 100
+          ≈ 102.84:100
+</code></pre>
+      <p>
+        This is exactly the natural sex ratio! The stopping rule doesn't change it.
+      </p>
+    </section>
+
+    <section>
+      <h2>Intuitive Explanation</h2>
+      <p>
+        Every boy born "cancels out" one family that stops. The girls born before that boy are
+        balanced by the fact that some families will have many girls before getting a boy. The
+        expected number of girls (q/p) perfectly compensates for the fact that we always get exactly
+        one boy.
+      </p>
+      <p>
+        Mathematically, the ratio of boys to total births is:
+      </p>
+<pre><code>
+P(boy) = E[boys] / E[total] = 1 / (1/p) = p
+</code></pre>
+      <p>
+        Which is exactly the natural probability of a boy being born!
+      </p>
+    </section>
+
+    <section>
+      <h2>Law of Large Numbers</h2>
+      <p>
+        As the population size <em>N</em> grows to infinity, the actual ratio converges to the
+        expected value by the Law of Large Numbers. This is why our simulation with 100 million
+        families shows exactly 103.00:100 — it matches the natural probability almost perfectly.
+      </p>
+    </section>
+
+    <section>
+      <h2>Conclusion</h2>
+      <p>
+        The "have children until boy" strategy does not affect the sex ratio at birth. The ratio
+        remains at the natural biological ratio of approximately 103:100 male-to-female, regardless
+        of the stopping rule. This is a fundamental result of probability theory and the law of large
+        numbers.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/12.random/08.examples/" class="prev-button">&larr; Ch12.8: Examples</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

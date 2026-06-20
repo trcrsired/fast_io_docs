@@ -1,4 +1,4 @@
-const CACHE_NAME = "fast_io-docs-v40.20";
+const CACHE_NAME = "fast_io-docs-v40.22";
 const urlsToCache = [
   "/",
   "/style.css",
@@ -175,6 +175,7 @@ const urlsToCache = [
   '/docs/12.random/06.security/',
   '/docs/12.random/07.distributions/',
   '/docs/12.random/08.examples/',
+  '/docs/12.random/08.examples/01.proof/',
 ];
 
 // Install: pre-cache resources

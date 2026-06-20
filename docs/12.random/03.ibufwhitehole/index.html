@@ -134,7 +134,7 @@ int main() {
     ::fast_io::ibuf_white_hole rng;
 
     // Read 32 random bytes
-    ::std::array&lt;::std::byte, 32&gt; buffer;
+    ::fast_io::array&lt;::std::byte, 32&gt; buffer;
     ::fast_io::operations::read_all(rng, buffer.data(), buffer.data() + buffer.size());
 
     // Print as hex
@@ -147,7 +147,7 @@ int main() {
     }
 
     // Use for generating a UUID (16 bytes)
-    ::std::array&lt;::std::byte, 16&gt; uuid_bytes;
+    ::fast_io::array&lt;::std::byte, 16&gt; uuid_bytes;
     ::fast_io::operations::read_all(rng, uuid_bytes.data(), uuid_bytes.data() + uuid_bytes.size());
 
     println("\nUUID bytes:");
@@ -185,15 +185,25 @@ int main() {
 
     // Generate a single API key (32 bytes)
     ::fast_io::native_white_hole rng;
-    ::std::array&lt;::std::byte, 32&gt; api_key;
+    ::fast_io::array&lt;::std::byte, 32&gt; api_key;
     ::fast_io::operations::read_all(rng, api_key.data(), api_key.data() + api_key.size());
+
+    // Guard ensures api_key is securely cleared when it goes out of scope
+    ::fast_io::secure_clear_guard guard(api_key.data(), api_key.size());
 
     println("Generated API key (32 bytes)");
 
     // No need to keep rng around - we only used it once
     // The unbuffered approach is more efficient for one-time use
+    // api_key will be securely cleared automatically when guard is destroyed
 }
 </code></pre>
+      <div class="warning">
+        <strong>Important:</strong> Always use <code>::fast_io::secure_clear_guard</code> to
+        automatically wipe sensitive data like API keys, tokens, or cryptographic keys from memory
+        when they go out of scope. This RAII guard prevents secrets from leaking through memory
+        dumps, swap files, or debugging tools, even if exceptions occur.
+      </div>
       <p>
         <strong>When to use <code>native_white_hole</code> vs <code>ibuf_white_hole</code>:</strong>
       </p>

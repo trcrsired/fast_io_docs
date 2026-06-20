@@ -211,6 +211,61 @@ g++ -std=c++20 -O2 -o birth_sim stop_born_child_until_boy.cc -I/path/to/fast_io/
     </section>
 
     <section>
+      <h2>Sample Output from Birth Simulation</h2>
+      <p>
+        Here's what the birth simulation outputs when run with 100 million families:
+      </p>
+<pre><code>
+$ ./stop_born_child_until_boy 100000000
+1 50741327 (50.74%)
+2 24990841 (24.99%)
+3 12313210 (12.31%)
+4 6063416 (6.06%)
+5 2990841 (2.99%)
+6 1471025 (1.47%)
+7 725002 (0.73%)
+8 357182 (0.36%)
+9 175727 (0.18%)
+10 86761 (0.09%)
+11 43036 (0.04%)
+12 21090 (0.02%)
+13 10381 (0.01%)
+14 5167 (0.01%)
+15 2548 (0.00%)
+16 1258 (0.00%)
+17 607 (0.00%)
+18 303 (0.00%)
+19 136 (0.00%)
+20 77 (0.00%)
+21 32 (0.00%)
+22 18 (0.00%)
+23 10 (0.00%)
+24 3 (0.00%)
+25 1 (0.00%)
+29 1 (0.00%)
+males:100000000    females:97091717
+total population:197091717
+Sex Ratio:103.00:100
+</code></pre>
+      <p>
+        <strong>Key insight:</strong> Notice that some families have many girls before having a boy.
+        In this simulation, one family had their first boy as the <strong>29th child</strong>! This
+        is not a genetic defect &mdash; it's simply probability. With 100 million families, it's
+        statistically expected that some families will have long streaks of girls.
+      </p>
+      <p>
+        Even at the 10th child, we see 86,761 families (0.09%) that had 9 girls before finally having
+        a boy. This is completely normal and expected from the laws of probability. Each birth is an
+        independent event with approximately 50.7% chance of being male.
+      </p>
+      <p>
+        <strong>Mathematical proof:</strong> See the
+        <a href="/docs/12.random/08.examples/01.proof/">Appendix</a> for a complete mathematical
+        proof of why this stopping rule doesn't affect the sex ratio at birth.
+      </p>
+    </section>
+
+    <section>
       <h2>Percentage Manipulators Reference</h2>
       <p>
         The examples above use several percentage-related manipulators from <code>fast_io::mnp</code>.
@@ -293,6 +348,13 @@ g++ -std=c++20 -O2 -o birth_sim stop_born_child_until_boy.cc -I/path/to/fast_io/
           samples, the ratio will always converge to the natural biological ratio. The only real-world
           causes of skewed sex ratios are sex-selective abortion, female infanticide, and other
           sex-selective technologies, not family planning decisions.
+        </li>
+        <li>
+          <strong>Late boys are just probability:</strong> The sample output shows that some families
+          have their first boy as the 10th, 15th, or even 29th child. This is not a genetic defect
+          &mdash; it's simply the laws of probability. With a large enough population, it's
+          statistically expected that some families will have long streaks of girls. Each birth is an
+          independent event, and "unlucky" streaks are a natural consequence of randomness.
         </li>
       </ul>
     </section>
