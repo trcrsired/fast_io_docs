@@ -1,4 +1,4 @@
-const CACHE_NAME = "fast_io-docs-v40.7"; // bump version here
+const CACHE_NAME = "fast_io-docs-v40.8";
 const urlsToCache = [
   "/",
   "/style.css",
@@ -150,14 +150,22 @@ const urlsToCache = [
   '/docs/11.io/08.fileloader/',
   '/docs/11.io/09.stringrelation/',
   '/docs/11.io/10.socket/',
+  '/docs/11.io/10.socket/01.networkbasics/',
+  '/docs/11.io/10.socket/02.dns/',
+  '/docs/11.io/10.socket/03.modernprotocols/',
+  '/docs/11.io/10.socket/04.protocolsupport/',
   '/docs/11.io/11.cstyle/',
+  '/docs/11.io/11.cstyle/01.creference/',
   '/docs/11.io/12.iostream/',
+  '/docs/11.io/12.iostream/01.cppreference/',
+  '/docs/11.io/12.iostream/02.iomanip/',
   '/docs/11.io/13.posix/',
   '/docs/11.io/14.win32/',
   '/docs/11.io/15.nt/',
   '/docs/11.io/16.wine/',
   '/docs/11.io/17.layers/',
   '/docs/11.io/18.filesystem/',
+  '/docs/11.io/19.temp/',
 ];
 
 // Install: pre-cache resources

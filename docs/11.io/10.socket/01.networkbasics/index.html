@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.10.1: Network Basics - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.10.1: Network Basics</h1>
+
+    <section>
+      <h2>The OSI Model (Open Systems Interconnection)</h2>
+      <p>
+        The OSI model is a conceptual framework that standardizes the functions of a communication
+        system into seven abstraction layers:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Examples</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>7</td>
+            <td>Application</td>
+            <td>High-level protocols for user applications</td>
+            <td>HTTP, FTP, SMTP, DNS, SSH</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td>Presentation</td>
+            <td>Data representation, encryption, compression</td>
+            <td>SSL/TLS, JPEG, MPEG</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>Session</td>
+            <td>Managing sessions between applications</td>
+            <td>NetBIOS, RPC</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>Transport</td>
+            <td>Reliable data transfer between hosts</td>
+            <td>TCP, UDP</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>Network</td>
+            <td>Routing and forwarding of packets</td>
+            <td>IP, ICMP, ARP</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Data Link</td>
+            <td>Node-to-node data transfer</td>
+            <td>Ethernet, Wi-Fi, PPP</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>Physical</td>
+            <td>Physical transmission of raw bits</td>
+            <td>Ethernet cables, fiber optics, radio waves</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        In practice, the TCP/IP model (a simpler 4-layer model) is more commonly used:
+      </p>
+      <ul>
+        <li><strong>Application Layer</strong> (combines OSI layers 5&ndash;7): HTTP, FTP, DNS, SMTP</li>
+        <li><strong>Transport Layer</strong>: TCP, UDP</li>
+        <li><strong>Internet Layer</strong>: IP, ICMP</li>
+        <li><strong>Network Access Layer</strong> (combines OSI layers 1&ndash;2): Ethernet, Wi-Fi</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>IP Addresses: IPv4 and IPv6</h2>
+      <p>
+        An IP address uniquely identifies a device on a network. There are two versions:
+      </p>
+      <h3>IPv4</h3>
+      <ul>
+        <li>32-bit address, written as four decimal numbers separated by dots</li>
+        <li>Example: <code>192.168.1.1</code>, <code>8.8.8.8</code></li>
+        <li>Address space: ~4.3 billion addresses (2<sup>32</sup>)</li>
+        <li>Running out of addresses due to Internet growth</li>
+        <li>Special ranges:
+          <ul>
+            <li><code>127.0.0.1</code> &mdash; localhost (loopback)</li>
+            <li><code>10.0.0.0/8</code>, <code>172.16.0.0/12</code>, <code>192.168.0.0/16</code> &mdash; private networks</li>
+            <li><code>0.0.0.0</code> &mdash; any address</li>
+            <li><code>255.255.255.255</code> &mdash; broadcast</li>
+          </ul>
+        </li>
+      </ul>
+      <h3>IPv6</h3>
+      <ul>
+        <li>128-bit address, written as eight groups of four hexadecimal digits separated by colons</li>
+        <li>Example: <code>2001:0db8:85a3:0000:0000:8a2e:0370:7334</code></li>
+        <li>Can omit leading zeros and consecutive zero groups: <code>2001:db8:85a3::8a2e:370:7334</code></li>
+        <li>Address space: ~3.4&times;10<sup>38</sup> addresses (enough for every atom on Earth)</li>
+        <li>Special addresses:
+          <ul>
+            <li><code>::1</code> &mdash; localhost (loopback)</li>
+            <li><code>::</code> &mdash; any address</li>
+            <li><code>fe80::/10</code> &mdash; link-local addresses</li>
+          </ul>
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Common Ports</h2>
+      <p>
+        A port is a 16-bit number (0&ndash;65535) that identifies a specific service on a host.
+        Well-known ports (0&ndash;1023) are assigned by IANA:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Port</th>
+            <th>Protocol</th>
+            <th>Service</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>20&ndash;21</td>
+            <td>TCP</td>
+            <td>FTP (File Transfer Protocol)</td>
+          </tr>
+          <tr>
+            <td>22</td>
+            <td>TCP</td>
+            <td>SSH (Secure Shell)</td>
+          </tr>
+          <tr>
+            <td>23</td>
+            <td>TCP</td>
+            <td>Telnet (unencrypted, avoid)</td>
+          </tr>
+          <tr>
+            <td>25</td>
+            <td>TCP</td>
+            <td>SMTP (Simple Mail Transfer Protocol)</td>
+          </tr>
+          <tr>
+            <td>53</td>
+            <td>TCP/UDP</td>
+            <td>DNS (Domain Name System)</td>
+          </tr>
+          <tr>
+            <td>67&ndash;68</td>
+            <td>UDP</td>
+            <td>DHCP (Dynamic Host Configuration Protocol)</td>
+          </tr>
+          <tr>
+            <td>80</td>
+            <td>TCP</td>
+            <td>HTTP (Hypertext Transfer Protocol)</td>
+          </tr>
+          <tr>
+            <td>110</td>
+            <td>TCP</td>
+            <td>POP3 (Post Office Protocol v3)</td>
+          </tr>
+          <tr>
+            <td>143</td>
+            <td>TCP</td>
+            <td>IMAP (Internet Message Access Protocol)</td>
+          </tr>
+          <tr>
+            <td>443</td>
+            <td>TCP</td>
+            <td>HTTPS (HTTP Secure)</td>
+          </tr>
+          <tr>
+            <td>465</td>
+            <td>TCP</td>
+            <td>SMTPS (SMTP over SSL)</td>
+          </tr>
+          <tr>
+            <td>587</td>
+            <td>TCP</td>
+            <td>SMTP (submission, with STARTTLS)</td>
+          </tr>
+          <tr>
+            <td>993</td>
+            <td>TCP</td>
+            <td>IMAPS (IMAP over SSL)</td>
+          </tr>
+          <tr>
+            <td>995</td>
+            <td>TCP</td>
+            <td>POP3S (POP3 over SSL)</td>
+          </tr>
+          <tr>
+            <td>3306</td>
+            <td>TCP</td>
+            <td>MySQL</td>
+          </tr>
+          <tr>
+            <td>3389</td>
+            <td>TCP</td>
+            <td>RDP (Remote Desktop Protocol)</td>
+          </tr>
+          <tr>
+            <td>5432</td>
+            <td>TCP</td>
+            <td>PostgreSQL</td>
+          </tr>
+          <tr>
+            <td>5900</td>
+            <td>TCP</td>
+            <td>VNC (Virtual Network Computing)</td>
+          </tr>
+          <tr>
+            <td>6379</td>
+            <td>TCP</td>
+            <td>Redis</td>
+          </tr>
+          <tr>
+            <td>8080</td>
+            <td>TCP</td>
+            <td>HTTP alternate (often used for proxies)</td>
+          </tr>
+          <tr>
+            <td>8443</td>
+            <td>TCP</td>
+            <td>HTTPS alternate</td>
+          </tr>
+          <tr>
+            <td>27017</td>
+            <td>TCP</td>
+            <td>MongoDB</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Note:</strong> Ports 0&ndash;1023 are <em>well-known ports</em> (require root/admin to bind).
+        Ports 1024&ndash;49151 are <em>registered ports</em>. Ports 49152&ndash;65535 are
+        <em>dynamic/ephemeral ports</em> (used for client-side connections).
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/10.socket/" class="prev-button">&larr; Ch11.10: Socket Files</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/10.socket/02.dns/" class="next-button">Ch11.10.2: DNS &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

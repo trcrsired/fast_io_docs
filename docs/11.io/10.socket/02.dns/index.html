@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.10.2: DNS - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.10.2: DNS (Domain Name System)</h1>
+    <p>
+      DNS is the phonebook of the Internet. It translates human-readable domain names
+      (like <code>example.com</code>) into IP addresses (like <code>93.184.216.34</code>) that
+      computers use to identify each other.
+    </p>
+    <section>
+      <h2>How DNS Works</h2>
+      <ol>
+        <li>Your application asks the OS to resolve <code>example.com</code></li>
+        <li>The OS queries a DNS resolver (often your ISP&rsquo;s or a public one like <code>8.8.8.8</code>)</li>
+        <li>The resolver checks its cache; if not found, it queries root servers, then TLD servers, then authoritative servers</li>
+        <li>The resolver returns the IP address to your application</li>
+        <li>Your application connects to the IP address</li>
+      </ol>
+    </section>
+    <section>
+      <h2>Record Types</h2>
+      <ul>
+        <li><strong>A</strong> &mdash; IPv4 address (e.g., <code>93.184.216.34</code>)</li>
+        <li><strong>AAAA</strong> &mdash; IPv6 address (e.g., <code>2606:2800:220:1:248:1893:25c8:1946</code>)</li>
+        <li><strong>CNAME</strong> &mdash; Canonical name (alias for another domain)</li>
+        <li><strong>MX</strong> &mdash; Mail exchange (specifies mail servers)</li>
+        <li><strong>TXT</strong> &mdash; Text records (used for SPF, DKIM, etc.)</li>
+        <li><strong>NS</strong> &mdash; Name servers (delegates to other DNS servers)</li>
+        <li><strong>SOA</strong> &mdash; Start of authority (administrative info about the zone)</li>
+        <li><strong>PTR</strong> &mdash; Pointer (reverse DNS: IP to domain name)</li>
+        <li><strong>SRV</strong> &mdash; Service locator (for specific services)</li>
+      </ul>
+    </section>
+    <section>
+      <h2>DNS over HTTPS (DoH) and DNS over TLS (DoT)</h2>
+      <p>
+        Traditional DNS queries are sent in plaintext over UDP port 53, which can be intercepted or
+        manipulated. Modern secure alternatives:
+      </p>
+      <ul>
+        <li><strong>DNS over HTTPS (DoH)</strong> &mdash; DNS queries sent over HTTPS (port 443), encrypted and authenticated</li>
+        <li><strong>DNS over TLS (DoT)</strong> &mdash; DNS queries sent over TLS (port 853), encrypted and authenticated</li>
+        <li><strong>DNSCrypt</strong> &mdash; Another encrypted DNS protocol</li>
+      </ul>
+      <p>
+        These protocols prevent eavesdropping, man-in-the-middle attacks, and DNS spoofing. They are
+        increasingly supported by browsers and operating systems.
+      </p>
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/10.socket/01.networkbasics/" class="prev-button">&larr; Ch11.10.1: Network Basics</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/10.socket/03.modernprotocols/" class="next-button">Ch11.10.3: Modern Protocols &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

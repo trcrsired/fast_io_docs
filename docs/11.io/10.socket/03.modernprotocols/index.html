@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.10.3: Modern Network Protocols - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.10.3: Modern Network Protocols</h1>
+    <section>
+      <h2>HTTP/1.1 vs HTTP/2 vs HTTP/3</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>HTTP/1.1</th>
+            <th>HTTP/2</th>
+            <th>HTTP/3</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Year</td>
+            <td>1997</td>
+            <td>2015</td>
+            <td>2022</td>
+          </tr>
+          <tr>
+            <td>Transport</td>
+            <td>TCP</td>
+            <td>TCP</td>
+            <td>QUIC (over UDP)</td>
+          </tr>
+          <tr>
+            <td>Binary</td>
+            <td>Text</td>
+            <td>Binary</td>
+            <td>Binary</td>
+          </tr>
+          <tr>
+            <td>Multiplexing</td>
+            <td>No (head-of-line blocking)</td>
+            <td>Yes (streams over TCP)</td>
+            <td>Yes (streams over QUIC)</td>
+          </tr>
+          <tr>
+            <td>Header compression</td>
+            <td>No</td>
+            <td>HPACK</td>
+            <td>QPACK</td>
+          </tr>
+          <tr>
+            <td>Server push</td>
+            <td>No</td>
+            <td>Yes</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td>Connection migration</td>
+            <td>No</td>
+            <td>No</td>
+            <td>Yes (switch networks seamlessly)</td>
+          </tr>
+          <tr>
+            <td>0-RTT resume</td>
+            <td>No</td>
+            <td>No</td>
+            <td>Yes (faster connection setup)</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section>
+      <h2>QUIC (Quick UDP Internet Connections)</h2>
+      <p>
+        QUIC is a transport layer protocol developed by Google and standardized by the IETF. It runs
+        over UDP and provides:
+      </p>
+      <ul>
+        <li><strong>Lower latency</strong> &mdash; 0-RTT connection establishment (vs 3-way handshake in TCP)</li>
+        <li><strong>No head-of-line blocking</strong> &mdash; packet loss in one stream doesn&rsquo;t block others</li>
+        <li><strong>Connection migration</strong> &mdash; can switch between Wi-Fi and cellular without dropping</li>
+        <li><strong>Built-in encryption</strong> &mdash; TLS 1.3 integrated at the transport layer</li>
+        <li><strong>Better congestion control</strong> &mdash; modern algorithms, easier to evolve than TCP (which is in the kernel)</li>
+      </ul>
+      <p>
+        HTTP/3 uses QUIC as its transport. QUIC is also used by other protocols like WebTransport.
+      </p>
+    </section>
+    <section>
+      <h2>WebSocket and Server-Sent Events</h2>
+      <ul>
+        <li><strong>WebSocket</strong> &mdash; Full-duplex communication over a single TCP connection. Starts with an HTTP upgrade request, then both sides can send data anytime. Used for chat, live updates, gaming.</li>
+        <li><strong>Server-Sent Events (SSE)</strong> &mdash; Server pushes updates to the client over HTTP. Simpler than WebSocket, but only server-to-client. Used for news feeds, notifications.</li>
+      </ul>
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/10.socket/02.dns/" class="prev-button">&larr; Ch11.10.2: DNS</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/10.socket/04.protocolsupport/" class="next-button">Ch11.10.4: Protocol Support &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

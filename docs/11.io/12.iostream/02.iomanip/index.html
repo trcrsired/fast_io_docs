@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.12.2: &lt;iomanip&gt; Reference - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.12.2: Complete &lt;iomanip&gt; Reference</h1>
+    <p>
+      The <code>&lt;iomanip&gt;</code> header provides manipulators that take arguments. These
+      manipulators modify the stream&rsquo;s internal state, which persists until explicitly changed.
+      This is a fundamental design flaw &mdash; see &ldquo;Why C++ iostream Is Fundamentally Flawed&rdquo;
+      in Ch11.12. <code>fast_io</code>&rsquo;s manipulators are stateless and do not suffer from these issues.
+    </p>
+
+    <section>
+      <h2>Field Width and Fill</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>std::setw(n)</code></td>
+            <td>Set minimum field width to <code>n</code> characters</td>
+            <td><code>std::cout &lt;&lt; std::setw(10) &lt;&lt; 42;</code></td>
+          </tr>
+          <tr>
+            <td><code>std::setfill(c)</code></td>
+            <td>Set fill character to <code>c</code></td>
+            <td><code>std::cout &lt;&lt; std::setfill('0') &lt;&lt; std::setw(5) &lt;&lt; 42;</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Warning:</strong> <code>std::setw</code> only applies to the <em>next</em> output
+        operation, then resets to 0. This is inconsistent and error-prone.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;iomanip&gt;
+
+int main() {
+    std::cout &lt;&lt; std::setw(10) &lt;&lt; 42 &lt;&lt; '\n';  //         42
+    std::cout &lt;&lt; 42 &lt;&lt; '\n';  // 42 (width reset!)
+
+    std::cout &lt;&lt; std::setfill('0') &lt;&lt; std::setw(5) &lt;&lt; 42 &lt;&lt; '\n';  // 00042
+    return 0;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Numeric Base</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>std::setbase(n)</code></td>
+            <td>Set numeric base to <code>n</code> (8, 10, or 16)</td>
+            <td><code>std::cout &lt;&lt; std::setbase(16) &lt;&lt; 255;</code> (prints <code>ff</code>)</td>
+          </tr>
+        </tbody>
+      </table>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;iomanip&gt;
+
+int main() {
+    std::cout &lt;&lt; std::setbase(16) &lt;&lt; 255 &lt;&lt; '\n';  // ff
+    std::cout &lt;&lt; std::setbase(8) &lt;&lt; 255 &lt;&lt; '\n';   // 377
+    std::cout &lt;&lt; std::setbase(10) &lt;&lt; 255 &lt;&lt; '\n';  // 255
+    return 0;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Precision</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>std::setprecision(n)</code></td>
+            <td>Set floating-point precision to <code>n</code> digits</td>
+            <td><code>std::cout &lt;&lt; std::setprecision(3) &lt;&lt; 3.14159;</code> (prints <code>3.14</code>)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Note:</strong> Precision persists until changed. Combined with
+        <code>std::fixed</code> or <code>std::scientific</code>, it controls decimal places.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;iomanip&gt;
+
+int main() {
+    double pi = 3.14159;
+    std::cout &lt;&lt; std::setprecision(3) &lt;&lt; pi &lt;&lt; '\n';  // 3.14
+    std::cout &lt;&lt; pi &lt;&lt; '\n';  // 3.14 (precision persists!)
+
+    std::cout &lt;&lt; std::fixed &lt;&lt; std::setprecision(2) &lt;&lt; pi &lt;&lt; '\n';  // 3.14
+    std::cout &lt;&lt; std::scientific &lt;&lt; std::setprecision(4) &lt;&lt; pi &lt;&lt; '\n';  // 3.1416e+00
+    return 0;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Other Manipulators</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Manipulator</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>std::resetiosflags(f)</code></td>
+            <td>Clear specified format flags</td>
+          </tr>
+          <tr>
+            <td><code>std::setiosflags(f)</code></td>
+            <td>Set specified format flags</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Format flags include: <code>std::ios::left</code>, <code>std::ios::right</code>,
+        <code>std::ios::internal</code>, <code>std::ios::dec</code>, <code>std::ios::hex</code>,
+        <code>std::ios::oct</code>, <code>std::ios::fixed</code>, <code>std::ios::scientific</code>,
+        <code>std::ios::boolalpha</code>, <code>std::ios::showbase</code>,
+        <code>std::ios::showpoint</code>, <code>std::ios::showpos</code>,
+        <code>std::ios::skipws</code>, <code>std::ios::uppercase</code>,
+        <code>std::ios::unitbuf</code>.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;iomanip&gt;
+
+int main() {
+    // Set flags
+    std::cout &lt;&lt; std::setiosflags(std::ios::hex | std::ios::showbase);
+    std::cout &lt;&lt; 255 &lt;&lt; '\n';  // 0xff
+
+    // Reset flags
+    std::cout &lt;&lt; std::resetiosflags(std::ios::hex);
+    std::cout &lt;&lt; std::setiosflags(std::ios::dec);
+    std::cout &lt;&lt; 255 &lt;&lt; '\n';  // 255
+
+    return 0;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Why This Is Terrible</h2>
+      <p>
+        All of these manipulators modify the stream&rsquo;s internal state. Consider:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;iomanip&gt;
+
+void print_hex(int value) {
+    std::cout &lt;&lt; std::hex &lt;&lt; value &lt;&lt; '\n';
+    // Stream is now in hex mode!
+}
+
+int main() {
+    print_hex(255);  // Prints "ff"
+    std::cout &lt;&lt; 255 &lt;&lt; '\n';  // Also prints "ff"!
+    // Must manually restore: std::cout &lt;&lt; std::dec;
+}
+</code></pre>
+      <p>
+        This is a maintenance nightmare. You must remember to restore the stream state after every
+        use, or else later code will behave unexpectedly. Exceptions can leave the stream in an
+        inconsistent state. Multiple threads can corrupt each other&rsquo;s formatting.
+      </p>
+      <p>
+        <code>fast_io</code>&rsquo;s manipulators are <strong>stateless</strong>:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+void print_hex(int value) {
+    using namespace ::fast_io::iomnp;
+    println(::fast_io::mnp::hex(value));
+    // No state to restore!
+}
+
+int main() {
+    using namespace ::fast_io::iomnp;
+    print_hex(255);  // Prints "ff"
+    println(255);    // Prints "255" (decimal, as expected)
+}
+</code></pre>
+      <p>
+        Each manipulator applies only to the value it wraps. There is no global state to corrupt.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/12.iostream/01.cppreference/" class="prev-button">&larr; Ch11.12.1: C++ I/O Reference</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/13.posix/" class="next-button">Ch11.13: POSIX &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

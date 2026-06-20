@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.19: Temporary Files - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.19: Temporary Files</h1>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        Temporary files are used for storing data that only needs to exist for a short time.
+        <code>fast_io</code> provides <code>::fast_io::io_temp</code> for creating temporary files
+        that are automatically deleted when closed.
+      </p>
+    </section>
+
+    <section>
+      <h2>Creating a Temporary File</h2>
+      <p>
+        To create a temporary file, pass <code>::fast_io::io_temp</code> to any file type's constructor.
+        The file is created in the system's temporary directory (e.g., <code>/tmp</code> on Unix,
+        <code>%TEMP%</code> on Windows). When the file object goes out of scope, the file is automatically
+        closed and deleted.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // Create a temporary file with obuf_file
+    ::fast_io::obuf_file obf(::fast_io::io_temp);
+
+    // Write to it like any other file
+    println(obf, "Temporary data: ", 42);
+    println(obf, "More data: ", 3.14159);
+
+    // File is automatically deleted when `obf` goes out of scope
+}
+</code></pre>
+      <p>
+        You can use <code>::fast_io::io_temp</code> with any file type:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // Temporary file with C stdio interface
+    ::fast_io::c_file cf(::fast_io::io_temp);
+    fprintf(cf.fp, "Temporary data\n");
+
+    // Temporary buffered file
+    ::fast_io::obuf_file obf(::fast_io::io_temp);
+    println(obf, "Buffered temporary data");
+
+    // Temporary input/output file
+    ::fast_io::iobuf_file iof(::fast_io::io_temp);
+    println(iof, "Read-write temporary data");
+
+    // All files are deleted automatically when they go out of scope
+}
+</code></pre>
+      <p>
+        <strong>Important:</strong> The temporary file exists only as long as the file object is alive.
+        Once it goes out of scope, the file is closed and deleted from the filesystem. This is RAII
+        &mdash; you never forget to clean up temporary files.
+      </p>
+    </section>
+
+    <section>
+      <h2>Reading from a Temporary File</h2>
+      <p>
+        You can also read from a temporary file. Since temporary files are opened with both read
+        and write access, you can write data, seek back to the beginning, and read it:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // Create a temporary file (read-write)
+    ::fast_io::native_file temp(::fast_io::io_temp);
+
+    // Write data
+    println(temp, "Line 1");
+    println(temp, "Line 2");
+    println(temp, "Line 3");
+
+    // Seek back to beginning
+    ::fast_io::rewind(temp);
+
+    // Read it back
+    for (::fast_io::string line; scan&lt;true&gt;(temp, str_line_get(line)); ) {
+        println("Read: ", line);
+    }
+
+    // File is deleted automatically when temp goes out of scope
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Temporary Files vs Regular Files</h2>
+      <p>
+        Why use <code>io_temp</code> instead of just opening a regular file?
+      </p>
+      <ul>
+        <li><strong>Automatic cleanup:</strong> The file is deleted when the object goes out of scope, even if an exception is thrown.</li>
+        <li><strong>Safe location:</strong> The file is created in the system's temporary directory, which is the appropriate place for temporary data.</li>
+        <li><strong>No naming conflicts:</strong> The system generates a unique name, so you don't need to worry about picking a filename.</li>
+        <li><strong>Security:</strong> On some systems, temporary files are created with restricted permissions.</li>
+      </ul>
+      <p>
+        Compare this to the C standard library's <code>tmpfile()</code>, which also creates temporary
+        files but returns a <code>FILE*</code> that you must manually close:
+      </p>
+<pre><code class="language-c">
+#include &lt;stdio.h&gt;
+
+int main() {
+    FILE *tmp = tmpfile();
+    if (tmp == NULL) {
+        perror("tmpfile failed");
+        return 1;
+    }
+    fprintf(tmp, "Temporary data\n");
+    fclose(tmp);  // File is deleted here
+    return 0;
+}
+</code></pre>
+      <p>
+        With <code>fast_io</code>'s <code>io_temp</code>, you get RAII semantics &mdash; the file
+        is automatically cleaned up, and you never forget to call <code>fclose</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>When to Use Temporary Files</h2>
+      <p>
+        Temporary files are useful for:
+      </p>
+      <ul>
+        <li><strong>Intermediate results:</strong> When processing large datasets, you might write intermediate results to a temporary file instead of keeping everything in memory.</li>
+        <li><strong>Caching:</strong> Cache computed results that are expensive to regenerate.</li>
+        <li><strong>Inter-process communication:</strong> Write data that another process will read (though pipes or shared memory are often better).</li>
+        <li><strong>Testing:</strong> Create temporary files for unit tests without polluting the filesystem.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <code>::fast_io::io_temp</code> is a tag passed to file constructors to create a
+          temporary file in the system's temporary directory.
+        </li>
+        <li>
+          The temporary file is automatically deleted when the file object goes out of scope.
+          On Linux, this uses <code>O_TMPFILE</code>; on Windows, <code>FILE_FLAG_DELETE_ON_CLOSE</code>.
+        </li>
+        <li>
+          Use <code>io_temp</code> for data that only needs to exist temporarily &mdash; you never
+          forget to clean up.
+        </li>
+        <li>
+          Temporary files are opened with both read and write access. Use <code>rewind</code>
+          or <code>seek</code> to move between reading and writing.
+        </li>
+        <li>
+          Prefer <code>io_temp</code> over manually managing temporary files with regular file APIs.
+        </li>
+        <li>
+          Every file type accepts <code>io_temp</code> &mdash; <code>native_file</code>,
+          <code>obuf_file</code>, <code>iobuf_file</code>, <code>c_file</code>, etc.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/18.filesystem/" class="prev-button">&larr; Ch11.18: Filesystem APIs</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

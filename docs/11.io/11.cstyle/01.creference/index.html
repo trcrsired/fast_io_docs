@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.11.1: C I/O Function Reference - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.11.1: Complete C I/O Function Reference</h1>
+
+    <section>
+      <h2>File Opening and Closing</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>fopen</code></td><td>Open a file</td></tr>
+          <tr><td><code>fclose</code></td><td>Close a file</td></tr>
+          <tr><td><code>fflush</code></td><td>Flush a stream&rsquo;s buffer</td></tr>
+        </tbody>
+      </table>
+<pre><code class="language-c">
+#include &lt;stdio.h&gt;
+
+int main() {
+    FILE *fp = fopen("test.txt", "w");
+    if (fp == NULL) {
+        perror("fopen failed");
+        return 1;
+    }
+    fprintf(fp, "Hello, World!\n");
+    fflush(fp);  // Force write to disk
+    fclose(fp);
+    return 0;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Formatted Output</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>printf</code></td><td>Formatted output to stdout</td></tr>
+          <tr><td><code>fprintf</code></td><td>Formatted output to a stream</td></tr>
+          <tr><td><code>sprintf</code></td><td>Formatted output to a string buffer</td></tr>
+          <tr><td><code>snprintf</code></td><td>Formatted output to a string buffer with size limit</td></tr>
+          <tr><td><code>vprintf</code></td><td>Formatted output to stdout (variadic)</td></tr>
+          <tr><td><code>vfprintf</code></td><td>Formatted output to a stream (variadic)</td></tr>
+          <tr><td><code>vsprintf</code></td><td>Formatted output to a string buffer (variadic)</td></tr>
+          <tr><td><code>vsnprintf</code></td><td>Formatted output to a string buffer with size limit (variadic)</td></tr>
+        </tbody>
+      </table>
+<pre><code class="language-c">
+#include &lt;stdio.h&gt;
+
+int main() {
+    int x = 42;
+    double pi = 3.14159;
+
+    // printf to stdout
+    printf("x = %d, pi = %.2f\n", x, pi);
+
+    // fprintf to file
+    FILE *fp = fopen("output.txt", "w");
+    fprintf(fp, "x = %d\n", x);
+    fclose(fp);
+
+    // sprintf to string buffer
+    char buffer[100];
+    sprintf(buffer, "Value: %d", x);
+
+    // snprintf with size limit (safer)
+    snprintf(buffer, sizeof(buffer), "Value: %d", x);
+
+    return 0;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Formatted Input</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>scanf</code></td><td>Formatted input from stdin</td></tr>
+          <tr><td><code>fscanf</code></td><td>Formatted input from a stream</td></tr>
+          <tr><td><code>sscanf</code></td><td>Formatted input from a string</td></tr>
+        </tbody>
+      </table>
+<pre><code class="language-c">
+#include &lt;stdio.h&gt;
+
+int main() {
+    int x;
+    double y;
+
+    // scanf from stdin
+    printf("Enter two numbers: ");
+    scanf("%d %lf", &x, &y);
+
+    // fscanf from file
+    FILE *fp = fopen("data.txt", "r");
+    if (fp) {
+        fscanf(fp, "%d %lf", &x, &y);
+        fclose(fp);
+    }
+
+    // sscanf from string
+    char *str = "42 3.14";
+    sscanf(str, "%d %lf", &x, &y);
+
+    return 0;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Character and Line I/O</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>fgetc</code> / <code>getc</code></td><td>Read a character from a stream</td></tr>
+          <tr><td><code>fgets</code></td><td>Read a line from a stream</td></tr>
+          <tr><td><code>fputc</code> / <code>putc</code></td><td>Write a character to a stream</td></tr>
+          <tr><td><code>fputs</code></td><td>Write a string to a stream</td></tr>
+          <tr><td><code>puts</code></td><td>Write a string to stdout (adds newline)</td></tr>
+          <tr><td><code>ungetc</code></td><td>Push a character back onto a stream</td></tr>
+          <tr><td><code>gets</code></td><td>Read a line from stdin (deprecated, unsafe)</td></tr>
+        </tbody>
+      </table>
+<pre><code class="language-c">
+#include &lt;stdio.h&gt;
+
+int main() {
+    // Write characters
+    FILE *fp = fopen("test.txt", "w");
+    fputc('A', fp);
+    fputs("Hello\n", fp);
+    fclose(fp);
+
+    // Read characters
+    fp = fopen("test.txt", "r");
+    int ch = fgetc(fp);
+    printf("First char: %c\n", ch);
+
+    // Read line
+    char buffer[100];
+    fgets(buffer, sizeof(buffer), fp);
+    printf("Line: %s", buffer);
+
+    // Push back
+    ungetc(ch, fp);
+
+    fclose(fp);
+
+    // puts to stdout
+    puts("Hello, World!");  // Adds newline automatically
+
+    return 0;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Binary I/O</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>fread</code></td><td>Read binary data from a stream</td></tr>
+          <tr><td><code>fwrite</code></td><td>Write binary data to a stream</td></tr>
+        </tbody>
+      </table>
+<pre><code class="language-c">
+#include &lt;stdio.h&gt;
+
+struct Point {
+    int x;
+    int y;
+};
+
+int main() {
+    struct Point p1 = {10, 20};
+    struct Point p2;
+
+    // Write binary data
+    FILE *fp = fopen("points.bin", "wb");
+    fwrite(&p1, sizeof(struct Point), 1, fp);
+    fclose(fp);
+
+    // Read binary data
+    fp = fopen("points.bin", "rb");
+    fread(&p2, sizeof(struct Point), 1, fp);
+    fclose(fp);
+
+    printf("Read point: (%d, %d)\n", p2.x, p2.y);
+
+    return 0;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>File Positioning</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>fseek</code></td><td>Set file position</td></tr>
+          <tr><td><code>ftell</code></td><td>Get current file position</td></tr>
+          <tr><td><code>rewind</code></td><td>Set file position to beginning</td></tr>
+          <tr><td><code>fgetpos</code></td><td>Get file position (portable)</td></tr>
+          <tr><td><code>fsetpos</code></td><td>Set file position (portable)</td></tr>
+        </tbody>
+      </table>
+<pre><code class="language-c">
+#include &lt;stdio.h&gt;
+
+int main() {
+    FILE *fp = fopen("test.txt", "w+");
+    fputs("Hello, World!", fp);
+
+    // Get current position
+    long pos = ftell(fp);
+    printf("Current position: %ld\n", pos);
+
+    // Seek to beginning
+    rewind(fp);
+
+    // Or use fseek
+    fseek(fp, 0, SEEK_SET);  // Beginning
+    fseek(fp, 0, SEEK_END);  // End
+    fseek(fp, 5, SEEK_SET);  // Position 5
+
+    // Portable positioning
+    fpos_t position;
+    fgetpos(fp, &position);
+    // ... do something ...
+    fsetpos(fp, &position);  // Restore position
+
+    fclose(fp);
+    return 0;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Error Handling</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>feof</code></td><td>Test for end-of-file</td></tr>
+          <tr><td><code>ferror</code></td><td>Test for error</td></tr>
+          <tr><td><code>clearerr</code></td><td>Clear error and end-of-file indicators</td></tr>
+          <tr><td><code>perror</code></td><td>Print error message to stderr</td></tr>
+        </tbody>
+      </table>
+<pre><code class="language-c">
+#include &lt;stdio.h&gt;
+
+int main() {
+    FILE *fp = fopen("test.txt", "r");
+    if (fp == NULL) {
+        perror("Failed to open file");  // Prints error message
+        return 1;
+    }
+
+    int ch;
+    while ((ch = fgetc(fp)) != EOF) {
+        putchar(ch);
+    }
+
+    if (feof(fp)) {
+        printf("\nEnd of file reached\n");
+    }
+    if (ferror(fp)) {
+        printf("\nError occurred\n");
+    }
+
+    clearerr(fp);  // Clear error/EOF flags
+    fclose(fp);
+    return 0;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>File Management</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>remove</code></td><td>Delete a file</td></tr>
+          <tr><td><code>rename</code></td><td>Rename a file</td></tr>
+          <tr><td><code>tmpfile</code></td><td>Create a temporary file</td></tr>
+          <tr><td><code>tmpnam</code></td><td>Generate a temporary filename (unsafe)</td></tr>
+        </tbody>
+      </table>
+<pre><code class="language-c">
+#include &lt;stdio.h&gt;
+
+int main() {
+    // Rename a file
+    rename("old.txt", "new.txt");
+
+    // Delete a file
+    remove("unwanted.txt");
+
+    // Create temporary file (automatically deleted on close)
+    FILE *tmp = tmpfile();
+    if (tmp) {
+        fprintf(tmp, "Temporary data\n");
+        fclose(tmp);  // File is automatically deleted
+    }
+
+    return 0;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Buffering Control</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>setvbuf</code></td><td>Set stream buffering mode</td></tr>
+          <tr><td><code>setbuf</code></td><td>Set stream buffer</td></tr>
+        </tbody>
+      </table>
+<pre><code class="language-c">
+#include &lt;stdio.h&gt;
+
+int main() {
+    FILE *fp = fopen("test.txt", "w");
+
+    char buffer[1024];
+
+    // Set custom buffer
+    setvbuf(fp, buffer, _IOFBF, sizeof(buffer));  // Full buffering
+    setvbuf(fp, NULL, _IOLBF, 0);  // Line buffering
+    setvbuf(fp, NULL, _IONBF, 0);  // No buffering
+
+    // Simpler interface
+    setbuf(fp, buffer);  // Equivalent to setvbuf(fp, buffer, _IOFBF, BUFSIZ)
+    setbuf(fp, NULL);    // Unbuffered
+
+    fclose(fp);
+    return 0;
+}
+</code></pre>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/11.cstyle/" class="prev-button">&larr; Ch11.11: C-Style I/O</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/11.io/12.iostream/" class="next-button">Ch11.12: C++ iostream &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
