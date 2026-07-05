@@ -231,37 +231,32 @@ repeat(3, [] { ::fast_io::io::println("tick"); });
       <h2>7. Writing recursive lambdas</h2>
 
       <p>
-        A lambda cannot refer to itself by name, because it has no name. If you want
-        a recursive lambda, you must store it in a variable first and then call that
-        variable inside the lambda.
+        Prior to C++23, a lambda could only refer to itself using a variable (hence giving it a name we can refer to from its body).
+        Since C++23, a lambda can now refer to itself using an explicit "this" parameter, so you can pass recursive lambdas as arguments or immediatly invoke them.
       </p>
 
       <h3>Example: factorial</h3>
 
 <pre><code class="language-cpp">
-auto fact = [&](int n) {
+auto fact = [](this auto& self, int n) {
     if(n &lt; 0)
         ::fast_io::fast_terminate();
     if(n == 0)
         return 1;
-    return n * fact(n - 1); // call the variable
+    return n * self(n - 1); // calls itself
 };
 
 ::fast_io::io::println(fact(5)); // prints 120
 </code></pre>
 
-      <p>
-        The <code>&amp;</code> capture is required so the lambda can call itself.
-      </p>
-
       <h3>Example: countdown</h3>
 
 <pre><code class="language-cpp">
-auto countdown = [&](int n) {
+auto countdown = [](this auto& self, int n) {
     if(n &lt; 0)
         return;
     ::fast_io::io::println(n);
-    countdown(n - 1);
+    self(n - 1);
 };
 
 countdown(5);
@@ -315,7 +310,7 @@ auto f3 = [] { return 1; };
         <li>Lambdas can take parameters and return values.</li>
         <li>Captures allow lambdas to use surrounding variables.</li>
         <li>Captureless lambdas can be used as function pointers.</li>
-        <li>Recursive lambdas must capture themselves by reference.</li>
+        <li>Recursive lambdas use an explicit "this" parameter for self-reference.</li>
         <li>Identical-looking lambdas still generate separate code.</li>
         <li>Lambdas are ideal for callbacks and one‑off operations.</li>
       </ul>
