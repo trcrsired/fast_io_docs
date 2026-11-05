@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch3.16: Herbceptions - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch3.16: Herbceptions</h1>
+
+    <div class="warning">
+      <strong>IMPORTANT &mdash; this is the most important page of this chapter.</strong>
+      Every single page before this one quietly assumed that nothing can fail.
+      From here on, nothing is quiet: <strong>every error in fast_io is reported as a
+      herbception</strong>. Herbceptions are the <em>only</em> way errors are reported in
+      this tutorial and in the library. If you skip this page, the rest of the tutorial
+      will not compile.
+    </div>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        In <em>Ch3.2</em> you learned the compound statement. A <code>try</code> block is a
+        compound statement with a contract attached: <em>if something inside fails, control
+        does not run to the next line &mdash; it runs into the handler below.</em>
+      </p>
+      <p>
+        Herbceptions are C++&rsquo;s error-reporting mechanism designed for exactly that
+        contract, without the machinery of legacy C++ exceptions (stack unwinding, heap
+        allocation, exception objects, <code>std::exception</code> hierarchies, RTTI walks).
+        An error is a <em>value</em>: a pair of two machine words.
+      </p>
+      <p>
+        In this chapter you will learn:
+      </p>
+      <ul>
+        <li>how to build with <code>-fherbceptions -lherbceptions</code> &mdash; and which compilers support it</li>
+        <li>the <code>throw throws</code> statement</li>
+        <li>the <code>try { } catch throws (::std::error e) { }</code> statement</li>
+        <li>every member function of <code>::std::error</code></li>
+        <li>every error domain the runtime ships with, and how to report one</li>
+        <li>why a herbception costs nothing on the happy path</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. What a Herbception Actually Is</h2>
+      <p>
+        A herbception is a <strong>two-word error value</strong>:
+      </p>
+      <pre><code class="language-cpp">
+struct raw_herbception
+{
+    ::std::error_domain_singleton const *domain;   // which error code-space
+    ::std::size_t code;                            // the code inside that space
+};
+</code></pre>
+      <p>
+        That is <code>sizeof(::std::error) == 2 * sizeof(void *)</code>, no matter what the
+        error is. It travels back to the caller <strong>in the return registers</strong>,
+        together with one failure bit in the condition register &mdash; <code>CF</code> on x86,
+        <code>NZCV.C</code> on AArch64. There is no second return path:
+      </p>
+      <ul>
+        <li>no stack unwinding, no <code>.eh_frame</code> unwinding tables, no personality routines</li>
+        <li>no heap allocation for an error object &mdash; ever</li>
+        <li>no <code>std::exception</code> base class, no <code>what()</code>, no RTTI</li>
+        <li>the error is a value, it is not "thrown" in the legacy sense, nothing is captured</li>
+      </ul>
+      <p>
+        Consequence: <strong>herbceptions are very, very cheap, on both paths.</strong> The
+        happy path of a function that reports errors this way is the same code a function
+        returning an error code would produce &mdash; the error value is simply not stored,
+        only a flag says "success". The failure path is also just a return: the two-word
+        payload rides the return registers like any other aggregate. There is no
+        "zero-cost-exceptions tradeoff" to weigh here, and no reason to avoid reporting an
+        error because "throwing is expensive". <em>Do not worry about the performance of the
+        thrown path, and do not worry about the happy path either.</em>
+      </p>
+      <div class="note">
+        <strong>Note:</strong> because there is no unwinding, a herbception does not run
+        destructors on the way out. Local objects in the failing function are destroyed
+        normally &mdash; the failure is a return, and returns destroy locals &mdash; but the
+        the error value itself is just a pair of integers.
+      </div>
+    </section>
+
+    <section>
+      <h2>2. The Toolchain: <code>-fherbceptions -lherbceptions</code></h2>
+      <p>
+        Herbceptions are a compiler feature, not a library trick. You need a compiler that
+        implements them, and only <strong>our</strong> GCC and LLVM builds do:
+      </p>
+      <ul>
+        <li>
+          <strong>GCC</strong>: our herbceptions GCC fork (<code>g++</code> 17+ from the
+          herbceptions toolchain build).
+        </li>
+        <li>
+          <strong>Clang / LLVM</strong>: our herbceptions LLVM fork (<code>clang++</code> 24+).
+        </li>
+        <li>
+          <strong>MSVC is not supported.</strong> <code>cl.exe</code> has no
+          <code>-fherbceptions</code>, so you cannot compile this tutorial with MSVC.
+          Windows builds are still fine &mdash; use our Clang with a Windows target, or our
+          MinGW GCC.
+        </li>
+      </ul>
+      <p>
+        Both compilers need the same two flags:
+      </p>
+      <ul>
+        <li>
+          <code>-fherbceptions</code> &mdash; turns the language feature on. It must be passed
+          when <em>compiling every translation unit</em>, not only when linking.
+        </li>
+        <li>
+          <code>-lherbceptions</code> &mdash; links the runtime library, which owns the error
+          domains&rsquo; vtables (the code that names and formats an error).
+        </li>
+      </ul>
+      <p>
+        That is all: the herbceptions runtime and headers are part of the toolchain you
+        installed, so <code>-lherbceptions</code> is the entire addition. A complete native
+        build with our Clang:
+      </p>
+      <pre><code>
+clang++ --config=$HOME/cfgs/x86_64-linux-gnu-libcxx.cfg \
+  -O3 -flto=thin -fherbceptions \
+  -I$HOME/libraries/fast_io/include \
+  hello.cpp -lherbceptions -o hello
+
+./hello
+</code></pre>
+      <p>
+        and with our GCC (plain <code>g++</code>, no paths needed):
+      </p>
+      <pre><code>
+g++ -std=c++26 -O3 -fuse-ld=lld -fherbceptions \
+  -I$HOME/libraries/fast_io/include \
+  hello.cpp -lherbceptions -o hello
+
+./hello
+</code></pre>
+      <p>
+        Windows, from Linux, with the same flags (cross-compilation is just a target switch).
+        The MSVC sysroot carries the Windows herbceptions runtime
+        (<code>herbceptions.lib</code> to link, <code>herbceptions.dll</code> at run time), so
+        <code>--sysroot</code> finds it and there is no <code>-L</code> to write:
+      </p>
+      <pre><code>
+# Clang, MSVC ABI
+clang++ --config=$HOME/cfgs/x86_64-windows-msvc.cfg \
+  -O3 -flto=thin -fherbceptions \
+  -I$HOME/libraries/fast_io/include \
+  hello.cpp -lherbceptions -o hello.exe
+
+# our MinGW g++ (reuses the same herbceptions.dll; -lntdll because fast_io talks to NT directly)
+x86_64-w64-mingw32-g++ -std=c++26 -O3 -s -fherbceptions \
+  -I$HOME/libraries/fast_io/include \
+  hello.cpp -lherbceptions -lntdll -o hello.exe
+
+wine ./hello.exe
+</code></pre>
+      <p>
+        If a Windows binary fails to start, ask it what a DLL does not resolve to:
+      </p>
+      <pre><code>
+wine $HOME/softwares/win-ldd/x86_64-windows-msvc/win-ldd.exe ./hello.exe
+</code></pre>
+      <p>
+        If you forget <code>-fherbceptions</code>, the compiler rejects the syntax outright.
+        If you forget <code>-lherbceptions</code>, the compile succeeds and the link fails on
+        the domain symbols.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The <code>throw throws</code> Statement</h2>
+      <p>
+        Reporting an error is a statement:
+      </p>
+      <pre><code class="language-cpp">
+throw throws <em>expression</em>;
+</code></pre>
+      <p>
+        <code>throws</code> is the marker that says "this error travels through the
+        herbception channel". The expression is a value of any type that has an
+        <code>::std::error_domain</code> specialization &mdash; in practice one of the
+        standard error enums listed in section 6. The whole statement ends with
+        <code>;</code>, exactly like an assignment.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int read_count(int n) throws
+{
+    if (n &lt; 0)
+    {
+        throw throws ::std::errc::invalid_argument;   // report and leave
+    }
+    return n * 2;
+}
+
+int main()
+{
+    try
+    {
+        print("result: ", read_count(-1), "\n");
+    }
+    catch throws (::std::error e)
+    {
+        print("failed: ", e, "\n");
+    }
+}
+</code></pre>
+      <p>
+        Output:
+      </p>
+      <pre><code class="language-cpp">
+failed: [posix](22)Invalid argument
+</code></pre>
+      <p>
+        Three rules govern the statement, and the compiler enforces all three:
+      </p>
+      <ul>
+        <li>
+          <strong>It must be inside a function declared <code>throws</code></strong>
+          (or <code>return_failure{...}</code>, which we cover later). Writing
+          <code>throw throws</code> inside a <code>noexcept</code> function is a compile
+          error:
+          <code>'throw throws' is only allowed inside a function declared 'throws' or
+          'return_failure{...}'</code>. This is the whole point: a function that cannot fail
+          cannot lie about failing.
+        </li>
+        <li>
+          <strong>It does not return.</strong> Nothing after the statement runs in that path,
+          so you do not need a <code>return</code> after it.
+        </li>
+        <li>
+          <strong>Rethrowing is <code>throw throws;</code></strong> &mdash; with no operand
+          &mdash; and is only valid inside a <code>catch throws</code> handler.
+        </li>
+      </ul>
+      <pre><code class="language-cpp">
+int inner(int b) throws
+{
+    if (b == 0)
+    {
+        throw throws ::std::errc::invalid_argument;
+    }
+    return b;
+}
+
+int outer(int b) throws
+{
+    try
+    {
+        return inner(b);
+    }
+    catch throws (::std::error e)
+    {
+        print("inner failed: ", e, "\n");
+        throw throws;              // rethrow: pass it to our own caller
+    }
+}
+</code></pre>
+      <div class="note">
+        <strong>Validate early, report once.</strong> Check the precondition at the top of the
+        function and <code>throw throws</code> immediately. That is how fast_io itself is
+        written: a constructor that cannot open the file fails at the constructor, not three
+        calls later when the handle is first used.
+      </div>
+    </section>
+
+    <section>
+      <h2>4. The <code>try { } catch throws (::std::error e) { }</code> Statement</h2>
+      <p>
+        Handling is a statement too, and it has exactly one shape:
+      </p>
+      <pre><code class="language-cpp">
+try
+{
+    /* code that may fail */
+}
+catch throws (::std::error e)
+{
+    /* handler: inspect / report / recover / rethrow */
+}
+</code></pre>
+      <p>
+        The rules, again enforced by the compiler:
+      </p>
+      <ul>
+        <li>
+          <strong>The handler must declare <code>::std::error</code> by value.</strong>
+          Not by reference, not by <code>const&amp;</code>, not <code>::std::errc</code>,
+          not <code>::std::exception</code>. The compiler says so:
+          <code>'catch throws' must declare std::error by value, not '::std::errc'</code>.
+        </li>
+        <li>
+          <strong>You cannot store or copy the error.</strong> <code>::std::error</code> has
+          a deleted copy constructor, a deleted move constructor, and no default
+          constructor. Only the compiler can create one, and only the handler owns it. Read
+          what you need out of it inside the handler body.
+        </li>
+        <li>
+          <strong>The handler may be unnamed</strong>: <code>catch throws (::std::error) { }</code>.
+          Use this form when you only need to swallow a failure you cannot do anything about
+          &mdash; for example when a <code>noexcept</code> function is forced to call
+          something fallible.
+        </li>
+        <li>
+          <strong><code>catch (...)</code> does not catch herbceptions</strong>, and it is
+          forbidden in this tutorial. A call to a <code>throws</code> function is only
+          considered handled if there is a <code>catch throws</code> block around it; a
+          legacy catch-all does not count and the program does not compile.
+        </li>
+        <li>
+          <strong><code>catch (::std::error e)</code> &mdash; without <code>throws</code>
+          &mdash; is not valid either.</strong> It is a legacy-EH handler; the compiler
+          rejects it with <code>call to deleted constructor of '::std::error'</code>.
+          Legacy C++ exception handling is <em>not</em> part of this tutorial; herbceptions
+          replace it completely.
+        </li>
+      </ul>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int read_count(int n) throws
+{
+    if (n &lt; 0)
+    {
+        throw throws ::std::errc::invalid_argument;
+    }
+    return n * 2;
+}
+
+// a noexcept function may still call a fallible one,
+// provided it handles the failure itself
+int read_count_or_zero(int n) noexcept
+{
+    try
+    {
+        return read_count(n);
+    }
+    catch throws (::std::error)
+    {
+        return 0;
+    }
+}
+
+int main()
+{
+    print(read_count_or_zero(-1), "\n");   // 0
+    print(read_count_or_zero(21), "\n");   // 42
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. <code>::std::error</code>: Every Member Function</h2>
+      <p>
+        <code>::std::error</code> is deliberately tiny: two pointers, one destructor, and a
+        handful of observers. There is nothing else to learn. This is the complete list.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Expression</th>
+            <th>Result</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>e.domain()</code></td>
+            <td><code>::std::error_domain_singleton const *</code></td>
+            <td>Which code-space the error belongs to. Never null inside a handler.</td>
+          </tr>
+          <tr>
+            <td><code>e.code()</code></td>
+            <td><code>::std::size_t</code></td>
+            <td>The raw code inside that domain &mdash; for POSIX errors it is the errno value.</td>
+          </tr>
+          <tr>
+            <td><code>e == ::std::errc::permission_denied</code></td>
+            <td><code>bool</code></td>
+            <td>
+              Exact match: same domain <em>and</em> same code. Works with any domain&rsquo;s
+              value on either side of <code>==</code>; the argument type selects the domain.
+            </td>
+          </tr>
+          <tr>
+            <td><code>e.equivalent(::std::errc::no_such_file_or_directory)</code></td>
+            <td><code>bool</code></td>
+            <td>
+              <em>Cross-domain</em> match: asks the domain whether the error means the same
+              thing as the given code. An HTTP <code>404</code> is equivalent to
+              <code>ENOENT</code>, a Win32 <code>ERROR_FILE_NOT_FOUND</code> too.
+            </td>
+          </tr>
+          <tr>
+            <td><code>e.to_errc()</code></td>
+            <td><code>::std::errc</code></td>
+            <td>
+              The POSIX equivalent of the error, as a <code>::std::errc</code>. For a
+              POSIX-domain error this is the identity; for any other domain the runtime
+              demotes it.
+            </td>
+          </tr>
+          <tr>
+            <td><code>e.is_code_of&lt;::std::http_errc&gt;()</code></td>
+            <td><code>bool</code></td>
+            <td>
+              "Was this error produced by this domain?", ignoring the code. This is the
+              domain-membership test; <code>e == value</code> is the code test.
+            </td>
+          </tr>
+          <tr>
+            <td><code>::std::herbception_cast&lt;::std::tls_alert&gt;(e)</code></td>
+            <td><code>::std::tls_alert</code></td>
+            <td>
+              Converts the payload back into the domain&rsquo;s own value type. Only exists
+              for domains that define the conversion (today: <code>tls_alert</code>).
+            </td>
+          </tr>
+          <tr>
+            <td><code>e.throw_legacy_exception()</code></td>
+            <td><code>[[noreturn]] void</code></td>
+            <td>
+              Bridge into legacy C++ EH (for code that still uses <code>catch
+              (::std::exception const&amp;)</code>). <em>Mentioned only.</em> We do not teach
+              legacy EH in this tutorial &mdash; it is covered later, once you know enough to
+              defend yourself against it.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+    try
+    {
+        throw throws ::std::http_errc::not_found;
+    }
+    catch throws (::std::error e)
+    {
+        print("domain is http: ", e.is_code_of&lt;::std::http_errc&gt;(), "\n");   // 1
+        print("is posix:       ", e.is_code_of&lt;::std::errc&gt;(), "\n");         // 0
+        print("== not_found:   ", e == ::std::http_errc::not_found, "\n");     // 1
+        print("== ok:          ", e == ::std::http_errc::ok, "\n");            // 0
+        print("== errc ENOENT: ", e == ::std::errc::no_such_file_or_directory, "\n"); // 0
+        print("equivalent:     ", e.equivalent(::std::errc::no_such_file_or_directory), "\n"); // 1
+        print("to_errc:        ", static_cast&lt;int&gt;(e.to_errc()), "\n");       // 2
+        print("code:           ", e.code(), "\n");                            // 404
+    }
+}
+</code></pre>
+      <p>
+        Note the difference between <code>==</code> and <code>equivalent</code> in that output:
+        the error is <em>not</em> an <code>ENOENT</code> (different domain, so
+        <code>==</code> is false), but it <em>means</em> the same thing, so
+        <code>equivalent</code> is true.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Reporting an Error with fast_io</h2>
+      <p>
+        Because an error is just <code>{domain, code}</code>, fast_io can print it, and it
+        does so through the same <code>print</code> you already know. The default layout is:
+      </p>
+      <pre><code class="language-cpp">
+[<em>domain-name</em>](<em>code</em>)<em>message</em>
+</code></pre>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+    try
+    {
+        throw throws ::std::errc::no_space_on_device;
+    }
+    catch throws (::std::error e)
+    {
+        perrln(e);                                        // whole line to stderr
+        perr("plain print: ", e, "\n");                   // inside a larger line
+        perr("only the name: ", ::fast_io::mnp::name(e), "\n");
+        perr("only the text: ", ::fast_io::mnp::message(e), "\n");
+        perr("posix name:    ", ::fast_io::mnp::posix_equivalent_name(e), "\n");
+        perr("posix message: ", ::fast_io::mnp::posix_equivalent_message(e), "\n");
+    }
+}
+</code></pre>
+      <p>
+        Output:
+      </p>
+      <pre><code>
+[posix](28)No space left on device
+plain print: [posix](28)No space left on device
+only the name: posix
+only the text: (28)No space left on device
+posix name:    posix
+posix message: (28)No space left on device
+</code></pre>
+      <ul>
+        <li><code>e</code> alone &mdash; the full <code>[domain](code)message</code> form.</li>
+        <li><code>::fast_io::mnp::name(e)</code> &mdash; the domain name only.</li>
+        <li><code>::fast_io::mnp::message(e)</code> &mdash; the code and text, without the domain name.</li>
+        <li><code>::fast_io::mnp::name_message(e)</code> &mdash; the same as printing <code>e</code>.</li>
+        <li>
+          <code>::fast_io::mnp::posix_equivalent_name / _message / _name_message(e)</code>
+          &mdash; the same three, but for the POSIX equivalent of a non-POSIX error, so a log
+          line always speaks <code>errc</code>.
+        </li>
+      </ul>
+      <div class="note">
+        <strong>Style used in this tutorial:</strong> the handler reports, it does not swallow.
+        <code>catch throws (::std::error e) { ::fast_io::perrln(e); return 1; }</code> in
+        <code>main</code>, and <code>throw throws;</code> everywhere else.
+      </div>
+    </section>
+
+    <section>
+      <h2>7. Every Error Domain</h2>
+      <p>
+        A domain is a code-space. Each one is a type with an
+        <code>::std::error_domain</code> specialization, and each has its own
+        <code>code()</code> packing. These are all of them &mdash; there is no "user domain"
+        chapter here, because <strong>you do not define domains: you use them</strong>. To
+        report a failure you pick the domain that describes the failure, and
+        <code>throw throws</code> one of its values.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Domain value type</th>
+            <th>Printed tag</th>
+            <th><code>code()</code> is</th>
+            <th>What it describes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::std::errc</code></td>
+            <td><code>[posix]</code></td>
+            <td>the <code>errno</code> value</td>
+            <td>
+              POSIX / C errors: <code>invalid_argument</code>, <code>no_such_file_or_directory</code>,
+              <code>permission_denied</code>, <code>no_space_on_device</code>,
+              <code>connection_reset</code>, ... The default domain of the whole library.
+            </td>
+          </tr>
+          <tr>
+            <td><code>::std::parse_errc</code></td>
+            <td><code>[parse]</code></td>
+            <td>1 = <code>end_of_file</code>, 2 = <code>partial</code>, 3 = <code>invalid</code>, 4 = <code>overflow</code></td>
+            <td>Text parsing and scanning failures, independent of any OS.</td>
+          </tr>
+          <tr>
+            <td><code>::std::cmath_errc</code></td>
+            <td><code>[parse]</code>&nbsp;(see note)</td>
+            <td>the <code>FE_*</code> flag bits</td>
+            <td>
+              Floating-point exceptions: <code>invalid</code>, <code>divbyzero</code>,
+              <code>inexact</code>, <code>overflow</code>, <code>underflow</code>.
+            </td>
+          </tr>
+          <tr>
+            <td><code>::std::http_errc</code></td>
+            <td><code>[http]</code></td>
+            <td>the HTTP status code</td>
+            <td>
+              HTTP responses: <code>not_found</code> (404), <code>im_a_teapot</code> (418),
+              <code>internal_server_error</code> (500), ...
+            </td>
+          </tr>
+          <tr>
+            <td><code>::std::tls_alert</code></td>
+            <td><code>[tls]</code></td>
+            <td><code>(level &lt;&lt; 8) | description</code></td>
+            <td>
+              TLS alerts, carrying both fields: level (<code>warning</code>/<code>fatal</code>)
+              and description (<code>certificate_expired</code>, <code>bad_record_mac</code>,
+              <code>handshake_failure</code>, ...).
+            </td>
+          </tr>
+          <tr>
+            <td><code>::std::win32_errc</code></td>
+            <td><code>[win32]</code></td>
+            <td>the <code>GetLastError()</code> / <code>ERROR_*</code> value</td>
+            <td>Windows API failures. Windows targets only.</td>
+          </tr>
+          <tr>
+            <td><code>::std::nt_errc</code></td>
+            <td><code>[nt]</code></td>
+            <td>the <code>NTSTATUS</code> / <code>STATUS_*</code> value</td>
+            <td>NT native API failures. Windows targets only.</td>
+          </tr>
+          <tr>
+            <td><code>::std::com_errc</code></td>
+            <td><code>[com]</code></td>
+            <td>the <code>HRESULT</code> value</td>
+            <td>COM failures. Windows targets only.</td>
+          </tr>
+          <tr>
+            <td><code>::std::wine_errc</code></td>
+            <td><code>[wine]</code></td>
+            <td>Wine&rsquo;s own UNIX errno values</td>
+            <td>
+              Host-side errors reported by Wine&rsquo;s <code>ntdll</code> unixlib. Windows
+              targets running under Wine.
+            </td>
+          </tr>
+          <tr>
+            <td><code>::std::exception_ptr</code></td>
+            <td><code>[itanium]</code> / <code>[msvc]</code></td>
+            <td>an identity for a boxed legacy-EH object</td>
+            <td>
+              The <strong>legacy C++ exception domain</strong>: what you get when code that
+              still uses <code>throw std::runtime_error(...)</code> crosses a herbceptions
+              boundary. Mentioned so you recognise it; we teach legacy EH later, not here.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">
+        <strong>Note on <code>cmath_errc</code>:</strong> the current herbceptions runtime
+        reports it under the <code>[parse]</code> tag. Treat the tag as a runtime detail, not
+        as part of the interface &mdash; compare with <code>e.is_code_of&lt;::std::cmath_errc&gt;()</code>
+        or <code>e == ::std::cmath_errc::overflow</code>, not with the printed text.
+      </div>
+
+      <h3>Reporting one error per domain</h3>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+// the handler reports and returns, so the helper itself is 'throws'
+void report_and_continue(auto fn) throws
+{
+    try
+    {
+        fn();
+    }
+    catch throws (::std::error e)
+    {
+        perrln(e);            // reporting can fail too -- then it propagates
+    }
+}
+
+int main()
+{
+    // POSIX
+    report_and_continue([]() throws {
+        throw throws ::std::errc::no_such_file_or_directory;
+    });
+    // parsing
+    report_and_continue([]() throws {
+        throw throws ::std::parse_errc::invalid;
+    });
+    // floating point
+    report_and_continue([]() throws {
+        throw throws ::std::cmath_errc::overflow;
+    });
+    // HTTP
+    report_and_continue([]() throws {
+        throw throws ::std::http_errc::not_found;
+    });
+    // TLS: level + description
+    report_and_continue([]() throws {
+        throw throws ::std::tls_alert{
+            ::std::tls_alert::alert_level::fatal,
+            ::std::tls_alert::alert_description::certificate_expired};
+    });
+}
+</code></pre>
+      <p>
+        (A program that actually used the helper would wrap its body in
+        <code>try { } catch throws (::std::error e) { perrln(e); return 1; }</code>, because
+        <code>report_and_continue</code> is <code>throws</code>.)
+      </p>
+      <p>
+        Output (native build, Linux):
+      </p>
+      <pre><code>
+[posix](2)No such file or directory
+[parse](3)Invalid format
+[parse](8)Unknown
+[http](404)Not Found
+[tls](2:45)Fatal: Certificate Expired
+</code></pre>
+      <p>
+        The four Windows domains only exist on Windows targets. Build the same file with a
+        Windows compiler and run it (here: our MinGW g++ cross-compiler plus Wine, which finds
+        <code>herbceptions.dll</code> in the MSVC sysroot&rsquo;s <code>bin</code> directory
+        through <code>WINEPATH</code>):
+      </p>
+      <pre><code>
+SR=$HOME/toolchains/windows-msvc-sysroot
+
+x86_64-w64-mingw32-g++ -std=c++26 -O3 -s -fherbceptions \
+  -I $HOME/libraries/fast_io/include \
+  dom.cc -o dom.exe \
+  -lherbceptions -lntdll
+
+winldd() { wine $HOME/softwares/win-ldd/x86_64-windows-msvc/win-ldd.exe "$@"; }
+winldd ./dom.exe        # confirm which DLLs the binary needs:
+                        #   herbceptions.dll => ...windows-msvc-sysroot/bin/x86_64-unknown-windows-msvc/herbceptions.dll
+wine ./dom.exe
+</code></pre>
+      <pre><code class="language-cpp">
+    // Win32: GetLastError() codes -- see the Microsoft reference
+    // https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-
+    report_and_continue([]() throws {
+        throw throws static_cast&lt;::std::win32_errc&gt;(5);        // ERROR_ACCESS_DENIED
+    });
+    // NT: NTSTATUS codes -- see the Microsoft reference
+    // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55
+    report_and_continue([]() throws {
+        throw throws static_cast&lt;::std::nt_errc&gt;(0xC0000022u);  // STATUS_ACCESS_DENIED
+    });
+    // COM: HRESULT codes
+    report_and_continue([]() throws {
+        throw throws static_cast&lt;::std::com_errc&gt;(0x80070005u); // E_ACCESSDENIED
+    });
+    // Wine: Wine's host-side errno values
+    report_and_continue([]() throws {
+        throw throws ::std::wine_errc::no_such_file_or_directory;
+    });
+</code></pre>
+      <p>
+        Real output of those four, from a Windows build run under Wine:
+      </p>
+      <pre><code>
+[win32](0x00000005)Access denied.
+[nt](0xC0000022){Access Denied}
+A process has requested access to an object, but has not been granted those access rights.
+[com](0x80070005)Access denied.
+[wine](2)No such file or directory
+</code></pre>
+      <p>
+        Note how each domain keeps its own code space in the printed form: Win32 and COM codes
+        are hexadecimal <code>HRESULT</code>/<code>ERROR_*</code> values, NTSTATUS carries both
+        the symbolic name in braces and a prose description on the next line, and Wine&rsquo;s
+        domain prints a plain decimal host errno.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Thrown value</th>
+            <th><code>e.code()</code></th>
+            <th><code>e.to_errc()</code></th>
+            <th>Equivalent to</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>win32_errc{5}</code> (ERROR_ACCESS_DENIED)</td>
+            <td><code>5</code></td>
+            <td><code>13</code></td>
+            <td><code>errc::permission_denied</code></td>
+          </tr>
+          <tr>
+            <td><code>nt_errc{0xC0000022}</code> (STATUS_ACCESS_DENIED)</td>
+            <td><code>3221225506</code></td>
+            <td><code>13</code></td>
+            <td><code>errc::permission_denied</code></td>
+          </tr>
+          <tr>
+            <td><code>com_errc{0x80070005}</code> (E_ACCESSDENIED)</td>
+            <td><code>2147942405</code></td>
+            <td><code>13</code></td>
+            <td><code>errc::permission_denied</code></td>
+          </tr>
+          <tr>
+            <td><code>wine_errc::connection_refused</code></td>
+            <td><code>111</code></td>
+            <td><code>107</code></td>
+            <td><code>errc::connection_refused</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        That last column is the whole reason <code>equivalent()</code> and <code>to_errc()</code>
+        exist: a Win32, NT, COM and POSIX failure with completely different numeric codes can
+        still be one test, <code>e == ::std::errc::permission_denied</code> is false for the
+        Windows values (different domain) while
+        <code>e.equivalent(::std::errc::permission_denied)</code> is true for all of them.
+      </p>
+      <div class="note">
+        <strong>Which domain should you pick?</strong> In portable code, <code>::std::errc</code>.
+        Use a platform or protocol domain only when the code comes <em>from</em> that platform
+        or protocol &mdash; a failed <code>GetLastError()</code> is a <code>win32_errc</code>,
+        a TLS alert from the peer is a <code>tls_alert</code>, and an HTTP status you want to
+        propagate is an <code>http_errc</code>. Do not translate: herbceptions carry the
+        original code-space, and <code>equivalent()</code> / <code>to_errc()</code> do the
+        translation at the point where somebody needs POSIX semantics.
+      </div>
+    </section>
+
+    <section>
+      <h2>8. There Is No "Uncaught Herbception"</h2>
+      <p>
+        A herbception that reaches the top of the program has nobody to be handed to, so the
+        process traps &mdash; on x86-64 the kernel raises <code>SIGILL</code>, and you get a
+        core dump, not a pretty message:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int f(int b) throws
+{
+    if (b)
+    {
+        throw throws ::std::errc::no_space_on_device;
+    }
+    return b;
+}
+
+int main()
+{
+    ::fast_io::println(f(1));   // no handler: the program dies here
+}
+</code></pre>
+      <pre><code>
+$ ./a.out
+Illegal instruction (core dumped)
+</code></pre>
+      <p>
+        That is by design: an unreported error is a bug, and the fastest way to notice a bug is
+        to stop. Two consequences shape how you write <code>main</code>:
+      </p>
+      <ul>
+        <li>
+          <strong><code>main</code> cannot be declared <code>throws</code></strong>. The
+          compiler refuses: <code>'main' cannot be declared with a herbceptions
+          ('throws'/'return_failure{...}') exception specification; 'main' has no caller able
+          to consume an error result, and uncaught errors in 'main' trap instead</code>.
+        </li>
+        <li>
+          <strong>So <code>main</code> catches.</strong> This is the single exception to the
+          rule you will learn in <em>Ch6.16</em>: every function besides <code>main</code>
+          declares either <code>noexcept</code> or <code>throws</code>. <code>main</code> is
+          the boundary where the error chain ends, so it is where errors get printed and
+          turned into an exit code.
+        </li>
+      </ul>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    try
+    {
+        ::fast_io::println("work");
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>9. Where fast_io Fits In</h2>
+      <p>
+        Every fallible fast_io operation is declared <code>throws</code>, and every
+        infallible one is <code>noexcept</code>. That includes I/O:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+    // both print and scan report failures as herbceptions
+    static_assert(!noexcept(println(1)));                      // can fail: write error
+    static_assert(!noexcept(scan(::fast_io::c_stdin(),        // can fail: read/parse error
+                                 ::std::declval&lt;int&amp;&gt;())));
+
+    int value{};
+    try
+    {
+        print("give me a number: ");
+        scan(::fast_io::c_stdin(), value);            // throws parse_errc on bad input
+        print("you typed ", value, "\n");
+    }
+    catch throws (::std::error e)
+    {
+        perrln(e);
+        return 1;
+    }
+    return 0;
+}
+</code></pre>
+      <p>
+        You do not have to check return codes, and you do not have to inspect
+        <code>errno</code> after a call: a call that fails leaves through the
+        <code>throws</code> channel with the original code-space intact. The next chapters
+        build on exactly that &mdash; file constructors, sockets, scanners, filesystem
+        walks, everything reports failures this way.
+      </p>
+    </section>
+
+    <section>
+      <h2>10. Common Mistake Checklist</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Mistake</th>
+            <th>The compiler tells you</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>throw throws</code> in a <code>noexcept</code> function</td>
+            <td><code>'throw throws' is only allowed inside a function declared 'throws' or 'return_failure{...}'</code></td>
+          </tr>
+          <tr>
+            <td>calling a <code>throws</code> function without handling it</td>
+            <td><code>call to 'throws' function in a non-'throws' function must be handled by an enclosing 'try { } catch throws' block, or mark the calling function as 'throws' so herbceptions can propagate</code></td>
+          </tr>
+          <tr>
+            <td><code>catch throws (::std::errc e)</code></td>
+            <td><code>'catch throws' must declare std::error by value, not '::std::errc'</code></td>
+          </tr>
+          <tr>
+            <td><code>catch (::std::error e)</code> (legacy handler)</td>
+            <td><code>call to deleted constructor of '::std::error'</code></td>
+          </tr>
+          <tr>
+            <td><code>catch (...) { }</code> around a <code>throws</code> call</td>
+            <td><code>call to 'throws' function ... must be handled by an enclosing 'try { } catch throws' block</code></td>
+          </tr>
+          <tr>
+            <td><code>void f() noexcept throws</code></td>
+            <td><code>'throws'/'return_failure' and 'noexcept' cannot be combined</code></td>
+          </tr>
+          <tr>
+            <td><code>int main() throws</code></td>
+            <td><code>'main' cannot be declared with a herbceptions ... exception specification</code></td>
+          </tr>
+          <tr>
+            <td>forgetting <code>-fherbceptions</code></td>
+            <td><code>expected unqualified-id</code> / <code>unknown exception specification</code> at the first <code>throws</code></td>
+          </tr>
+          <tr>
+            <td>forgetting <code>-lherbceptions</code></td>
+            <td>undefined reference to <code>__cxa_error_domain_*</code> at link time</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <strong>All errors in fast_io are herbceptions.</strong> There is no return-code
+          error API to check and no legacy C++ exceptions in this tutorial.
+        </li>
+        <li>
+          Build with <code>-fherbceptions</code> (every TU) and <code>-lherbceptions</code>
+          (link), using our GCC or LLVM builds. MSVC does not support it &mdash; on Windows
+          use our Clang with a Windows target or our MinGW GCC.
+        </li>
+        <li>
+          Report with <code>throw throws value;</code> inside a <code>throws</code> function;
+          handle with <code>try { } catch throws (::std::error e) { }</code>; forward with
+          <code>throw throws;</code>.
+        </li>
+        <li>
+          The handler must declare <code>::std::error</code> by value. It cannot be copied,
+          stored, or constructed by you.
+        </li>
+        <li>
+          <code>::std::error</code> has exactly: <code>domain()</code>, <code>code()</code>,
+          <code>==</code>, <code>equivalent()</code>, <code>to_errc()</code>,
+          <code>is_code_of&lt;T&gt;()</code>, <code>herbception_cast&lt;T&gt;()</code>, and the
+          legacy-EH bridge we will cover later.
+        </li>
+        <li>
+          The domains are <code>errc</code>, <code>parse_errc</code>, <code>cmath_errc</code>,
+          <code>http_errc</code>, <code>tls_alert</code>, <code>win32_errc</code>,
+          <code>nt_errc</code>, <code>com_errc</code>, <code>wine_errc</code>, plus the legacy
+          C++ EH domain. Use them; do not define them.
+        </li>
+        <li>
+          Herbceptions are extremely cheap on both paths &mdash; the error rides the return
+          registers next to a condition flag. Never choose an error-code style API "for
+          speed", and never fear the failure path.
+        </li>
+        <li>
+          An uncaught herbception traps, and <code>main</code> cannot be <code>throws</code>
+          &mdash; so <code>main</code> is where errors are printed and converted to an exit
+          code.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/03.statements/15.featuretesting/" class="prev-button">&larr; Ch3.15: Feature Testing</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/04.dsal/" class="next-button">Ch4: dsal &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch10.3: contains(): Membership Testing - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch10.3: <code>contains()</code>: Membership Testing</h1>
+
+    <section>
+      <h2>1. The Function You Will Use Most</h2>
+      <p>
+        <code>contains(key)</code> answers one question: <em>is this key in the
+        container?</em> It returns <code>bool</code>, it never allocates, and with
+        the default allocators it is <code>noexcept</code>. All six containers have
+        it, with the same name and the same behaviour.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io_dsal/str_btree_set.h&gt;
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	::fast_io::str_btree_set s;
+	s.insert_key("alpha");
+	s.insert_key("beta");
+
+	println(s.contains("alpha"));   // 1
+	println(s.contains("gamma"));   // 0
+}
+</code></pre>
+      <pre><code class="language-text">
+1
+0
+</code></pre>
+      <p>
+        In a real program most of the code that touches a set looks exactly like
+        this: a filter, a guard, a validation step. That is why
+        <code>contains</code> comes first and everything else after.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. It Takes a View, So Nothing Is Copied</h2>
+      <p>
+        The parameter is a <code>::fast_io::string_view</code> &mdash; a pointer plus
+        a length. No allocation, no copy, no temporary string. Anything that can
+        produce a view works:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>You have</th>
+            <th>You write</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>a string literal</td>
+            <td><code>s.contains("alpha")</code></td>
+          </tr>
+          <tr>
+            <td>a <code>::fast_io::string</code></td>
+            <td><code>s.contains(::fast_io::string_view(k.c_str(), k.size()))</code></td>
+          </tr>
+          <tr>
+            <td>a <code>::fast_io::cstring_view</code> / <code>string_view</code> variable</td>
+            <td><code>s.contains(v)</code></td>
+          </tr>
+          <tr>
+            <td>a <code>char const *</code> that is null-terminated</td>
+            <td><code>s.contains(::fast_io::mnp::os_c_str(p))</code></td>
+          </tr>
+          <tr>
+            <td>a slice of a larger string</td>
+            <td><code>s.contains(line.subview(pos, len))</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The last row is the one that makes <code>contains</code> worth having on a
+        string set. You can test a <em>piece</em> of a buffer you are scanning &mdash;
+        a token, a field between delimiters, a line minus its newline &mdash; without
+        building a <code>::fast_io::string</code> just to look it up:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::str_btree_set dict;
+dict.insert_key("the");
+dict.insert_key("quick");
+dict.insert_key("fox");
+
+::fast_io::string_view line{"the quick brown fox"};
+::std::size_t pos{};
+while (pos &lt; line.size())
+{
+	auto space{line.find(::fast_io::string_view(" "), pos)};
+	if (space == ::fast_io::containers::npos)
+	{
+		space = line.size();
+	}
+	auto token{line.subview(pos, space - pos)};
+	println("[", token, "] known: ", dict.contains(token));
+	pos = space + 1;
+}
+</code></pre>
+      <pre><code class="language-text">
+[the] known: 1
+[quick] known: 1
+[brown] known: 0
+[fox] known: 1
+</code></pre>
+      <div class="note">
+        <strong>This is the difference between a lookup and a copy.</strong>
+        A container that took a <code>::fast_io::string</code> would allocate,
+        copy the characters and free them again on every test. Here the whole scan
+        above performs zero allocations.
+      </div>
+    </section>
+
+    <section>
+      <h2>3. <code>contains</code> vs <code>find</code> vs <code>count</code></h2>
+      <p>
+        The three answer related questions. Choosing the right one keeps the intent
+        of the code visible:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Call</th>
+            <th>Result</th>
+            <th>Use when</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>contains(k)</code></td>
+            <td><code>bool</code></td>
+            <td>You only need yes/no. <strong>This is the default.</strong></td>
+          </tr>
+          <tr>
+            <td><code>find(k)</code> / <code>find_key(k)</code></td>
+            <td>iterator, compare with <code>cend()</code></td>
+            <td>You need the element itself &mdash; its key view, its mapped value, or the position to iterate or erase from (Ch10.4).</td>
+          </tr>
+          <tr>
+            <td><code>count(k)</code></td>
+            <td><code>::std::size_t</code>, always 0 or 1</td>
+            <td>Almost never. It is <code>contains</code> spelled as a number; prefer <code>contains</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        There is no way for <code>find</code> to fail &ldquo;quietly&rdquo;: the
+        iterator either points at an element or equals <code>cend()</code>. If a
+        yes/no answer is all you need, <code>if (s.find(k) != s.cend())</code> is
+        <code>if (s.contains(k))</code> with more room for mistakes.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Patterns</h2>
+
+      <h3>Deduplicating input</h3>
+      <p>
+        Two ways to keep only the first occurrence. Either look first:
+      </p>
+      <pre><code class="language-cpp">
+for (auto word : words)
+{
+	if (!seen.contains(word))
+	{
+		seen.insert_key(word);
+		unique.push_back(word);
+	}
+}
+</code></pre>
+      <p>
+        or let the insert tell you, which is one lookup instead of two:
+      </p>
+      <pre><code class="language-cpp">
+for (auto word : words)
+{
+	if (seen.insert_key(word))   // true only the first time
+	{
+		unique.push_back(word);
+	}
+}
+</code></pre>
+      <p>
+        Both are correct; the second is the one to prefer when you insert anyway.
+        <code>contains</code> is the right tool when the container must not be
+        modified.
+      </p>
+
+      <h3>Guarding with early return</h3>
+      <pre><code class="language-cpp">
+void handle(::fast_io::str_swiss_set const &allowed, ::fast_io::string_view name) throws
+{
+	if (!allowed.contains(name))
+	{
+		println("rejected: ", name);
+		return;
+	}
+	println("accepted: ", name);
+}
+</code></pre>
+      <p>
+        Note the parameter: <code>::fast_io::str_swiss_set const &amp;</code> plus a
+        view. Nothing is copied into the function call, and the const reference says
+        &ldquo;this call only reads the set&rdquo;.
+      </p>
+
+      <h3>Membership of a map</h3>
+      <p>
+        On a map, <code>contains</code> asks about the <strong>key</strong> only,
+        never the value. That is the check you need before reading a value whose
+        key you are not sure exists:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::str_btree_map&lt;::std::size_t&gt; age{{"ada", 36zu}};
+println(age.contains("ada"));     // 1
+println(age.contains("alan"));    // 0 &mdash; no such key
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. What &ldquo;Contains&rdquo; Means Exactly</h2>
+      <p>
+        The comparison is on the key bytes, exactly as given: case-sensitive, no
+        trimming, no Unicode folding. <code>"Alpha"</code> and
+        <code>"alpha"</code> are two different keys.
+      </p>
+      <p>
+        The empty string is an ordinary key. It is <em>not</em> in an empty
+        container, and it can be inserted like anything else:
+      </p>
+      <pre><code class="language-cpp">
+println(dict.contains(""));   // 0
+dict.insert_key("");
+println(dict.contains(""));   // 1
+</code></pre>
+      <pre><code class="language-text">
+0
+1
+</code></pre>
+      <div class="warning">
+        <strong>Comparing a view with a <code>char const *</code> is a compile
+        error, on purpose.</strong> A pointer does not carry a length, so
+        <code>s.contains(p)</code> cannot know what to look for.
+        Wrap it: <code>s.contains(::fast_io::mnp::os_c_str(p))</code>. The error is
+        the language protecting you from a silently truncated or runaway key, not
+        pedantry.
+      </div>
+    </section>
+
+    <section>
+      <h2>6. Cost and Error Specification</h2>
+      <p>
+        <code>contains</code> is <code>noexcept</code> with the default allocators,
+        on all six containers, and that is measured at compile time:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::str_btree_set s;
+::fast_io::str_swiss_set ss;
+static_assert(noexcept(s.contains("x")));
+static_assert(noexcept(ss.contains("x")));
+</code></pre>
+      <p>
+        A lookup cannot allocate (it takes a view) and cannot fail (a missing key is
+        an answer, not an error), so there is nothing to report and nothing to
+        handle. This is why membership tests can be called from any
+        <code>noexcept</code> function, including destructors and
+        <code>constexpr</code> code.
+      </p>
+      <p>
+        In algorithmic terms, the B-tree family compares the key along one root-to-leaf
+        path, and the Swiss-table family hashes the key once and probes. Neither
+        walks the elements, which is what makes a set a set.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>contains(key)</code> returns <code>bool</code>; it is the default way to ask about membership.</li>
+        <li>It takes a view, so no string is allocated or copied &mdash; not even for a token sliced out of a larger buffer.</li>
+        <li>Use <code>find</code>/<code>find_key</code> only when you need the element, not just the answer.</li>
+        <li><code>count</code> is <code>contains</code> as a number; prefer <code>contains</code>.</li>
+        <li>When you insert anyway, the insert&rsquo;s <code>bool</code> gives you the answer without a second lookup.</li>
+        <li>Keys are compared as exact bytes: case-sensitive, no normalisation; the empty string is a legal key.</li>
+        <li>A <code>char const *</code> must be wrapped as <code>::fast_io::mnp::os_c_str(p)</code> &mdash; this is a compile error by design.</li>
+        <li><code>contains</code> is <code>noexcept</code> with the default allocators, so it is safe in <code>noexcept</code> functions and at compile time.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/10.associativecontainers/02.create/" class="prev-button">&larr; Ch10.2: Creating and Inserting</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/10.associativecontainers/04.lookup/" class="next-button">Ch10.4: Looking Keys Up &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

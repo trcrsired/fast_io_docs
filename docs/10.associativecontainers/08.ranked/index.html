@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch10.8: Ranked B-trees: size() and nth_element() - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch10.8: Ranked B-trees: <code>size()</code> and <code>nth_element()</code></h1>
+
+    <section>
+      <h2>1. A B-tree That Counts</h2>
+      <p>
+        <code>str_ranked_btree_set</code> and <code>str_ranked_btree_map</code> are
+        the B-tree containers from Ch10.4&ndash;10.6 plus one extra piece of
+        bookkeeping: every subtree remembers how many keys it holds. That buys you
+        two things the plain B-tree does not have.
+      </p>
+      <ul>
+        <li>
+          <strong><code>size()</code></strong> &mdash; the number of elements, in
+          constant time. No iteration needed (compare Ch10.5).
+        </li>
+        <li>
+          <strong><code>nth_element(n)</code></strong> &mdash; an iterator to the
+          element at rank <code>n</code> in sorted order, without walking the
+          <code>n</code> elements before it.
+        </li>
+      </ul>
+      <p>
+        Everything else is identical: same headers shape, same
+        <code>insert_key</code> / <code>contains</code> / <code>find_key</code> /
+        <code>erase_key</code> / ordered iteration.
+        You only pay for the rank bookkeeping, so use the ranked variant when you
+        need ranks and the plain one otherwise.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io_dsal/str_ranked_btree_set.h&gt;
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	::fast_io::str_ranked_btree_set s;
+	for (auto k : {::fast_io::cstring_view("delta"), ::fast_io::cstring_view("alpha"),
+				   ::fast_io::cstring_view("charlie"), ::fast_io::cstring_view("bravo"),
+				   ::fast_io::cstring_view("echo")})
+	{
+		s.insert_key(k);
+	}
+
+	println("size: ", s.size());
+	for (auto const &amp;e : s) { println("  ", e); }
+}
+</code></pre>
+      <pre><code class="language-text">
+size: 5
+  alpha
+  bravo
+  charlie
+  delta
+  echo
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. Ranks Are Zero-Based Positions in Sorted Order</h2>
+      <p>
+        <code>nth_element(0)</code> is the smallest key, <code>nth_element(1)</code>
+        the second smallest, and <code>nth_element(size() - 1)</code> the largest.
+        It is a position in the sorted sequence, not an insertion order:
+      </p>
+      <pre><code class="language-cpp">
+println(s.nth_element(0));   // alpha
+println(s.nth_element(2));   // charlie
+println(s.nth_element(4));   // echo
+</code></pre>
+      <pre><code class="language-text">
+alpha
+charlie
+echo
+</code></pre>
+      <p>
+        The cost is the height of the tree, not the rank: at every node the
+        container compares <code>n</code> against the size of each child subtree and
+        descends into only one of them. Asking for the 900,000th key out of a
+        million does not walk 900,000 keys.
+      </p>
+      <p>
+        Asking for a rank that does not exist is a contract violation. On an empty
+        container, or with <code>n &gt;= size()</code>, the program terminates &mdash;
+        or, if you opted into throwing allocators, throws
+        <code>::std::errc::invalid_argument</code>:
+      </p>
+      <pre><code class="language-cpp">
+try
+{
+	auto it{ts.nth_element(5zu)};   // ts has one element
+	println(*it);
+}
+catch throws (::std::error e)
+{
+	perrln(e);                      // [posix](22)Invalid argument
+}
+</code></pre>
+      <p>
+        That is the same checked/`_unchecked` split you know from vectors
+        (Ch9.5): <code>nth_element(n)</code> checks, and
+        <code>nth_element_unchecked(n)</code> does not.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Median, and Other Quantiles</h2>
+      <p>
+        The classic use is the median. With <code>size()</code> and
+        <code>nth_element</code> it is two lines:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io_dsal/str_ranked_btree_map.h&gt;
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	::fast_io::str_ranked_btree_map&lt;::std::size_t&gt; m;
+	m.insert_key("d", 4zu);
+	m.insert_key("a", 1zu);
+	m.insert_key("c", 3zu);
+	m.insert_key("b", 2zu);
+
+	auto mid{m.nth_element(m.size() / 2u)};
+	println("median key: ", mid-&gt;key(), " value: ", mid-&gt;mapped());
+}
+</code></pre>
+      <pre><code class="language-text">
+median key: c value: 3
+</code></pre>
+      <p>
+        With an even number of elements there is no single middle, so
+        <code>size() / 2</code> picks the upper of the two candidates. That is a
+        choice, not a law: pick whichever convention your problem wants.
+      </p>
+      <p>
+        Any quantile is the same shape &mdash; the 90th percentile of a million
+        elements is
+        <code>nth_element(size() * 90u / 100u)</code>. Because you get an iterator
+        back, you can also read the neighbours, or start iterating from there:
+      </p>
+      <pre><code class="language-cpp">
+auto p90{m.nth_element(m.size() * 90u / 100u)};
+for (auto it{p90}; it != m.cend(); ++it)
+{
+	println("  ", it-&gt;key());
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. When Not to Use It</h2>
+      <p>
+        Rank tracking is not free: every insert and erase has to fix up the counts
+        along the path it touched, and every node carries the extra field. If you
+        never ask for <code>size()</code> or <code>nth_element()</code>, the plain
+        <code>str_btree_*</code> does the same job with less work per operation.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>You need</th>
+            <th>Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Sorted iteration, range queries, smallest/largest key</td>
+            <td><code>str_btree_set</code> / <code>str_btree_map</code></td>
+          </tr>
+          <tr>
+            <td>Sorted iteration plus element count, or the n-th key by rank</td>
+            <td><code>str_ranked_btree_set</code> / <code>str_ranked_btree_map</code></td>
+          </tr>
+          <tr>
+            <td>Only membership and value lookup, no order</td>
+            <td><code>str_swiss_set</code> / <code>str_swiss_map</code> (Ch10.9)</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">
+        <strong><code>size()</code> on a ranked B-tree is exact and cheap.</strong>
+        Unlike the plain B-tree, you can call it in a loop condition without turning
+        the loop quadratic.
+      </div>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>str_ranked_btree_*</code> is the B-tree family with subtree sizes tracked.</li>
+        <li><code>size()</code> is constant time; the plain B-tree has no <code>size()</code> at all.</li>
+        <li><code>nth_element(n)</code> returns an iterator to the n-th smallest key (0-based), in time proportional to the tree height.</li>
+        <li><code>nth_element(n)</code> is checked (terminates / throws <code>errc::invalid_argument</code>); <code>nth_element_unchecked(n)</code> is not.</li>
+        <li>Median and percentile queries are one call each.</li>
+        <li>Use the plain B-tree when you do not need ranks &mdash; the bookkeeping is not free.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/10.associativecontainers/07.maps/" class="prev-button">&larr; Ch10.7: Maps</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/10.associativecontainers/09.swiss/" class="next-button">Ch10.9: Swiss Tables &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

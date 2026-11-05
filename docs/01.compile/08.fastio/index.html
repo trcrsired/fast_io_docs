@@ -50,50 +50,115 @@ int main() {
     </section>
 
     <section>
+      <h2>Two Required Flags: <code>-fherbceptions -lherbceptions</code></h2>
+      <p>
+        fast_io reports <strong>every</strong> error as a <strong>herbception</strong>, and
+        herbceptions are a compiler feature. So the include directory is not enough: you also
+        need the herbceptions runtime, and a compiler that implements the language feature.
+      </p>
+      <ul>
+        <li>
+          <code>-fherbceptions</code> &mdash; turns herbceptions on. It must be passed for
+          every translation unit that includes fast_io.
+        </li>
+        <li>
+          <code>-lherbceptions</code> &mdash; links the runtime library that owns the error
+          domains.
+        </li>
+      </ul>
+      <p>
+        Only <strong>our</strong> GCC and LLVM builds support herbceptions. Stock compilers
+        and <strong>MSVC do not</strong> &mdash; there is no way to compile fast_io with
+        <code>cl.exe</code>. The full explanation, and every error-reporting rule, is in
+        <a href="/docs/03.statements/16.herbceptions/">Ch3.16: Herbceptions</a>.
+      </p>
+      <p>
+        Nothing else is needed: the herbceptions headers and library are part of the toolchain
+        you installed, so <code>-lherbceptions</code> is the whole addition. Assume fast_io is
+        cloned into <code>$HOME/libraries/fast_io</code>:
+      </p>
+      <pre><code>
+FASTIO=$HOME/libraries/fast_io
+</code></pre>
+    </section>
+
+    <section>
       <h2>Compile with Clang</h2>
       <p>
         Example: building a Windows MSVC binary using Clang and the MSVC sysroot:
       </p>
 
       <pre><code>
-clang++ -o hello.exe hello.cpp \
-  -O3 \
-  --sysroot=$HOME/toolchains/windows-msvc-sysroot \
-  -fuse-ld=lld \
-  -flto=thin \
-  --target=x86_64-windows-msvc \
-  -I$HOME/libraries/fast_io/include
+clang++ --config=$HOME/cfgs/x86_64-windows-msvc.cfg \
+  -O3 -flto=thin -fherbceptions \
+  -I$FASTIO/include \
+  hello.cpp -lherbceptions -o hello.exe
 </code></pre>
+
+      <p>
+        The herbceptions runtime lives in the sysroot:
+        <code>lib/&lt;triple&gt;/herbceptions.lib</code> when linking and
+        <code>bin/&lt;triple&gt;/herbceptions.dll</code> when running (Wine finds it through
+        <code>WINEPATH</code>). Our MinGW g++ reuses the same DLL with its own import
+        library, and needs <code>-lntdll</code> because fast_io talks to NT directly:
+      </p>
+
+      <pre><code>
+x86_64-w64-mingw32-g++ -o hello.exe hello.cpp \
+  -std=c++26 -O3 -s \
+  -fherbceptions \
+  -I$FASTIO/include \
+  -lherbceptions -lntdll
+
+wine ./hello.exe
+</code></pre>
+
+      <p>
+        To see which DLLs a Windows binary needs, use win-ldd:
+      </p>
+
+      <pre><code>
+wine $HOME/softwares/win-ldd/x86_64-windows-msvc/win-ldd.exe ./hello.exe
+</code></pre>
+
+      <div class="note">
+        <strong>Notes on the flags:</strong> the MSVC sysroot already carries the Windows
+        herbceptions runtime (<code>herbceptions.lib</code> to link,
+        <code>herbceptions.dll</code> at run time), so <code>--sysroot</code> finds it and no
+        <code>-L</code> is ever written. GCC/GNU-target builds additionally pass <code>-s</code>
+        to strip the binary.
+      </div>
     </section>
 
     <section>
       <h2>Compile with GCC</h2>
       <p>
-        GCC works the same way.  
-        Just add the include directory:
+        GCC works the same way, with our herbceptions GCC build:
       </p>
 
       <pre><code>
 g++ -o hello hello.cpp \
-  -O3 \
-  -I$HOME/libraries/fast_io/include
+  -std=c++26 -O3 -s -fuse-ld=lld \
+  -fherbceptions \
+  -I$FASTIO/include \
+  -lherbceptions
 </code></pre>
 
     </section>
 
     <section>
-      <h2>Compile with MSVC (cl.exe)</h2>
+      <h2>MSVC (cl.exe) Is Not Supported</h2>
       <p>
-        In the Visual Studio Developer Command Prompt:
+        MSVC is <strong>not a supported compiler</strong> for fast_io. It has no
+        <code>-fherbceptions</code>, and fast_io reports every error through the herbception
+        channel, so the tutorial's error contract cannot be expressed with it. Use our GCC or
+        LLVM forks.
       </p>
-
-      <pre><code>
-cl /EHsc /Ox hello.cpp ^
-  /I %USERPROFILE%\\libraries\\fast_io\\include
-</code></pre>
-
       <p>
-        This produces <code>hello.exe</code> using MSVC.
+        On Windows, use our Clang targeting <code>x86_64-windows-msvc</code> (exactly the
+        command above &mdash; it produces a normal Windows binary, linked with
+        <code>lld</code>) or our MinGW GCC. Neither <code>cl.exe</code> nor Visual Studio&rsquo;s
+        normal C++ toolset is involved.
       </p>
     </section>
 
@@ -143,15 +208,10 @@ int main() {
       </p>
 
       <pre><code>
-clang++ -std=c++26 --precompile \
-  $HOME/libraries/fast_io/share/fast_io/fast_io.cppm \
-  -O3 \
-  --sysroot=$HOME/toolchains/windows-msvc-sysroot \
-  -fuse-ld=lld \
-  -flto=thin \
-  --target=x86_64-windows-msvc \
-  -I$HOME/libraries/fast_io/include \
-  -o fast_io.pcm
+clang++ --config=$HOME/cfgs/x86_64-linux-gnu-libcxx.cfg \
+  -O2 -fherbceptions -I$FASTIO/include \
+  -x c++-module $FASTIO/share/fast_io/fast_io_json.cppm \
+  -o fast_io.json.pcm --precompile
 </code></pre>
 
       <p>
@@ -159,58 +219,57 @@ clang++ -std=c++26 --precompile \
       </p>
 
       <pre><code>
-clang++ -std=c++26 hello.cpp \
-  -O3 \
-  --sysroot=$HOME/toolchains/windows-msvc-sysroot \
-  -fuse-ld=lld \
-  -flto=thin \
-  --target=x86_64-windows-msvc \
-  -fmodule-file=fast_io=fast_io.pcm \
-  -o hello.exe
+clang++ --config=$HOME/cfgs/x86_64-linux-gnu-libcxx.cfg \
+  -O2 -fherbceptions -I$FASTIO/include \
+  -fmodule-file=fast_io.json=fast_io.json.pcm \
+  hello.cpp fast_io.json.pcm -lherbceptions \
+  -o hello
 </code></pre>
 
       <p>
-        Clang will now import the module instead of using headers.
+        The module is precompiled once and imported afterwards; nothing from the headers is
+        needed at the import site beyond <code>#include &lt;herbceptions/error&gt;</code> when
+        you want to write a <code>catch throws</code> handler yourself.
       </p>
+
+      <div class="note">
+        <strong>Status of the module file names:</strong>
+        <code>fast_io_json.cppm</code> precompiles and imports cleanly today, and is the one
+        used in this example. The umbrella <code>fast_io.cppm</code> is still catching up with
+        the headers, so if the precompile fails on it, use the header interface
+        (<code>#include &lt;fast_io.h&gt;</code>) &mdash; that is what the rest of this tutorial
+        uses.
+      </div>
 
       <h3>Compile fast_io module with GCC</h3>
 
       <p>
-        GCC’s module support is still experimental, but the process is similar:
+        GCC&rsquo;s module support is still experimental, and our herbceptions GCC build is
+        known to crash (<code>ICE</code>) on some fast_io module units &mdash; compile the
+        cluster with Clang, or use the header interface with GCC.
       </p>
 
       <pre><code>
-g++ -std=c++26 -fmodules -c \
-  $HOME/libraries/fast_io/share/fast_io/fast_io.cppm \
-  -I$HOME/libraries/fast_io/include \
-  -o fast_io.gcm -O3
+g++ -std=c++26 -fmodules -fherbceptions -O3 -s -fuse-ld=lld \
+  -c $FASTIO/share/fast_io/fast_io_json.cppm \
+  -I$FASTIO/include \
+  -o fast_io.json.gcm
 
-g++ -std=c++26 -fmodules hello.cpp \
-  fast_io.gcm \
-  -I$HOME/libraries/fast_io/include \
-  -o hello -s -flto -O3
+g++ -std=c++26 -fmodules -fherbceptions -O3 -s -fuse-ld=lld hello.cpp \
+  fast_io.json.gcm \
+  -I$FASTIO/include \
+  -lherbceptions \
+  -o hello
 </code></pre>
 
-      <h3>Compile fast_io module with MSVC</h3>
+      <h3>MSVC Cannot Compile the Module</h3>
 
       <p>
-        MSVC supports modules via <code>/interface</code> and <code>/module</code> flags:
-      </p>
-
-      <pre><code>
-cl /std:c++latest /EHsc /GL /MD /Ox /interface \
-  %USERPROFILE%\\libraries\\fast_io\\share\\fast_io\\fast_io.cppm \
-  /I %USERPROFILE%\\libraries\\fast_io\\include \
-  /Fo:fast_io.ifc
-
-cl /std:c++latest /EHsc /GL /MD /Ox hello.cpp \
-  /module:reference fast_io.ifc \
-  /I %USERPROFILE%\\libraries\\fast_io\\include \
-  /Fe:hello.exe
-</code></pre>
-
-      <p>
-        This builds and imports the fast_io module using MSVC.
+        MSVC is not a supported compiler for fast_io: it has no herbceptions, and every error
+        in the library is reported as one. Our GCC and LLVM forks are the only compilers this
+        tutorial supports. Windows binaries are built with our Clang targeting the MSVC ABI
+        (or our MinGW GCC) &mdash; the resulting executables are ordinary Windows binaries,
+        they just are not produced by <code>cl.exe</code>.
       </p>
     </section>
     <section>

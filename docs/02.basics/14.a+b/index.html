@@ -6,6 +6,7 @@
   <title>Ch2.14: A + B - fast_io Documentation</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
@@ -23,12 +24,123 @@
 
 int main()
 {
-    using namespace fast_io::iomnp;
-    std::size_t a, b;
-    scan(a, b);
-    println(a + b);
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        ::std::size_t a, b;
+        scan(a, b);
+        println(a + b);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
 }
 </code></pre>
+      <p>
+        Even this tiny program cannot be trusted to succeed, and the code says so: the body is
+        inside a <code>try</code> block, and the <code>catch throws</code> handler reports the
+        failure and returns a non-zero exit code. In the next section you will see why.
+      </p>
+    </section>
+
+    <section>
+      <h2>I/O Always Can Fail</h2>
+      <p>
+        This is the first program in the tutorial that talks to the outside world, and that is
+        the point where failure becomes possible. <strong>Every I/O operation can fail.</strong>
+        There is no "safe" I/O call, and there is no configuration in which you can assume it
+        worked.
+      </p>
+      <p>
+        <strong>Input fails all the time.</strong> It fails in the most ordinary ways:
+      </p>
+      <ul>
+        <li>
+          the user typed <code>x</code> instead of a number, so <code>scan(a, b)</code> has
+          nothing to parse &mdash; a parse error;
+        </li>
+        <li>
+          the input ended after one number, so the second <code>scan</code> reads end-of-file;
+        </li>
+        <li>
+          the number was too large for <code>::std::size_t</code>, so it overflows;
+        </li>
+        <li>
+          the underlying device returned an error &mdash; a closed pipe, a reset connection, a
+          bad sector on a disk, a network read that timed out.
+        </li>
+      </ul>
+      <p>
+        Run the program above and feed it garbage:
+      </p>
+      <pre><code>
+$ echo "x 4" | ./aplusb
+[parse](3)Invalid format
+$ echo $?
+1
+</code></pre>
+      <p>
+        <strong>Output fails too.</strong> This surprises people, because in the
+        <code>iostream</code> world nobody ever checks a print. But a write is a request to the
+        operating system (or to a network peer), and requests are refused:
+      </p>
+      <ul>
+        <li>
+          the disk filled up, so the buffered bytes could not be flushed
+          (<code>[posix](28)No space left on device</code>);
+        </li>
+        <li>
+          the reader went away &mdash; the downstream process of a pipeline died, the terminal
+          was closed (<code>[posix](32)Broken pipe</code>);
+        </li>
+        <li>
+          the output stream is a file handle that is not open for writing, or points at a
+          full/read-only filesystem;
+        </li>
+        <li>
+          the output stream is a socket and the peer reset the connection
+          (<code>[posix](104)Connection reset by peer</code>). We will meet sockets later;
+          the important part is that <em>even <code>println("Hello World")</code> can fail</em>
+          once the destination is not a local console but a network peer, a file on a full
+          disk, or a process that has already exited.
+        </li>
+      </ul>
+      <p>
+        So <code>println</code> is not a statement that "just prints". It is a fallible
+        operation, and in <code>fast_io</code> every fallible operation says so in its type.
+        Try it:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+// println can fail: it may have to write to a device
+static_assert(!noexcept(println("Hello World")));
+
+// scan can fail: it may have to read and parse
+static_assert(!noexcept(scan(::fast_io::c_stdin(), ::std::declval&lt;int&amp;&gt;())));
+</code></pre>
+      <p>
+        A call that can fail is declared <code>throws</code>. If you call one, you must deal
+        with the possibility of failure: either handle it with
+        <code>try { } catch throws (::std::error e) { }</code>, or mark your own function
+        <code>throws</code> so the failure travels to your caller. There is no third option
+        &mdash; the compiler does not let you ignore it.
+      </p>
+      <div class="warning">
+        <strong>Why this tutorial does not use legacy C++ exceptions for this.</strong>
+        Errors in <code>fast_io</code> are reported as <strong>herbceptions</strong>, and they
+        are the only error mechanism used in this tutorial. Building them needs
+        <code>-fherbceptions -lherbceptions</code> and one of our GCC or LLVM builds (MSVC
+        does not support herbceptions). The complete rules &mdash; flags, the
+        <code>throw throws</code> statement, the handler, and every error domain &mdash; are
+        in <a href="/docs/03.statements/16.herbceptions/">Ch3.16: Herbceptions</a>. From here
+        on, every example that performs I/O uses the same <code>try { } catch throws</code>
+        shape you see above.
+      </div>
     </section>
 
     <section>
@@ -68,12 +180,24 @@ int main()
 
 int main()
 {
-    using namespace fast_io::iomnp;
-    ::std::size_t a, b;
-    scan(hex_get(a), hex_get(b));
-    println(hex(a + b), " ", hexupper(a + b));
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        ::std::size_t a, b;
+        scan(hex_get(a), hex_get(b));
+        println(hex(a + b), " ", hexupper(a + b));
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
 }
 </code></pre>
+      <p>
+        Two hex numbers in, two hex numbers out. Bad input still ends in the handler, not in
+        undefined behaviour.
+      </p>
     </section>
 
     <section>
@@ -87,10 +211,18 @@ int main()
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
-    ::std::size_t a, b;
-    scan(base_get&lt;36&gt;(a), base_get&lt;36&gt;(b));
-    println(base&lt;36&gt;(a + b));
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        ::std::size_t a, b;
+        scan(base_get&lt;36&gt;(a), base_get&lt;36&gt;(b));
+        println(base&lt;36&gt;(a + b));
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
 }
 </code></pre>
     </section>
@@ -106,10 +238,39 @@ int main()
         <li><code>base&lt;N&gt;</code> — prints numbers in base <em>N</em>.</li>
         <li><code>hex</code> — shorthand for <code>base&lt;16&gt;</code>.</li>
         <li><code>hexupper</code> — shorthand for <code>base&lt;16,true&gt;</code>, printing hex digits in uppercase.</li>
+        <li><code>left</code>, <code>right</code>, <code>internal</code>, <code>width</code>, <code>fill</code> — field layout and padding.</li>
       </ul>
       <p>
         These manipulators make it easy to work with different numeric bases without relying on unsafe format strings.
       </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          A + B is the smallest program that performs I/O, and I/O always can fail.
+        </li>
+        <li>
+          Input fails on malformed input, end-of-file, overflow, and device errors; output
+          fails on full disks, broken pipes, closed handles, and reset connections. Even
+          <code>println("Hello World")</code> can fail.
+        </li>
+        <li>
+          In <code>fast_io</code> every fallible operation is declared <code>throws</code>.
+          A caller either handles it with <code>try { } catch throws (::std::error e) { }</code>
+          or becomes <code>throws</code> itself.
+        </li>
+        <li>
+          Herbceptions are the only error-reporting mechanism in this tutorial; see
+          <a href="/docs/03.statements/16.herbceptions/">Ch3.16</a> for the full rules.
+        </li>
+        <li>
+          Manipulators (<code>hex</code>, <code>base&lt;N&gt;</code>, <code>hex_get</code>, …)
+          change formatting without format strings, and they do not change the fact that the
+          surrounding I/O call can fail.
+        </li>
+      </ul>
     </section>
 
     <script src="/sw-register.js"></script>

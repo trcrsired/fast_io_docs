@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch10.7: Maps: Keys With Values - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch10.7: Maps: Keys With Values</h1>
+
+    <section>
+      <h2>1. Reading a Map Element</h2>
+      <p>
+        A map element has two halves: the key, which never changes, and the mapped
+        value, which is yours to read and write. Both are reached through named
+        members:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io_dsal/str_btree_map.h&gt;
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	::fast_io::str_btree_map&lt;::std::size_t&gt; m{{"c", 3zu}, {"a", 1zu}, {"b", 2zu}};
+
+	auto it{m.find("b")};
+	if (it != m.cend())
+	{
+		println(it-&gt;key(), " = ", it-&gt;mapped());
+	}
+	for (auto e : m)
+	{
+		println("  ", e.key(), " = ", e.mapped());
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+b = 2
+  a = 1
+  b = 2
+  c = 3
+</code></pre>
+      <p>
+        <code>key()</code> returns a <code>::fast_io::cstring_view</code> into the
+        container&rsquo;s own copy of the key. <code>mapped()</code> returns a
+        reference to the value, so it is also how you <em>write</em> it:
+      </p>
+      <pre><code class="language-cpp">
+for (auto e : m)
+{
+	e.mapped() *= 10zu;
+}
+println(m.find("c")->mapped());   // 30
+</code></pre>
+      <div class="note">
+        <strong>B-tree maps hand out a small proxy; Swiss maps hand out a reference.</strong>
+        That is why the B-tree loop above says <code>for (auto e : m)</code> while the
+        Swiss equivalent says <code>for (auto &amp;e : sm)</code> (Ch10.9). Both let
+        you write through <code>e.mapped()</code>; the proxy is simply a
+        <code>(node, position)</code> pair, so it is copied by value.
+      </div>
+    </section>
+
+    <section>
+      <h2>2. Writing a Value</h2>
+      <p>
+        A read never changes the map, so it is <code>find</code> plus
+        <code>mapped()</code>. A write says what it means with one of the assign
+        functions:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::str_btree_map&lt;::std::size_t&gt; m{{"a", 1zu}};
+
+m.insert_key_or_assign("a", 100zu);   // replace the value of an existing key
+println(m.find("a")-&gt;mapped());       // 100
+
+m.insert_key_or_assign("b", 2zu);     // insert, because "b" is new
+println(m.find("b")-&gt;mapped());       // 2
+</code></pre>
+      <pre><code class="language-text">
+100
+2
+</code></pre>
+      <p>
+        The call site says &ldquo;insert or assign&rdquo;, so there is no question
+        about whether a missing key gets created: it does, and the value you passed
+        is the value it gets. When you need to know which of the two happened, the
+        return value tells you &mdash; <code>true</code> means the map grew,
+        <code>false</code> means an existing value was replaced:
+      </p>
+      <pre><code class="language-cpp">
+println(m.insert_key_or_assign("b", 3zu));   // 0 — replaced
+println(m.insert_key_or_assign("c", 4zu));   // 1 — inserted
+</code></pre>
+      <p>
+        If you want to insert only when the key is absent and leave an existing value
+        untouched, that is <code>insert_key</code>, which does exactly one thing:
+      </p>
+      <pre><code class="language-cpp">
+m.insert_key("c", 999zu);      // ignored: "c" is already there
+println(m.find("c")-&gt;mapped()); // 4
+</code></pre>
+      <div class="warning">
+        <strong>There is no shorthand that reads and inserts at the same time.</strong>
+        Every read is a <code>find</code>/<code>find_key</code>, and every write is an
+        <code>insert_key</code> / <code>insert_key_or_assign</code> /
+        <code>emplace_key</code>. One call does one thing, so a typo in a key can
+        never silently grow your map, and nothing is ever built that you did not ask
+        for.
+      </div>
+    </section>
+
+    <section>
+      <h2>3. The Insert Family</h2>
+      <p>
+        Three functions cover every combination of &ldquo;what should happen if the
+        key is already there&rdquo;:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Call</th>
+            <th>Key exists</th>
+            <th>Key is new</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>insert_key(k, v)</code></td>
+            <td>Keeps the old value, does nothing.</td>
+            <td>Inserts <code>v</code>.</td>
+          </tr>
+          <tr>
+            <td><code>insert_key_or_assign(k, v)</code></td>
+            <td>Overwrites with <code>v</code>.</td>
+            <td>Inserts <code>v</code>.</td>
+          </tr>
+          <tr>
+            <td><code>emplace_key(k, args...)</code></td>
+            <td>Keeps the old value, does nothing.</td>
+            <td>Constructs the value from <code>args</code> in place.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>emplace_key</code> matters when the value is expensive to build: the
+        value is constructed only if the key turns out to be new, whereas
+        <code>insert_key(k, make_value())</code> builds the temporary first and throws
+        it away on a duplicate.
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::str_swiss_map&lt;::std::size_t&gt; sm;
+sm.insert_key_or_assign("a", 1zu);        // inserts, because "a" is new
+sm.insert_key_or_assign("a", 100zu);      // replaces the old value
+println(sm.find_key("a")-&gt;mapped());      // 100
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. Modifying Values</h2>
+      <p>
+        When the value is not being replaced wholesale but updated in place
+        (<code>+=</code>, <code>push_back</code>, a counter), iterate. A B-tree map
+        hands out a small proxy, so the loop binds by value and still writes through
+        <code>mapped()</code>:
+      </p>
+      <pre><code class="language-cpp">
+for (auto e : m)
+{
+	e.mapped() *= 10zu;
+}
+println(m.find("c")-&gt;mapped());   // 40
+</code></pre>
+      <p>
+        A Swiss map hands out a reference, so the loop binds by reference:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::str_swiss_map&lt;::std::size_t&gt; sm;
+sm.insert_key_or_assign("a", 1zu);
+
+for (auto &amp;e : sm)
+{
+	e.mapped() += 41zu;
+}
+println(sm.find_key("a")-&gt;mapped());   // 42
+</code></pre>
+      <p>
+        Outside an iteration, a Swiss map value is written by assigning a new one:
+        <code>sm.insert_key_or_assign("a", 100zu)</code>. Reading it is
+        <code>sm.find_key("a")-&gt;mapped()</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Counting</h2>
+      <p>
+        Counting occurrences is the classic map loop: look the key up, then either
+        insert the first count or bump the value you already found.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io_dsal/str_btree_map.h&gt;
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	::fast_io::str_btree_map&lt;::std::size_t&gt; counts;
+
+	for (auto w : {::fast_io::cstring_view("red"), ::fast_io::cstring_view("blue"),
+				   ::fast_io::cstring_view("red"), ::fast_io::cstring_view("green"),
+				   ::fast_io::cstring_view("red")})
+	{
+		auto it{counts.find(w)};
+		if (it == counts.cend())
+		{
+			counts.emplace_key(w, 1zu);
+		}
+		else
+		{
+			++it-&gt;mapped();
+		}
+	}
+
+	for (auto const &amp;e : counts)
+	{
+		println(e.key(), " appears ", e.mapped(), " time(s)");
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+blue appears 1 time(s)
+green appears 1 time(s)
+red appears 3 time(s)
+</code></pre>
+      <p>
+        Because <code>str_btree_map</code> iterates in sorted order, the report comes
+        out sorted by key without a second pass. Two properties of the B-tree map
+        make the loop this short: <code>find</code> gives an iterator whose
+        <code>mapped()</code> is writable, so the second occurrence is just
+        <code>++it-&gt;mapped()</code>.
+      </p>
+      <p>
+        On a Swiss map <code>find_key</code> returns a <code>const_iterator</code>, so
+        the same loop has to pick the element to bump by iterating (Ch10.9), or the
+        value is replaced through <code>insert_key_or_assign</code>:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::str_swiss_map&lt;::std::size_t&gt; scounts;
+for (auto w : {::fast_io::cstring_view("red"), ::fast_io::cstring_view("blue"),
+			   ::fast_io::cstring_view("red")})
+{
+	if (scounts.emplace_key(w, 1zu).inserted)
+	{
+		continue;
+	}
+	for (auto &amp;e : scounts)
+	{
+		if (e.key() == w)
+		{
+			++e.mapped();
+			break;
+		}
+	}
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>Map elements expose <code>key()</code> (read-only view) and <code>mapped()</code> (reference) &mdash; never <code>first</code>/<code>second</code>.</li>
+        <li>Write through <code>e.mapped()</code>; B-tree maps iterate by proxy value, Swiss maps by reference.</li>
+        <li>Reads are <code>find</code>/<code>find_key</code>; writes are <code>insert_key</code>, <code>insert_key_or_assign</code> or <code>emplace_*</code> &mdash; one call does one thing.</li>
+        <li><code>insert_key</code> keeps the old value, <code>insert_key_or_assign</code> overwrites, <code>emplace_*</code> constructs in place.</li>
+        <li><code>insert_key_or_assign</code> returns <code>true</code> only when it inserted, so it also answers &ldquo;was this key new?&rdquo;.</li>
+        <li><code>find_key</code> gives a <code>const_iterator</code>, so it only reads.</li>
+        <li><code>::fast_io::zu_str_btree_map</code> / <code>zu_str_swiss_map</code> save typing when the value is <code>::std::size_t</code>.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/10.associativecontainers/06.erase/" class="prev-button">&larr; Ch10.6: Erasing</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/10.associativecontainers/08.ranked/" class="next-button">Ch10.8: Ranked B-trees &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

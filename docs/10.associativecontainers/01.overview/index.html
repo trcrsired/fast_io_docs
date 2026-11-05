@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch10.1: What an Associative Container Is - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch10.1: What an Associative Container Is</h1>
+
+    <section>
+      <h2>1. The Problem It Solves</h2>
+      <p>
+        Programs spend most of their container time asking questions about a
+        <em>name</em>: is this token one I know? what value belongs to this setting?
+        have I already seen this line? With the containers from Chapter 9 you would
+        keep a <code>::fast_io::vector</code> of names and scan it for every
+        question &mdash; an <em>O(n)</em> search each time, so a million questions
+        against a million names is a million times a million comparisons.
+      </p>
+      <p>
+        An associative container replaces the scan with a <em>lookup</em>. You hand
+        it a key, it hands you the element (or tells you it is not there). The key
+        is a string, and the container decides on its own where to keep it.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io_dsal/str_btree_map.h&gt;
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	::fast_io::str_btree_map&lt;::std::size_t&gt; port_of{{"http", 80zu}, {"https", 443zu}};
+
+	println("https is known: ", port_of.contains("https"));
+	println("its value:      ", port_of.find("https")-&gt;mapped());
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+https is known: 1
+its value:      443
+</code></pre>
+      <p>
+        That is the whole idea: the string <code>"https"</code> <em>is</em> the
+        address of the element. You never compute an index, and you never search.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Set vs Map</h2>
+      <p>
+        Two shapes, and you will use both constantly:
+      </p>
+      <ul>
+        <li>
+          <strong>Set</strong> &mdash; the key <em>is</em> the element. Use it to
+          answer &ldquo;have I seen this string before?&rdquo;. There is nothing
+          else stored.
+        </li>
+        <li>
+          <strong>Map</strong> &mdash; every key carries a value of type
+          <code>M</code>. Use it to answer &ldquo;what is associated with this
+          string?&rdquo;. Iterating a map yields a pair-like element with
+          <code>key()</code> and <code>mapped()</code> (Ch10.7).
+        </li>
+      </ul>
+      <pre><code class="language-cpp">
+::fast_io::str_btree_set seen;               // set of strings
+::fast_io::str_btree_map&lt;::std::size_t&gt; age; // string -> size_t
+</code></pre>
+      <p>
+        A key appears at most once. Inserting a duplicate is not an error and does
+        not create a second element; whether it is ignored or overwrites depends on
+        which insert function you call (Ch10.2).
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Ordered or Hashed</h2>
+      <p>
+        The two families differ in the single most important way: whether the
+        elements are kept <strong>in sorted order</strong>.
+      </p>
+      <ul>
+        <li>
+          <strong>B-tree family</strong> (<code>str_btree_*</code>,
+          <code>str_ranked_btree_*</code>) keeps keys sorted. Iterating walks the
+          keys in ascending order, and you get range queries:
+          <code>lower_bound</code>, <code>upper_bound</code>,
+          <code>equal_range</code>, plus <code>front()</code>/<code>back()</code>
+          for the smallest and largest key.
+        </li>
+        <li>
+          <strong>Swiss table family</strong> (<code>str_swiss_*</code>) computes a
+          hash of the key and drops it in a table. Iteration order is whatever the
+          hash produces &mdash; stable while you do not modify the table, but
+          meaningless. In exchange you get <code>size()</code>,
+          <code>capacity()</code>, and <code>reserve()</code>, and no ordering
+          comparisons at all.
+        </li>
+      </ul>
+      <p>
+        If you need &ldquo;give me all keys between <code>"b"</code> and
+        <code>"d"</code>&rdquo;, that is a B-tree. If you only need
+        &ldquo;yes/no&rdquo; or &ldquo;value for this key&rdquo;, a Swiss table is
+        the natural fit. Ch10.10 gives a decision table.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. How the Types Are Spelled</h2>
+      <p>
+        Each container is a class template over the character type, and each has a
+        convenience alias per character type. You will almost always use the
+        aliases:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Alias</th>
+            <th>Key character type</th>
+            <th>Full type</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>str_btree_set</code></td>
+            <td><code>char</code></td>
+            <td><code>basic_str_btree_set&lt;char&gt;</code></td>
+          </tr>
+          <tr>
+            <td><code>wstr_btree_set</code></td>
+            <td><code>wchar_t</code></td>
+            <td><code>basic_str_btree_set&lt;wchar_t&gt;</code></td>
+          </tr>
+          <tr>
+            <td><code>u8str_btree_set</code></td>
+            <td><code>char8_t</code></td>
+            <td><code>basic_str_btree_set&lt;char8_t&gt;</code></td>
+          </tr>
+          <tr>
+            <td><code>u16str_btree_set</code></td>
+            <td><code>char16_t</code></td>
+            <td><code>basic_str_btree_set&lt;char16_t&gt;</code></td>
+          </tr>
+          <tr>
+            <td><code>u32str_btree_set</code></td>
+            <td><code>char32_t</code></td>
+            <td><code>basic_str_btree_set&lt;char32_t&gt;</code></td>
+          </tr>
+          <tr>
+            <td><code>zu_str_btree_map</code></td>
+            <td><code>char</code>, mapped to <code>::std::size_t</code></td>
+            <td><code>basic_str_btree_map&lt;char, ::std::size_t&gt;</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The same pattern holds for every one of the six containers &mdash;
+        <code>str_</code>, <code>wstr_</code>, <code>u8str_</code>,
+        <code>u16str_</code>, <code>u32str_</code> &mdash; and
+        <code>zu_str_swiss_map</code> is the Swiss-table counterpart of
+        <code>zu_str_btree_map</code>. The full type additionally takes the
+        allocator and, for the B-tree family, the node fan-out (default 16, must be
+        even and non-zero):
+      </p>
+      <pre><code class="language-cpp">
+// default: global allocator, 16 keys per node
+::fast_io::str_btree_set a;
+
+// explicit: 4 keys per node (smaller nodes, deeper tree)
+::fast_io::containers::basic_str_btree_set&lt;char, ::fast_io::native_global_allocator, 4&gt; b;
+
+// a thread-local-allocator variant of every container lives in ::fast_io::tlc
+::fast_io::tlc::str_swiss_set c;
+</code></pre>
+      <div class="note">
+        <strong>Why the fan-out is a template parameter.</strong> It is the only
+        tuning knob the B-tree exposes, and the right value depends on the size of
+        your keys and mapped values. Leaving it at the default is correct; change
+        it only if you have measured a reason to.
+      </div>
+    </section>
+
+    <section>
+      <h2>5. Headers</h2>
+      <p>
+        One header per container, plus <code>&lt;fast_io.h&gt;</code> if you want to
+        print:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io_dsal/str_btree_set.h&gt;        // ::fast_io::str_btree_set
+#include &lt;fast_io_dsal/str_btree_map.h&gt;        // ::fast_io::str_btree_map
+#include &lt;fast_io_dsal/str_ranked_btree_set.h&gt; // ::fast_io::str_ranked_btree_set
+#include &lt;fast_io_dsal/str_ranked_btree_map.h&gt; // ::fast_io::str_ranked_btree_map
+#include &lt;fast_io_dsal/str_swiss_set.h&gt;        // ::fast_io::str_swiss_set
+#include &lt;fast_io_dsal/str_swiss_map.h&gt;        // ::fast_io::str_swiss_map
+#include &lt;fast_io.h&gt;                          // println / print / to
+</code></pre>
+      <p>
+        Everything lives in the <code>::fast_io</code> namespace. Under the hood the
+        class templates are in <code>::fast_io::containers</code>; you only need
+        that namespace when you spell out an allocator or a fan-out.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Keys Are Owned, Lookups Are Views</h2>
+      <p>
+        This is the one design decision that shapes every line of code you will
+        write with these containers, so it is worth being explicit about it.
+      </p>
+      <p>
+        <strong>Inserting copies the key.</strong> The container allocates room for
+        the characters plus a terminating <code>'\0'</code> and copies them. It
+        does <em>not</em> keep your pointer. A string local to the loop, a temporary
+        <code>::fast_io::string</code>, a slice of a file you read earlier &mdash;
+        all of them are safe to insert and can then die:
+      </p>
+      <pre><code class="language-cpp">
+{
+	::fast_io::string temporary = ::fast_io::concat_fast_io("session-", 42);
+	s.insert_key(::fast_io::string_view(temporary.c_str(), temporary.size()));
+}	// temporary is destroyed here; the key inside s is still valid
+println(s.contains("session-42"));	// 1
+</code></pre>
+      <p>
+        <strong>Looking up takes a view.</strong> <code>contains</code>,
+        <code>find</code>, <code>erase_key</code> and friends take
+        <code>::fast_io::string_view</code> (pointer + length). No allocation
+        happens, nothing is copied, and you never wrap a lookup key in a
+        <code>::fast_io::string</code>:
+      </p>
+      <pre><code class="language-cpp">
+println(s.contains("session-42"));   // string literal -> view, no allocation
+println(s.count("nope"));            // 0
+s.erase_key("session-42");           // erase by view
+</code></pre>
+      <p>
+        <strong>Iteration hands you views too.</strong> Dereferencing an iterator of
+        a set gives a <code>::fast_io::cstring_view</code> pointing at the
+        container&rsquo;s own copy of the key &mdash; null-terminated, cheap to
+        print, and valid only while that element exists (Ch10.11).
+      </p>
+      <div class="warning">
+        <strong>String literals convert; <code>char const *</code> does not.</strong>
+        The view types have an implicit constructor from an array
+        (<code>char const (&amp;)[N]</code>), which is why
+        <code>insert_key("alpha")</code> compiles. A plain pointer variable has no
+        such constructor:
+        <pre><code class="language-cpp">
+char const *p = "alpha";
+s.insert_key(p);                               // error: no conversion
+s.insert_key(::fast_io::mnp::os_c_str(p));     // fine: null-terminated C string
+</code></pre>
+        The same is true for printing: <code>println(p)</code> does not compile,
+        <code>println(::fast_io::mnp::os_c_str(p))</code> does. This is deliberate
+        &mdash; a bare pointer does not say how long the string is, and two
+        different wrappers exist for the two different answers
+        (<code>os_c_str</code> for null-terminated, <code>os_str_known_size_without_null_terminated</code>
+        for a length you already know).
+      </div>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>Associative containers find elements by key instead of by position.</li>
+        <li>A <strong>set</strong> stores keys; a <strong>map</strong> stores keys with values, accessed through <code>key()</code> / <code>mapped()</code>.</li>
+        <li>B-tree (<code>str_btree_*</code>) keeps keys sorted, so it supports range queries and <code>front()</code>/<code>back()</code>.</li>
+        <li>Swiss table (<code>str_swiss_*</code>) hashes keys, so it has <code>size()</code>, <code>capacity()</code>, <code>reserve()</code>, but no order.</li>
+        <li>Ranked B-tree (<code>str_ranked_btree_*</code>) is a B-tree that also tracks subtree sizes (Ch10.8).</li>
+        <li>Inserting copies the key into the container; looking up only passes a view, so lookups never allocate.</li>
+        <li>Keys come in <code>str_</code> / <code>wstr_</code> / <code>u8str_</code> / <code>u16str_</code> / <code>u32str_</code> variants for every container.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/10.associativecontainers/" class="prev-button">&larr; Ch10: Associative Containers</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/10.associativecontainers/02.create/" class="next-button">Ch10.2: Creating and Inserting &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

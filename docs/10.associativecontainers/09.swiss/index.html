@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch10.9: Swiss Tables: Unordered and Resizable - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch10.9: Swiss Tables: Unordered and Resizable</h1>
+
+    <section>
+      <h2>1. What Makes It Different</h2>
+      <p>
+        <code>str_swiss_set</code> and <code>str_swiss_map</code> are hash tables.
+        They compute a hash of the key and store the element in a slot chosen by
+        that hash, instead of keeping the keys sorted. Three consequences shape how
+        you use them:
+      </p>
+      <ul>
+        <li><strong>No order.</strong> Iteration order is determined by the hashes. It is reproducible for the same input, but it is not sorted and it is not insertion order. Never build logic on it.</li>
+        <li><strong>A size that is known.</strong> <code>size()</code> and <code>capacity()</code> are exact and cheap, and <code>reserve()</code> lets you size the table up front.</li>
+        <li><strong>Only key operations.</strong> <code>contains</code>, <code>find_key</code>, <code>insert_key</code>, <code>erase_key</code>. No <code>lower_bound</code>, no <code>front()</code>/<code>back()</code>: those need an order that a hash table does not have.</li>
+      </ul>
+      <pre><code class="language-cpp">
+#include &lt;fast_io_dsal/str_swiss_set.h&gt;
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	::fast_io::str_swiss_set s;
+	for (auto k : {::fast_io::cstring_view("hello"), ::fast_io::cstring_view("world"),
+				   ::fast_io::cstring_view("foo")})
+	{
+		s.insert_key(k);
+	}
+
+	println("size: ", s.size(), " capacity: ", s.capacity());
+	println("contains foo: ", s.contains("foo"));
+	for (auto const &amp;e : s) { println("  ", e); }
+}
+</code></pre>
+      <pre><code class="language-text">
+size: 3 capacity: 15
+contains foo: 1
+  world
+  hello
+  foo
+</code></pre>
+      <p>
+        Note the iteration order: not sorted, and not the insertion order either.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. <code>size()</code>, <code>capacity()</code>, <code>reserve()</code></h2>
+      <p>
+        A hash table has to know how full it is &mdash; that is how it decides to
+        grow. So the count is already there, and you get it for free:
+      </p>
+      <pre><code class="language-cpp">
+println(s.size());       // elements currently stored
+println(s.capacity());   // slots currently allocated
+println(s.is_empty());   // size() == 0
+</code></pre>
+      <p>
+        <code>capacity()</code> is not the same number as <code>size()</code>: a
+        table keeps a fraction of its slots free so that probing stays short.
+        When the table fills up it grows and rehashes every key into a bigger table.
+      </p>
+      <p>
+        If you know how many keys are coming, <code>reserve(n)</code> grows the table
+        once, up front, so the inserts that follow do not trigger repeated growth:
+      </p>
+      <pre><code class="language-cpp">
+println(s.capacity());   // 15
+s.reserve(100zu);
+println(s.capacity());   // 127 — big enough for 100 keys
+println(s.size());       // 3 — reserve never changes the elements
+</code></pre>
+      <pre><code class="language-text">
+15
+127
+3
+</code></pre>
+      <div class="note">
+        <strong>Reserve before a bulk load.</strong> Reading a file of unknown size
+        is the case where you cannot reserve &mdash; but when you do know (a header
+        says &ldquo;1000 records&rdquo;, or you already counted the lines),
+        <code>reserve</code> turns a chain of rehash-and-copy steps into one
+        allocation.
+      </div>
+    </section>
+
+    <section>
+      <h2>3. Insert and Erase</h2>
+      <p>
+        The insert functions return a small struct instead of a bare <code>bool</code>,
+        because a hash table knows the slot it touched and hands you the iterator:
+      </p>
+      <pre><code class="language-cpp">
+auto r{s.insert_key("alpha")};
+println(r.inserted);      // 1 — the key was new
+println(*r.position);     // alpha — iterator to the element
+
+auto dup{s.insert_key("alpha")};
+println(dup.inserted);    // 0 — already present, nothing changed
+</code></pre>
+      <p>
+        Erasing is the same <code>erase_key</code> / <code>erase(it)</code> /
+        <code>erase(first, last)</code> family as the B-tree containers, and the
+        erase-while-iterating loop has the same shape (Ch10.6):
+      </p>
+      <pre><code class="language-cpp">
+for (auto it{s.cbegin()}; it != s.cend();)
+{
+	::fast_io::string_view k{*it};
+	if (k.starts_with(::fast_io::string_view("w")))
+	{
+		it = s.erase(it);   // returns the next occupied slot
+	}
+	else
+	{
+		++it;
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+size after erase: 2
+  foo
+  hello
+</code></pre>
+      <p>
+        Erasing from a hash table can move an element into the hole it leaves
+        behind, so any iterator or key view you kept from before the erase is gone
+        (Ch10.11).
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Reading and Writing Map Values</h2>
+      <p>
+        A read is <code>find_key</code>; a write is an assign function. Two calls, two
+        meanings:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::str_swiss_map&lt;::std::size_t&gt; m;
+m.emplace_key("a", 1zu);                       // insert if new
+m.insert_key_or_assign("a", 100zu);            // replace either way
+println(m.find_key("a")-&gt;mapped());            // 100
+println(m.size());                             // 1
+</code></pre>
+      <p>
+        To update a value in place rather than replace it, iterate with a non-const
+        map &mdash; the non-const iterator exposes a writable <code>mapped()</code>:
+      </p>
+      <pre><code class="language-cpp">
+for (auto &amp;e : m)
+{
+	e.mapped() += 1zu;
+}
+println(m.find_key("a")-&gt;mapped());   // 101
+</code></pre>
+      <p>
+        <code>find_key</code> returns a <code>const_iterator</code> even on a
+        non-const map, so <code>m.find_key(k)-&gt;mapped()</code> reads but does not
+        write. That is the whole rule: lookups read, and every mutation is one of the
+        insert/assign functions or an iteration.
+      </p>
+      <p>
+        The hasher is part of the type (<code>::fast_io::native_swiss_hasher</code> by
+        default). You rarely need to name it; if you do, it is the third template
+        parameter, and <code>hash_function()</code> returns a copy of it.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. When a Swiss Table Is the Right Choice</h2>
+      <p>
+        Reach for the Swiss table when the answer to every question is
+        &ldquo;this exact key&rdquo;:
+      </p>
+      <ul>
+        <li>Membership: <em>is this token in the table?</em></li>
+        <li>Value lookup: <em>what record belongs to this name?</em></li>
+        <li>Deduplication while streaming input.</li>
+        <li>Caches and indexes keyed by string.</li>
+      </ul>
+      <p>
+        And stay with a B-tree when the question is about <em>ranges</em> or
+        <em>order</em>: &ldquo;all keys with this prefix&rdquo;, &ldquo;the
+        smallest&rdquo;, &ldquo;the next one after this&rdquo;. A hash table cannot
+        answer any of those without scanning everything.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>str_swiss_set</code> / <code>str_swiss_map</code> are hash tables: exact-key operations only, no order.</li>
+        <li>Iteration order is arbitrary but reproducible; never depend on it.</li>
+        <li><code>size()</code>, <code>capacity()</code> and <code>is_empty()</code> are cheap; <code>reserve(n)</code> sizes the table once so a bulk insert does not rehash repeatedly.</li>
+        <li><code>insert_key</code> returns <code>{position, inserted}</code>; <code>inserted</code> tells you whether the key was new.</li>
+        <li><code>erase_key</code>, <code>erase(it)</code>, <code>erase(first, last)</code> behave as in the B-tree family.</li>
+        <li>Writes go through <code>insert_key_or_assign</code> / <code>emplace_key</code>, or through a non-const iterator; reads go through <code>find_key</code>.</li>
+        <li><code>find_key</code> gives a <code>const_iterator</code>: read-only.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/10.associativecontainers/08.ranked/" class="prev-button">&larr; Ch10.8: Ranked B-trees</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/10.associativecontainers/10.choose/" class="next-button">Ch10.10: Choosing a Container &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch6.16: noexcept or throws - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch6.16: Every Function Is <code>noexcept</code> or <code>throws</code></h1>
+
+    <div class="warning">
+      <strong>IMPORTANT &mdash; read this together with Ch3.16.</strong>
+      In this tutorial a function is never left without an error contract. Every function you
+      write &mdash; free function, member function, constructor, lambda, virtual override
+      &mdash; is declared either <code>noexcept</code> (it cannot fail) or <code>throws</code>
+      (it can report an error to its caller). The single exception in the whole language is
+      <code>int main()</code>, which has no caller to report to.
+    </div>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        In <em>Ch3.16</em> you learned to report an error with <code>throw throws</code> and to
+        handle it with <code>catch throws</code>. Both of those statements are only legal
+        inside a function that has been marked, and this chapter is about that mark: the
+        <strong>exception specification</strong>, which in herbceptions is a two-valued
+        contract.
+      </p>
+      <pre><code class="language-cpp">
+int  add(int a, int b) noexcept;   // cannot fail
+int  div(int a, int b) throws;     // can fail: caller must handle or propagate
+</code></pre>
+      <p>
+        There is no third option, and there is no "I did not think about it" option. The
+        compiler refuses to let a function stay unspecified in a way that leaks failures: a
+        call to a <code>throws</code> function is only allowed if the caller either handles it
+        or is itself <code>throws</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. Why a Function Must Say</h2>
+      <p>
+        Consider the caller. It has two questions about every call:
+      </p>
+      <ul>
+        <li><strong>Can this fail?</strong> If yes, I must handle it or propagate it.</li>
+        <li><strong>Can I run it in a context that must not fail?</strong> For example inside a destructor, a thread entry point, a signal-like callback, or a function I already promised is <code>noexcept</code>.</li>
+      </ul>
+      <p>
+        A function declaration answers both, at compile time. That is the entire design: the
+        error contract is part of the <em>type</em>, so the compiler can verify the whole
+        call graph without any documentation, and without any runtime cost.
+      </p>
+      <ul>
+        <li>
+          <code>noexcept</code> &mdash; "I cannot fail." If you write <code>throw throws</code>
+          inside one, or call a <code>throws</code> function without handling it, the program
+          does not compile.
+        </li>
+        <li>
+          <code>throws</code> &mdash; "I can fail, and the error travels back to you."
+        </li>
+      </ul>
+      <div class="note">
+        <strong>Note:</strong> under legacy C++ exceptions, functions are allowed to omit the
+        spec and "<code>throw</code> anything". That freedom is exactly what makes legacy
+        exceptions unanalysable: any function below you in the call graph can fail, so every
+        function must be written as if it can. Herbceptions remove the freedom, and with it
+        the problem.
+      </div>
+    </section>
+
+    <section>
+      <h2>2. <code>noexcept</code>: I Cannot Fail</h2>
+      <p>
+        A <code>noexcept</code> function promises that it has nothing to report. The promise is
+        checked by the compiler:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int square(int x) noexcept
+{
+    return x * x;
+}
+
+int bad(int x) noexcept
+{
+    throw throws ::std::errc::invalid_argument;   // ERROR: noexcept cannot report
+}
+
+int main()
+{
+    println(square(7));
+}
+</code></pre>
+      <p>
+        The compiler says:
+      </p>
+      <pre><code>
+error: 'throw throws' is only allowed inside a function declared 'throws' or 'return_failure{...}'
+</code></pre>
+      <p>
+        The same happens for an unhandled call:
+      </p>
+      <pre><code class="language-cpp">
+::std::uint_least64_t parse_port(int raw) throws;   // can fail
+
+void forward_port(int raw) noexcept
+{
+    println(parse_port(raw));   // ERROR: forward_port promised it cannot fail
+}
+</code></pre>
+      <pre><code>
+error: call to 'throws' function in a non-'throws' function must be handled by an
+enclosing 'try { } catch throws' block, or mark the calling function as 'throws' so
+herbceptions can propagate
+</code></pre>
+      <p>
+        <code>noexcept</code> functions are everywhere you need a guaranteed-infallible piece
+        of code: comparison operators, size queries, bit tricks, validation helpers, the body
+        of a destructor, and any callback whose API cannot deliver an error.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>throws</code>: I Can Fail, and You Will Know</h2>
+      <p>
+        A <code>throws</code> function reports by <code>throw throws</code>, and the error is
+        handed to the caller as a <code>::std::error</code> (see <em>Ch3.16</em> for every
+        member function of that value). Nothing about the call site changes: no
+        <code>out</code> parameter, no error-code return, no <code>errno</code> to check.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+::std::uint_least64_t parse_port(int raw) throws
+{
+    if (raw &lt;= 0 || raw &gt; 65535)
+    {
+        throw throws ::std::errc::value_too_large;
+    }
+    return static_cast&lt;::std::uint_least64_t&gt;(raw);
+}
+
+void print_port(int raw) throws          // propagates: no handler here
+{
+    println("port: ", parse_port(raw));
+}
+
+int main()
+{
+    try
+    {
+        print_port(8080);
+        print_port(99999);              // fails here
+    }
+    catch throws (::std::error e)
+    {
+        perrln(e);
+        return 1;
+    }
+}
+</code></pre>
+      <p>
+        Output:
+      </p>
+      <pre><code>
+port: 8080
+[posix](75)Value too large for defined data type
+</code></pre>
+      <p>
+        Notice what did <em>not</em> have to happen: <code>parse_port</code> did not return a
+        sentinel, <code>print_port</code> did not test one, and <code>main</code> did not
+        inspect an error code after each call. The failure travelled straight from the place
+        that detected it to the place that decided to report it.
+      </p>
+      <p>
+        A <code>throws</code> function is the right default for anything that touches the
+        outside world: opening files, allocating, reading, writing, parsing, connecting. That
+        is why <code>fast_io</code> marks them all that way.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Handling Inside a <code>noexcept</code> Function</h2>
+      <p>
+        A <code>noexcept</code> function may still <em>call</em> fallible code &mdash; it just
+        has to absorb the failure itself. There are two honest ways:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int read_count(int n) throws
+{
+    if (n &lt; 0)
+    {
+        throw throws ::std::errc::invalid_argument;
+    }
+    return n * 2;
+}
+
+// 1. recover: turn the failure into a value the caller understands
+int read_count_or_zero(int n) noexcept
+{
+    try
+    {
+        return read_count(n);
+    }
+    catch throws (::std::error)
+    {
+        return 0;
+    }
+}
+
+// 2. ignore: the failure genuinely cannot be acted on here
+void try_log(int n) noexcept
+{
+    try
+    {
+        println("count: ", read_count(n));
+    }
+    catch throws (::std::error)
+    {
+    }
+}
+
+int main()
+{
+    println(read_count_or_zero(-1), " ", read_count_or_zero(21));
+    try_log(-5);                        // logs nothing, does not crash
+}
+</code></pre>
+      <p>
+        The second form &mdash; the <em>empty named-less handler</em>
+        <code>catch throws (::std::error) { }</code> &mdash; is the only sanctioned way to
+        swallow a herbception, and it is only correct where reporting is impossible or
+        pointless. Never swallow to "keep going" in a function that could report.
+      </p>
+      <div class="warning">
+        <strong>Do not swallow what you cannot see.</strong> If the handler body prints the
+        error (<code>perrln(e)</code>), the handler itself can fail &mdash; printing is I/O
+        &mdash; so the enclosing function cannot be <code>noexcept</code>. Reporting handlers
+        belong in <code>throws</code> functions (or in <code>main</code>), and that is why the
+        example above uses the empty form.
+      </div>
+    </section>
+
+    <section>
+      <h2>5. Constructors and Destructors</h2>
+      <p>
+        Constructors follow the same rule: if construction can fail, the constructor is
+        <code>throws</code>. A type that owns an OS resource is the classic case &mdash;
+        opening a file really can fail, so the object cannot exist in a half-open state:
+      </p>
+      <pre><code class="language-cpp">
+struct resource
+{
+    int handle;
+
+    resource(int raw) throws                      // construction may fail
+    {
+        if (raw &lt; 0)
+        {
+            throw throws ::std::errc::bad_file_descriptor;
+        }
+        handle = raw;
+    }
+
+    ~resource()                                   // implicitly noexcept
+    {
+    }
+};
+</code></pre>
+      <p>
+        Destructors are <strong>implicitly <code>noexcept</code></strong> &mdash; make it
+        explicit if you like (<code>~resource() noexcept</code>), but you cannot opt out. This
+        is deliberate: a destructor runs while the program is already leaving a scope, and
+        there is nobody to report to. Consequently a destructor may not call an unhandled
+        <code>throws</code> function:
+      </p>
+      <pre><code class="language-cpp">
+struct writer
+{
+    ~writer()
+    {
+        println("bye");      // ERROR: destructors cannot report failures
+    }
+};
+</code></pre>
+      <p>
+        When a cleanup step can fail and the failure matters, do it <em>before</em> the object
+        dies, in a <code>throws</code> function: call <code>flush()</code> / <code>close()</code>
+        explicitly and check it there. Letting the destructor do best-effort cleanup is fine;
+        relying on the destructor for error detection is not.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. The Specification Is Part of the Type</h2>
+      <p>
+        Because the compiler must be able to reason about it, the specification is part of the
+        function type, exactly like the parameter types. Four consequences you will meet in
+        practice:
+      </p>
+
+      <h3>You cannot overload on it</h3>
+      <pre><code class="language-cpp">
+int f(int a) noexcept;
+int f(int a) throws;      // ERROR
+</code></pre>
+      <pre><code>
+error: exception specification in declaration does not match previous declaration
+</code></pre>
+
+      <h3>Function pointers carry it</h3>
+      <pre><code class="language-cpp">
+int pure(int a) noexcept { return a + 1; }
+int risky(int a) throws  { return a + 1; }
+
+int (*p1)(int) noexcept = pure;      // ok
+int (*p2)(int) throws   = risky;     // ok
+int (*p3)(int) throws   = pure;      // ERROR: different types
+</code></pre>
+      <pre><code>
+error: cannot initialize a variable of type 'int (*)(int) throws' with an lvalue of
+type 'int (int) noexcept': different exception specifications
+</code></pre>
+      <p>
+        There is no implicit conversion in either direction: a caller that expects a
+        <code>throws</code> function must not silently receive a pointer whose contract it
+        cannot rely on, and vice versa.
+      </p>
+
+      <h3>Virtual overrides must match</h3>
+      <pre><code class="language-cpp">
+struct base
+{
+    virtual void f() noexcept {}
+};
+
+struct derived : base
+{
+    void f() throws override {}      // ERROR
+};
+</code></pre>
+      <pre><code>
+error: overriding function has a different herbceptions ('throws'/'return_failure{...}')
+specifier than the base version, which changes the calling convention
+</code></pre>
+
+      <h3>Lambdas and member functions take the spec too</h3>
+      <pre><code class="language-cpp">
+struct point
+{
+    int x, y;
+
+    int sum() const noexcept { return x + y; }
+};
+
+int main()
+{
+    auto pure_lambda  = []() noexcept { return 1; };
+    auto risky_lambda = []() throws   { return 2; };
+    point p{1, 2};
+    ::fast_io::println(pure_lambda(), risky_lambda(), p.sum(), "\n");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>7. Conditional Specifications (for Templates)</h2>
+      <p>
+        Inside a template you cannot always say the answer up front: whether your function can
+        fail depends on the operations on <code>T</code>. Both forms accept a
+        <code>bool</code> constant expression, and <code>noexcept(expression)</code> answers
+        "would that expression's call be unable to fail?":
+      </p>
+      <pre><code class="language-cpp">
+int pure(int a) noexcept { return a + 1; }
+int risky(int a) throws  { return a; }
+
+// 'noexcept(...)' is itself a compile-time bool
+int cond1(int a) noexcept(noexcept(pure(a)))       { return pure(a); }
+int cond2(int a) throws(!noexcept(risky(a)))       { return risky(a); }
+</code></pre>
+      <p>
+        <code>noexcept(expression)</code> is the tool you will use constantly when reading
+        <code>fast_io</code>'s own headers: every operation there is annotated with a
+        conditional specification derived from the operations it performs, so that
+        <code>println</code> is <code>throws</code> for a real file and stays
+        <code>noexcept</code> for a sink that cannot fail.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+// ask the library, do not guess
+static_assert(!noexcept(println(1)));                                // I/O can fail
+static_assert(!noexcept(scan(::fast_io::c_stdin(),
+                             ::std::declval&lt;int&amp;&gt;())));             // input can fail
+static_assert(!noexcept(::fast_io::to&lt;::std::uint_least64_t&gt>("12"))); // parsing can fail
+static_assert(noexcept(::fast_io::cstr_len("abc")));                 // pure computation
+</code></pre>
+    </section>
+
+    <section>
+      <h2>8. <code>main</code> Is the One Exception</h2>
+      <p>
+        <code>main</code> has no caller, so there is nobody to report to. The language
+        therefore forbids a specification on it:
+      </p>
+      <pre><code class="language-cpp">
+int main() throws { }    // ERROR
+</code></pre>
+      <pre><code>
+error: 'main' cannot be declared with a herbceptions ('throws'/'return_failure{...}')
+exception specification; 'main' has no caller able to consume an error result, and
+uncaught errors in 'main' trap instead
+</code></pre>
+      <p>
+        So <code>main</code> is where the error chain ends: it calls <code>throws</code>
+        functions inside a <code>try</code> block, prints what went wrong, and returns an exit
+        code. That is the shape you already saw in <em>Ch2.14</em>:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    try
+    {
+        ::fast_io::println("work\n");
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
+}
+</code></pre>
+      <div class="note">
+        <strong>Corollary:</strong> <code>main</code> may also leave a call unhandled in
+        practice (the compiler treats <code>main</code> as able to propagate), but then a
+        failure traps with no message. Always catch in <code>main</code>; a trapped process
+        with no diagnostic is a bug report you have to write yourself.
+      </div>
+    </section>
+
+    <section>
+      <h2>9. The Rule in One Table</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Situation</th>
+            <th>What to declare</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>pure computation: arithmetic, comparisons, accessors, bit tricks</td>
+            <td><code>noexcept</code></td>
+          </tr>
+          <tr>
+            <td>anything that can touch a resource: file, socket, allocation, parse, I/O</td>
+            <td><code>throws</code></td>
+          </tr>
+          <tr>
+            <td>a helper that reports the failure further up</td>
+            <td><code>throws</code> (use <code>throw throws;</code> inside handlers)</td>
+          </tr>
+          <tr>
+            <td>a function that must not fail but calls fallible code</td>
+            <td><code>noexcept</code> + a local handler (recover, or the empty form)</td>
+          </tr>
+          <tr>
+            <td>destructors</td>
+            <td>
+              implicitly <code>noexcept</code>; do explicit <code>flush()</code>/<code>close()</code>
+              in a <code>throws</code> function when the failure matters
+            </td>
+          </tr>
+          <tr>
+            <td>constructors that acquire a resource</td>
+            <td><code>throws</code></td>
+          </tr>
+          <tr>
+            <td>generic code</td>
+            <td><code>noexcept(...)</code>/<code>throws(...)</code> conditional spec</td>
+          </tr>
+          <tr>
+            <td><code>int main()</code></td>
+            <td>no spec; catch and report</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <strong>Every function except <code>int main</code> is either
+          <code>noexcept</code> or <code>throws</code>.</strong> Leave nothing unspecified.
+        </li>
+        <li>
+          <code>noexcept</code> means "cannot fail", and the compiler enforces it: no
+          <code>throw throws</code> inside, and no unhandled call to a <code>throws</code>
+          function.
+        </li>
+        <li>
+          <code>throws</code> means "can fail"; the caller handles it with
+          <code>catch throws</code> or is <code>throws</code> itself and propagates.
+        </li>
+        <li>
+          A <code>noexcept</code> function that must call fallible code handles it locally:
+          recover with a value, or use the empty handler
+          <code>catch throws (::std::error) { }</code> when nothing can be done.
+        </li>
+        <li>
+          Destructors are implicitly <code>noexcept</code>; constructors that acquire
+          resources are <code>throws</code>.
+        </li>
+        <li>
+          The specification is part of the function type: it cannot be overloaded on, it
+          travels with function pointers, virtual overrides must match it exactly, and lambdas
+          and member functions carry it.
+        </li>
+        <li>
+          Use <code>noexcept(expression)</code> to ask the compiler (and the library) whether
+          a call can fail; <code>fast_io</code> declares all of its I/O as
+          <code>throws</code>.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/06.function/15.bestpractices/" class="prev-button">&larr; Ch6.15: Best Practices</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/07.compiletimeprogramming/" class="next-button">Ch7: Compile Time Programming &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

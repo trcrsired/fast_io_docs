@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch10.6: Erasing - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch10.6: Erasing</h1>
+
+    <section>
+      <h2>1. Erasing by Key</h2>
+      <p>
+        <code>erase_key(key)</code> removes the element whose key you name and
+        returns how many elements it removed &mdash; <code>1</code> or
+        <code>0</code>:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io_dsal/str_btree_set.h&gt;
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	::fast_io::str_btree_set s;
+	s.insert_key("alpha");
+	s.insert_key("beta");
+
+	println(s.erase_key("alpha"));   // 1: removed
+	println(s.erase_key("alpha"));   // 0: nothing to remove
+	println(s.erase_key("nope"));    // 0
+}
+</code></pre>
+      <pre><code class="language-text">
+1
+0
+0
+</code></pre>
+      <p>
+        Erasing a key that is not there is <strong>not</strong> an error. If you
+        need to know whether it was there, look at the return value, or call
+        <code>contains</code> first when the branch is easier to read that way. The
+        removal itself never needs an iterator and never allocates.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Erasing by Iterator</h2>
+      <p>
+        <code>erase(it)</code> removes the element the iterator points at and
+        returns an iterator to the <strong>next</strong> element &mdash; the element
+        that took the removed one&rsquo;s place in the order:
+      </p>
+      <pre><code class="language-cpp">
+auto it{s.find("beta")};
+it = s.erase(it);          // it now points at the element after "beta"
+if (it != s.cend())
+{
+	println("next: ", *it);
+}
+</code></pre>
+      <pre><code class="language-text">
+next: c
+</code></pre>
+      <p>
+        Returning the next position is what makes the erase-while-iterating loop
+        safe without incrementing anything by hand. The loop below removes every
+        key that starts with <code>"tmp"</code>:
+      </p>
+      <pre><code class="language-cpp">
+for (auto it{s.cbegin()}; it != s.cend();)
+{
+	::fast_io::string_view k{*it};
+	if (k.starts_with(::fast_io::string_view("tmp")))
+	{
+		it = s.erase(it);   // already advanced
+	}
+	else
+	{
+		++it;
+	}
+}
+</code></pre>
+      <div class="warning">
+        <strong>Never <code>++it</code> after <code>erase(it)</code>.</strong>
+        The iterator you passed in is invalid the moment the element dies; only the
+        returned iterator is usable. Writing
+        <code>s.erase(it); ++it;</code> is a use-after-free that will not be caught
+        for you.
+      </div>
+
+      <h3>Erasing a range</h3>
+      <p>
+        <code>erase(first, last)</code> removes the left-inclusive range
+        <code>[first, last)</code> &mdash; every element from <code>first</code> up
+        to, but not including, <code>last</code> &mdash; and returns an iterator to
+        the element <code>last</code> pointed at:
+      </p>
+      <pre><code class="language-cpp">
+auto first{s.find("c")};
+auto last{s.find("d")};
+auto after{s.erase(first, last)};   // removes "c" only
+println("next: ", *after);          // d
+</code></pre>
+      <pre><code class="language-text">
+next: d
+</code></pre>
+      <p>
+        With <code>last == cend()</code> everything from <code>first</code> to the
+        end is removed, and the returned iterator is <code>cend()</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Erasing Everything</h2>
+      <pre><code class="language-cpp">
+s.clear();                  // remove all elements, keep the object usable
+println(s.is_empty());      // 1
+s.insert_key("again");      // fine
+
+s.clear_destroy();          // remove all elements and release the container's storage
+</code></pre>
+      <p>
+        Both are <code>noexcept</code> and both are safe on an empty container.
+        After <code>clear()</code> the following inserts behave exactly as in a fresh
+        container; <code>clear_destroy()</code> additionally drops whatever the
+        container had allocated for its own bookkeeping, which is what you want
+        before letting a large container sit idle.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. One Statement, One Mutation</h2>
+      <p>
+        C++ does not specify the order in which function arguments are evaluated.
+        That turns this line into a bug:
+      </p>
+      <pre><code class="language-cpp">
+println(s.erase_key("beta"), s.size());   // WRONG: size() may run before the erase
+</code></pre>
+      <p>
+        Whether you get the size before or after the removal depends on the
+        compiler. Split mutation and inspection into separate statements and the
+        question disappears:
+      </p>
+      <pre><code class="language-cpp">
+auto n{s.erase_key("beta")};
+println("removed ", n, ", size now ", s.size());
+</code></pre>
+      <div class="note">
+        <strong>This is not specific to containers.</strong> Any call that both
+        mutates and reports state runs into the same problem. The style rule
+        &ldquo;one statement, one mutation&rdquo; costs nothing and removes the
+        whole category.
+      </div>
+    </section>
+
+    <section>
+      <h2>5. What Erasing Invalidates</h2>
+      <p>
+        Erasing destroys an element, so everything that referred to <em>that</em>
+        element is dead: its iterator, and any key view or mapped reference you took
+        from it. Views taken from <em>other</em> elements are not affected by an
+        erase in the B-tree family, because inserting and erasing moves whole
+        subtrees rather than shuffling elements around.
+      </p>
+      <p>
+        In the Swiss-table family, an erase can move an element into the hole it
+        leaves behind, so treat any reference into the table as gone once you modify
+        it. The rule that always holds, for all six containers:
+      </p>
+      <ul>
+        <li>An iterator, key view or mapped reference is valid until that element is erased, or until the container is cleared, moved from, or (Swiss) grows/reshapes.</li>
+        <li>After <code>erase</code>, only the returned iterator is known-good.</li>
+        <li>Re-look the key up if you need an iterator again &mdash; lookups are cheap.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>erase_key(key)</code> removes by key and returns 0 or 1; removing a missing key is harmless.</li>
+        <li><code>erase(it)</code> removes by position and returns the iterator to the next element.</li>
+        <li><code>erase(first, last)</code> removes a left-inclusive range and returns the position of <code>last</code>.</li>
+        <li>Erase-while-iterating: assign the result back, never increment afterwards.</li>
+        <li><code>clear()</code> and <code>clear_destroy()</code> are <code>noexcept</code> and can be called at any time.</li>
+        <li>Never mix a mutation and a query in one statement &mdash; argument evaluation order is unspecified.</li>
+        <li>After an erase, only the returned iterator is valid; views into erased elements are gone.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/10.associativecontainers/05.iterate/" class="prev-button">&larr; Ch10.5: Iterating</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/10.associativecontainers/07.maps/" class="next-button">Ch10.7: Maps &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

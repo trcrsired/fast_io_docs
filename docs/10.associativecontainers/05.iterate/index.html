@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch10.5: Iterating - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch10.5: Iterating</h1>
+
+    <section>
+      <h2>1. The Range-For, and What You Get Out</h2>
+      <p>
+        Iteration is a range-for over <code>begin()</code>/<code>end()</code>, same
+        as every other container. What an element <em>is</em> differs between sets
+        and maps:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Container</th>
+            <th><code>*it</code> gives</th>
+            <th>Read a key</th>
+            <th>Read/write the value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>str_btree_set</code>, <code>str_ranked_btree_set</code></td>
+            <td><code>::fast_io::cstring_view</code></td>
+            <td>the value itself</td>
+            <td>there is no value</td>
+          </tr>
+          <tr>
+            <td><code>str_swiss_set</code></td>
+            <td><code>::fast_io::cstring_view</code></td>
+            <td>the value itself</td>
+            <td>there is no value</td>
+          </tr>
+          <tr>
+            <td><code>str_btree_map&lt;M&gt;</code>, <code>str_ranked_btree_map&lt;M&gt;</code></td>
+            <td>a proxy with <code>key()</code> / <code>mapped()</code></td>
+            <td><code>e.key()</code></td>
+            <td><code>e.mapped()</code> (writable)</td>
+          </tr>
+          <tr>
+            <td><code>str_swiss_map&lt;M&gt;</code></td>
+            <td>a reference to a key/value pair</td>
+            <td><code>e.key()</code></td>
+            <td><code>e.mapped()</code> (writable via non-const iterator)</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+#include &lt;fast_io_dsal/str_btree_map.h&gt;
+#include &lt;fast_io.h&gt;
+#include &lt;ranges&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	::fast_io::str_btree_map&lt;::std::size_t&gt; m{{"c", 3zu}, {"a", 1zu}, {"b", 2zu}};
+
+	for (auto const &e : m)
+	{
+		println("  ", e.key(), " = ", e.mapped());
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+  a = 1
+  b = 2
+  c = 3
+</code></pre>
+      <div class="warning">
+        <strong>There is no <code>first</code> and <code>second</code>.</strong>
+        A map element is not a <code>pair</code>. It has
+        <code>key()</code> and <code>mapped()</code>, and that is all. Written
+        <code>e.key()</code>, the code says what it reads; written
+        <code>e.first</code>, you would have to remember which half is which.
+      </div>
+    </section>
+
+    <section>
+      <h2>2. Order</h2>
+      <p>
+        The B-tree family iterates in <strong>ascending key order</strong>. Always.
+        That is a guarantee you can rely on, not an implementation detail: after
+        inserting <code>"c"</code>, <code>"a"</code>, <code>"b"</code> in that order,
+        the loop above prints <code>a</code>, <code>b</code>, <code>c</code>.
+      </p>
+      <p>
+        The Swiss-table family makes <strong>no</strong> ordering promise. The order
+        is determined by the hash of the keys, so it is reproducible for the same
+        input &mdash; but it is not sorted, and it changes when the table grows or
+        when you erase. Never write code that depends on the sequence:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::str_swiss_set s;
+s.insert_key("hello");
+s.insert_key("world");
+s.insert_key("foo");
+for (auto const &e : s) { println(e); }   // some order; not sorted
+</code></pre>
+      <p>
+        If you need a sorted result out of a Swiss table, copy the keys into a vector
+        and sort that; do not hope for iteration order.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Reverse Iteration</h2>
+      <p>
+        To walk the elements backwards, wrap the container in
+        <code>::std::ranges::reverse_view</code>. It is a view, so nothing is
+        copied, and it works on all six containers:
+      </p>
+      <pre><code class="language-cpp">
+for (auto const &amp;e : ::std::ranges::reverse_view(m))
+{
+	println("  ", e.key(), " = ", e.mapped());
+}
+</code></pre>
+      <pre><code class="language-text">
+  c = 3
+  b = 2
+  a = 1
+</code></pre>
+      <p>
+        For a B-tree that means descending key order. For a Swiss table it is just
+        &ldquo;the same arbitrary order, backwards&rdquo;.
+      </p>
+      <p>
+        The same view works on sets, where the element is the key itself:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::str_btree_set s{{::fast_io::string_view("a"), ::fast_io::string_view("b")}};
+for (auto const &amp;e : ::std::ranges::reverse_view(s))
+{
+	println("  ", e);
+}
+</code></pre>
+      <pre><code class="language-text">
+  b
+  a
+</code></pre>
+      <div class="note">
+        <strong>Prefer the view over calling <code>rbegin()</code> by hand.</strong>
+        A loop written as
+        <code>for (auto it{m.crbegin()}; it != m.crend(); ++it)</code> also works,
+        but the view says &ldquo;iterate this backwards&rdquo; at the point where the
+        range is used and cannot get the <code>crend()</code> comparison subtly
+        wrong. Use <code>crbegin()</code>/<code>crend()</code> when you want to spell
+        the iterators out: they are the const pair and therefore work on
+        <code>const</code> and non-<code>const</code> containers alike.
+      </div>
+    </section>
+
+    <section>
+      <h2>4. First and Last Element</h2>
+      <p>
+        The B-tree family has <code>front()</code> and <code>back()</code> for the
+        smallest and largest key, in constant time &mdash; no iteration needed:
+      </p>
+      <pre><code class="language-cpp">
+println("first key: ", m.front().key());
+println("last key:  ", m.back().key());
+</code></pre>
+      <p>
+        For a set they return the key view directly:
+        <code>println(s.front());</code>. Both are checked: calling them on an empty
+        container is a contract violation, which terminates the program (or throws
+        <code>::std::errc::invalid_argument</code> if you opted into throwing
+        allocators &mdash; Ch10.11).
+      </p>
+      <p>
+        The Swiss table has no <code>front()</code>/<code>back()</code>, since
+        &ldquo;first&rdquo; and &ldquo;last&rdquo; mean nothing without an order. Its
+        <code>begin()</code> points at the first occupied slot in table order.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Counting Elements in a B-tree</h2>
+      <p>
+        The B-tree containers do not store a total element count, so they have no
+        <code>size()</code>. If you write one, the compiler says so:
+      </p>
+      <pre><code class="language-text">
+error: 'fast_io::str_btree_set' {aka 'class fast_io::containers::basic_str_btree_set&lt;char, ...&gt;'}
+       has no member named 'size'
+</code></pre>
+      <p>
+        That is not an oversight. Keeping a counter up to date on every insert,
+        erase and node merge costs work on the hot path, and most programs never
+        need the number. When you do need it, iterate:
+      </p>
+      <pre><code class="language-cpp">
+auto n{::std::ranges::distance(m)};   // walks every element
+println("elements: ", n);
+</code></pre>
+      <p>
+        If &ldquo;how many elements are there&rdquo; is a question your program asks
+        often, use a container that stores the answer:
+        <code>str_ranked_btree_set</code> / <code>str_ranked_btree_map</code> have
+        <code>size()</code> (Ch10.8), and so do the Swiss-table containers
+        (Ch10.9).
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Container</th>
+            <th><code>is_empty()</code></th>
+            <th><code>size()</code></th>
+            <th><code>front()</code>/<code>back()</code></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>str_btree_set</code> / <code>str_btree_map</code></td><td>yes</td><td>no</td><td>yes</td></tr>
+          <tr><td><code>str_ranked_btree_set</code> / <code>str_ranked_btree_map</code></td><td>yes</td><td>yes</td><td>yes</td></tr>
+          <tr><td><code>str_swiss_set</code> / <code>str_swiss_map</code></td><td>yes</td><td>yes</td><td>no</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>Iterate with a range-for; sets yield <code>cstring_view</code>, maps yield elements with <code>key()</code> and <code>mapped()</code>.</li>
+        <li>There is no <code>first</code>/<code>second</code> in a map element.</li>
+        <li>B-tree iteration is ascending by key &mdash; guaranteed. Swiss-table iteration is unordered &mdash; never rely on it.</li>
+        <li>Use <code>::std::ranges::reverse_view</code> to iterate backwards; it works on every one of the six containers.</li>
+        <li><code>front()</code>/<code>back()</code> give the smallest/largest key on the B-tree family, checked, constant time.</li>
+        <li>B-tree containers have no <code>size()</code>; count with <code>::std::ranges::distance</code> or pick a container that tracks it.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/10.associativecontainers/04.lookup/" class="prev-button">&larr; Ch10.4: Looking Keys Up</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/10.associativecontainers/06.erase/" class="next-button">Ch10.6: Erasing &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

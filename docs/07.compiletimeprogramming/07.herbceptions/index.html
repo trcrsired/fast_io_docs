@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch7.7: Herbceptions at Compile Time - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch7.7: Herbceptions at Compile Time</h1>
+
+    <div class="warning">
+      <strong>IMPORTANT.</strong> Read <a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>
+      (the statements) and <a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a> (the
+      specification on every function) first. This page assumes both and shows what
+      herbceptions mean inside <code>constexpr</code> and <code>consteval</code> code.
+    </div>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        Herbceptions are the only error mechanism in this tutorial, so it should not be a
+        surprise that they work in compile-time code too. There is one extra rule, and it is
+        the one that makes this page useful:
+      </p>
+      <ul>
+        <li>
+          A <code>constexpr</code>/<code>consteval</code> function may be declared
+          <code>throws</code>, exactly like a runtime one.
+        </li>
+        <li>
+          Inside constant evaluation, a herbception behaves like an error value flowing to the
+          caller &mdash; a <code>try { } catch throws (::std::error e) { }</code> can catch it
+          and the program keeps evaluating.
+        </li>
+        <li>
+          If <em>nothing</em> catches it, the constant expression is invalid: the compiler
+          emits a diagnostic and compilation fails. A failed expectation becomes a build
+          error, not a runtime surprise.
+        </li>
+      </ul>
+      <p>
+        That last point is the reason this page exists: with herbceptions you can validate
+        constants, tables and algorithms <strong>at build time</strong> using the same
+        functions your program runs, and get a compile error when a check fails.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. A <code>constexpr</code> Function That Can Fail</h2>
+      <p>
+        <code>constexpr</code> and <code>throws</code> are independent annotations: the first
+        says "this may also run at compile time", the second says "this can report an error".
+        Both together are fine:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+constexpr int checked_div(int a, int b) throws
+{
+    if (b == 0)
+    {
+        throw throws ::std::errc::invalid_argument;
+    }
+    return a / b;
+}
+
+// the happy path is a constant expression
+static_assert(checked_div(10, 2) == 5);
+
+int main()
+{
+    println(checked_div(9, 3), "\n");    // also usable at runtime
+}
+</code></pre>
+      <p>
+        Nothing special was needed: the same function is a compile-time constant expression on
+        valid input and a normal fallible function at runtime.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Catching at Compile Time</h2>
+      <p>
+        The handler is allowed during constant evaluation, so a wrapper can <em>decide</em> what
+        a failure means:
+      </p>
+      <pre><code class="language-cpp">
+constexpr int checked_div(int a, int b) throws
+{
+    if (b == 0)
+    {
+        throw throws ::std::errc::invalid_argument;
+    }
+    return a / b;
+}
+
+constexpr int safe_div(int a, int b) noexcept
+{
+    try
+    {
+        return checked_div(a, b);
+    }
+    catch throws (::std::error)          // recoverable: turn it into a value
+    {
+        return -1;
+    }
+}
+
+static_assert(safe_div(10, 2) == 5);     // no failure
+static_assert(safe_div(1, 0) == -1);     // failure, caught at compile time
+</code></pre>
+      <p>
+        Both assertions are evaluated by the compiler. <code>safe_div</code> is
+        <code>noexcept</code> precisely because it absorbs the error &mdash; that is the
+        <em>Ch6.16</em> rule applied at compile time.
+      </p>
+      <p>
+        A <code>consteval</code> function works the same way:
+      </p>
+      <pre><code class="language-cpp">
+consteval int compile_time_div(int a, int b)
+{
+    try
+    {
+        return checked_div(a, b);
+    }
+    catch throws (::std::error)
+    {
+        return -1;
+    }
+}
+
+static_assert(compile_time_div(9, 3) == 3);
+static_assert(compile_time_div(9, 0) == -1);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. An Uncaught Herbception Is a Compile Error</h2>
+      <p>
+        When a herbception escapes a constant expression, the compiler stops. There is no
+        runtime to trap into, so the <em>build</em> fails, and the diagnostic names the throw
+        site:
+      </p>
+      <pre><code class="language-cpp">
+consteval int must_be_positive(int v) throws
+{
+    if (v &lt;= 0)
+    {
+        throw throws ::std::errc::invalid_argument;
+    }
+    return v;
+}
+
+constexpr int dimensions{must_be_positive(0)};   // ERROR: nothing caught it
+</code></pre>
+      <pre><code>
+error: constexpr variable 'dimensions' must be initialized by a constant expression
+note: herbception thrown during constant evaluation was not caught
+</code></pre>
+      <p>
+        This is exactly what you want from a validator: a wrong constant in the source is a
+        build failure at the line that contains it, with the error code you chose. Compare
+        with a runtime <code>assert</code>: that only fires if the program is run, and only if
+        it reaches that code path.
+      </p>
+      <pre><code class="language-cpp">
+// fine: the value is valid
+constexpr int width{must_be_positive(80)};
+static_assert(width == 80);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. Build-Time Test Suites</h2>
+      <p>
+        The most valuable use of all this is a <strong>compile-time test</strong>: a
+        <code>constexpr bool</code> function that exercises a component and reports through
+        <code>static_assert</code>. No test framework, no runtime, no build target &mdash; a
+        broken component does not compile.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+constexpr int checked_div(int a, int b) throws
+{
+    if (b == 0)
+    {
+        throw throws ::std::errc::invalid_argument;
+    }
+    return a / b;
+}
+
+constexpr bool self_test() noexcept
+{
+    // 1. the happy paths
+    try
+    {
+        if (checked_div(10, 2) != 5)
+        {
+            return false;
+        }
+        if (checked_div(-9, 3) != -3)
+        {
+            return false;
+        }
+    }
+    catch throws (::std::error)
+    {
+        return false;                  // should not have failed
+    }
+
+    // 2. the failure path, including the exact error it reports
+    try
+    {
+        (void)checked_div(1, 0);
+        return false;                  // should have failed
+    }
+    catch throws (::std::error e)
+    {
+        return e == ::std::errc::invalid_argument;
+    }
+}
+
+static_assert(self_test(), "checked_div is broken");
+
+int main()
+{
+    println("self test passed at compile time\n");
+}
+</code></pre>
+      <p>
+        Note that <code>self_test</code> is <code>noexcept</code> and catches everything: a
+        test that can itself fail would not be a compile-time check, it would be a
+        compile-time crash.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Asking the Compiler About Error Contracts</h2>
+      <p>
+        Because the specification is part of the type, it can be queried during compilation.
+        Two tools:
+      </p>
+      <ul>
+        <li><code>noexcept(expression)</code> &mdash; the standard one you met in <em>Ch6.16</em>:
+          "would this call be unable to fail?"</li>
+        <li>
+          the herbception traits <code>::std::is_herbceptions_throws_*</code> &mdash; the
+          finer-grained ones, which distinguish "constructible/callable at all" from
+          "constructible/callable <em>through the throws channel</em>".
+        </li>
+      </ul>
+      <pre><code class="language-cpp">
+struct ok_default { ok_default() throws {} };
+struct plain      { };
+
+// is the default constructor declared 'throws'?
+static_assert(::std::has_herbceptions_throws_constructor_v&lt;ok_default&gt;);
+static_assert(!::std::has_herbceptions_throws_constructor_v&lt;plain&gt;);
+
+// can we construct it, and can that construction report?
+struct from_int { explicit from_int(int) throws {} };
+static_assert(::std::is_herbceptions_throws_constructible_v&lt;from_int, int&gt;);
+
+// copies that can report
+struct reporting_copy { reporting_copy(reporting_copy const &amp;) throws {} };
+static_assert(::std::is_herbceptions_throws_copy_constructible_v&lt;reporting_copy&gt;);
+static_assert(!::std::is_herbceptions_throws_copy_constructible_v&lt;plain&gt;);
+
+// callables
+constexpr int risky(int) throws { return 0; }
+constexpr int pure(int) noexcept { return 0; }
+static_assert(::std::is_herbceptions_throws_invocable_v&lt;decltype(risky), int&gt;);
+static_assert(!::std::is_herbceptions_throws_invocable_v&lt;decltype(pure), int&gt;);
+</code></pre>
+      <div class="note">
+        <strong>Which one to use?</strong> <code>noexcept(expr)</code> answers the question you
+        normally have ("must I handle this call?"). The traits exist for generic code that has
+        to <em>select</em> an implementation depending on whether the operation reports errors
+        &mdash; which is exactly what a freestanding library like <code>fast_io</code> does
+        internally. You will rarely need them yourself, but you will read them.
+      </div>
+    </section>
+
+    <section>
+      <h2>6. Why This Works at All</h2>
+      <p>
+        Constant evaluation has no stack unwinding, no heap, no exception objects &mdash; and
+        herbceptions need none of those. The error is a
+        <code>{domain, code}</code> pair, so the evaluator only has to carry two integers and a
+        "failed" bit; the domain lookup (<code>::std::error_domain&lt;T&gt;::domain()</code>) is
+        intercepted during constant evaluation, which is what makes a thrown value a constant
+        expression instead of a runtime-only object.
+      </p>
+      <p>
+        The same property holds at runtime, and it is why nothing changes when you move code
+        between compile time and runtime: the error path of <code>checked_div</code> is
+        literally a return.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <code>constexpr</code>/<code>consteval</code> functions may be
+          <code>throws</code>; the two annotations are independent.
+        </li>
+        <li>
+          <code>try { } catch throws (::std::error e) { }</code> works during constant
+          evaluation, so a constexpr wrapper can recover from a compile-time failure.
+        </li>
+        <li>
+          An uncaught herbception in a constant expression fails the build with
+          <code>herbception thrown during constant evaluation was not caught</code> &mdash;
+          use it to validate constants.
+        </li>
+        <li>
+          A <code>constexpr bool self_test() noexcept</code> plus
+          <code>static_assert(self_test())</code> is a real compile-time test suite, using the
+          same functions the program runs.
+        </li>
+        <li>
+          <code>noexcept(expr)</code> and <code>::std::is_herbceptions_throws_*</code> let
+          generic code ask how a call can fail before it generates the call.
+        </li>
+        <li>
+          All of this is possible because a herbception is two machine words, with no
+          unwinding, no allocation, and no exception object.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/07.compiletimeprogramming/06.consteval/" class="prev-button">&larr; Ch7.6: consteval</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/08.algorithm/" class="next-button">Ch8: Algorithm &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
