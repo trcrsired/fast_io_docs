@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch14.10: Self-Assignment and Moved-From Objects - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch14.10: Self-Assignment and Moved-From Objects</h1>
+    <section>
+      <h2>1. Self-Assignment, Both Kinds</h2>
+
+
+      <p>
+        <code>a = a</code> happens in real code more often than people expect: through a
+        reference, an index (<code>v[i] = v[j]</code> with <code>i == j</code>), a template that
+        does not know the two arguments are the same object. The two assignments treat it
+        differently, and both are correct:
+      </p>
+      <table>
+        <thead>
+          <tr><th></th><th>self-copy <code>a = a</code></th><th>self-move <code>a = std::move(a)</code></th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>needs a check</td>
+            <td>no</td>
+            <td><strong>yes</strong></td>
+          </tr>
+          <tr>
+            <td>why</td>
+            <td>the duplicate is taken before anything is closed</td>
+            <td>the old resource is released before anything is taken</td>
+          </tr>
+          <tr>
+            <td>observable effect</td>
+            <td>the descriptor number may change; the file does not</td>
+            <td>nothing at all</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The full argument is in <a href="/docs/14.fiverules/04.copyassignment/">Ch14.4</a> and
+        <a href="/docs/14.fiverules/06.moveassignment/">Ch14.6</a>; this subchapter is about the
+        state the object is in <em>after</em> a move, which is the other half of the same
+        subject.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. The Contract of a Moved-From Object</h2>
+
+
+      <p>
+        The standard says a moved-from object is <strong>valid but unspecified</strong>: you may
+        destroy it, assign to it, and call members whose preconditions it meets &mdash; nothing
+        more. &ldquo;Unspecified&rdquo; is not a licence to be mysterious, though: a class
+        should <em>document</em> what its moved-from state is, and ours is:
+      </p>
+      <table>
+        <thead>
+          <tr><th>Question</th><th>Answer for <code>my_posix_file</code></th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>is_open()</code></td><td><code>false</code></td></tr>
+          <tr><td><code>native_handle()</code></td><td><code>-1</code></td></tr>
+          <tr><td>destructor</td><td>does nothing, closes nothing</td></tr>
+          <tr><td>assignment (copy or move)</td><td>works, and makes the object open again</td></tr>
+          <tr><td><code>read_some</code> / <code>write_some</code></td><td>throws <code>::std::errc::bad_file_descriptor</code></td></tr>
+          <tr><td>copy construction from it</td><td>throws <code>::std::errc::bad_file_descriptor</code></td></tr>
+        </tbody>
+      </table>
+      <p>
+        The last two rows are the reason the copy operations take the values they take: they
+        are not being defensive, they are applying <code>::dup</code> to <code>-1</code> and
+        forwarding what the kernel said.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. All of It, Running</h2>
+
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+using namespace ::fast_io::io;
+
+// A move constructor that forgets to empty the source.
+class sloppy_file
+{
+	int fd_{-1};
+
+public:
+	explicit sloppy_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	sloppy_file(sloppy_file &amp;&amp;other) noexcept : fd_{other.fd_} // WRONG: other.fd_ is left alone
+	{}
+
+	~sloppy_file() noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+};
+
+class my_posix_file
+{
+	int fd_{-1};
+
+public:
+	void reset(::std::int_least32_t newfd = -1) noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+		fd_ = newfd;
+	}
+
+	my_posix_file() noexcept = default;
+
+	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
+	{
+		if (fd_ == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+	}
+
+	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
+	{
+		::std::int_least32_t newfd{::dup(other.fd_)};
+		if (newfd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		reset(newfd);
+		return *this;
+	}
+
+	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
+	{
+		other.fd_ = -1;
+	}
+
+	my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept
+	{
+		if (this == ::std::addressof(other)) [[unlikely]]
+		{
+			return *this;
+		}
+		reset(other.fd_);
+		other.fd_ = -1;
+		return *this;
+	}
+
+	~my_posix_file() noexcept
+	{
+		reset();
+	}
+
+	void swap(my_posix_file &amp;other) noexcept
+	{
+		::std::int_least32_t const tmp{fd_};
+		fd_ = other.fd_;
+		other.fd_ = tmp;
+	}
+
+	[[nodiscard]] bool is_open() const noexcept
+	{
+		return fd_ != -1;
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+
+	::std::size_t read_some(char *buf, ::std::size_t n) throws
+	{
+		auto ret{::read(fd_, buf, n)};
+		if (ret == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		return static_cast&lt;::std::size_t&gt;(ret);
+	}
+
+	::std::size_t write_some(char const *buf, ::std::size_t n) throws
+	{
+		auto ret{::write(fd_, buf, n)};
+		if (ret == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		return static_cast&lt;::std::size_t&gt;(ret);
+	}
+};
+
+inline void swap(my_posix_file &amp;a, my_posix_file &amp;b) noexcept
+{
+	a.swap(b);
+}
+
+int main()
+{
+	{ // make sure the example file exists
+		::std::int_least32_t fd{::open("demo.txt", O_WRONLY | O_CREAT, 0644)};
+		::close(fd);
+	}
+
+	my_posix_file a{"demo.txt", O_RDONLY};
+	println("a = ", a.native_handle());
+	a = a; // self copy: no check needed
+	println("after a = a:        a = ", a.native_handle(), ", is_open = ", a.is_open());
+
+	my_posix_file b{"demo.txt", O_RDONLY};
+	my_posix_file *alias{&amp;b};
+	b = ::std::move(*alias); // self move through an alias: the check is needed
+	println("after self-move:    b = ", b.native_handle(), ", is_open = ", b.is_open());
+
+	my_posix_file source{"demo.txt", O_RDONLY};
+	my_posix_file moved{::std::move(source)};
+	println("moved = ", moved.native_handle(), ", source = ", source.native_handle(), ", source.is_open() = ", source.is_open());
+
+	char buf[8]{};
+	try
+	{
+		source.read_some(buf, 4); // fd -1
+	}
+	catch throws (::std::error e)
+	{
+		print("reading a moved-from file: ", e, "\n");
+	}
+	try
+	{
+		my_posix_file copy{source};
+	}
+	catch throws (::std::error e)
+	{
+		print("copying a moved-from file: ", e, "\n");
+	}
+
+	source = my_posix_file{"demo.txt", O_RDONLY}; // assignment revives it
+	println("after reviving:     source = ", source.native_handle(), ", is_open = ", source.is_open());
+
+	{
+		sloppy_file x{"demo.txt", O_RDONLY};
+		println("sloppy x = ", x.native_handle());
+		{
+			sloppy_file y{::std::move(x)};
+			println("sloppy y = ", y.native_handle(), ", x still says ", x.native_handle());
+		}
+		println("after y died, the descriptor is closed and x still thinks it owns it");
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+a = 3
+after a = a:        a = 4, is_open = 1
+after self-move:    b = 3, is_open = 1
+moved = 5, source = -1, source.is_open() = 0
+reading a moved-from file: [posix](9)Bad file number
+copying a moved-from file: [posix](9)Bad file number
+after reviving:     source = 6, is_open = 1
+sloppy x = 7
+sloppy y = 7, x still says 7
+after y died, the descriptor is closed and x still thinks it owns it
+</code></pre>
+      <p>
+        The first three lines repeat the self-assignment results. The interesting part starts
+        at <code>moved = 5, source = -1</code>: the source is empty but alive, and every use of
+        it is a clean, catchable failure rather than undefined behaviour.
+      </p>
+      <p>
+        Then look at the last three lines, which come from a deliberately broken
+        <code>sloppy_file</code> whose move constructor forgets <code>other.fd_ = -1</code>:
+      </p>
+      <pre><code class="language-cpp">
+	sloppy_file(sloppy_file &amp;&amp;other) noexcept : fd_{other.fd_} // WRONG
+	{}
+</code></pre>
+      <p>
+        Two objects now believe they own descriptor <code>7</code>. The inner one dies first
+        and closes it, so the outer one is holding a number that is no longer open &mdash; and
+        the next <code>::open</code> anywhere in the program will be handed that same number
+        and be closed by the wrong owner. The move constructor <em>must</em> empty its source.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. <code>::std::move</code> Is a Cast</h2>
+
+
+      <p>
+        Nothing is moved by <code>::std::move</code>. It is an unconditional cast to
+        <code>T&amp;&amp;</code>, whose only effect is that overload resolution prefers the
+        move constructor or move assignment:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+constexpr ::std::remove_reference_t&lt;T&gt; &amp;&amp;move(T &amp;&amp;t) noexcept
+{
+	return static_cast&lt;::std::remove_reference_t&lt;T&gt; &amp;&amp;&gt;(t);
+}
+</code></pre>
+      <p>
+        Every consequence in this chapter follows from that definition:
+      </p>
+      <ul>
+        <li>without a move constructor, the cast changes nothing and the copy runs
+          (<a href="/docs/14.fiverules/05.moveconstructor/">Ch14.5</a>);</li>
+        <li>on a <code>const</code> object the cast produces
+          <code>T const &amp;&amp;</code>, which no move constructor accepts, so the copy runs
+          again;</li>
+        <li><code>::std::move(x)</code> never modifies <code>x</code>; the constructor or
+          assignment that follows does.</li>
+      </ul>
+            <div class="note">
+        <strong>A moved-from object is not &ldquo;dead&rdquo;, and a moved-from
+          <code>my_posix_file</code> is not an error state.</strong>
+        It is the empty state of the class, the same one a default-constructed file is in.
+        Do not use it for anything else without saying so in the docs &mdash; and where you do
+        document it, as with the table above, a moved-from object is as ordinary as any other.
+      
+      </div>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/14.fiverules/09.exceptionsafety/" class="prev-button">&larr; Ch14.9: Exception Safety</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/14.fiverules/11.myposixfile/" class="next-button">Ch14.11: The Whole Class &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

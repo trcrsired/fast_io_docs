@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch14.7: swap: Exchanging Two Owners - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch14.7: swap: Exchanging Two Owners</h1>
+    <section>
+      <h2>1. What <code>swap</code> Has to Do</h2>
+
+
+      <p>
+        For a resource owner, <code>swap</code> exchanges which resource each object owns. It
+        does not copy, does not close, does not allocate: it exchanges two handles.
+      </p>
+      <pre><code class="language-cpp">
+	void swap(my_posix_file &amp;other) noexcept
+	{
+		::std::int_least32_t const tmp{fd_};
+		fd_ = other.fd_;
+		other.fd_ = tmp;
+	}
+</code></pre>
+      <p>
+        Three <code>int</code> writes and a temporary. It cannot fail, so it is
+        <code>noexcept</code> &mdash; and that is not a detail: <code>swap</code> being
+        <code>noexcept</code> is what makes <a href="/docs/14.fiverules/08.copyandswap/">copy and
+        swap</a> give the strong guarantee.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. The Free Function, and Why It Exists</h2>
+
+
+      <p>
+        A member function is enough for <code>a.swap(b)</code>. The free function is what makes
+        plain <code>swap(a, b)</code> work:
+      </p>
+      <pre><code class="language-cpp">
+inline void swap(my_posix_file &amp;a, my_posix_file &amp;b) noexcept
+{
+	a.swap(b);
+}
+</code></pre>
+      <p>
+        It lives in the same namespace as the class, which is where argument-dependent lookup
+        (<a href="/docs/13.class/10.friend/">Ch13.10</a>) will find it. Generic code that says
+        <code>swap(x, y)</code> &mdash; not <code>::std::swap(x, y)</code> &mdash; then picks
+        yours when the type has one, and falls back to
+        <code>::std::swap</code> otherwise. Write both: the member does the work, the free
+        function makes the name findable.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. What <code>::std::swap</code> Does Without Yours</h2>
+
+
+      <p>
+        The standard <code>::std::swap</code> is implemented with a move and two move
+        assignments:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+void swap(T &amp;a, T &amp;b) noexcept(...)
+{
+	T tmp{::std::move(a)};
+	a = ::std::move(b);
+	b = ::std::move(tmp);
+}
+</code></pre>
+      <p>
+        For our class that is three descriptor exchanges, so it produces the same result
+        &mdash; the program below uses all three spellings and prints the same numbers for
+        each. It is only correct because the move operations are <code>noexcept</code> and
+        because move assignment releases what it should; if any of those were wrong,
+        <code>::std::swap</code> would be wrong too, in a place far from the bug.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+using namespace ::fast_io::io;
+
+class my_posix_file
+{
+	int fd_{-1};
+
+	void reset(::std::int_least32_t newfd = -1) noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+		fd_ = newfd;
+	}
+
+public:
+	my_posix_file() noexcept = default;
+
+	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
+	{
+		if (fd_ == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+	}
+
+	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
+	{
+		::std::int_least32_t newfd{::dup(other.fd_)};
+		if (newfd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		reset(newfd);
+		return *this;
+	}
+
+	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
+	{
+		other.fd_ = -1;
+	}
+
+	my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept
+	{
+		if (this == ::std::addressof(other)) [[unlikely]]
+		{
+			return *this;
+		}
+		reset(other.fd_);
+		other.fd_ = -1;
+		return *this;
+	}
+
+	~my_posix_file() noexcept
+	{
+		reset();
+	}
+
+	void swap(my_posix_file &amp;other) noexcept
+	{
+		::std::int_least32_t const tmp{fd_};
+		fd_ = other.fd_;
+		other.fd_ = tmp;
+	}
+
+	[[nodiscard]] bool is_open() const noexcept
+	{
+		return fd_ != -1;
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+};
+
+inline void swap(my_posix_file &amp;a, my_posix_file &amp;b) noexcept
+{
+	a.swap(b);
+}
+
+static_assert(::std::is_nothrow_swappable_v&lt;my_posix_file&gt;);
+
+int main()
+{
+	{ // make sure the example file exists
+		::std::int_least32_t fd{::open("demo.txt", O_WRONLY | O_CREAT, 0644)};
+		::close(fd);
+	}
+
+	my_posix_file a{"demo.txt", O_RDONLY};
+	my_posix_file b{"demo.txt", O_WRONLY};
+	println("a = ", a.native_handle(), ", b = ", b.native_handle());
+
+	a.swap(b);
+	println("after a.swap(b):               a = ", a.native_handle(), ", b = ", b.native_handle());
+
+	swap(a, b);
+	println("after swap(a, b):              a = ", a.native_handle(), ", b = ", b.native_handle());
+
+	::std::swap(a, b);
+	println("after ::std::swap(a, b):       a = ", a.native_handle(), ", b = ", b.native_handle());
+
+	my_posix_file empty;
+	a.swap(empty);
+	println("after a.swap(empty):           a = ", a.native_handle(), ", empty = ", empty.native_handle());
+	println("a.is_open() = ", a.is_open(), ", empty.is_open() = ", empty.is_open());
+}
+</code></pre>
+      <pre><code class="language-text">
+a = 3, b = 4
+after a.swap(b):               a = 4, b = 3
+after swap(a, b):              a = 3, b = 4
+after ::std::swap(a, b):       a = 4, b = 3
+after a.swap(empty):           a = -1, empty = 4
+a.is_open() = 0, empty.is_open() = 1
+</code></pre>
+      <p>
+        Read the last two lines: swapping with a default-constructed (empty) object is how you
+        <strong>release</strong> a resource and keep it alive somewhere else. <code>a</code>
+        ends up owning nothing and <code>empty</code> owns the file; when
+        <code>empty</code> dies, the file closes. That trick is worth remembering &mdash; it is
+        how you park a resource in a local object and let a destructor take care of it.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Checking That It Really Cannot Fail</h2>
+
+
+      <p>
+        <code>::std::is_nothrow_swappable_v</code> is a compile-time question with a
+        compile-time answer, and it is the property containers and algorithms test for:
+      </p>
+      <pre><code class="language-cpp">
+static_assert(::std::is_nothrow_swappable_v&lt;my_posix_file&gt;);
+</code></pre>
+      <p>
+        If you had written <code>swap</code> by copying instead &mdash; for instance
+        <code>my_posix_file tmp{other}; other = *this; *this = tmp;</code> &mdash; the
+        assertion would fail, because copying a file can fail, and rightly so.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. swap Is the Commit Primitive</h2>
+
+
+      <p>
+        Copy assignment (<a href="/docs/14.fiverules/04.copyassignment/">Ch14.4</a>) ended with
+        a single infallible statement after the critical line. For a class with one resource
+        that statement was <code>reset(newfd)</code>. For a class with several members there is
+        no single <code>reset</code>, but there is always a <code>swap</code> &mdash; and that
+        is the subject of the next subchapter.
+      </p>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/14.fiverules/06.moveassignment/" class="prev-button">&larr; Ch14.6: Move Assignment</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/14.fiverules/08.copyandswap/" class="next-button">Ch14.8: Copy and Swap &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

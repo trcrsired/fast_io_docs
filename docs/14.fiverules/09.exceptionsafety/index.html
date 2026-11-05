@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch14.9: Exception Safety: nothrow, strong, basic, none - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch14.9: Exception Safety: nothrow, strong, basic, none</h1>
+    <section>
+      <h2>1. Four Levels, Not a Feeling</h2>
+
+
+      <p>
+        &ldquo;This function is exception safe&rdquo; means nothing on its own. What a caller
+        needs to know is how much of the object's value survives a failure, and there are
+        exactly four answers.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Level</th>
+            <th>What the caller may assume after a failure</th>
+            <th>Declared as</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>nothrow</strong></td>
+            <td>It cannot fail at all. There is no failure to recover from.</td>
+            <td><code>noexcept</code></td>
+          </tr>
+          <tr>
+            <td><strong>strong</strong></td>
+            <td>It failed, and the object is <em>exactly as it was</em> before the call
+              (commit or rollback).</td>
+            <td><code>throws</code></td>
+          </tr>
+          <tr>
+            <td><strong>basic</strong></td>
+            <td>It failed, and the object is still <em>valid</em> &mdash; the invariant holds,
+              no resource leaked &mdash; but its value may be different, and the old value is
+              gone.</td>
+            <td><code>throws</code></td>
+          </tr>
+          <tr>
+            <td><strong>none</strong></td>
+            <td>It failed, and the object may be in a state that breaks its own invariant:
+              unusable, or worse, usable but wrong.</td>
+            <td><code>throws</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        &ldquo;Valid&rdquo; is doing the work in the last two rows. Valid means: every member
+        function may still be called, and the destructor still does the right thing. Our class
+        defines validity as <code>fd_ == -1</code> or <code>fd_</code> is an open descriptor
+        this object alone owns.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. The Levels of <code>my_posix_file</code></h2>
+
+
+      <p>
+        Every member of the finished class, classified. Notice how the specification on the
+        declaration predicts the level:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Spec</th>
+            <th>Level</th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>~my_posix_file()</code></td>
+            <td><code>noexcept</code></td>
+            <td>nothrow</td>
+            <td>one <code>::close</code> on a valid descriptor, failure ignored</td>
+          </tr>
+          <tr>
+            <td><code>my_posix_file(T&amp;&amp;)</code></td>
+            <td><code>noexcept</code></td>
+            <td>nothrow</td>
+            <td>two <code>int</code> writes</td>
+          </tr>
+          <tr>
+            <td><code>operator=(T&amp;&amp;)</code></td>
+            <td><code>noexcept</code></td>
+            <td>nothrow</td>
+            <td><code>::close</code> plus two <code>int</code> writes</td>
+          </tr>
+          <tr>
+            <td><code>swap(T&amp;)</code></td>
+            <td><code>noexcept</code></td>
+            <td>nothrow</td>
+            <td>three <code>int</code> writes</td>
+          </tr>
+          <tr>
+            <td><code>reset()</code>, <code>is_open()</code>, <code>native_handle()</code></td>
+            <td><code>noexcept</code></td>
+            <td>nothrow</td>
+            <td>no system call that can fail</td>
+          </tr>
+          <tr>
+            <td><code>my_posix_file(path, flags)</code></td>
+            <td><code>throws</code></td>
+            <td>strong</td>
+            <td>a constructor that throws means <em>no object exists</em>; nothing to roll
+              back</td>
+          </tr>
+          <tr>
+            <td><code>my_posix_file(T const&amp;)</code></td>
+            <td><code>throws</code></td>
+            <td>strong</td>
+            <td><code>::dup</code> either produces a descriptor or leaves the source and the
+              new object untouched</td>
+          </tr>
+          <tr>
+            <td><code>operator=(T const&amp;)</code></td>
+            <td><code>throws</code></td>
+            <td>strong</td>
+            <td>duplicate first, then the critical line
+              (<a href="/docs/14.fiverules/04.copyassignment/">Ch14.4</a>)</td>
+          </tr>
+          <tr>
+            <td><code>read_some()</code>, <code>write_some()</code></td>
+            <td><code>throws</code></td>
+            <td>strong for the object, basic for the file</td>
+            <td>a failed <code>::read</code>/<code>::write</code> changes nothing in the
+              object; on the file itself a partial write may already have happened</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        That last row is worth pausing on. Exception safety is a property of <em>this
+        object</em>. A function that writes to the outside world cannot roll the outside world
+        back, no matter how careful it is with its own members.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. All Four, Verified</h2>
+
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+using namespace ::fast_io::io;
+
+class my_posix_file
+{
+	int fd_{-1};
+
+public:
+	void reset(::std::int_least32_t newfd = -1) noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+		fd_ = newfd;
+	}
+
+	my_posix_file() noexcept = default;
+
+	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
+	{
+		if (fd_ == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+	}
+
+	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
+	{
+		::std::int_least32_t newfd{::dup(other.fd_)};
+		if (newfd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		reset(newfd);
+		return *this;
+	}
+
+	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
+	{
+		other.fd_ = -1;
+	}
+
+	my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept
+	{
+		if (this == ::std::addressof(other)) [[unlikely]]
+		{
+			return *this;
+		}
+		reset(other.fd_);
+		other.fd_ = -1;
+		return *this;
+	}
+
+	~my_posix_file() noexcept
+	{
+		reset();
+	}
+
+	void swap(my_posix_file &amp;other) noexcept
+	{
+		::std::int_least32_t const tmp{fd_};
+		fd_ = other.fd_;
+		other.fd_ = tmp;
+	}
+
+	[[nodiscard]] bool is_open() const noexcept
+	{
+		return fd_ != -1;
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+
+	::std::size_t read_some(char *buf, ::std::size_t n) throws
+	{
+		auto ret{::read(fd_, buf, n)};
+		if (ret == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		return static_cast&lt;::std::size_t&gt;(ret);
+	}
+
+	void reopen(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		reset(); // BASIC: the old file is gone before the new one exists
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	::std::size_t write_some(char const *buf, ::std::size_t n) throws
+	{
+		auto ret{::write(fd_, buf, n)};
+		if (ret == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		return static_cast&lt;::std::size_t&gt;(ret);
+	}
+};
+
+inline void swap(my_posix_file &amp;a, my_posix_file &amp;b) noexcept
+{
+	a.swap(b);
+}
+
+// NO GUARANTEE: two resources, assigned one after the other.
+class two_files
+{
+	my_posix_file reader_;
+	my_posix_file writer_;
+
+public:
+	explicit two_files(::fast_io::cstring_view path) throws
+		: reader_{path, O_RDONLY}, writer_{path, O_WRONLY}
+	{}
+
+	two_files(two_files const &amp;other) throws : reader_{other.reader_}, writer_{other.writer_} {}
+	two_files(two_files &amp;&amp;) noexcept = default;
+	~two_files() = default;
+
+	two_files &amp;operator=(two_files const &amp;other) throws
+	{
+		reader_ = other.reader_; // succeeds
+		writer_ = other.writer_; // may fail, and then the pair is a mix
+		return *this;
+	}
+
+	two_files &amp;operator=(two_files &amp;&amp;other) noexcept = default;
+
+	void close_writer() noexcept
+	{
+		writer_.reset();
+	}
+
+	[[nodiscard]] ::std::int_least32_t reader_handle() const noexcept
+	{
+		return reader_.native_handle();
+	}
+
+	[[nodiscard]] ::std::int_least32_t writer_handle() const noexcept
+	{
+		return writer_.native_handle();
+	}
+};
+
+static_assert(noexcept(::std::declval&lt;my_posix_file &amp;&gt;().swap(::std::declval&lt;my_posix_file &amp;&gt;())));
+static_assert(::std::is_nothrow_move_constructible_v&lt;my_posix_file&gt;);
+static_assert(::std::is_nothrow_move_assignable_v&lt;my_posix_file&gt;);
+static_assert(::std::is_nothrow_destructible_v&lt;my_posix_file&gt;);
+static_assert(!::std::is_nothrow_copy_constructible_v&lt;my_posix_file&gt;);
+
+int main()
+{
+	{ // make sure the example file exists
+		::std::int_least32_t fd{::open("demo.txt", O_WRONLY | O_CREAT, 0644)};
+		::close(fd);
+	}
+
+	// NOTHROW: the compiler proves these cannot fail.
+	my_posix_file a{"demo.txt", O_RDONLY};
+	my_posix_file b{"demo.txt", O_RDONLY};
+	a.swap(b);
+	println("nothrow: swap, move and destruction cannot fail");
+
+	// STRONG: when the operation fails, nothing changed.
+	my_posix_file source{"demo.txt", O_RDONLY};
+	my_posix_file stolen{::std::move(source)};
+	try
+	{
+		a = source; // source has no descriptor left to duplicate
+	}
+	catch throws (::std::error e)
+	{
+		print("strong: ", e, ", a is still ", a.native_handle(), "\n");
+	}
+
+	// BASIC: the object is still usable, but its old value is gone.
+	my_posix_file basic{"demo.txt", O_RDONLY};
+	try
+	{
+		basic.reopen("/nonexistent/file", O_RDONLY);
+	}
+	catch throws (::std::error e)
+	{
+		print("basic:  ", e, ", is_open = ", basic.is_open(), "\n");
+	}
+
+	// NO GUARANTEE: the pair no longer belongs to one file.
+	two_files dst{"demo.txt"};
+	two_files src{"demo.txt"};
+	src.close_writer();
+	println("none:   before: dst reader = ", dst.reader_handle(), ", writer = ", dst.writer_handle());
+	try
+	{
+		dst = src;
+	}
+	catch throws (::std::error e)
+	{
+		print("none:   ", e, "\n");
+	}
+	println("none:   after:  dst reader = ", dst.reader_handle(), ", writer = ", dst.writer_handle());
+}
+</code></pre>
+      <pre><code class="language-text">
+nothrow: swap, move and destruction cannot fail
+strong: [posix](9)Bad file number, a is still 4
+basic:  [posix](2)No such file or directory, is_open = 0
+none:   before: dst reader = 6, writer = 7
+none:   [posix](9)Bad file number
+none:   after:  dst reader = 9, writer = 7
+</code></pre>
+      <p>
+        Line by line:
+      </p>
+      <ul>
+        <li>
+          <strong>nothrow.</strong> <code>swap</code>, the moves and the destructor are
+          asserted at compile time, not tested at run time. There is nothing to observe because
+          nothing can happen.
+        </li>
+        <li>
+          <strong>strong.</strong> The assignment failed with
+          <code>[posix](9)Bad file number</code> and <code>a</code> is still
+          <code>4</code> &mdash; the same descriptor it held before the statement. The critical
+          line did its job.
+        </li>
+        <li>
+          <strong>basic.</strong> <code>reopen</code> closes the old file first, then opens the
+          new one; the open failed with
+          <code>[posix](2)No such file or directory</code> and the object is now closed. It is
+          perfectly valid &mdash; you can destroy it, assign to it, ask <code>is_open()</code>
+          &mdash; but the file it used to own is gone. That is the honest price of a function
+          that cannot afford to open the new thing before closing the old one.
+        </li>
+        <li>
+          <strong>none.</strong> The pair was assigned member by member. The reader was
+          replaced (<code>6</code> became <code>9</code>, a duplicate of the source's reader),
+          the writer was not (<code>7</code> stayed), and the assignment then threw. Both
+          members are individually valid; the <em>pair</em> is not, and no code outside the
+          class can tell or fix it.
+        </li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>4. How to Get the Strong Guarantee</h2>
+
+
+      <p>
+        There are two recipes, and both are the critical line in disguise.
+      </p>
+      <ul>
+        <li>
+          <strong>Do all fallible work into locals first.</strong> Then perform the changes
+          with operations that cannot fail. That is <code>my_posix_file</code>'s copy
+          assignment.
+        </li>
+        <li>
+          <strong>Build a complete temporary, then swap it in.</strong> That is copy and swap
+          (<a href="/docs/14.fiverules/08.copyandswap/">Ch14.8</a>), and it scales to any number
+          of members.
+        </li>
+      </ul>
+      <p>And two ways to lose it, also worth naming:</p>
+      <ul>
+        <li>
+          <strong>Modify first, then do something fallible.</strong> That is
+          <code>reopen</code> above; the level drops to basic immediately.
+        </li>
+        <li>
+          <strong>Modify some members, then fail on the rest.</strong> That is the naive
+          two-member assignment; the level drops to none.
+        </li>
+      </ul>
+            <div class="note">
+        <strong>Strong is not always affordable.</strong>
+        Rolling back means keeping the old value alive, and for a 10&nbsp;GB buffer that is the
+        whole buffer. Choose strong where the object is small and the invariant matters (file
+        handles, sockets, locks, small containers); choose basic where copying is out of the
+        question; and never choose none by accident.
+      
+      </div>
+
+    </section>
+    <section>
+      <h2>5. Herbceptions Make <code>noexcept</code> a Proof</h2>
+
+
+      <p>
+        In legacy C++, <code>noexcept</code> is a promise the compiler takes on trust and
+        punishes at run time with <code>std::terminate</code>. A <code>noexcept</code>
+        function may call anything it likes, and nobody finds out until the night it throws.
+      </p>
+      <p>
+        With herbceptions the promise is checked where it is made. A <code>noexcept</code>
+        function cannot call a <code>throws</code> function at all, unless it handles the
+        failure inside its own body:
+      </p>
+      <pre><code class="language-text">
+error: call to a 'throws' or 'return_failure{E}' function must be handled by an enclosing
+       'try { } catch throws', or the calling function needs a herbceptions specification
+       so the error can propagate
+</code></pre>
+      <p>
+        Three consequences follow, and they are the reason this chapter can be exact:
+      </p>
+      <ul>
+        <li>
+          <strong>&ldquo;This function is nothrow&rdquo; is a fact about the code</strong>, not
+          a comment. If you can compile it with <code>noexcept</code>, it cannot fail.
+        </li>
+        <li>
+          <strong>The critical line is enforced.</strong> Everything below it must be
+          <code>noexcept</code>-callable, and the compiler refuses anything else &mdash; the
+          sequence of a commit is checked mechanically.
+        </li>
+        <li>
+          <strong>The level is visible at the declaration.</strong> <code>noexcept</code> in a
+          header tells the reader nothrow; <code>throws</code> tells the reader &ldquo;strong
+          or basic, and the documentation says which&rdquo;. That is why every member function
+          in this tutorial carries one of the two
+          (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>).
+        </li>
+      </ul>
+            <div class="important">
+        <strong>Destructors are <code>noexcept</code>, so destructors have exactly the nothrow
+          guarantee.</strong>
+        Anything that can fail and that you want to know about must be a named member function
+        the caller can wrap in <code>try { } catch throws</code>. This single rule explains most
+        of the shape of real file, socket and database APIs &mdash; including fast_io's, whose
+        <code>close()</code> reports and whose destructor does not.
+      
+      </div>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/14.fiverules/08.copyandswap/" class="prev-button">&larr; Ch14.8: Copy and Swap</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/14.fiverules/10.movedfrom/" class="next-button">Ch14.10: Moved-From Objects &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch14.8: Copy and Swap: One Infallible Commit - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch14.8: Copy and Swap: One Infallible Commit</h1>
+    <section>
+      <h2>1. The Problem With One Member Too Many</h2>
+
+
+      <p>
+        The commit step of <code>my_posix_file</code>'s copy assignment was a single
+        <code>reset(newfd)</code>, because the class owns exactly one thing. Give a class two
+        resources and that step disappears: there is no single call that replaces both
+        without the possibility of being half done.
+      </p>
+      <pre><code class="language-cpp">
+class two_files
+{
+	my_posix_file reader_;
+	my_posix_file writer_; // two independent resources
+};
+</code></pre>
+      <p>
+        Writing the assignment member by member is the mistake everyone makes once:
+      </p>
+      <pre><code class="language-cpp">
+	// NO GUARANTEE
+	two_files &amp;operator=(two_files const &amp;other) throws
+	{
+		reader_ = other.reader_; // succeeds, and *this is now changed
+		writer_ = other.writer_; // fails, and now the pair is a mix
+		return *this;
+	}
+</code></pre>
+      <p>
+        When the second line fails, the object is not what it was and not what it was meant to
+        become: a reader for one file, a writer for another. The object is still
+        <em>usable</em> &mdash; both members are valid objects &mdash; but its invariant
+        (&ldquo;both handles name the same file&rdquo;) is broken, and nobody can repair it
+        from the outside. This is the level the next-but-one subchapter calls
+        <strong>no guarantee</strong>, and it is a genuinely bad place to be.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. Copy and Swap</h2>
+
+
+      <p>
+        There is a way to get the commit back, and it works for any number of members:
+        <strong>build the new value somewhere else, then exchange it with <code>*this</code></strong>.
+      </p>
+      <pre><code class="language-cpp">
+	two_files &amp;operator=(two_files const &amp;other) throws
+	{
+		two_files tmp{other}; // may fail: *this has not been touched
+		// ---- critical line ----
+		swap(tmp); // cannot fail: from here on the assignment happens
+		return *this;
+	}
+</code></pre>
+      <p>
+        Every fallible operation is in the construction of <code>tmp</code>, and
+        <code>tmp</code> is a <em>different object</em>: if the copy throws, <code>*this</code>
+        has not been touched, and <code>tmp</code>'s own destructor cleans up whatever it had
+        managed to acquire. After the critical line there is exactly one call, and it is
+        <code>noexcept</code>.
+      </p>
+      <p>
+        The old contents do not disappear at the end of <code>operator=</code>; they are handed
+        to <code>tmp</code>, which is a local, and locals die at the end of the full
+        expression. So the descriptors that <code>*this</code> used to own are closed a moment
+        later, by <code>tmp</code>'s destructor, after the new ones are already installed.
+      </p>
+            <div class="important">
+        <strong>Copy and swap: the whole guarantee rests on <code>swap</code> being
+          <code>noexcept</code>.</strong>
+        <code>tmp</code> does all the work that can fail; <code>swap</code> is the one call that
+        cannot. Move that call above any fallible statement and the guarantee evaporates.
+      
+      </div>
+
+    </section>
+    <section>
+      <h2>3. Copy and Swap in Practice</h2>
+
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+using namespace ::fast_io::io;
+
+class my_posix_file
+{
+	int fd_{-1};
+
+public:
+	void reset(::std::int_least32_t newfd = -1) noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+		fd_ = newfd;
+	}
+
+	my_posix_file() noexcept = default;
+
+	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
+	{
+		if (fd_ == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+	}
+
+	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
+	{
+		::std::int_least32_t newfd{::dup(other.fd_)};
+		if (newfd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		// ---- critical line ----
+		reset(newfd);
+		return *this;
+	}
+
+	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
+	{
+		other.fd_ = -1;
+	}
+
+	my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept
+	{
+		if (this == ::std::addressof(other)) [[unlikely]]
+		{
+			return *this;
+		}
+		reset(other.fd_);
+		other.fd_ = -1;
+		return *this;
+	}
+
+	~my_posix_file() noexcept
+	{
+		reset();
+	}
+
+	void swap(my_posix_file &amp;other) noexcept
+	{
+		::std::int_least32_t const tmp{fd_};
+		fd_ = other.fd_;
+		other.fd_ = tmp;
+	}
+
+	[[nodiscard]] bool is_open() const noexcept
+	{
+		return fd_ != -1;
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+
+	::std::size_t read_some(char *buf, ::std::size_t n) throws
+	{
+		auto ret{::read(fd_, buf, n)};
+		if (ret == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		return static_cast&lt;::std::size_t&gt;(ret);
+	}
+
+	::std::size_t write_some(char const *buf, ::std::size_t n) throws
+	{
+		auto ret{::write(fd_, buf, n)};
+		if (ret == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		return static_cast&lt;::std::size_t&gt;(ret);
+	}
+};
+
+inline void swap(my_posix_file &amp;a, my_posix_file &amp;b) noexcept
+{
+	a.swap(b);
+}
+
+// A class that owns two resources: one handle for reading, one for writing.
+class two_files
+{
+	my_posix_file reader_;
+	my_posix_file writer_;
+
+public:
+	explicit two_files(::fast_io::cstring_view path) throws
+		: reader_{path, O_RDONLY}, writer_{path, O_WRONLY}
+	{}
+
+	two_files(two_files const &amp;other) throws : reader_{other.reader_}, writer_{other.writer_} {}
+
+	two_files(two_files &amp;&amp;) noexcept = default;
+	~two_files() = default;
+
+	two_files &amp;operator=(two_files const &amp;other) throws
+	{
+		two_files tmp{other}; // may fail: *this has not been touched
+		// ---- critical line ----
+		swap(tmp); // cannot fail: from here on the assignment happens
+		return *this;
+	}
+
+	two_files &amp;operator=(two_files &amp;&amp;other) noexcept = default;
+
+	void swap(two_files &amp;other) noexcept
+	{
+		reader_.swap(other.reader_);
+		writer_.swap(other.writer_);
+	}
+
+	void close_writer() noexcept
+	{
+		writer_.reset();
+	}
+
+	[[nodiscard]] ::std::int_least32_t reader_handle() const noexcept
+	{
+		return reader_.native_handle();
+	}
+
+	[[nodiscard]] ::std::int_least32_t writer_handle() const noexcept
+	{
+		return writer_.native_handle();
+	}
+};
+
+
+int main()
+{
+	{ // make sure the example file exists
+		::std::int_least32_t fd{::open("demo.txt", O_WRONLY | O_CREAT, 0644)};
+		::close(fd);
+	}
+
+	two_files dst{"demo.txt"};
+	two_files src{"demo.txt"};
+	println("before:  dst reader = ", dst.reader_handle(), ", writer = ", dst.writer_handle());
+
+	dst = src;
+	println("dst = src: dst reader = ", dst.reader_handle(), ", writer = ", dst.writer_handle());
+
+	src.close_writer(); // src no longer has a writer to duplicate
+	try
+	{
+		dst = src;
+	}
+	catch throws (::std::error e)
+	{
+		print("dst = src failed: ", e, "\n");
+	}
+	println("dst survived: reader = ", dst.reader_handle(), ", writer = ", dst.writer_handle());
+}
+</code></pre>
+      <pre><code class="language-text">
+before:  dst reader = 3, writer = 4
+dst = src: dst reader = 7, writer = 8
+dst = src failed: [posix](9)Bad file number
+dst survived: reader = 7, writer = 8
+</code></pre>
+      <p>
+        <code>dst = src</code> worked, replacing both handles. Then <code>src</code> was
+        stripped of its writer, so duplicating it must fail &mdash; and the last line shows
+        what matters: <code>dst</code> still owns exactly the descriptors it owned before the
+        failed statement (<code>7</code> and <code>8</code>), not one of them replaced. The
+        temporary that could not be completed never became <code>dst</code>.
+      </p>
+      <p>
+        Note that nothing in <code>operator=</code> had to know how many members
+        <code>two_files</code> has, or what they are. Add a third handle tomorrow and the
+        assignment operator still works &mdash; as long as <code>swap</code> and the copy
+        constructor are updated, and the compiler will tell you if they are not.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Copy and Swap or the Direct Commit?</h2>
+
+
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>direct commit (Ch14.4)</th>
+            <th>copy and swap (here)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>how many resources</td>
+            <td>one</td>
+            <td>any number</td>
+          </tr>
+          <tr>
+            <td>what sits after the critical line</td>
+            <td>a <code>reset</code> that installs the new handle</td>
+            <td>one <code>swap</code></td>
+          </tr>
+          <tr>
+            <td>temporary resource held</td>
+            <td>the new descriptor only</td>
+            <td>a complete second copy of the object</td>
+          </tr>
+          <tr>
+            <td>needs a copy constructor</td>
+            <td>no</td>
+            <td>yes</td>
+          </tr>
+          <tr>
+            <td>needs <code>noexcept</code> <code>swap</code></td>
+            <td>no</td>
+            <td>yes, mandatory</td>
+          </tr>
+          <tr>
+            <td>self-assignment</td>
+            <td>free</td>
+            <td>free (a wasted copy, then a self-swap)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        For a class with a single resource the direct form is smaller and does less work, so
+        that is what <code>my_posix_file</code> does. The moment a class owns two things,
+        copy and swap is the version you can still read six months later, and the version whose
+        guarantee does not depend on the order of two lines somebody may swap one day.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. What Copy and Swap Requires</h2>
+
+
+      <ul>
+        <li>
+          <strong>A copy constructor that can throw.</strong> That is the part that does the
+          fallible work. If your type cannot be copied, this idiom is not available &mdash;
+          and neither is copy assignment.
+        </li>
+        <li>
+          <strong>A <code>noexcept</code> <code>swap</code></strong>
+          (<a href="/docs/14.fiverules/07.swap/">Ch14.7</a>). Without it the commit can fail
+          and the guarantee is gone.
+        </li>
+        <li>
+          <strong>A <code>noexcept</code> destructor.</strong> <code>tmp</code> must be able to
+          die while a herbception is in flight, which is not optional for destructors anyway
+          (<a href="/docs/14.fiverules/02.destructor/">Ch14.2</a>).
+        </li>
+      </ul>
+      <p>
+        All three are properties you can check in one line each with
+        <code>::std::is_nothrow_swappable_v</code>,
+        <code>::std::is_nothrow_destructible_v</code> and
+        <code>::std::is_copy_constructible_v</code> &mdash; and the compiler checks the first
+        two for you the moment something tries to use them.
+      </p>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/14.fiverules/07.swap/" class="prev-button">&larr; Ch14.7: swap</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/14.fiverules/09.exceptionsafety/" class="next-button">Ch14.9: Exception Safety &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

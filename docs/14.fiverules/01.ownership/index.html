@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch14.1: Ownership: Why a Class Needs a Destructor - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch14.1: Ownership: Why a Class Needs a Destructor</h1>
+    <section>
+      <h2>1. A Descriptor Is a Resource</h2>
+
+
+      <p>
+        <code>::open</code> hands you an <code>int</code>. It is not a number you may do
+        arithmetic on; it is a <strong>handle</strong> on something the kernel owns. Three
+        properties make it a resource:
+      </p>
+      <ul>
+        <li><strong>It must be released.</strong> The kernel keeps a table of open files per
+          process, and it is finite. An <code>int</code> that is never
+          <code>::close</code>d leaks a slot of that table.</li>
+        <li><strong>It has exactly one meaning while it is alive.</strong> The number stays
+          valid until you close it; after that the same number is free, and the next
+          <code>::open</code> anywhere in the program may hand it out again.</li>
+        <li><strong>It is not the file.</strong> Two descriptors can name the same file, and
+          two copies of the number name the same descriptor. Both facts matter in this
+          chapter.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>2. What a Bare <code>int</code> Does</h2>
+
+
+      <p>
+        A plain variable has no idea it owns anything. Nothing closes it, so it lives until
+        the process dies:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+using namespace ::fast_io::io;
+
+class my_posix_file
+{
+	int fd_{-1};
+
+public:
+	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	~my_posix_file() noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+};
+
+int main()
+{
+	// A bare int does not know it owns an operating system resource.
+	::std::int_least32_t raw{::open("demo.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644)};
+	println("bare int:  ", raw);
+
+	// Nothing closes everything. The descriptor is leaked for the rest of the run.
+	my_posix_file managed{"demo.txt", O_RDONLY};
+	println("managed:   ", managed.native_handle());
+
+	{
+		my_posix_file scoped{"demo.txt", O_RDONLY};
+		println("in scope:  ", scoped.native_handle());
+	} // the destructor runs here
+	my_posix_file after{"demo.txt", O_RDONLY};
+	println("after:     ", after.native_handle());
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+bare int:  3
+managed:   4
+in scope:  5
+after:     5
+</code></pre>
+      <p>
+        Read the numbers. The bare <code>int</code> took descriptor <code>3</code> and stayed
+        there for the whole run, so every later open got a fresh number:
+        <code>4</code>, then <code>5</code>. The managed file inside the block took
+        <code>5</code> and, when the block ended, gave <code>5</code> back &mdash;
+        which is why the next open receives <code>5</code> again and not <code>6</code>.
+      </p>
+      <p>
+        That reuse is the proof that the destructor ran. Nothing in the program calls
+        <code>::close</code> explicitly; the object is responsible for its own descriptor, and
+        the responsibility is discharged automatically.
+      </p>
+            <div class="important">
+        <strong>Owning means: everybody who can reach the object, however they leave the
+          scope, gets the resource released.</strong>
+        A <code>return</code>, a <code>throw throws</code>, a <code>break</code>, a normal
+        fall-through &mdash; the destructor runs in all of them. An explicit
+        <code>::close</code> at the end of a function runs in none of the first three.
+      
+      </div>
+
+    </section>
+    <section>
+      <h2>3. The Five Questions</h2>
+
+
+      <p>
+        A class that owns a descriptor has to say what happens in these five situations. There
+        is no escape: if you say nothing, the compiler answers all five for you, and its
+        answers are wrong for a resource.
+      </p>
+      <table>
+        <thead>
+          <tr><th>Question</th><th>Written as</th><th>Wrong default</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>When the object dies, who frees the descriptor?</td>
+            <td><code>~my_posix_file()</code></td>
+            <td>nobody: the descriptor leaks</td>
+          </tr>
+          <tr>
+            <td>When a new object is made from an existing one, what happens?</td>
+            <td><code>my_posix_file(my_posix_file const &amp;)</code></td>
+            <td>the number is copied: two owners, one descriptor</td>
+          </tr>
+          <tr>
+            <td>When an existing object is assigned from another, what happens?</td>
+            <td><code>operator=(my_posix_file const &amp;)</code></td>
+            <td>the old descriptor leaks and the new one is shared</td>
+          </tr>
+          <tr>
+            <td>When a dying object is used to build a new one, can we just take it?</td>
+            <td><code>my_posix_file(my_posix_file &amp;&amp;)</code></td>
+            <td>it copies instead, which is correct but wasteful</td>
+          </tr>
+          <tr>
+            <td>When an existing object takes over from a dying one, what happens?</td>
+            <td><code>operator=(my_posix_file &amp;&amp;)</code></td>
+            <td>it copies instead, and leaks the old descriptor</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Write all five and you have the <strong>rule of five</strong>. Write none and have the
+        compiler generate all of them &mdash; the
+        <strong>rule of zero</strong> &mdash; which is the better outcome, but only possible
+        when every member is already a well-behaved value. A raw descriptor is not
+        (<a href="/docs/14.fiverules/11.myposixfile/">Ch14.11</a> comes back to this).
+      </p>
+
+    </section>
+    <section>
+      <h2>4. What We Are Going to Build</h2>
+
+
+      <p>
+        The class stays small on purpose. It holds one <code>int</code>, and everything else is
+        the five rules:
+      </p>
+      <pre><code class="language-cpp">
+class my_posix_file
+{
+	int fd_{-1}; // -1 means "no descriptor"; it is the empty state
+
+public:
+	// 1. create: acquire a descriptor from a path
+	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws;
+
+	// 2. destroy: give the descriptor back                   -&gt; Ch14.2
+	~my_posix_file() noexcept;
+
+	// 3. copy: a second descriptor for the same open file     -&gt; Ch14.3
+	my_posix_file(my_posix_file const &amp;other) throws;
+
+	// 4. copy-assign: replace what this object owns           -&gt; Ch14.4
+	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws;
+
+	// 5. move: take the descriptor and leave -1 behind        -&gt; Ch14.5, Ch14.6
+	my_posix_file(my_posix_file &amp;&amp;other) noexcept;
+	my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept;
+
+	// 6. swap: exchange two objects' descriptors              -&gt; Ch14.7
+	void swap(my_posix_file &amp;other) noexcept;
+};
+</code></pre>
+      <p>
+        The sentinel <code>-1</code> is doing real work: it is the difference between
+        &ldquo;I own a file&rdquo; and &ldquo;I own nothing&rdquo;. Without it there would be
+        no way to leave a moved-from object in a state where its destructor can run safely.
+      </p>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/14.fiverules/" class="prev-button">&larr; Ch14: The Rule of Five</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/14.fiverules/02.destructor/" class="next-button">Ch14.2: The Destructor &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

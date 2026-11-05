@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch14.3: The Copy Constructor: Two Objects, Two Resources - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch14.3: The Copy Constructor: Two Objects, Two Resources</h1>
+    <section>
+      <h2>1. What a Copy Has to Mean</h2>
+
+
+      <p>
+        The destructor answers &ldquo;who releases it&rdquo;. The copy constructor answers the
+        next question: when a <em>new</em> object is made from an existing one, what does the
+        new object own?
+      </p>
+      <p>
+        For <code>point</code> in <a href="/docs/13.class/">Chapter 13</a> the answer was
+        trivial: its own two numbers. For an owner the answer must be
+        <strong>&ldquo;its own resource&rdquo;</strong>, and the only way to get a second
+        descriptor for the same open file is to ask the kernel for one:
+        <code>::dup</code>.
+      </p>
+      <pre><code class="language-cpp">
+int dup(int fd);              // a new descriptor for the same open file
+int dup2(int fd, int newfd);  // make newfd refer to the same open file
+</code></pre>
+
+    </section>
+    <section>
+      <h2>2. What the Compiler Writes If You Say Nothing</h2>
+
+
+      <p>
+        A class with no copy constructor gets one generated for it, and the generated one does
+        the same thing it does for <code>point</code>: it copies each member. For an
+        <code>int</code> that means the number is copied. The number is not the descriptor
+        &mdash; it is only the name of one.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+using namespace ::fast_io::io;
+
+// No copy constructor, no move constructor, no assignment: the compiler
+// supplies member-wise versions of all of them.
+class shallow_file
+{
+	int fd_{-1};
+
+public:
+	explicit shallow_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	~shallow_file() noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+};
+
+int main()
+{
+	shallow_file a{"demo.txt", O_RDONLY};
+	println("a = ", a.native_handle());
+
+	{
+		shallow_file b{a}; // copies the number, not the file
+		println("b = ", b.native_handle(), ", b owns the same descriptor = ", b.native_handle() == a.native_handle());
+	} // b closes the descriptor it thinks it owns
+
+	println("after b died, a = ", a.native_handle(), ", still valid = ", ::fcntl(a.native_handle(), F_GETFD) != -1);
+
+	shallow_file c{"demo.txt", O_RDONLY};
+	println("c = ", c.native_handle(), ", the number came back");
+} // c and a both close descriptor 3
+</code></pre>
+      <pre><code class="language-text">
+a = 3
+b = 3, b owns the same descriptor = 1
+after b died, a = 3, still valid = 0
+c = 3, the number came back
+</code></pre>
+      <p>
+        <code>b</code> has the same <code>int</code>, so it has the same owner's claim, so it
+        closes the descriptor when it dies. After that line <code>a</code> still holds
+        <code>3</code> and <code>3</code> is no longer open: <code>a</code> is a
+        <strong>dangling owner</strong>. Every later use of it fails with
+        <code>EBADF</code>, and its destructor will close descriptor <code>3</code> a second
+        time &mdash; which by then may belong to a completely different file, as the last two
+        lines of the output show. Closing somebody else's file is one of the nastiest bugs
+        there is, because the symptom appears far away from the mistake.
+      </p>
+            <div class="important">
+        <strong>The compiler's copy is member-wise, and a member-wise copy of a handle is
+          always wrong.</strong>
+        This is the reason the rule of five exists at all: you cannot take the generated copy
+        <em>and</em> the generated destructor. Once one of the five is yours, you own all of
+        them.
+      
+      </div>
+
+    </section>
+    <section>
+      <h2>3. The Copy Constructor: A Descriptor of Its Own</h2>
+
+
+      <pre><code class="language-cpp">
+	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
+	{
+		if (fd_ == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+	}
+</code></pre>
+      <p>
+        Read it in three parts.
+      </p>
+      <ul>
+        <li>
+          <strong>The parameter is <code>const&amp;</code>.</strong> A copy constructor must
+          not modify what it copies; if it did, <code>my_posix_file const &amp;</code>
+          parameters could not be copied, and <code>const</code> objects would be second-class.
+        </li>
+        <li>
+          <strong><code>::dup</code> happens in the member initializer list.</strong> It is
+          the only place the member is initialized
+          (<a href="/docs/13.class/06.constructors/">Ch13.6</a>), and doing the fallible call
+          there means nothing has been modified yet when it runs.
+        </li>
+        <li>
+          <strong><code>throws</code>, because <code>::dup</code> can fail.</strong> It fails
+          with <code>EMFILE</code> when the process has too many descriptors open and with
+          <code>EBADF</code> when the source has none &mdash; which is exactly what copying a
+          moved-from file does (<a href="/docs/14.fiverules/10.movedfrom/">Ch14.10</a>).
+        </li>
+      </ul>
+            <div class="note">
+        <strong>Why not close-then-open the path again?</strong>
+        Because the file need not still be at that path, and because reopening would lose the
+        file offset and the open mode. <code>::dup</code> duplicates <em>the open file</em>,
+        not the name, so it works after the file has been renamed or unlinked.
+      
+      </div>
+
+    </section>
+    <section>
+      <h2>4. Two Descriptors, One Open File</h2>
+
+
+      <p>
+        What exactly does the copy share? The program below writes ten bytes to a file, then
+        copies a reader, then reads four bytes from each handle in turn:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+using namespace ::fast_io::io;
+
+class my_posix_file
+{
+	int fd_{-1};
+
+public:
+	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
+	{
+		if (fd_ == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+	}
+
+	~my_posix_file() noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+
+	::std::size_t read_some(char *buf, ::std::size_t n) throws
+	{
+		auto ret{::read(fd_, buf, n)};
+		if (ret == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		return static_cast&lt;::std::size_t&gt;(ret);
+	}
+
+	::std::size_t write_some(char const *buf, ::std::size_t n) throws
+	{
+		auto ret{::write(fd_, buf, n)};
+		if (ret == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		return static_cast&lt;::std::size_t&gt;(ret);
+	}
+};
+
+int main()
+{
+	{
+		my_posix_file out{"demo.txt", O_WRONLY | O_CREAT | O_TRUNC};
+		out.write_some("0123456789", 10);
+	}
+
+	my_posix_file a{"demo.txt", O_RDONLY};
+	my_posix_file b{a}; // copy: a descriptor of its own, same open file description
+	println("a = ", a.native_handle(), ", b = ", b.native_handle());
+
+	char buf[16]{};
+	a.read_some(buf, 4);
+	println("read from a: ", ::fast_io::mnp::os_c_str_with_known_size(buf, 4));
+	b.read_some(buf, 4);
+	println("read from b: ", ::fast_io::mnp::os_c_str_with_known_size(buf, 4));
+
+	my_posix_file c{"demo.txt", O_RDONLY};
+	c.read_some(buf, 4);
+	println("read from c: ", ::fast_io::mnp::os_c_str_with_known_size(buf, 4));
+}
+</code></pre>
+      <pre><code class="language-text">
+a = 3, b = 4
+read from a: 0123
+read from b: 4567
+read from c: 0123
+</code></pre>
+      <p>
+        Look at the three reads.
+      </p>
+      <ul>
+        <li>
+          <code>a</code> and <code>b</code> have <strong>different descriptors</strong>
+          (<code>3</code> and <code>4</code>), so closing one does not close the other, and
+          each one's destructor closes exactly one descriptor. That is what makes the copy
+          safe.
+        </li>
+        <li>
+          But they share the <strong>file offset</strong>: after <code>a</code> read
+          <code>0123</code>, <code>b</code>'s read continues at <code>4567</code>, not at the
+          beginning. <code>::dup</code> duplicates the open file description, and the offset
+          is part of it.
+        </li>
+        <li>
+          <code>c</code> was opened separately, so it has its own open file description and
+          reads <code>0123</code> from the start.
+        </li>
+      </ul>
+      <p>
+        So a copy of <code>my_posix_file</code> is an <strong>independent owner of a shared
+        stream</strong>. That is the honest semantics of the underlying system, and the class
+        should not pretend otherwise. If you need an independent offset, open the file again
+        (<code>c</code>), do not copy.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. When Copying Makes No Sense</h2>
+
+
+      <p>
+        For a file, duplicating the descriptor is meaningful, so we support it. For plenty of
+        resources it is not: a lock is either held or not, a buffer has one owner, an
+        <code>::open</code> in progress cannot be duplicated. Such a class says so:
+      </p>
+      <pre><code class="language-cpp">
+class my_lock
+{
+public:
+	my_lock(my_lock const &amp;) = delete;
+	my_lock &amp;operator=(my_lock const &amp;) = delete;
+};
+</code></pre>
+      <p>
+        Anyone who tries to copy it gets a compile-time refusal instead of a double
+        <code>::close</code> at run time:
+      </p>
+      <pre><code class="language-text">
+error: use of deleted function 'my_lock::my_lock(const my_lock&amp;)'
+note:   declared here
+</code></pre>
+      <p>
+        fast_io does the same where ownership cannot be duplicated: its
+        <code>posix_file_factory</code> &mdash; the object that holds a fresh descriptor until
+        a file object takes it over &mdash; deletes its copy constructor and copy assignment
+        for exactly this reason.
+      </p>
+            <div class="note">
+        <strong>Copying is a promise about ownership, not about bytes.</strong>
+        &ldquo;Can this be copied?&rdquo; and &ldquo;what does the copy mean?&rdquo; are the same
+        question. If you cannot answer the second in one sentence, delete the copy.
+      
+      </div>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/14.fiverules/02.destructor/" class="prev-button">&larr; Ch14.2: The Destructor</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/14.fiverules/04.copyassignment/" class="next-button">Ch14.4: Copy Assignment &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch14.11: The Whole Class, and fast_io&rsquo;s posix_file - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch14.11: The Whole Class, and fast_io&rsquo;s posix_file</h1>
+    <section>
+      <h2>1. The Class, Complete</h2>
+
+
+      <p>
+        Everything from the last nine subchapters, in one piece. With
+        <code>#include &lt;fast_io.h&gt;</code> and
+        <code>#include &lt;fast_io_dsal/string_view.h&gt;</code> at the top it is a complete
+        header, and there is no other code in it: one <code>int</code>, six special members,
+        <code>swap</code>, and the two operations that make it a file.
+      </p>
+      <pre><code class="language-cpp">
+class my_posix_file
+{
+	int fd_{-1};
+
+public:
+	void reset(::std::int_least32_t newfd = -1) noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+		fd_ = newfd;
+	}
+
+	my_posix_file() noexcept = default;
+
+	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
+	{
+		if (fd_ == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+	}
+
+	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
+	{
+		::std::int_least32_t newfd{::dup(other.fd_)};
+		if (newfd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		// ---- critical line ----
+		reset(newfd);
+		return *this;
+	}
+
+	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
+	{
+		other.fd_ = -1;
+	}
+
+	my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept
+	{
+		if (this == ::std::addressof(other)) [[unlikely]]
+		{
+			return *this;
+		}
+		reset(other.fd_);
+		other.fd_ = -1;
+		return *this;
+	}
+
+	~my_posix_file() noexcept
+	{
+		reset();
+	}
+
+	void swap(my_posix_file &amp;other) noexcept
+	{
+		::std::int_least32_t const tmp{fd_};
+		fd_ = other.fd_;
+		other.fd_ = tmp;
+	}
+
+	[[nodiscard]] bool is_open() const noexcept
+	{
+		return fd_ != -1;
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+
+	::std::size_t read_some(char *buf, ::std::size_t n) throws
+	{
+		auto ret{::read(fd_, buf, n)};
+		if (ret == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		return static_cast&lt;::std::size_t&gt;(ret);
+	}
+
+	::std::size_t write_some(char const *buf, ::std::size_t n) throws
+	{
+		auto ret{::write(fd_, buf, n)};
+		if (ret == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		return static_cast&lt;::std::size_t&gt;(ret);
+	}
+};
+
+inline void swap(my_posix_file &amp;a, my_posix_file &amp;b) noexcept
+{
+	a.swap(b);
+}
+</code></pre>
+      <p>
+        Read it top to bottom and you can see the chapter: <code>reset</code> is the only
+        <code>::close</code> (<a href="/docs/14.fiverules/02.destructor/">Ch14.2</a>); the copy
+        constructor duplicates
+        (<a href="/docs/14.fiverules/03.copyconstructor/">Ch14.3</a>); copy assignment has the
+        critical line (<a href="/docs/14.fiverules/04.copyassignment/">Ch14.4</a>); the move
+        constructor empties its source
+        (<a href="/docs/14.fiverules/05.moveconstructor/">Ch14.5</a>); move assignment has the
+        self-check (<a href="/docs/14.fiverules/06.moveassignment/">Ch14.6</a>);
+        <code>swap</code> is three writes
+        (<a href="/docs/14.fiverules/07.swap/">Ch14.7</a>). Everything that only moves a number
+        is <code>noexcept</code>; everything that calls the kernel is <code>throws</code>
+        &mdash; the classification of
+        <a href="/docs/14.fiverules/09.exceptionsafety/">Ch14.9</a>, visible in the
+        declarations.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. Using It</h2>
+
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+using namespace ::fast_io::io;
+
+#include &lt;fast_io_dsal/vector.h&gt;
+
+class my_posix_file
+{
+	int fd_{-1};
+
+public:
+	void reset(::std::int_least32_t newfd = -1) noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+		fd_ = newfd;
+	}
+
+	my_posix_file() noexcept = default;
+
+	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
+	{
+		if (fd_ == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+	}
+
+	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
+	{
+		::std::int_least32_t newfd{::dup(other.fd_)};
+		if (newfd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		reset(newfd);
+		return *this;
+	}
+
+	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
+	{
+		other.fd_ = -1;
+	}
+
+	my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept
+	{
+		if (this == ::std::addressof(other)) [[unlikely]]
+		{
+			return *this;
+		}
+		reset(other.fd_);
+		other.fd_ = -1;
+		return *this;
+	}
+
+	~my_posix_file() noexcept
+	{
+		reset();
+	}
+
+	void swap(my_posix_file &amp;other) noexcept
+	{
+		::std::int_least32_t const tmp{fd_};
+		fd_ = other.fd_;
+		other.fd_ = tmp;
+	}
+
+	[[nodiscard]] bool is_open() const noexcept
+	{
+		return fd_ != -1;
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+
+	::std::size_t read_some(char *buf, ::std::size_t n) throws
+	{
+		auto ret{::read(fd_, buf, n)};
+		if (ret == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		return static_cast&lt;::std::size_t&gt;(ret);
+	}
+
+	::std::size_t write_some(char const *buf, ::std::size_t n) throws
+	{
+		auto ret{::write(fd_, buf, n)};
+		if (ret == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		return static_cast&lt;::std::size_t&gt;(ret);
+	}
+};
+
+inline void swap(my_posix_file &amp;a, my_posix_file &amp;b) noexcept
+{
+	a.swap(b);
+}
+
+int main()
+{
+	{
+		my_posix_file out{"demo.txt", O_WRONLY | O_CREAT | O_TRUNC};
+		out.write_some("herbceptions\n", 13);
+	}
+
+	my_posix_file in{"demo.txt", O_RDONLY};
+	char buf[32]{};
+	auto n = in.read_some(buf, sizeof(buf));
+	print("read back: ", ::fast_io::mnp::os_c_str_with_known_size(buf, n));
+
+	my_posix_file copy{in};
+	println("in = ", in.native_handle(), ", copy = ", copy.native_handle());
+
+	::fast_io::vector&lt;my_posix_file&gt; files;
+	files.push_back(::std::move(copy));
+	println("the vector holds ", files.size(), " file, fd = ", files.front().native_handle());
+
+	swap(in, files.front());
+	println("after swap: in = ", in.native_handle(), ", files.front() = ", files.front().native_handle());
+}
+</code></pre>
+      <pre><code class="language-text">
+read back: herbceptions
+in = 3, copy = 4
+the vector holds 1 file, fd = 4
+after swap: in = 4, files.front() = 3
+</code></pre>
+      <p>
+        The class works with everything else in this tutorial: it goes into a
+        <code>::fast_io::vector</code> because its move is <code>noexcept</code>, it survives
+        the container's reallocation because move assignment releases what it must, and
+        <code>swap</code> moves ownership between the vector and a local without a single
+        system call.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. Where Each Rule Was Taught</h2>
+
+
+      <table>
+        <thead>
+          <tr><th>In the listing</th><th>Rule</th><th>Subchapter</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>int fd_{-1};</code></td><td>the empty state is part of the design</td><td><a href="/docs/14.fiverules/01.ownership/">Ch14.1</a></td></tr>
+          <tr><td><code>~my_posix_file() noexcept</code></td><td>one place releases, and it cannot fail</td><td><a href="/docs/14.fiverules/02.destructor/">Ch14.2</a></td></tr>
+          <tr><td><code>my_posix_file(my_posix_file const &amp;)</code></td><td>a copy is a second descriptor</td><td><a href="/docs/14.fiverules/03.copyconstructor/">Ch14.3</a></td></tr>
+          <tr><td><code>operator=(my_posix_file const &amp;)</code></td><td>the critical line</td><td><a href="/docs/14.fiverules/04.copyassignment/">Ch14.4</a></td></tr>
+          <tr><td><code>my_posix_file(my_posix_file &amp;&amp;)</code></td><td>take, then empty the source</td><td><a href="/docs/14.fiverules/05.moveconstructor/">Ch14.5</a></td></tr>
+          <tr><td><code>operator=(my_posix_file &amp;&amp;)</code></td><td>release, then take; self-check</td><td><a href="/docs/14.fiverules/06.moveassignment/">Ch14.6</a></td></tr>
+          <tr><td><code>void swap(my_posix_file &amp;) noexcept</code></td><td>the primitive a commit is made of</td><td><a href="/docs/14.fiverules/07.swap/">Ch14.7</a></td></tr>
+          <tr><td>the <code>if (fd == -1)</code> checks</td><td>the empty state is valid, not an error</td><td><a href="/docs/14.fiverules/10.movedfrom/">Ch14.10</a></td></tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>4. What fast_io&rsquo;s <code>posix_file</code> Adds</h2>
+
+
+      <p>
+        The real thing lives in
+        <code>include/fast_io_hosted/platforms/posix/file.h</code>, and it is
+        <code>basic_posix_family_file</code>, which is the same class with the parts a library
+        needs and a tutorial does not:
+      </p>
+      <ul>
+        <li>
+          <strong>It is a template.</strong> <code>family</code> and <code>ch_type</code> mean
+          the same code serves <code>posix_file</code>, <code>u8posix_file</code>,
+          <code>wposix_file</code> and the Win32/NT families. That is a job for
+          <a href="/docs/15.template/">Chapter 15</a>.
+        </li>
+        <li>
+          <strong>It is an <code>io_observer</code> base plus a file.</strong> The observer
+          knows how to read, write, scatter, gather and query the descriptor; the file adds
+          ownership on top. fast_io's whole design is this split between
+          &ldquo;handle&rdquo; and &ldquo;owner of a handle&rdquo;.
+        </li>
+        <li>
+          <strong>The path is a template parameter.</strong>
+          <code>::fast_io::constructible_to_os_c_str</code> accepts a
+          <code>cstring_view</code>, a <code>::fast_io::string</code>, or a plain literal, and
+          converts to whatever the platform wants. We take a
+          <code>::fast_io::cstring_view</code> and nothing else, so the example stays readable.
+        </li>
+        <li>
+          <strong>It has a <code>close()</code> that reports.</strong>
+          <code>::close</code> can fail, and a caller may care; so the class offers
+          <code>void close() throws</code> next to the <code>noexcept</code> destructor
+          &mdash; the split from
+          <a href="/docs/14.fiverules/02.destructor/">Ch14.2</a>.
+        </li>
+        <li>
+          <strong>It knows about Windows.</strong> The same file carries the Cygwin, Wine, NT
+          and Win32 constructors, which is most of its length. Our reduced version has none of
+          it.
+        </li>
+        <li>
+          <strong>It deletes the dangerous conversions.</strong> Constructing a file from an
+          <code>io_observer</code> would make two owners out of one handle, so that constructor
+          is <code>= delete</code>, exactly as
+          <a href="/docs/14.fiverules/03.copyconstructor/">Ch14.3</a> recommends.
+        </li>
+      </ul>
+      <p>
+        None of those additions change a single rule on these pages. That is the point of
+        learning them on a fifty-line class: the fifth rule of a five-thousand-line class is
+        the same rule.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. The Rule of Zero</h2>
+
+
+      <p>
+        Before you write any of this, check whether you have to. If every member of your class
+        is already a well-behaved value &mdash; an <code>int</code>, a
+        <code>::fast_io::string</code>, a <code>::fast_io::vector</code> &mdash; then the
+        compiler's copies, moves and destructor are <em>all correct</em>, and you should write
+        none of them:
+      </p>
+      <pre><code class="language-cpp">
+class config
+{
+	::fast_io::string name_;
+	::fast_io::vector&lt;::fast_io::string&gt; keys_;
+	// nothing else: the five special members are generated, and they are right
+};
+</code></pre>
+      <p>
+        This is why <a href="/docs/13.class/">Chapter 13</a> never mentioned any of it: a class
+        of numbers and strings needs none. The rule of five is the price of owning a raw
+        resource, and the cheapest way to pay it is to not own one &mdash; put the
+        <code>int</code> inside a class that already implements the five rules, and let
+        composition do the work.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. Checklist</h2>
+
+
+      <ul>
+        <li>Does the class own a resource? If not, write none of the five.</li>
+        <li>Is there a sentinel for &ldquo;owns nothing&rdquo;, initialised in the member?</li>
+        <li>Is there exactly one place that releases it, and is that place <code>noexcept</code>?</li>
+        <li>Does the destructor handle the empty state without calling a system function?</li>
+        <li>Does the copy constructor produce a <em>new</em> resource, or is copy deleted?</li>
+        <li>Does copy assignment do all fallible work before the critical line?</li>
+        <li>Does move assignment empty its source?</li>
+        <li>Does move assignment check for self-assignment?</li>
+        <li>Is <code>swap</code> <code>noexcept</code>, and is there a free
+          <code>swap</code> as well?</li>
+        <li>Can you name the exception-safety level of every member function?</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>7. Mistakes, and What They Look Like</h2>
+
+
+      <table>
+        <thead>
+          <tr><th>Mistake</th><th>Symptom</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>No destructor</td>
+            <td>descriptors accumulate until <code>::open</code> fails with
+              <code>EMFILE</code></td>
+          </tr>
+          <tr>
+            <td>Member-wise copy of a handle</td>
+            <td>double <code>::close</code>, or closing a descriptor that now belongs to another
+              file</td>
+          </tr>
+          <tr>
+            <td>Move constructor that does not empty the source</td>
+            <td>two owners of one descriptor; the same double-close, later and harder to
+              find</td>
+          </tr>
+          <tr>
+            <td>Release before acquire in copy assignment</td>
+            <td>a failed assignment destroys the object it was assigning to</td>
+          </tr>
+          <tr>
+            <td>No self-check in move assignment</td>
+            <td>self-move silently closes the file</td>
+          </tr>
+          <tr>
+            <td>Self-check in copy assignment (<code>if (this == &amp;other)</code>)</td>
+            <td>harmless, but it hides the fact that the ordering was never fixed</td>
+          </tr>
+          <tr>
+            <td>Move constructor not <code>noexcept</code></td>
+            <td><code>static assertion failed: vector element types must be nothrow move constructible or trivially relocatable</code></td>
+          </tr>
+          <tr>
+            <td>Destructor that reports</td>
+            <td><code>destructor cannot be declared with a herbceptions ('throws'/'return_failure{E}') exception specification</code></td>
+          </tr>
+          <tr>
+            <td>Destructor that prints</td>
+            <td><code>call to a 'throws' or 'return_failure{E}' function must be handled by an enclosing 'try { } catch throws'</code></td>
+          </tr>
+          <tr>
+            <td>Copy of a moved-from file</td>
+            <td><code>[posix](9)Bad file number</code> at run time &mdash; by design, not by
+              accident</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>8. What Comes Next</h2>
+
+
+      <p>
+        This class is written for one character type and one platform family. The next chapter
+        turns it into a template so the same code serves
+        <code>char</code>, <code>char8_t</code>, <code>wchar_t</code> and the Windows
+        backends &mdash; and you will recognise every line of it, because templates do not
+        change the five rules, they only repeat them for more types.
+      </p>
+      <p>
+        The other direction is
+        <a href="/docs/16.operatoroverloading/">Chapter 16</a>: <code>&lt;&lt;</code>,
+        <code>==</code> and friends can be written for a class like this one, and they raise
+        exactly the questions about copying, moving and failing that you have just answered.
+      </p>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/14.fiverules/10.movedfrom/" class="prev-button">&larr; Ch14.10: Moved-From Objects</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>
