@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch13.1: What a Class Is - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch13.1: What a Class Is: Data and the Functions That Belong to It</h1>
+
+    <section>
+      <h2>1. Data, and the Functions That Work on It</h2>
+
+      <p>
+        Here is a point, written the way you have written everything so far: a
+        <code>struct</code> with two members, and a free function that takes one:
+      </p>
+
+      <pre><code class="language-cpp">
+struct point_data
+{
+	::std::int_least32_t x;
+	::std::int_least32_t y;
+};
+
+::std::int_least32_t sum_of(point_data const &amp;p) noexcept
+{
+	return p.x + p.y;
+}
+</code></pre>
+
+      <p>
+        This works, and it has a real weakness that has nothing to do with style:
+        <strong>nothing connects the two.</strong> The function has to name the type
+        twice, and it has to be written in a place where the type is visible. Nothing
+        in the compiler knows that <code>sum_of</code> is <em>the</em> sum of a point,
+        so there is no way to discover the operations a point supports &mdash; you
+        grep for them and hope.
+      </p>
+
+      <p>
+        Now the same thing as a <strong>class</strong>. The two integers and the two
+        operations live inside one type, and the operations are called with the dot
+        syntax you already use for <code>::fast_io::string</code> members:
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+using namespace ::fast_io::io;
+
+// The old way: the data and the functions that work on it are separate.
+struct point_data
+{
+	::std::int_least32_t x;
+	::std::int_least32_t y;
+};
+
+::std::int_least32_t sum_of(point_data const &amp;p) noexcept
+{
+	return p.x + p.y;
+}
+
+// A class: the data and the operations that belong to it, together, in one type.
+class point
+{
+public:
+	::std::int_least32_t x{};
+	::std::int_least32_t y{};
+
+	::std::int_least32_t sum() const noexcept
+	{
+		return x + y;
+	}
+	::std::int_least32_t product() const noexcept
+	{
+		return x * y;
+	}
+};
+
+int main()
+{
+	point a{3, 4};
+	point b{-2, 5};
+
+	println("a.sum()     = ", a.sum());
+	println("a.product() = ", a.product());
+	println("b.sum()     = ", b.sum());
+	println("b.product() = ", b.product());
+
+	point_data d{3, 4};
+	println("sum_of(d)   = ", sum_of(d));
+}
+</code></pre>
+      <pre><code class="language-text">
+a.sum()     = 7
+a.product() = 12
+b.sum()     = 3
+b.product() = -10
+sum_of(d)   = 7
+</code></pre>
+
+      <p>
+        Nothing was added to the language. <code>sum()</code> is an ordinary function
+        that happens to be declared inside the class, and <code>a.sum()</code> is an
+        ordinary function call that also says <em>on which object</em> to run it. That
+        is the whole mechanism: a member function is a function with one extra,
+        invisible argument &mdash; the object (<a href="/docs/13.class/07.this/">Ch13.7</a>).
+      </p>
+
+      <div class="note">
+        <strong>Vocabulary, once.</strong>
+        The variables inside a class are <strong>data members</strong> (or fields, or
+        attributes). The functions inside a class are <strong>member functions</strong>
+        (or methods). A variable of a class type is an <strong>object</strong> (or an
+        instance) of that class. C++ programmers use both words for both things, so
+        this tutorial says &ldquo;data member&rdquo; and &ldquo;member function&rdquo;
+        when the distinction matters.
+      </div>
+    </section>
+
+    <section>
+      <h2>2. An Object Is a Value Like Any Other</h2>
+
+      <p>
+        This is the part that surprises people coming from languages where objects are
+        special: here a <code>point</code> is not a reference, a handle, or a pointer.
+        It <em>is</em> its two integers, stored where you put it, with no extra
+        allocation. So everything you learned about values keeps working:
+      </p>
+
+      <ul>
+        <li><code>point a{3, 4};</code> &mdash; the object lives on the stack, 8 bytes,
+          nothing on the heap.</li>
+        <li><code>point ps[3]{{1, 2}, {3, 4}, {5, 6}};</code> &mdash; an array of them
+          is just an array.</li>
+        <li><code>point const &amp;p</code> &mdash; passing a point to a function
+          passes its address, and <code>const</code> says the function will not change
+          it.</li>
+        <li><code>for (auto const &amp;p : ps)</code> &mdash; a range-for over an array
+          of points works like a range-for over an array of anything.</li>
+      </ul>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+#include &lt;cstddef&gt;
+using namespace ::fast_io::io;
+
+class point
+{
+public:
+	::std::int_least32_t x{};
+	::std::int_least32_t y{};
+
+	::std::int_least32_t sum() const noexcept
+	{
+		return x + y;
+	}
+};
+
+::std::int_least32_t total(point const *ps, ::std::size_t n) noexcept
+{
+	::std::int_least32_t sum{};
+	for (::std::size_t i{}; i != n; ++i)
+	{
+		sum += ps[i].sum();
+	}
+	return sum;
+}
+
+int main()
+{
+	point ps[3]{{1, 2}, {3, 4}, {5, 6}};
+	for (auto const &amp;p : ps)
+	{
+		println(p.x, " + ", p.y, " = ", p.sum());
+	}
+	println("total = ", total(ps, 3));
+}
+</code></pre>
+      <pre><code class="language-text">
+1 + 2 = 3
+3 + 4 = 7
+5 + 6 = 11
+total = 21
+</code></pre>
+
+      <p>
+        Notice that <code>total</code> is a free function that knows nothing about
+        points beyond what the class shows it: <code>ps[i].sum()</code>. That is the
+        usual shape of a program built out of classes &mdash; small types that know a
+        lot about themselves, and free functions that combine them.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. What the Class Actually Buys You</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>With a struct and free functions</th>
+            <th>With a class and member functions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>The operations are scattered; finding them means searching the
+              program.</td>
+            <td>The operations are listed inside the type. Its definition is its
+              documentation.</td>
+          </tr>
+          <tr>
+            <td>Any code anywhere can set <code>p.x = -999</code> and break whatever
+              the data was supposed to mean.</td>
+            <td>You decide who may touch <code>x</code>
+              (<a href="/docs/13.class/04.access/">Ch13.4</a>).</td>
+          </tr>
+          <tr>
+            <td>A new invariant (&ldquo;coordinates are never negative&rdquo;) has to
+              be checked at every call site.</td>
+            <td>The invariant is checked once, inside the class
+              (<a href="/docs/13.class/05.encapsulation/">Ch13.5</a>).</td>
+          </tr>
+          <tr>
+            <td>Changing the representation means changing every function that took
+              the struct apart.</td>
+            <td>Only the class changes; the interface stays
+              (<a href="/docs/13.class/05.encapsulation/">Ch13.5</a>).</td>
+          </tr>
+          <tr>
+            <td>Nothing forces the object to start in a sensible state.</td>
+            <td>Constructors force it (<a href="/docs/13.class/06.constructors/">Ch13.6</a>).</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="warning">
+        <strong>In this subchapter the data members are still public.</strong>
+        That is deliberate: <code>point a{3, 4};</code> only works like that because the
+        class has no constructor and all members are public, so the braces initialize
+        the members in declaration order. Chapter 13.4 closes the door and Chapter 13.6
+        gives you the constructor that replaces this syntax. From then on, the way to
+        make an object is a constructor call, not a brace list you have to keep in sync
+        by hand.
+      </div>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/13.class/" class="prev-button">&larr; Ch13: Classes</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/13.class/02.methods/" class="next-button">Ch13.2: Member Functions &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

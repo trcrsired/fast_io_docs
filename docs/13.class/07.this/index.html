@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch13.7: The this Pointer - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch13.7: The this Pointer</h1>
+
+    <section>
+      <h2>1. Every Member Function Quietly Receives the Object</h2>
+
+      <p>
+        When you write <code>c.add(2)</code>, the compiler has to tell
+        <code>add</code> which counter to add to. It does that by passing the object as
+        an extra argument &mdash; the first one, not visible in the parameter list, and
+        reachable inside the function through the keyword <code>this</code>:
+      </p>
+
+      <pre><code class="language-cpp">
+c.add(2);        // what you write
+
+// what the member function actually receives:
+//    (counter *this, ::std::int_least32_t n)
+</code></pre>
+
+      <p>
+        <code>this</code> is a <strong>pointer</strong> to that object. So
+        <code>this-&gt;value_</code> and <code>(*this).value_</code> and plain
+        <code>value_</code> are three spellings of the same member. You rarely need to
+        write it; the three cases where you do are below.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Case 1: A Parameter Hides a Member</h2>
+
+      <p>
+        If a parameter has the same name as a data member, the parameter wins and the
+        member disappears from view. <code>this-&gt;</code> brings it back:
+      </p>
+
+      <pre><code class="language-cpp">
+counter &amp;set(::std::int_least32_t value) noexcept
+{
+	this-&gt;value_ = value;   // member on the left, parameter on the right
+	return *this;
+}
+</code></pre>
+
+      <p>
+        Many people avoid the question entirely by naming the parameter differently
+        (<code>n</code>, or <code>new_value</code>) &mdash; that works too, and gives
+        shorter names. Either way, <code>this-&gt;</code> is the way to be explicit when
+        the two names collide.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Case 2: Returning the Object You Were Called On</h2>
+
+      <p>
+        <code>*this</code> is the object itself, not a pointer to it. Returning a
+        reference to it lets the caller chain calls on the same object, because every
+        call in the chain is a member function on the object the previous call
+        returned:
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+using namespace ::fast_io::io;
+
+class counter
+{
+public:
+	explicit counter(::std::int_least32_t value) noexcept : value_{value}
+	{
+	}
+
+	// `value` hides the member, so the member needs this-&gt; .
+	counter &amp;set(::std::int_least32_t value) noexcept
+	{
+		this-&gt;value_ = value;
+		return *this;
+	}
+
+	counter &amp;add(::std::int_least32_t n) noexcept
+	{
+		value_ += n;
+		return *this; // the object we were called on
+	}
+
+	::std::int_least32_t value() const noexcept
+	{
+		return value_;
+	}
+
+	bool same_as(counter const &amp;other) const noexcept
+	{
+		return this == &amp;other;
+	}
+
+private:
+	::std::int_least32_t value_{};
+};
+
+int main()
+{
+	counter c{0};
+	c.add(1).add(2).add(3); // chaining: each call returns *this
+	println("after chaining: ", c.value());
+
+	c.set(10);
+	println("after set(10):  ", c.value());
+
+	counter d{10};
+	println("c.same_as(d) = ", c.same_as(d));
+	println("c.same_as(c) = ", c.same_as(c));
+}
+</code></pre>
+      <pre><code class="language-text">
+after chaining: 6
+after set(10):  10
+c.same_as(d) = 0
+c.same_as(c) = 1
+</code></pre>
+
+      <p>
+        The return type is <code>counter &amp;</code> &mdash; a reference to the object
+        itself, not a pointer and not a separate value, so <code>c.add(1).add(2)</code> reads like
+        <code>c.add(1); c.add(2);</code> with the object written once. If the chain may
+        be called on a <code>const</code> object, use <code>counter const &amp;</code>
+        and a <code>const</code> member function
+        (<a href="/docs/13.class/03.constmethods/">Ch13.3</a>).
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Case 3: Do You Mean <em>This</em> Object?</h2>
+
+      <p>
+        A member function can compare the object it was called on against another one.
+        <code>this</code> is the address of the first, <code>&amp;other</code> the
+        address of the second, so <code>this == &amp;other</code> asks whether they are
+        the same object &mdash; not whether their contents are equal:
+      </p>
+
+      <pre><code class="language-cpp">
+bool same_as(counter const &amp;other) const noexcept
+{
+	return this == &amp;other;   // one object, addressed twice?
+}
+</code></pre>
+
+      <p>
+        In <code>c.same_as(d)</code> the addresses differ and the answer is
+        <code>0</code>; in <code>c.same_as(c)</code> both names refer to one object and
+        the answer is <code>1</code>. Comparing the contents would be a different
+        function: <code>return value_ == other.value_;</code>. Both are useful; make
+        sure you know which question you asked.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. In a <code>const</code> Member Function, <code>this</code> Is <code>const</code></h2>
+
+      <p>
+        This is the mechanism behind Chapter 13.3. The keyword <code>this</code> follows
+        the <code>const</code> of the member function:
+      </p>
+
+      <pre><code class="language-cpp">
+::std::int_least32_t value() const noexcept   // inside: this is counter const *
+{
+	return value_;                        // so value_ is const here too
+}
+</code></pre>
+
+      <p>
+        A <code>const</code> member function therefore cannot assign to a member, and
+        cannot call a non-<code>const</code> member function &mdash; the object it holds
+        is read-only, and every member reached through it is read-only too.
+      </p>
+
+      <div class="warning">
+        <strong><code>this</code> does not exist in a static member function</strong>
+        (<a href="/docs/13.class/09.staticfunctions/">Ch13.9</a>). A static member
+        function is not called on an object, so there is no object to point at:
+      <pre><code class="language-text">
+error: 'this' is unavailable for static member functions
+</code></pre>
+        <p>And of course it does not exist in a free function either:</p>
+      <pre><code class="language-text">
+error: invalid use of 'this' in non-member function
+</code></pre>
+      </div>
+
+      <div class="note">
+        <strong>Do not overuse <code>this</code>.</strong> <code>this-&gt;value_</code>
+        where plain <code>value_</code> means the same thing adds noise that readers
+        have to filter. Write it when it disambiguates (Case 1), when it is the value
+        you need (Cases 2 and 3), or when a code editor&rsquo;s syntax colouring is the
+        only thing telling your members apart &mdash; which no reader can see.
+      </div>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/13.class/06.constructors/" class="prev-button">&larr; Ch13.6: Constructors</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/13.class/08.staticdata/" class="next-button">Ch13.8: Static Data Members &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch13.2: Member Functions - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch13.2: Member Functions</h1>
+
+    <section>
+      <h2>1. One Object, One Operator at a Time</h2>
+
+      <p>
+        A member function is a function that is written inside a class, takes the
+        object it was called on as an invisible extra argument, and is called with the
+        dot syntax:
+      </p>
+
+      <pre><code class="language-cpp">
+point p{3, 4};
+println(p.sum());       // call sum() with p as the object
+p.shift_by(10);          // call shift_by(10) with p as the object
+</code></pre>
+
+      <p>
+        Everything else about it is exactly what you learned in
+        <a href="/docs/06.function/">Chapter 6</a>: parameters, return type, overloading,
+        default arguments, and the <code>noexcept</code> / <code>throws</code>
+        specification. There is no second, easier language inside a class. A member
+        function is just a function with a subject.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Declaring Inside, Defining Outside</h2>
+
+      <p>
+        Writing the body inside the class is fine for one-line functions. For anything
+        longer the usual style is a <strong>declaration</strong> inside the class and a
+        <strong>definition</strong> outside it, prefixed with the class name and
+        <code>::</code>:
+      </p>
+
+      <pre><code class="language-cpp">
+class point
+{
+public:
+	::std::int_least32_t sum() const noexcept;   // declaration
+};
+
+::std::int_least32_t point::sum() const noexcept   // definition
+{
+	return x + y;
+}
+</code></pre>
+
+      <p>
+        <code>point::sum</code> is the function&rsquo;s <strong>qualified name</strong>.
+        The <code>point::</code> is not decoration: it is what makes this the
+        <code>sum</code> that belongs to <code>point</code> and not some other
+        <code>sum</code> in another class. Inside its own body, and inside every other
+        member of the class, the members are in scope without any prefix:
+        <code>return x + y;</code> needs no <code>this-&gt;</code>.
+      </p>
+
+      <p>
+        The full program, with two overloads, a default argument and a member function
+        that calls other member functions:
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+using namespace ::fast_io::io;
+
+class point
+{
+public:
+	::std::int_least32_t x{};
+	::std::int_least32_t y{};
+
+	// Declared here, defined outside the class.
+	::std::int_least32_t sum() const noexcept;
+
+	// Two overloads, both defined outside.
+	void shift_by(::std::int_least32_t dx) noexcept;
+	void shift_by(::std::int_least32_t dx, ::std::int_least32_t dy) noexcept;
+
+	// A method that calls other methods.
+	::std::int_least32_t doubled_sum() const noexcept;
+};
+
+::std::int_least32_t point::sum() const noexcept
+{
+	return x + y;
+}
+
+void point::shift_by(::std::int_least32_t dx) noexcept
+{
+	shift_by(dx, 0); // calls the two-argument overload
+}
+
+void point::shift_by(::std::int_least32_t dx, ::std::int_least32_t dy) noexcept
+{
+	x += dx;
+	y += dy;
+}
+
+::std::int_least32_t point::doubled_sum() const noexcept
+{
+	return 2 * sum();
+}
+
+class counter
+{
+public:
+	::std::int_least32_t value{};
+
+	// Default arguments work exactly as they do for free functions.
+	void add(::std::int_least32_t n = 1) noexcept
+	{
+		value += n;
+	}
+	void reset() noexcept
+	{
+		value = 0;
+	}
+};
+
+int main()
+{
+	point p{3, 4};
+	println("sum         = ", p.sum());
+	println("doubled_sum = ", p.doubled_sum());
+
+	p.shift_by(10);
+	println("after shift_by(10):   ", p.x, ", ", p.y);
+
+	p.shift_by(1, 2);
+	println("after shift_by(1, 2): ", p.x, ", ", p.y);
+
+	counter c{};
+	c.add();
+	c.add(10);
+	println("counter = ", c.value);
+	c.reset();
+	println("counter = ", c.value);
+}
+</code></pre>
+      <pre><code class="language-text">
+sum         = 7
+doubled_sum = 14
+after shift_by(10):   13, 4
+after shift_by(1, 2): 14, 6
+counter = 11
+counter = 0
+</code></pre>
+
+      <p>
+        Three things to take from it:
+      </p>
+
+      <ul>
+        <li>
+          <strong>Overloading works exactly as for free functions</strong> (see the two
+          <code>shift_by</code>s). The compiler picks by the arguments you pass, on top
+          of the object it already knows.
+        </li>
+        <li>
+          <strong>Default arguments work too</strong> (<code>add(n = 1)</code>). As
+          always, the default belongs on the declaration the caller sees.
+        </li>
+        <li>
+          <strong>Member functions call each other by name</strong>
+          (<code>shift_by(dx, 0)</code>, <code>sum()</code>). No object has to be
+          written, because there is only one sensible object: the one the caller is
+          already holding.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. Member Functions Are Declared <code>noexcept</code> or <code>throws</code></h2>
+
+      <p>
+        A member function is a function, so it gets the same treatment as any other
+        function in this tutorial: it is either <code>noexcept</code> (it cannot fail)
+        or <code>throws</code> (it can report a failure to its caller)
+        (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>). Printing is
+        I/O, and I/O can fail, so a member function that prints is
+        <code>throws</code>:
+      </p>
+
+      <pre><code class="language-cpp">
+class point
+{
+public:
+	void print() const throws          // correct: it does I/O
+	{
+		println("(", x, ", ", y, ")");
+	}
+};
+</code></pre>
+
+      <p>
+        If you mark it <code>noexcept</code> instead, the compiler stops you at the
+        <code>println</code> line, and tells you exactly why:
+      </p>
+
+      <pre><code class="language-text">
+error: call to a 'throws' or 'return_failure{E}' function must be handled by an
+       enclosing 'try { } catch throws', or the calling function needs a
+       herbceptions specification so the error can propagate
+</code></pre>
+
+      <p>
+        The wording is the same as for a free function, because the rule is the same
+        rule. That is the useful part: there is one error-handling concept in the
+        language, and it does not change shape when you walk through a class
+        definition.
+      </p>
+
+      <div class="note">
+        <strong>Where do definitions go?</strong> If a class is used from several
+        <code>.cc</code> files, the class definition goes in a header and every member
+        function defined <em>outside</em> the class must be <code>inline</code> (or be
+        defined in exactly one <code>.cc</code> file). Member functions defined
+        <em>inside</em> the class body are <code>inline</code> automatically. This
+        tutorial keeps each example in one file, so nothing has to be
+        <code>inline</code>.
+      </div>
+    </section>
+
+    <section>
+      <h2>4. <code>const</code> Appeared</h2>
+
+      <p>
+        Most of the declarations in the example end with <code>const</code>:
+        <code>sum() const</code>, <code>doubled_sum() const</code>. That word is a
+        promise that the member function will not change the object, and it is not
+        optional decoration &mdash; it decides whether you can call the function on a
+        <code>const</code> object at all. It has its own subchapter, because it is the
+        single most important habit in this chapter:
+        <a href="/docs/13.class/03.constmethods/">Ch13.3</a>.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/13.class/01.definition/" class="prev-button">&larr; Ch13.1: What a Class Is</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/13.class/03.constmethods/" class="next-button">Ch13.3: const Member Functions &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

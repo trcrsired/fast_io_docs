@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch13.10: friend - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch13.10: friend: Letting One Outsider In</h1>
+
+    <section>
+      <h2>1. The Operation That Belongs to the Type but Cannot Be a Member</h2>
+
+      <p>
+        Sometimes the operation you need takes two objects of the class and treats them
+        as equals. The midpoint of two points, the distance between two points, the sum
+        of two vectors: none of them is &ldquo;a method of the left-hand
+        object&rdquo;, and none of them can be written outside the class either,
+        because the data it needs is private.
+      </p>
+
+      <p>
+        <strong><code>friend</code> is how the class gives one named outsider the
+        access its own member functions already have.</strong> The permission is granted
+        inside the class, by the class that owns the data:
+      </p>
+
+      <pre><code class="language-cpp">
+class point
+{
+public:
+	friend point midpoint(point const &amp;a, point const &amp;b) noexcept;   // granted here
+private:
+	::std::int_least32_t x_{};
+	::std::int_least32_t y_{};
+};
+</code></pre>
+
+      <p>
+        The <code>friend</code> line is a <em>declaration</em> of an ordinary free
+        function that happens to be allowed to look inside. It is not a member: it has
+        no <code>this</code>, it is not called with an object, and it is not part of the
+        class&rsquo;s list of member functions.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. A Friend Function and a Friend Class</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+using namespace ::fast_io::io;
+
+class point
+{
+public:
+	point(::std::int_least32_t x, ::std::int_least32_t y) noexcept : x_{x}, y_{y}
+	{
+	}
+
+	::std::int_least32_t sum() const noexcept
+	{
+		return x_ + y_;
+	}
+
+	// One named function may look inside.
+	friend point midpoint(point const &amp;a, point const &amp;b) noexcept;
+
+	// A whole class may look inside.
+	friend class inspector;
+
+private:
+	::std::int_least32_t x_{};
+	::std::int_least32_t y_{};
+};
+
+point midpoint(point const &amp;a, point const &amp;b) noexcept
+{
+	return point{(a.x_ + b.x_) / 2, (a.y_ + b.y_) / 2};
+}
+
+class inspector
+{
+public:
+	static void dump(char const *label, point const &amp;p) throws
+	{
+		println(::fast_io::mnp::os_c_str(label), ": x = ", p.x_, ", y = ", p.y_);
+	}
+};
+
+int main()
+{
+	try
+	{
+		point a{0, 0};
+		point b{10, 20};
+
+		auto m{midpoint(a, b)};
+		println("midpoint.sum() = ", m.sum());
+
+		inspector::dump("midpoint", m);
+	}
+	catch throws (::std::error e)
+	{
+		print("failed: ", e, "\n");
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+midpoint.sum() = 15
+midpoint: x = 5, y = 10
+</code></pre>
+
+      <p>
+        Two grants, two shapes:
+      </p>
+
+      <ul>
+        <li>
+          <strong><code>friend point midpoint(point const &amp;, point const &amp;)</code></strong>
+          &mdash; one free function may read <code>x_</code> and <code>y_</code>, and
+          may use the public constructor. Nothing else changes.
+        </li>
+        <li>
+          <strong><code>friend class inspector;</code></strong> &mdash; every member
+          function of <code>inspector</code> may read them, including the static
+          <code>dump</code> used above. The grant is to the class as a whole, exactly
+          as <code>private</code> is granted to a class as a whole
+          (<a href="/docs/13.class/04.access/">Ch13.4</a>).
+        </li>
+      </ul>
+
+      <div class="note">
+        <strong>Why <code>midpoint(a, b)</code> is callable at all.</strong>
+        A function declared only inside a class as a <code>friend</code> is invisible to
+        ordinary name lookup, but it is found when one of its arguments is of the class
+        type &mdash; that is argument-dependent lookup, and it is why
+        <code>midpoint(a, b)</code> resolves without a second declaration at namespace
+        scope. If you want to be able to call it with the class type nowhere in the
+        arguments, declare it at namespace scope as well.
+      </div>
+    </section>
+
+    <section>
+      <h2>3. What <code>friend</code> Is Not</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>People expect</th>
+            <th>What actually happens</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>&ldquo;Friendship goes both ways.&rdquo;</td>
+            <td>It does not. If <code>inspector</code> is a friend of
+              <code>point</code>, then <code>inspector</code> may look inside a
+              <code>point</code> &mdash; but <code>point</code> gains nothing, and
+              <code>inspector</code>&rsquo;s own private members are still private to
+              <code>point</code>.</td>
+          </tr>
+          <tr>
+            <td>&ldquo;A friend of my friend is my friend.&rdquo;</td>
+            <td>It is not transitive. <code>inspector</code> being a friend of
+              <code>point</code> says nothing about any other class.</td>
+          </tr>
+          <tr>
+            <td>&ldquo;I can declare myself a friend.&rdquo;</td>
+            <td>You cannot. Only the class that owns the data can grant access to it.
+              Friendship is given, never taken.</td>
+          </tr>
+          <tr>
+            <td>&ldquo;A friend is a member.&rdquo;</td>
+            <td>It is not. There is no <code>this</code> inside a friend function, and
+              it is not listed among the class&rsquo;s member functions.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>4. Reach for It Last</h2>
+
+      <p>
+        <code>friend</code> is the narrowest hole you can open in the wall, and it is
+        still a hole. Before granting one, check the cheaper options in this order:
+      </p>
+
+      <ol>
+        <li>
+          <strong>Can a member function do it?</strong> If the operation has a natural
+          subject object, make it a member. <code>midpoint</code> has no natural subject
+          &mdash; that is why it is not one.
+        </li>
+        <li>
+          <strong>Can the public interface do it?</strong> A friend function built on
+          public accessors (<code>a.x()</code>, <code>a.y()</code>) needs no grant at
+          all. Use that whenever the accessors already exist; it keeps the class closed
+          and the function testable.
+        </li>
+        <li>
+          <strong>Is it about the class, not an object?</strong> Then a static member
+          function is the right shape
+          (<a href="/docs/13.class/09.staticfunctions/">Ch13.9</a>).
+        </li>
+        <li>
+          <strong>Otherwise</strong> &mdash; symmetric operations between two objects
+          are the classic case &mdash; <code>friend</code> is the tool.
+        </li>
+      </ol>
+
+      <div class="warning">
+        <strong><code>friend</code> creates coupling.</strong>
+        A friend function is now part of the class&rsquo;s implementation: change the
+        data members and the friend breaks, even though it is not visibly in the class.
+        That is acceptable for the two or three operations that genuinely belong to the
+        type&rsquo;s interface, and it is a maintenance trap if you hand out friendship
+        to whatever needs a shortcut. If several outsiders need the same data, the
+        design question is usually whether that data should have a public accessor
+        &mdash; not whether to add a fifth friend.
+      </div>
+
+      <div class="note">
+        <strong>This is also how operators are written.</strong> An operator such as
+        <code>+</code> or <code>==</code> that takes two objects of the class has the
+        same shape as <code>midpoint</code>, and is usually declared as a
+        <code>friend</code> for the same reason. Operators are covered later in the
+        tutorial, once you have classes and references in hand.
+      </div>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/13.class/09.staticfunctions/" class="prev-button">&larr; Ch13.9: Static Member Functions</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/13.class/11.puttingtogether/" class="next-button">Ch13.11: Putting It Together &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

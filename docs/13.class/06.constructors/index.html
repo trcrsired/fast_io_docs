@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch13.6: Constructors - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch13.6: Constructors: How an Object Comes Into Existence</h1>
+
+    <section>
+      <h2>1. The Job of a Constructor</h2>
+
+      <p>
+        In Chapter 13.1 you could write <code>point a{3, 4};</code> because the members
+        were public and the class had no constructor &mdash; the braces filled the
+        members in order. That syntax is a hole in the wall, and it disappears the
+        moment the data is private. Something has to take the two numbers from the
+        caller and put them where they belong, and that something is a
+        <strong>constructor</strong>.
+      </p>
+
+      <p>A constructor:</p>
+
+      <ul>
+        <li>has the same name as the class, and <strong>no return type</strong>;</li>
+        <li>runs <strong>automatically</strong> when an object is created &mdash; you
+          never call it by name;</li>
+        <li>gets the object into a state where every member function may be called
+          &mdash; that is, into a state where the invariant holds
+          (<a href="/docs/13.class/05.encapsulation/">Ch13.5</a>).</li>
+      </ul>
+
+      <pre><code class="language-cpp">
+class point
+{
+public:
+	point(::std::int_least32_t x, ::std::int_least32_t y) noexcept : x_{x}, y_{y} {}
+	//                                                              ^^^^^^^^
+	//                                        the member initializer list
+
+private:
+	::std::int_least32_t x_{};
+	::std::int_least32_t y_{};
+};
+
+point a{3, 4};   // still braces, but now they call the constructor
+</code></pre>
+
+      <div class="important">
+        <strong>The member initializer list is the only place data members are
+          <em>initialized</em>.</strong>
+        The body of the constructor runs <em>after</em> every member already has a
+        value. Assigning in the body (<code>x_ = x;</code>) is a second write, and for
+        members that cannot be assigned at all it is not an option. Initialize in the
+        list, then do the rest in the body.
+      </div>
+    </section>
+
+    <section>
+      <h2>2. Members Are Initialized in Declaration Order</h2>
+
+      <p>
+        The list is written by you, but the compiler reads it in
+        <strong>declaration order of the members</strong>, not left to right. If the two
+        orders disagree, the write order in the list is a lie that readers will believe,
+        and the compiler warns about it:
+      </p>
+
+      <pre><code class="language-cpp">
+class box
+{
+public:
+	box(::std::int_least32_t w, ::std::int_least32_t h) noexcept : h_{h}, w_{w} {}
+private:
+	::std::int_least32_t w_{};   // w_ is initialized first...
+	::std::int_least32_t h_{};   // ...then h_, whatever the list says
+};
+</code></pre>
+
+      <pre><code class="language-text">
+warning: 'box::h_' will be initialized after [-Wreorder]
+warning:   'int_least32_t box::w_' [-Wreorder]
+warning:   when initialized here [-Wreorder]
+</code></pre>
+
+      <p>
+        The fix is free: write the list in the same order as the declarations, so the
+        two never disagree. It matters as soon as one member is initialized from
+        another &mdash; a member used before it is initialized is a bug that only shows
+        up in some builds.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Everything at Once</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+#include &lt;cstddef&gt;
+using namespace ::fast_io::io;
+
+class point
+{
+public:
+	point() noexcept : point{0, 0} // delegating constructor
+	{
+	}
+	explicit point(::std::int_least32_t both) noexcept : point{both, both}
+	{
+	}
+	point(::std::int_least32_t x, ::std::int_least32_t y) noexcept : x_{x}, y_{y}
+	{
+	}
+
+	::std::int_least32_t x() const noexcept
+	{
+		return x_;
+	}
+	::std::int_least32_t y() const noexcept
+	{
+		return y_;
+	}
+
+private:
+	::std::int_least32_t x_{};
+	::std::int_least32_t y_{};
+};
+
+class label
+{
+public:
+	// In-class initializers: what a member is worth when no constructor mentions it.
+	::std::size_t length{};
+	char first{'-'};
+};
+
+void draw(point const &amp;p) throws
+{
+	println("point(", p.x(), ", ", p.y(), ")");
+}
+
+int main()
+{
+	try
+	{
+		point origin{};
+		draw(origin);
+
+		point square{3}; // explicit point(int_least32_t)
+		draw(square);
+
+		point p{7, 9};
+		draw(p);
+
+		label tag{};
+		println("length = ", tag.length, ", first = ", ::fast_io::mnp::chvw(tag.first));
+	}
+	catch throws (::std::error e)
+	{
+		print("failed: ", e, "\n");
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+point(0, 0)
+point(3, 3)
+point(7, 9)
+length = 0, first = -
+</code></pre>
+
+      <p>The four ideas in that program:</p>
+
+      <ul>
+        <li>
+          <strong>In-class initializers</strong> (<code>::std::size_t length{};</code>).
+          A member declared with an initializer has that value whenever a constructor
+          does not mention it. This is why <code>label tag{};</code> produces
+          <code>length = 0, first = -</code> without any constructor being written at
+          all. Prefer them: they keep the default next to the member instead of
+          repeating it in every constructor.
+        </li>
+        <li>
+          <strong>Delegating constructors</strong>
+          (<code>point() noexcept : point{0, 0} {}</code>). One constructor can hand its
+          work to another of the same class. The default constructor then contains no
+          data at all: &ldquo;an origin is a point at zero, zero&rdquo; is written once,
+          in the constructor that knows how to build a point.
+        </li>
+        <li>
+          <strong>Overloaded constructors</strong> are chosen by the arguments exactly
+          like any other overload. <code>point{}</code>, <code>point{3}</code> and
+          <code>point{7, 9}</code> reach three different constructors.
+        </li>
+        <li>
+          <strong>A default constructor is not created for you once you write
+          any constructor.</strong> <code>class point</code> with only
+          <code>point(x, y)</code> cannot be default-constructed, and the compiler says
+          so plainly:
+      <pre><code class="language-text">
+error: no matching function for call to 'point::point()'
+</code></pre>
+        If you want both, declare both. <code>point() noexcept = default;</code> asks
+        the compiler to write the default constructor, which will use the in-class
+        initializers of the members.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>4. <code>explicit</code>: Refusing the Quiet Conversion</h2>
+
+      <p>
+        A constructor that takes one argument is also a <strong>conversion</strong> from
+        that argument to the class type. That is what lets this compile:
+      </p>
+
+      <pre><code class="language-cpp">
+void draw(point const &amp;p) throws;
+
+draw(5);   // silently means: point{5}
+</code></pre>
+
+      <p>
+        When a single number is a complete description of a point (a square), that is
+        pleasant. Most of the time it is a trap: nobody reading <code>draw(5)</code>
+        knows that a point was constructed behind their back, and the conversion will
+        happen in the middle of overload resolution too. <code>explicit</code> on the
+        constructor forbids exactly that one conversion, and nothing else:
+      </p>
+
+      <pre><code class="language-cpp">
+explicit point(::std::int_least32_t both) noexcept : point{both, both} {}
+</code></pre>
+
+      <pre><code class="language-text">
+error: invalid initialization of reference of type 'const point&amp;' from expression
+       of type 'int'
+note:   in passing argument 1 of 'void draw(const point&amp;)' 
+</code></pre>
+
+      <p>
+        <code>point{3}</code> and <code>point square{3};</code> still work &mdash; the
+        conversion through braces is deliberate there. What stops working is the
+        invisible one. Mark every single-argument constructor <code>explicit</code>
+        unless you actually want the class to behave like the argument; that is the
+        default in this tutorial.
+      </p>
+
+      <div class="note">
+        <strong>Constructors that can fail are <code>throws</code>.</strong>
+        Validating arguments is normal (<code>account</code> in Ch13.5 refuses a
+        negative opening balance). A validating constructor is declared
+        <code>throws</code>, throws <code>::std::errc::invalid_argument</code>, and an
+        object that exists is then guaranteed to be valid &mdash; for the rest of the
+        program, with no further checks.
+      </div>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/13.class/05.encapsulation/" class="prev-button">&larr; Ch13.5: Encapsulation</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/13.class/07.this/" class="next-button">Ch13.7: The this Pointer &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

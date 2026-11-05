@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch13.11: Putting It Together - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch13.11: Putting It Together</h1>
+
+    <section>
+      <h2>1. The Finished Class</h2>
+
+      <p>
+        This is the same <code>account</code> that grew through the chapter. It now uses
+        every idea in it: a private invariant, a private constructor behind a named one,
+        checked modifiers, <code>const</code> accessors, chaining through
+        <code>*this</code>, class-wide static data and functions, and one
+        <code>friend</code>.
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+#include &lt;cstddef&gt;
+using namespace ::fast_io::io;
+
+class account
+{
+public:
+	// ---- creation: a named constructor, the only door into the class ----
+	static account open(::std::int_least64_t opening) throws
+	{
+		if (opening &lt; 0)
+		{
+			throw throws ::std::errc::invalid_argument;
+		}
+		return account{opening};
+	}
+
+	// ---- the interface: what anybody may do with an account ----
+	::std::int_least64_t balance() const noexcept
+	{
+		return balance_;
+	}
+	::std::size_t id() const noexcept
+	{
+		return id_;
+	}
+
+	account &amp;deposit(::std::int_least64_t amount) throws
+	{
+		if (amount &lt;= 0)
+		{
+			throw throws ::std::errc::invalid_argument;
+		}
+		balance_ += amount;
+		return *this;
+	}
+	account &amp;withdraw(::std::int_least64_t amount) throws
+	{
+		if (amount &lt;= 0 || amount &gt; balance_)
+		{
+			throw throws ::std::errc::invalid_argument;
+		}
+		balance_ -= amount;
+		return *this;
+	}
+
+	// ---- facts about the class itself ----
+	static ::std::size_t opened() noexcept
+	{
+		return next_id_ - 1;
+	}
+	static constexpr ::std::size_t iban_length{34};
+
+	// ---- an outside function we let in ----
+	friend bool richer(account const &amp;a, account const &amp;b) noexcept
+	{
+		return a.balance_ &gt; b.balance_;
+	}
+
+private:
+	// Only open() may call this; nobody else can even name it.
+	explicit account(::std::int_least64_t opening) noexcept
+		: balance_{opening}, id_{next_id_++}
+	{
+	}
+
+	::std::int_least64_t balance_{};
+	::std::size_t id_{};
+	inline static ::std::size_t next_id_{1};
+};
+
+int main()
+{
+	try
+	{
+		auto a{account::open(100)};
+		auto b{account::open(250)};
+
+		a.deposit(50).deposit(25);
+		b.withdraw(100);
+
+		println("a: id = ", a.id(), ", balance = ", a.balance());
+		println("b: id = ", b.id(), ", balance = ", b.balance());
+		println("richer(a, b) = ", richer(a, b));
+		println("accounts opened = ", account::opened(), ", iban length = ", account::iban_length);
+
+		a.withdraw(1000); // breaks the invariant, so it is refused
+	}
+	catch throws (::std::error e)
+	{
+		print("refused: ", e, "\n");
+	}
+	println("the program keeps running");
+}
+</code></pre>
+      <pre><code class="language-text">
+a: id = 1, balance = 175
+b: id = 2, balance = 150
+richer(a, b) = 1
+accounts opened = 2, iban length = 34
+refused: [posix](22)Invalid argument
+the program keeps running
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. Reading It Back</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>In the class</th>
+            <th>What it is doing</th>
+            <th>From</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>static account open(...) throws</code></td>
+            <td>The only way in: a named constructor that validates before the object
+              exists, and the only caller of the private constructor.</td>
+            <td><a href="/docs/13.class/09.staticfunctions/">Ch13.9</a></td>
+          </tr>
+          <tr>
+            <td><code>explicit account(...) noexcept</code> after
+              <code>private:</code></td>
+            <td>Builds the object from a value that
+              <code>open</code> has already checked. Hidden so that nobody can skip the
+              check.</td>
+            <td><a href="/docs/13.class/04.access/">Ch13.4</a>,
+              <a href="/docs/13.class/06.constructors/">Ch13.6</a></td>
+          </tr>
+          <tr>
+            <td><code>balance() const noexcept</code></td>
+            <td>A read-only accessor returning a value, callable on a
+              <code>const</code> object.</td>
+            <td><a href="/docs/13.class/03.constmethods/">Ch13.3</a></td>
+          </tr>
+          <tr>
+            <td><code>deposit(...) throws</code>, <code>withdraw(...) throws</code></td>
+            <td>The only two ways the balance may change, each checking the invariant
+              before writing, each reporting refusal with
+              <code>::std::errc::invalid_argument</code>.</td>
+            <td><a href="/docs/13.class/05.encapsulation/">Ch13.5</a></td>
+          </tr>
+          <tr>
+            <td><code>return *this;</code> with return type <code>account &amp;</code></td>
+            <td>Call chaining: <code>a.deposit(50).deposit(25);</code></td>
+            <td><a href="/docs/13.class/07.this/">Ch13.7</a></td>
+          </tr>
+          <tr>
+            <td><code>inline static ::std::size_t next_id_{1};</code></td>
+            <td>One identifier source shared by every account, touched only by the
+              constructor.</td>
+            <td><a href="/docs/13.class/08.staticdata/">Ch13.8</a></td>
+          </tr>
+          <tr>
+            <td><code>static ::std::size_t opened() noexcept</code></td>
+            <td>A fact about the class, callable without any object.</td>
+            <td><a href="/docs/13.class/09.staticfunctions/">Ch13.9</a></td>
+          </tr>
+          <tr>
+            <td><code>friend bool richer(account const &amp;, account const &amp;)</code></td>
+            <td>A symmetric comparison that the class chose to allow, so that the
+              balances stay private.</td>
+            <td><a href="/docs/13.class/10.friend/">Ch13.10</a></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        Note what is <em>not</em> in the class: no public data member, no setter for the
+        balance, no getter that hands out a reference, no way to make an account without
+        going through a check. Every line outside the class in <code>main</code> could be
+        written by somebody who has never seen the definition, and they still cannot
+        produce an invalid account.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Design Checklist</h2>
+
+      <p>When you write a class of your own, walk this list once:</p>
+
+      <ol>
+        <li>
+          <strong>Write the invariant as one sentence.</strong> If you cannot, the type
+          is probably two types, or it is a plain <code>struct</code> and needs no wall.
+        </li>
+        <li>
+          <strong>Make the data private and everything else private until proven
+            needed.</strong> The interface is the small set of names you will keep.
+        </li>
+        <li>
+          <strong>Make every constructor establish the invariant</strong>, and make a
+          validating constructor <code>throws</code>. Validate first, then write.
+        </li>
+        <li>
+          <strong>Give every read-only member function <code>const</code></strong>, and
+          return values (or <code>const &amp;</code>), never a writable reference to the
+          storage.
+        </li>
+        <li>
+          <strong>Give the class a name for each way of building it</strong> when the
+          constructors would otherwise be a puzzle: <code>open</code>,
+          <code>from_history</code>, <code>parse</code>.
+        </li>
+        <li>
+          <strong>Mark every member function <code>noexcept</code> or
+            <code>throws</code></strong>. If a member function can fail, its caller must
+          deal with it; that is information the signature has to carry.
+        </li>
+        <li>
+          <strong>Use static members for facts about the class</strong>, and treat any
+          mutable static member as shared state that needs a reason.
+        </li>
+        <li>
+          <strong>Open the wall with <code>friend</code> only for operations that are
+            symmetric between objects</strong>, after checking that a member function
+          or an accessor would not do.
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>4. Mistakes That Cost the Most</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Mistake</th>
+            <th>What it costs</th>
+            <th>Do instead</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Private data, plus a getter <em>and</em> a setter that accepts anything.</td>
+            <td>The wall is decorative: the invariant is still unenforced, and the class
+              is longer.</td>
+            <td>Name the operations (<code>deposit</code>, <code>withdraw</code>) and
+              check inside them.</td>
+          </tr>
+          <tr>
+            <td>Forgetting <code>const</code> on the accessors.</td>
+            <td>Nobody can pass your type to a function that takes
+              <code>T const &amp;</code>, so every caller becomes non-<code>const</code>
+              and the safety evaporates.</td>
+            <td>Add <code>const</code> the moment you write a member function that does
+              not write.</td>
+          </tr>
+          <tr>
+            <td>Returning <code>::std::int_least64_t &amp;</code> from an accessor.</td>
+            <td><code>a.balance() = -1000;</code> compiles, and the invariant is gone.</td>
+            <td>Return by value, or <code>const &amp;</code> for large members.</td>
+          </tr>
+          <tr>
+            <td>Assigning in the constructor body instead of the initializer list.</td>
+            <td>Members are written twice, the list order stops matching, and members
+              that cannot be assigned stop working.</td>
+            <td>Initialize in the member initializer list, in declaration order.</td>
+          </tr>
+          <tr>
+            <td>Single-argument constructors without <code>explicit</code>.</td>
+            <td>Silent conversions turn a wrong call into a wrong object.</td>
+            <td><code>explicit</code>, unless the conversion is the point of the
+              type.</td>
+          </tr>
+          <tr>
+            <td>A public constructor that does not check, next to a checking factory.</td>
+            <td>Half the objects in the program are valid and half are not, and the
+              invariant is worthless.</td>
+            <td>One door. Make the unchecked constructor private.</td>
+          </tr>
+          <tr>
+            <td>Catching a herbception and continuing as if the operation happened.</td>
+            <td>The caller believes the deposit succeeded. Silent wrong answers are worse
+              than a stop.</td>
+            <td>Handle it, propagate it, or let it reach the top and stop the program.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>5. Where You Are Now</h2>
+
+      <p>
+        You can define a type that owns its data, decides what the outside may do, keeps
+        a promise, and reports failure in the one way this tutorial uses everywhere:
+        <code>throws</code> and <code>catch throws (::std::error e)</code>. That is
+        enough to build the rest of the language on. Everything that follows &mdash;
+        operators, generic code, the standard library&rsquo;s own types &mdash; is
+        written in terms of classes like this one.
+      </p>
+
+      <div class="important">
+        <strong>The one thing to carry forward.</strong>
+        A class is a promise. <code>private</code> is what makes the promise believable,
+        <code>const</code> is what makes it readable, a constructor is what makes it true
+        from the first moment an object exists, and <code>throws</code> is what happens
+        when somebody asks for something the promise cannot allow.
+      </div>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/13.class/10.friend/" class="prev-button">&larr; Ch13.10: friend</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

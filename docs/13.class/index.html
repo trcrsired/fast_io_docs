@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch13: Classes - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch13: Classes</h1>
+
+    <section>
+      <h2>Overview</h2>
+
+      <p>
+        Everything you have written so far has been made of the types somebody else
+        defined: <code>::std::int_least32_t</code>, <code>::fast_io::string</code>,
+        <code>::fast_io::str_btree_map</code>. A <strong>class</strong> is how you
+        define a type yourself.
+      </p>
+
+      <p>
+        A class puts <strong>data</strong> and the <strong>functions that work on that
+        data</strong> into one thing, gives that thing a name, and then decides what
+        the rest of the program is allowed to do with it. That last part is the point
+        of the whole chapter: a class is not just a bag of fields, it is a
+        <strong>small set of promises</strong> with the implementation hidden behind
+        them.
+      </p>
+
+      <p>
+        The chapter follows one type from a first draft to a finished design: a
+        <code>point</code> at the beginning, an <code>account</code> by the end. Each
+        subchapter adds one idea, and the code grows with it.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>You want to</th>
+            <th>Read</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Put data and behaviour into one type</td>
+            <td>Ch13.1, Ch13.2</td>
+          </tr>
+          <tr>
+            <td>Write functions that cannot accidentally change an object</td>
+            <td>Ch13.3</td>
+          </tr>
+          <tr>
+            <td>Decide what the outside world may touch</td>
+            <td>Ch13.4, Ch13.5</td>
+          </tr>
+          <tr>
+            <td>Control how an object comes into existence</td>
+            <td>Ch13.6</td>
+          </tr>
+          <tr>
+            <td>Understand the invisible <code>this</code> argument</td>
+            <td>Ch13.7</td>
+          </tr>
+          <tr>
+            <td>Keep one variable or one function for the whole class</td>
+            <td>Ch13.8, Ch13.9</td>
+          </tr>
+          <tr>
+            <td>Let exactly one outsider reach the private parts</td>
+            <td>Ch13.10</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="important">
+        <strong>A class is a promise, not a container.</strong> If a class promises
+        &ldquo;the balance is never negative&rdquo;, then every function in the class
+        has to keep that promise true, and the caller is allowed to stop checking.
+        Encapsulation is how you make that promise believable: the data is private, so
+        the <em>only</em> code that can break the promise is the code you wrote in that
+        class.
+      </div>
+    </section>
+
+    <section>
+      <h2>Conventions Used in This Chapter</h2>
+      <ul>
+        <li>
+          <strong>No <code>int</code>.</strong> Integer types are written
+          <code>::std::int_least32_t</code> (or <code>::std::int_least64_t</code> for
+          money), and sizes are <code>::std::size_t</code>. The width of an
+          <code>int</code> is not guaranteed by the language; the width of these types
+          is. Use the type that says what you mean, not the shortest one to type.
+        </li>
+        <li>
+          <strong>Private data members end with <code>_</code></strong>
+          (<code>balance_</code>), public data members do not (<code>x</code>). One
+          glance tells you which side of the wall a name lives on.
+        </li>
+        <li>
+          <strong>Every member function is <code>noexcept</code> or
+          <code>throws</code></strong>, exactly like a free function
+          (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>). A member
+          function that can fail is declared <code>throws</code>, and the caller
+          handles it with <code>try { } catch throws (::std::error e) { }</code>
+          (<a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>).
+        </li>
+        <li>
+          <strong>Every example is a complete program</strong> and the output under it
+          is the output you get when you run it.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Contents</h2>
+      <ul>
+        <li><a href="/docs/13.class/01.definition/">Ch13.1: What a Class Is: Data and the Functions That Belong to It</a></li>
+        <li><a href="/docs/13.class/02.methods/">Ch13.2: Member Functions</a></li>
+        <li><a href="/docs/13.class/03.constmethods/">Ch13.3: const Member Functions: Promising Not to Modify</a></li>
+        <li><a href="/docs/13.class/04.access/">Ch13.4: Access Control: public and private</a></li>
+        <li><a href="/docs/13.class/05.encapsulation/">Ch13.5: Encapsulation: Keeping the Invariant True</a></li>
+        <li><a href="/docs/13.class/06.constructors/">Ch13.6: Constructors: How an Object Comes Into Existence</a></li>
+        <li><a href="/docs/13.class/07.this/">Ch13.7: The this Pointer</a></li>
+        <li><a href="/docs/13.class/08.staticdata/">Ch13.8: Static Data Members</a></li>
+        <li><a href="/docs/13.class/09.staticfunctions/">Ch13.9: Static Member Functions</a></li>
+        <li><a href="/docs/13.class/10.friend/">Ch13.10: friend: Letting One Outsider In</a></li>
+        <li><a href="/docs/13.class/11.puttingtogether/">Ch13.11: Putting It Together</a></li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/12.random/08.examples/" class="prev-button">&larr; Ch12.8: Real-World Examples</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/13.class/01.definition/" class="next-button">Ch13.1: What a Class Is &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
