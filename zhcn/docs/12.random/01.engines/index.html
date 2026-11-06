@@ -3,42 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch12.1: C++ Random Engines - C++ Tutorial with fast_io</title>
+  <title>第12.1章: C++ 随机引擎 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch12.1: C++ Random Engines</h1>
+    <h1>第12.1章: C++ 随机引擎</h1>
     <p class="lang-switch"><a href="/docs/12.random/01.engines/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        C++ provides several random number engines in the <code>&lt;random&gt;</code> header. These
-        engines generate pseudo-random sequences of numbers based on an initial seed. The most
-        commonly used engines are:
+        C++ 在 <code>&lt;random&gt;</code> 头文件中提供若干随机数引擎。这些引擎基于初始种子生成伪随机序列。最常用的引擎有：
       </p>
       <ul>
-        <li><code>::std::mt19937</code> &mdash; 32-bit Mersenne Twister</li>
-        <li><code>::std::mt19937_64</code> &mdash; 64-bit Mersenne Twister</li>
-        <li><code>::std::minstd_rand</code> &mdash; Linear congruential engine</li>
-        <li><code>::std::ranlux48</code> &mdash; Subtract-with-carry engine</li>
+        <li><code>::std::mt19937</code> &mdash; 32 位梅森旋转（Mersenne Twister）</li>
+        <li><code>::std::mt19937_64</code> &mdash; 64 位梅森旋转</li>
+        <li><code>::std::minstd_rand</code> &mdash; 线性同余引擎</li>
+        <li><code>::std::ranlux48</code> &mdash; 带进位减法引擎</li>
       </ul>
       <p>
-        The Mersenne Twister engines (<code>mt19937</code> and <code>mt19937_64</code>) are the most
-        widely used due to their excellent statistical properties and long period
-        (2<sup>19937</sup>-1).
+        梅森旋转引擎（<code>mt19937</code> 与 <code>mt19937_64</code>）因其优异的统计性质与超长周期（2<sup>19937</sup>-1）而使用最广。
       </p>
     </section>
 
     <section>
-      <h2>Using std::mt19937_64</h2>
+      <h2>使用 std::mt19937_64</h2>
       <p>
-        The 64-bit Mersenne Twister is suitable for most applications requiring random numbers.
-        Here's how to use it:
+        64 位梅森旋转适用于大多数需要随机数的应用。用法如下：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -58,120 +52,111 @@ int main() {
 }
 </code></pre>
       <div class="warning">
-        <strong>Warning:</strong> Using the default constructor creates a predictable sequence. The
-        default seed is fixed (typically 5489u), so every program run produces the same "random"
-        numbers. Always use proper seeding with <code>::std::seed_seq</code> (see
-        <a href="/zhcn/docs/12.random/04.seedseq/">Ch12.4</a>).
+        <strong>警告：</strong>使用默认构造函数会产生可预测的序列。默认种子是固定的（通常是 5489u），因此每次运行程序都会产生同样的“随机”数。请始终用 <code>::std::seed_seq</code> 配合安全来源做正规播种（见<a href="/zhcn/docs/12.random/04.seedseq/">第12.4章</a>）。
       </div>
     </section>
 
     <section>
-      <h2>Engine Properties</h2>
+      <h2>引擎的通用属性</h2>
       <p>
-        All C++ random engines provide these methods:
+        所有 C++ 随机引擎都提供这些方法：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Method</th>
-            <th>Description</th>
+            <th>方法</th>
+            <th>说明</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>operator()()</code></td>
-            <td>Generates the next random number in the sequence</td>
+            <td>生成序列中的下一个随机数</td>
           </tr>
           <tr>
             <td><code>min()</code></td>
-            <td>Returns the minimum value the engine can produce</td>
+            <td>返回引擎能产生的最小值</td>
           </tr>
           <tr>
             <td><code>max()</code></td>
-            <td>Returns the maximum value the engine can produce</td>
+            <td>返回引擎能产生的最大值</td>
           </tr>
           <tr>
             <td><code>seed()</code></td>
-            <td>Reseeds the engine with a new seed value</td>
+            <td>用新的种子值重新播种引擎</td>
           </tr>
           <tr>
             <td><code>discard(z)</code></td>
-            <td>Advances the engine state by z steps without generating output</td>
+            <td>把引擎状态前进 z 步而不产生输出</td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>Engine Comparison</h2>
+      <h2>引擎对比</h2>
       <table>
         <thead>
           <tr>
-            <th>Engine</th>
-            <th>Output Type</th>
-            <th>Period</th>
-            <th>Use Case</th>
+            <th>引擎</th>
+            <th>输出类型</th>
+            <th>周期</th>
+            <th>适用场景</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::std::mt19937</code></td>
-            <td>32-bit unsigned</td>
+            <td>32 位无符号</td>
             <td>2<sup>19937</sup>-1</td>
-            <td>General purpose, games, simulations</td>
+            <td>通用、游戏、仿真</td>
           </tr>
           <tr>
             <td><code>::std::mt19937_64</code></td>
-            <td>64-bit unsigned</td>
+            <td>64 位无符号</td>
             <td>2<sup>19937</sup>-1</td>
-            <td>General purpose, larger state space</td>
+            <td>通用、状态空间更大</td>
           </tr>
           <tr>
             <td><code>::std::minstd_rand</code></td>
-            <td>32-bit unsigned</td>
+            <td>32 位无符号</td>
             <td>2<sup>31</sup>-1</td>
-            <td>Simple, fast, but lower quality</td>
+            <td>简单、快，但质量较低</td>
           </tr>
           <tr>
             <td><code>::std::ranlux48</code></td>
-            <td>48-bit unsigned</td>
+            <td>48 位无符号</td>
             <td>~10<sup>171</sup></td>
-            <td>High-quality, slower</td>
+            <td>高质量，但较慢</td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>Key Takeaways</h2>
+      <h2>要点</h2>
       <ul>
         <li>
-          C++ provides several random engines in <code>&lt;random&gt;</code>, with
-          <code>::std::mt19937_64</code> being the most commonly used.
+          C++ 在 <code>&lt;random&gt;</code> 中提供若干随机引擎，其中 <code>::std::mt19937_64</code> 最常用。
         </li>
         <li>
-          Engines generate pseudo-random sequences based on an initial seed.
+          引擎基于初始种子生成伪随机序列。
         </li>
         <li>
-          <strong>Never use the default constructor</strong> for important applications &mdash; it
-          produces predictable sequences.
+          对重要应用<strong>绝不要使用默认构造函数</strong> &mdash; 它产生的序列是可预测的。
         </li>
         <li>
-          Always seed engines properly using <code>::std::seed_seq</code> with values from a secure
-          source (see <a href="/zhcn/docs/12.random/04.seedseq/">Ch12.4</a>).
+          请始终用安全来源的数值配合 <code>::std::seed_seq</code> 正确播种（见<a href="/zhcn/docs/12.random/04.seedseq/">第12.4章</a>）。
         </li>
         <li>
-          For cryptographically secure randomness, use <code>::fast_io::ibuf_white_hole_engine</code>
-          (see <a href="/zhcn/docs/12.random/03.ibufwhitehole/">Ch12.3</a>).
+          需要密码学安全的随机性时，使用 <code>::fast_io::ibuf_white_hole_engine</code>（见<a href="/zhcn/docs/12.random/03.ibufwhitehole/">第12.3章</a>）。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/12.random/" class="prev-button">&larr; Ch12: random</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/12.random/02.distributions/" class="next-button">Ch12.2: Distributions &rarr;</a>
+      <a href="/zhcn/docs/12.random/" class="prev-button">&larr; 第12章: random</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/12.random/02.distributions/" class="next-button">第12.2章: 分布 &rarr;</a>
     </div>
   </main>
 </body>

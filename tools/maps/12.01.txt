@@ -1,0 +1,50 @@
+1|第12.1章: C++ 随机引擎 - 使用 fast_io 学习 C++ 教程
+2|第12.1章: C++ 随机引擎
+3|概述
+4|C++ 在 <code>&lt;random&gt;</code> 头文件中提供若干随机数引擎。这些引擎基于初始种子生成伪随机序列。最常用的引擎有：
+5|<code>::std::mt19937</code> &mdash; 32 位梅森旋转（Mersenne Twister）
+6|<code>::std::mt19937_64</code> &mdash; 64 位梅森旋转
+7|<code>::std::minstd_rand</code> &mdash; 线性同余引擎
+8|<code>::std::ranlux48</code> &mdash; 带进位减法引擎
+9|梅森旋转引擎（<code>mt19937</code> 与 <code>mt19937_64</code>）因其优异的统计性质与超长周期（2<sup>19937</sup>-1）而使用最广。
+10|使用 std::mt19937_64
+11|64 位梅森旋转适用于大多数需要随机数的应用。用法如下：
+12|<strong>警告：</strong>使用默认构造函数会产生可预测的序列。默认种子是固定的（通常是 5489u），因此每次运行程序都会产生同样的“随机”数。请始终用 <code>::std::seed_seq</code> 配合安全来源做正规播种（见<a href="/docs/12.random/04.seedseq/">第12.4章</a>）。
+13|引擎的通用属性
+14|所有 C++ 随机引擎都提供这些方法：
+15|方法
+16|说明
+17|<code>operator()()</code>
+18|生成序列中的下一个随机数
+19|<code>min()</code>
+20|返回引擎能产生的最小值
+21|<code>max()</code>
+22|返回引擎能产生的最大值
+23|<code>seed()</code>
+24|用新的种子值重新播种引擎
+25|<code>discard(z)</code>
+26|把引擎状态前进 z 步而不产生输出
+27|引擎对比
+28|引擎
+29|输出类型
+30|周期
+31|适用场景
+32|<code>::std::mt19937</code>
+33|32 位无符号
+34|通用、游戏、仿真
+35|<code>::std::mt19937_64</code>
+36|64 位无符号
+37|通用、状态空间更大
+38|<code>::std::minstd_rand</code>
+39|32 位无符号
+40|简单、快，但质量较低
+41|<code>::std::ranlux48</code>
+42|48 位无符号
+43|高质量，但较慢
+44|要点
+45|C++ 在 <code>&lt;random&gt;</code> 中提供若干随机引擎，其中 <code>::std::mt19937_64</code> 最常用。
+46|引擎基于初始种子生成伪随机序列。
+47|对重要应用<strong>绝不要使用默认构造函数</strong> &mdash; 它产生的序列是可预测的。
+48|请始终用安全来源的数值配合 <code>::std::seed_seq</code> 正确播种（见<a href="/docs/12.random/04.seedseq/">第12.4章</a>）。
+49|需要密码学安全的随机性时，使用 <code>::fast_io::ibuf_white_hole_engine</code>（见<a href="/docs/12.random/03.ibufwhitehole/">第12.3章</a>）。
+50|<a href="/docs/12.random/" class="prev-button">&larr; 第12章: random</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/12.random/02.distributions/" class="next-button">第12.2章: 分布 &rarr;</a>

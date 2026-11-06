@@ -3,38 +3,35 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch12.8: Shuffling with std::shuffle - C++ Tutorial with fast_io</title>
+  <title>第12.8章: 用 std::shuffle 洗牌 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch12.8: Shuffling with std::shuffle</h1>
+    <h1>第12.8章: 用 std::shuffle 洗牌</h1>
     <p class="lang-switch"><a href="/docs/12.random/05.shuffle/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        <code>::std::shuffle</code> from <code>&lt;algorithm&gt;</code> randomly reorders elements
-        in a range. It requires a <strong>UniformRandomBitGenerator</strong>, which
-        <code>ibuf_white_hole_engine</code> satisfies, giving you cryptographically secure shuffling.
+        <code>&lt;algorithm&gt;</code> 中的 <code>::std::shuffle</code> 随机重排一个 range 中的元素。它要求一个 <strong>UniformRandomBitGenerator</strong>，而 <code>ibuf_white_hole_engine</code> 满足这一要求，从而带来密码学安全的洗牌。
       </p>
       <p>
-        Shuffling is essential for:
+        洗牌对下列场景必不可少：
       </p>
       <ul>
-        <li>Card games and board games</li>
-        <li>Lotteries and random drawings</li>
-        <li>Randomized algorithms</li>
-        <li>Monte Carlo simulations</li>
-        <li>Any application requiring unpredictable ordering</li>
+        <li>纸牌游戏与桌面游戏</li>
+        <li>抽奖与随机抽取</li>
+        <li>随机化算法</li>
+        <li>蒙特卡洛仿真</li>
+        <li>任何需要不可预测顺序的应用</li>
       </ul>
     </section>
 
     <section>
-      <h2>Basic Usage</h2>
+      <h2>基本用法</h2>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
@@ -72,12 +69,12 @@ int main() {
     </section>
 
     <section>
-      <h2>Shuffling Different Container Types</h2>
+      <h2>洗牌不同的容器类型</h2>
       <p>
-        <code>::std::shuffle</code> works with any container that provides random-access iterators:
+        <code>::std::shuffle</code> 适用于任何提供随机访问迭代器的容器：
       </p>
 
-      <h3>Shuffling Strings</h3>
+      <h3>洗牌字符串</h3>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
@@ -96,7 +93,7 @@ int main() {
 }
 </code></pre>
 
-      <h3>Shuffling Custom Objects</h3>
+      <h3>洗牌自定义对象</h3>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
@@ -132,7 +129,7 @@ int main() {
 }
 </code></pre>
 
-      <h3>Shuffling Arrays</h3>
+      <h3>洗牌数组</h3>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
@@ -154,7 +151,7 @@ int main() {
 
     ::std::shuffle(numbers.begin(), numbers.end(), eng);
 
-    println("After: ");
+    println("After:  ");
     for (auto n : numbers) {
         print(n, " ");
     }
@@ -164,10 +161,9 @@ int main() {
     </section>
 
     <section>
-      <h2>Partial Shuffling</h2>
+      <h2>部分洗牌</h2>
       <p>
-        Sometimes you only need to shuffle part of a container, or you need to draw random samples
-        without full shuffling. You can use iterator ranges:
+        有时你只需要打乱容器的一部分，或者要随机抽样而不必完整洗牌。你可以使用迭代器范围：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -205,10 +201,9 @@ int main() {
     </section>
 
     <section>
-      <h2>Shuffling vs Sampling</h2>
+      <h2>洗牌与抽样的区别</h2>
       <p>
-        If you need to draw a random sample without modifying the original container, consider
-        using <code>::std::sample</code> (C++17) instead of shuffling:
+        如果你需要在不修改原容器的前提下随机抽样，考虑使用 <code>::std::sample</code>（C++17）而不是洗牌：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -247,69 +242,55 @@ int main() {
 }
 </code></pre>
       <p>
-        <code>::std::sample</code> is more efficient than shuffling when you only need a few random
-        elements from a large container.
+        当你只需要从一个大容器里取几个随机元素时，<code>::std::sample</code> 比洗牌更高效。
       </p>
     </section>
 
     <section>
-      <h2>Security Considerations</h2>
+      <h2>安全性考量</h2>
       <p>
-        Using <code>ibuf_white_hole_engine</code> with <code>::std::shuffle</code> provides
-        cryptographically secure shuffling. However, be aware of these considerations:
+        把 <code>ibuf_white_hole_engine</code> 与 <code>::std::shuffle</code> 配合，可以得到密码学安全的洗牌。不过要注意以下几点：
       </p>
       <ul>
         <li>
-          <strong>Performance:</strong> Secure shuffling is slower than using a fast PRNG like
-          <code>::std::mt19937_64</code>. For non-security applications (games, simulations),
-          consider using a seeded fast PRNG instead.
+          <strong>性能：</strong>安全洗牌比使用 <code>::std::mt19937_64</code> 这类快速伪随机引擎慢。对非安全应用（游戏、仿真），可以考虑改用播种过的快速伪随机引擎。
         </li>
         <li>
-          <strong>Predictability:</strong> If an attacker can observe enough shuffles, they might
-          infer patterns. For high-security applications, create a new engine instance for each
-          shuffle operation.
+          <strong>可预测性：</strong>如果攻击者能观察到足够多次洗牌，可能推断出规律。对高安全要求的应用，每次洗牌操作都新建一个引擎实例。
         </li>
         <li>
-          <strong>Reproducibility:</strong> If you need reproducible shuffles (for testing), use
-          <code>::std::mt19937_64</code> seeded with <code>::std::seed_seq</code> from a secure
-          source (see <a href="/zhcn/docs/12.random/04.seedseq/">Ch12.4</a>).
+          <strong>可复现性：</strong>如果你需要可复现的洗牌（用于测试），请使用由安全来源的 <code>::std::seed_seq</code> 播种的 <code>::std::mt19937_64</code>（见<a href="/zhcn/docs/12.random/04.seedseq/">第12.4章</a>）。
         </li>
       </ul>
     </section>
 
     <section>
-      <h2>Key Takeaways</h2>
+      <h2>要点</h2>
       <ul>
         <li>
-          <code>::std::shuffle</code> requires a UniformRandomBitGenerator, which
-          <code>ibuf_white_hole_engine</code> satisfies.
+          <code>::std::shuffle</code> 要求 UniformRandomBitGenerator，而 <code>ibuf_white_hole_engine</code> 满足它。
         </li>
         <li>
-          Use <code>::std::shuffle</code> with <code>ibuf_white_hole_engine</code> for
-          cryptographically secure shuffling in games, lotteries, and security-sensitive applications.
+          在游戏、抽奖和安全敏感应用中，把 <code>::std::shuffle</code> 与 <code>ibuf_white_hole_engine</code> 配合以获得密码学安全的洗牌。
         </li>
         <li>
-          Works with any container providing random-access iterators: <code>::fast_io::vector</code>,
-          <code>::std::array</code>, <code>::fast_io::string</code>, etc.
+          适用于任何提供随机访问迭代器的容器：<code>::fast_io::vector</code>、<code>::std::array</code>、<code>::fast_io::string</code> 等。
         </li>
         <li>
-          Use iterator ranges for partial shuffling.
+          部分洗牌请使用迭代器范围。
         </li>
         <li>
-          For random sampling without full shuffling, use <code>::std::sample</code> (C++17).
+          不完整洗牌的随机抽样，请使用 <code>::std::sample</code>（C++17）。
         </li>
         <li>
-          For non-security applications, consider using a fast PRNG like
-          <code>::std::mt19937_64</code> for better performance.
+          对非安全应用，可以考虑使用 <code>::std::mt19937_64</code> 这类快速伪随机引擎以获得更好性能。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/12.random/04.seedseq/" class="prev-button">&larr; Ch12.4: seed_seq</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/12.random/06.security/" class="next-button">Ch12.6: Security &rarr;</a>
+      <a href="/zhcn/docs/12.random/04.seedseq/" class="prev-button">&larr; 第12.4章: seed_seq</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/12.random/06.security/" class="next-button">第12.6章: 安全性 &rarr;</a>
     </div>
   </main>
 </body>

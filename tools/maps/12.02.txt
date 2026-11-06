@@ -1,0 +1,37 @@
+1|第12.2章: 分布 - 使用 fast_io 学习 C++ 教程
+2|第12.2章: 分布
+3|概述
+4|随机数引擎产生的是原始随机比特，但大多数应用需要落在特定区间内、或服从特定统计分布的随机值。C++ 的 <code>&lt;random&gt;</code> 库提供<strong>分布</strong>，把原始随机比特变换成所需的输出形式。
+5|常见的分布包括：
+6|<code>::std::uniform_int_distribution</code> &mdash; 区间内均匀分布的整数
+7|<code>::std::uniform_real_distribution</code> &mdash; 均匀分布的浮点数
+8|<code>::std::bernoulli_distribution</code> &mdash; 给定概率的布尔值
+9|<code>::std::normal_distribution</code> &mdash; 正态（高斯）分布
+10|uniform_int_distribution
+11|在给定区间 <code>[min, max]</code> 内生成均匀分布的整数。
+12|<strong>绝不要用取模来生成区间！</strong>用 <code>eng() % 100</code> 得到 [0, 99] 内的值，会因鸽笼原理产生有偏分布。请始终使用 <code>::std::uniform_int_distribution</code>，它用拒绝采样保证完美的均匀性。
+13|bernoulli_distribution
+14|生成布尔值（<code>true</code> 或 <code>false</code>），其中为 <code>true</code> 的概率由 <code>p</code> 指定。
+15|组合使用多个分布
+16|对复杂场景，你可以把多个分布配合使用：
+17|分布的通用属性
+18|所有分布都提供这些方法：
+19|方法
+20|说明
+21|<code>operator()(gen)</code>
+22|用给定的引擎生成下一个随机值
+23|<code>min()</code>
+24|返回该分布能产生的最小值
+25|<code>max()</code>
+26|返回该分布能产生的最大值
+27|<code>reset()</code>
+28|重置分布的内部状态
+29|<code>param()</code>
+30|取得或设置分布的参数
+31|要点
+32|分布把引擎产生的原始随机比特变换成具有特定统计性质的值。
+33|区间内的整数请用 <code>::std::uniform_int_distribution</code> &mdash; 绝不要用取模。
+34|给定概率的布尔值请用 <code>::std::bernoulli_distribution</code>。
+35|分布可与任何引擎配合，包括 <code>::std::mt19937_64</code> 和 <code>::fast_io::ibuf_white_hole_engine</code>。
+36|需要密码学安全的随机性时，用 <code>ibuf_white_hole_engine</code> 而不是 <code>mt19937_64</code>。
+37|<a href="/docs/12.random/01.engines/" class="prev-button">&larr; 第12.1章: 引擎</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/12.random/03.ibufwhitehole/" class="next-button">第12.3章: ibuf_white_hole_engine &rarr;</a>

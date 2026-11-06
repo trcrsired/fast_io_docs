@@ -3,40 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch12.2: Distributions - C++ Tutorial with fast_io</title>
+  <title>第12.2章: 分布 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch12.2: Distributions</h1>
+    <h1>第12.2章: 分布</h1>
     <p class="lang-switch"><a href="/docs/12.random/02.distributions/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        Random number engines produce raw random bits, but most applications need random values in
-        specific ranges or following specific statistical distributions. C++'s
-        <code>&lt;random&gt;</code> library provides <strong>distributions</strong> that transform
-        raw random bits into the desired output format.
+        随机数引擎产生的是原始随机比特，但大多数应用需要落在特定区间内、或服从特定统计分布的随机值。C++ 的 <code>&lt;random&gt;</code> 库提供<strong>分布</strong>，把原始随机比特变换成所需的输出形式。
       </p>
       <p>
-        Common distributions include:
+        常见的分布包括：
       </p>
       <ul>
-        <li><code>::std::uniform_int_distribution</code> &mdash; uniform integers in a range</li>
-        <li><code>::std::uniform_real_distribution</code> &mdash; uniform floating-point values</li>
-        <li><code>::std::bernoulli_distribution</code> &mdash; boolean values with given probability</li>
-        <li><code>::std::normal_distribution</code> &mdash; normal (Gaussian) distribution</li>
+        <li><code>::std::uniform_int_distribution</code> &mdash; 区间内均匀分布的整数</li>
+        <li><code>::std::uniform_real_distribution</code> &mdash; 均匀分布的浮点数</li>
+        <li><code>::std::bernoulli_distribution</code> &mdash; 给定概率的布尔值</li>
+        <li><code>::std::normal_distribution</code> &mdash; 正态（高斯）分布</li>
       </ul>
     </section>
 
     <section>
       <h2>uniform_int_distribution</h2>
       <p>
-        Generates uniformly distributed integers in a specified range <code>[min, max]</code>.
+        在给定区间 <code>[min, max]</code> 内生成均匀分布的整数。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -67,18 +63,14 @@ int main() {
 }
 </code></pre>
       <div class="warning">
-        <strong>Never use modulo to generate ranges!</strong> Using <code>eng() % 100</code> to get
-        values in [0, 99] creates biased distributions due to the pigeonhole principle. Always use
-        <code>::std::uniform_int_distribution</code> which uses rejection sampling to ensure perfect
-        uniformity.
+        <strong>绝不要用取模来生成区间！</strong>用 <code>eng() % 100</code> 得到 [0, 99] 内的值，会因鸽笼原理产生有偏分布。请始终使用 <code>::std::uniform_int_distribution</code>，它用拒绝采样保证完美的均匀性。
       </div>
     </section>
 
     <section>
       <h2>bernoulli_distribution</h2>
       <p>
-        Generates boolean values (<code>true</code> or <code>false</code>) with a specified
-        probability <code>p</code> of being <code>true</code>.
+        生成布尔值（<code>true</code> 或 <code>false</code>），其中为 <code>true</code> 的概率由 <code>p</code> 指定。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -123,9 +115,9 @@ int main() {
     </section>
 
     <section>
-      <h2>Combining Distributions</h2>
+      <h2>组合使用多个分布</h2>
       <p>
-        You can use multiple distributions together for complex scenarios:
+        对复杂场景，你可以把多个分布配合使用：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -154,72 +146,66 @@ int main() {
     </section>
 
     <section>
-      <h2>Distribution Properties</h2>
+      <h2>分布的通用属性</h2>
       <p>
-        All distributions provide these methods:
+        所有分布都提供这些方法：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Method</th>
-            <th>Description</th>
+            <th>方法</th>
+            <th>说明</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>operator()(gen)</code></td>
-            <td>Generates the next random value using the engine</td>
+            <td>用给定的引擎生成下一个随机值</td>
           </tr>
           <tr>
             <td><code>min()</code></td>
-            <td>Returns the minimum value the distribution can produce</td>
+            <td>返回该分布能产生的最小值</td>
           </tr>
           <tr>
             <td><code>max()</code></td>
-            <td>Returns the maximum value the distribution can produce</td>
+            <td>返回该分布能产生的最大值</td>
           </tr>
           <tr>
             <td><code>reset()</code></td>
-            <td>Resets the distribution's internal state</td>
+            <td>重置分布的内部状态</td>
           </tr>
           <tr>
             <td><code>param()</code></td>
-            <td>Gets or sets the distribution parameters</td>
+            <td>取得或设置分布的参数</td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>Key Takeaways</h2>
+      <h2>要点</h2>
       <ul>
         <li>
-          Distributions transform raw random bits from engines into values with specific statistical
-          properties.
+          分布把引擎产生的原始随机比特变换成具有特定统计性质的值。
         </li>
         <li>
-          Use <code>::std::uniform_int_distribution</code> for integers in a range &mdash; never use
-          modulo.
+          区间内的整数请用 <code>::std::uniform_int_distribution</code> &mdash; 绝不要用取模。
         </li>
         <li>
-          Use <code>::std::bernoulli_distribution</code> for boolean values with a given probability.
+          给定概率的布尔值请用 <code>::std::bernoulli_distribution</code>。
         </li>
         <li>
-          Distributions work with any engine, including <code>::std::mt19937_64</code> and
-          <code>::fast_io::ibuf_white_hole_engine</code>.
+          分布可与任何引擎配合，包括 <code>::std::mt19937_64</code> 和 <code>::fast_io::ibuf_white_hole_engine</code>。
         </li>
         <li>
-          For cryptographically secure randomness, use <code>ibuf_white_hole_engine</code> instead
-          of <code>mt19937_64</code>.
+          需要密码学安全的随机性时，用 <code>ibuf_white_hole_engine</code> 而不是 <code>mt19937_64</code>。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/12.random/01.engines/" class="prev-button">&larr; Ch12.1: Engines</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/12.random/03.ibufwhitehole/" class="next-button">Ch12.3: ibuf_white_hole_engine &rarr;</a>
+      <a href="/zhcn/docs/12.random/01.engines/" class="prev-button">&larr; 第12.1章: 引擎</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/12.random/03.ibufwhitehole/" class="next-button">第12.3章: ibuf_white_hole_engine &rarr;</a>
     </div>
   </main>
 </body>

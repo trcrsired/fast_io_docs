@@ -3,34 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch12.4: Seeding Reproducible Engines with seed_seq - C++ Tutorial with fast_io</title>
+  <title>第12.4章: 用 seed_seq 为可复现引擎播种 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch12.4: Seeding Reproducible Engines with seed_seq</h1>
+    <h1>第12.4章: 用 seed_seq 为可复现引擎播种</h1>
     <p class="lang-switch"><a href="/docs/12.random/04.seedseq/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>When You Need Reproducible Randomness</h2>
+      <h2>什么时候需要可复现的随机性</h2>
       <p>
-        Sometimes you need a <strong>reproducible</strong> random number generator &mdash; for
-        debugging, testing, or simulations where you want to reproduce the same sequence of random
-        numbers. In these cases, you can't use <code>ibuf_white_hole_engine</code> directly because
-        it's designed to be unpredictable.
+        有时你需要一个<strong>可复现</strong>的随机数生成器 &mdash; 用于调试、测试，或者需要重跑同一序列的仿真。这些情况下你不能直接用 <code>ibuf_white_hole_engine</code>，因为它被设计成不可预测。
       </p>
       <p>
-        Instead, use a fast PRNG like <code>::std::mt19937_64</code> and seed it properly. The
-        correct way to seed such engines is with <code>::std::seed_seq</code>, which takes multiple
-        random values from a secure source and combines them into a high-quality seed.
+        这时应该用一个快速的伪随机引擎，比如 <code>::std::mt19937_64</code>，并正确地给它播种。为此类引擎播种的正确方式是使用 <code>::std::seed_seq</code>，它从安全来源取得多个随机值并把它们合成一个高质量的种子。
       </p>
     </section>
 
     <section>
-      <h2>Example: Seeding mt19937_64 for Reproducible Randomness</h2>
+      <h2>示例：为可复现的随机性播种 mt19937_64</h2>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
@@ -68,20 +62,16 @@ int main() {
     </section>
 
     <section>
-      <h2>Common Mistakes to Avoid</h2>
+      <h2>要避免的常见错误</h2>
       <div class="warning">
-        <strong>Never use <code>::std::mt19937_64</code> with its default constructor for anything
-        important!</strong> The default seed is fixed (typically 5489u), which means every program
-        run produces the exact same sequence of "random" numbers. This is predictable and insecure.
+        <strong>绝不要对重要用途使用 <code>::std::mt19937_64</code> 的默认构造函数！</strong>默认种子是固定的（通常是 5489u），这意味着每次运行程序都会产生完全相同的“随机”序列。这既可预测，也不安全。
       </div>
 
       <div class="warning">
-        <strong>Never seed with <code>std::time(nullptr)</code>!</strong> This is also predictable
-        and provides very low entropy. Always use <code>::std::seed_seq</code> with values from a
-        secure source like <code>ibuf_white_hole_engine</code>.
+        <strong>绝不要用 <code>std::time(nullptr)</code> 播种！</strong>这同样可预测，而且熵极低。请始终用安全来源（例如 <code>ibuf_white_hole_engine</code>）的数值配合 <code>::std::seed_seq</code>。
       </div>
 
-      <h3>Bad Examples (Don't Do This)</h3>
+      <h3>错误示例（不要这样写）</h3>
 <pre><code class="language-cpp">
 // WRONG: Default seed is predictable
 ::std::mt19937_64 eng;  // Always produces the same sequence!
@@ -93,7 +83,7 @@ int main() {
 ::std::mt19937_64 eng(42);  // Only 32 bits of seed for 19937-bit state!
 </code></pre>
 
-      <h3>Good Example (Do This)</h3>
+      <h3>正确示例（应该这样写）</h3>
 <pre><code class="language-cpp">
 // CORRECT: Use seed_seq with multiple secure random values
 ::fast_io::native_white_hole rng;
@@ -105,73 +95,67 @@ int main() {
     </section>
 
     <section>
-      <h2>When to Use Each Approach</h2>
+      <h2>什么时候用哪种方式</h2>
       <table>
         <thead>
           <tr>
-            <th>Use Case</th>
-            <th>Recommended Approach</th>
+            <th>使用场景</th>
+            <th>推荐做法</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Cryptographic keys, tokens, passwords</td>
-            <td><code>ibuf_white_hole_engine</code> directly</td>
+            <td>密码学密钥、token、密码</td>
+            <td>直接用 <code>ibuf_white_hole_engine</code></td>
           </tr>
           <tr>
-            <td>Security-sensitive applications</td>
-            <td><code>ibuf_white_hole_engine</code> directly</td>
+            <td>安全敏感的应用</td>
+            <td>直接用 <code>ibuf_white_hole_engine</code></td>
           </tr>
           <tr>
-            <td>Debugging random algorithms</td>
-            <td><code>::std::mt19937_64</code> with <code>::std::seed_seq</code></td>
+            <td>调试随机算法</td>
+            <td><code>::std::mt19937_64</code> 配 <code>::std::seed_seq</code></td>
           </tr>
           <tr>
-            <td>Unit tests with deterministic behavior</td>
-            <td><code>::std::mt19937_64</code> with <code>::std::seed_seq</code></td>
+            <td>行为确定的单元测试</td>
+            <td><code>::std::mt19937_64</code> 配 <code>::std::seed_seq</code></td>
           </tr>
           <tr>
-            <td>Scientific simulations (reproducible)</td>
-            <td><code>::std::mt19937_64</code> with <code>::std::seed_seq</code></td>
+            <td>科学仿真（可复现）</td>
+            <td><code>::std::mt19937_64</code> 配 <code>::std::seed_seq</code></td>
           </tr>
           <tr>
-            <td>Games (save/load random state)</td>
-            <td><code>::std::mt19937_64</code> with <code>::std::seed_seq</code></td>
+            <td>游戏（保存/读取随机状态）</td>
+            <td><code>::std::mt19937_64</code> 配 <code>::std::seed_seq</code></td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>Key Takeaways</h2>
+      <h2>要点</h2>
       <ul>
         <li>
-          For reproducible randomness, use <code>::std::mt19937_64</code> seeded with
-          <code>::std::seed_seq</code> initialized from <code>ibuf_white_hole_engine</code>.
+          需要可复现的随机性时，用由 <code>ibuf_white_hole_engine</code> 初始化的 <code>::std::seed_seq</code> 来播种 <code>::std::mt19937_64</code>。
         </li>
         <li>
-          <strong>Never use <code>::std::mt19937_64</code> with default seed</strong> &mdash; it's
-          predictable.
+          <strong>绝不要用默认种子使用 <code>::std::mt19937_64</code></strong> &mdash; 它可预测。
         </li>
         <li>
-          <strong>Never seed with <code>std::time(nullptr)</code></strong> &mdash; low entropy and
-          predictable.
+          <strong>绝不要用 <code>std::time(nullptr)</code> 播种</strong> &mdash; 熵低且可预测。
         </li>
         <li>
-          Use <code>ibuf_white_hole_engine</code> directly for security-sensitive applications where
-          unpredictability is required.
+          在需要不可预测性的安全敏感应用中，直接使用 <code>ibuf_white_hole_engine</code>。
         </li>
         <li>
-          Save the seed data if you need to reproduce the exact same sequence later.
+          如果以后需要重现完全相同的序列，请把种子数据保存下来。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/12.random/03.ibufwhitehole/" class="prev-button">&larr; Ch12.3: ibuf_white_hole_engine</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/12.random/05.shuffle/" class="next-button">Ch12.5: shuffle &rarr;</a>
+      <a href="/zhcn/docs/12.random/03.ibufwhitehole/" class="prev-button">&larr; 第12.3章: ibuf_white_hole_engine</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/12.random/05.shuffle/" class="next-button">第12.5章: shuffle &rarr;</a>
     </div>
   </main>
 </body>

@@ -1,0 +1,34 @@
+1|第12.8章: 用 std::shuffle 洗牌 - 使用 fast_io 学习 C++ 教程
+2|第12.8章: 用 std::shuffle 洗牌
+3|概述
+4|<code>&lt;algorithm&gt;</code> 中的 <code>::std::shuffle</code> 随机重排一个 range 中的元素。它要求一个 <strong>UniformRandomBitGenerator</strong>，而 <code>ibuf_white_hole_engine</code> 满足这一要求，从而带来密码学安全的洗牌。
+5|洗牌对下列场景必不可少：
+6|纸牌游戏与桌面游戏
+7|抽奖与随机抽取
+8|随机化算法
+9|蒙特卡洛仿真
+10|任何需要不可预测顺序的应用
+11|基本用法
+12|洗牌不同的容器类型
+13|<code>::std::shuffle</code> 适用于任何提供随机访问迭代器的容器：
+14|洗牌字符串
+15|洗牌自定义对象
+16|洗牌数组
+17|部分洗牌
+18|有时你只需要打乱容器的一部分，或者要随机抽样而不必完整洗牌。你可以使用迭代器范围：
+19|洗牌与抽样的区别
+20|如果你需要在不修改原容器的前提下随机抽样，考虑使用 <code>::std::sample</code>（C++17）而不是洗牌：
+21|当你只需要从一个大容器里取几个随机元素时，<code>::std::sample</code> 比洗牌更高效。
+22|安全性考量
+23|把 <code>ibuf_white_hole_engine</code> 与 <code>::std::shuffle</code> 配合，可以得到密码学安全的洗牌。不过要注意以下几点：
+24|<strong>性能：</strong>安全洗牌比使用 <code>::std::mt19937_64</code> 这类快速伪随机引擎慢。对非安全应用（游戏、仿真），可以考虑改用播种过的快速伪随机引擎。
+25|<strong>可预测性：</strong>如果攻击者能观察到足够多次洗牌，可能推断出规律。对高安全要求的应用，每次洗牌操作都新建一个引擎实例。
+26|<strong>可复现性：</strong>如果你需要可复现的洗牌（用于测试），请使用由安全来源的 <code>::std::seed_seq</code> 播种的 <code>::std::mt19937_64</code>（见<a href="/docs/12.random/04.seedseq/">第12.4章</a>）。
+27|要点
+28|<code>::std::shuffle</code> 要求 UniformRandomBitGenerator，而 <code>ibuf_white_hole_engine</code> 满足它。
+29|在游戏、抽奖和安全敏感应用中，把 <code>::std::shuffle</code> 与 <code>ibuf_white_hole_engine</code> 配合以获得密码学安全的洗牌。
+30|适用于任何提供随机访问迭代器的容器：<code>::fast_io::vector</code>、<code>::std::array</code>、<code>::fast_io::string</code> 等。
+31|部分洗牌请使用迭代器范围。
+32|不完整洗牌的随机抽样，请使用 <code>::std::sample</code>（C++17）。
+33|对非安全应用，可以考虑使用 <code>::std::mt19937_64</code> 这类快速伪随机引擎以获得更好性能。
+34|<a href="/docs/12.random/04.seedseq/" class="prev-button">&larr; 第12.4章: seed_seq</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/12.random/06.security/" class="next-button">第12.6章: 安全性 &rarr;</a>

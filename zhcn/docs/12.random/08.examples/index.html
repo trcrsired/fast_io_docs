@@ -3,26 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch12.7: Real-World Examples - C++ Tutorial with fast_io</title>
+  <title>第12.7章: 真实世界示例 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch12.7: Real-World Examples</h1>
+    <h1>第12.7章: 真实世界示例</h1>
     <p class="lang-switch"><a href="/docs/12.random/08.examples/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Example 1: Password Generator</h2>
+      <h2>示例 1：密码生成器</h2>
       <p>
-        This example generates random passwords with lengths between 12 and 20 characters, using
-        alphanumeric characters (0-9, a-z, A-Z). It demonstrates using multiple distributions and
-        mapping random values to character sets.
+        这个示例生成 12 到 20 个字符长度的随机密码，使用字母数字字符（0-9、a-z、A-Z）。它展示了如何同时使用多个分布，并把随机值映射到字符集合。
       </p>
       <p>
-        <strong>Source:</strong> <code>examples/0014.random/password.cc</code>
+        <strong>源码：</strong><code>examples/0014.random/password.cc</code>
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -78,51 +75,44 @@ int main(int argc, char **argv)
 }
 </code></pre>
       <p>
-        <strong>Key points:</strong>
+        <strong>要点：</strong>
       </p>
       <ul>
         <li>
-          Uses two distributions: one for character selection, one for password length.
+          使用两个分布：一个用于选择字符，一个用于决定密码长度。
         </li>
         <li>
-          Maps the uniform distribution [0, 61] to character ranges (digits, lowercase, uppercase).
+          把 [0, 61] 的均匀分布映射到字符区间（数字、小写、大写）。
         </li>
         <li>
-          Each password has a random length between 12 and 20 characters.
+          每个密码的长度在 12 到 20 个字符之间随机。
         </li>
         <li>
-          Uses <code>ibuf_white_hole_engine</code> for cryptographically secure randomness.
+          使用 <code>ibuf_white_hole_engine</code> 获得密码学安全的随机性。
         </li>
       </ul>
     </section>
 
     <section>
-      <h2>WasmPass PWA: Use the Password Generator in Your Browser</h2>
+      <h2>WasmPass PWA：在浏览器中使用这个密码生成器</h2>
       <p>
-        The password generator example from this chapter has been compiled to WebAssembly and is
-        available as a Progressive Web App (PWA) called <strong>WasmPass</strong>. You can use it
-        directly in your browser without installing anything!
+        本章的密码生成器示例已经编译成 WebAssembly，并作为一个名为 <strong>WasmPass</strong> 的渐进式 Web 应用（PWA）发布。你可以直接在浏览器里使用它，无需安装任何东西！
       </p>
       <p>
-        <strong>Try it now:</strong> <a href="https://wasmpass.pages.dev/" target="_blank" rel="noopener">
-        https://wasmpass.pages.dev/</a>
+        <strong>现在试试：</strong><a href="https://wasmpass.pages.dev/" target="_blank" rel="noopener"> https://wasmpass.pages.dev/</a>
       </p>
       <p>
-        As a PWA, WasmPass can be installed on your device and works offline. It uses the same
-        cryptographically secure random number generation as the C++ example, powered by
-        <code>fast_io</code>'s <code>ibuf_white_hole_engine</code>.
+        作为 PWA，WasmPass 可以安装到你的设备上并离线工作。它使用与 C++ 示例相同的密码学安全随机数生成方式，由 <code>fast_io</code> 的 <code>ibuf_white_hole_engine</code> 提供动力。
       </p>
     </section>
 
     <section>
-      <h2>Example 2: Birth Simulation with Bernoulli Distribution</h2>
+      <h2>示例 2：用伯努利分布模拟出生</h2>
       <p>
-        This example simulates a scenario where parents keep having children until they have a boy.
-        It uses the natural male-to-female birth ratio (approximately 1.03:1) and demonstrates the
-        <code>bernoulli_distribution</code> for modeling binary outcomes with a given probability.
+        这个示例模拟这样的情形：父母一直生孩子直到有了一个男孩。它使用自然的男女出生比例（约 1.03:1），并演示用 <code>bernoulli_distribution</code> 对给定概率的二值结果建模。
       </p>
       <p>
-        <strong>Source:</strong> <code>examples/0014.random/stop_born_child_until_boy.cc</code>
+        <strong>源码：</strong><code>examples/0014.random/stop_born_child_until_boy.cc</code>
       </p>
 <pre><code class="language-cpp">
 #include &lt;random&gt;
@@ -192,28 +182,28 @@ int main(int argc, char **argv)
 }
 </code></pre>
       <p>
-        <strong>Key points:</strong>
+        <strong>要点：</strong>
       </p>
       <ul>
         <li>
-          Uses <code>bernoulli_distribution</code> with probability ≈ 0.507 (natural male birth rate).
+          使用概率约为 0.507 的 <code>bernoulli_distribution</code>（自然的男孩出生率）。
         </li>
         <li>
-          Simulates families having children until a boy is born.
+          模拟家庭一直生育直到有男孩为止。
         </li>
         <li>
-          Tracks how many children each family has and computes statistics.
+          统计每个家庭有多少孩子并计算统计量。
         </li>
         <li>
-          Demonstrates using distributions for statistical simulations.
+          演示如何用分布做统计仿真。
         </li>
       </ul>
     </section>
 
     <section>
-      <h2>Running the Examples</h2>
+      <h2>运行这些示例</h2>
       <p>
-        To compile and run these examples:
+        编译并运行这些示例：
       </p>
 <pre><code class="language-bash">
 # Compile password generator
@@ -231,9 +221,9 @@ g++ -std=c++20 -O2 -o birth_sim stop_born_child_until_boy.cc -I/path/to/fast_io/
     </section>
 
     <section>
-      <h2>Sample Output from Birth Simulation</h2>
+      <h2>出生模拟的示例输出</h2>
       <p>
-        Here's what the birth simulation outputs when run with 100 million families:
+        下面是出生模拟在一亿个家庭上的运行输出：
       </p>
 <pre><code>
 $ ./stop_born_child_until_boy 100000000
@@ -268,121 +258,97 @@ total population:197091717
 Sex Ratio:103.00:100
 </code></pre>
       <p>
-        <strong>Key insight:</strong> Notice that some families have many girls before having a boy.
-        In this simulation, one family had their first boy as the <strong>29th child</strong>! This
-        is not a genetic defect &mdash; it's simply probability. With 100 million families, it's
-        statistically expected that some families will have long streaks of girls.
+        <strong>关键洞察：</strong>注意有些家庭在生出男孩之前有很多女孩。在这个模拟中，有一个家庭的第一个男孩是<strong>第 29 个孩子</strong>！这不是遗传缺陷 &mdash; 这纯粹是概率。在一亿个家庭里，从统计上说必然会有些家庭出现很长的女孩连串。
       </p>
       <p>
-        Even at the 10th child, we see 86,761 families (0.09%) that had 9 girls before finally having
-        a boy. This is completely normal and expected from the laws of probability. Each birth is an
-        independent event with approximately 50.7% chance of being male.
+        即使到第 10 个孩子，我们也看到有 86,761 个家庭（0.09%）是在 9 个女孩之后才终于有了男孩。这完全正常，是概率规律的必然。每次出生都是独立事件，为男孩的概率约为 50.7%。
       </p>
       <p>
-        <strong>Mathematical proof:</strong> See
-        <a href="/zhcn/docs/12.random/08.examples/01.proof/">Ch12.8.1: Mathematical Proof</a> for a
-        complete mathematical proof of why this stopping rule doesn't affect the sex ratio at birth.
+        <strong>数学证明：</strong>关于这条停止规则为何不影响出生性别比，完整证明见<a href="/zhcn/docs/12.random/08.examples/01.proof/">第12.8.1章: 数学证明</a>。
       </p>
     </section>
 
     <section>
-      <h2>Percentage Manipulators Reference</h2>
+      <h2>百分比操纵器参考</h2>
       <p>
-        The examples above use several percentage-related manipulators from <code>fast_io::mnp</code>.
-        Here's a complete reference:
+        上面的示例使用了 <code>fast_io::mnp</code> 中若干与百分比相关的操纵器。完整参考如下：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Manipulator</th>
-            <th>Description</th>
-            <th>Example Output</th>
+            <th>操纵器</th>
+            <th>说明</th>
+            <th>示例输出</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>percentage_conventional(num, den)</code></td>
-            <td>Calculates <code>num/den * 100</code> and formats as percentage with 2 decimal places</td>
+            <td>计算 <code>num/den * 100</code>，并按保留两位小数的百分比格式化</td>
             <td><code>percentage_conventional(1, 4)</code> → <code>25.00%</code></td>
           </tr>
           <tr>
-            <td><code>comma_percentage_conventional(num, den)</code></td>
+            <td>与上面相同，但使用逗号作为小数分隔符</td>
             <td>Same as above, but uses comma as decimal separator</td>
             <td><code>comma_percentage_conventional(1, 4)</code> → <code>25,00%</code></td>
           </tr>
           <tr>
             <td><code>percentage_sex_ratio(male, female)</code></td>
-            <td>Calculates male-to-female ratio as <code>X.XX:100</code> format (males per 100 females)</td>
+            <td>把男女比例计算为 <code>X.XX:100</code> 形式（每 100 名女性对应的男性数）</td>
             <td><code>percentage_sex_ratio(103, 100)</code> → <code>103.00:100</code></td>
           </tr>
           <tr>
             <td><code>comma_percentage_sex_ratio(male, female)</code></td>
-            <td>Same as above, but uses comma as decimal separator</td>
+            <td>与上面相同，但使用逗号作为小数分隔符</td>
             <td><code>comma_percentage_sex_ratio(103, 100)</code> → <code>103,00:100</code></td>
           </tr>
           <tr>
             <td><code>base_percentage_conventional&lt;base&gt;(num, den)</code></td>
-            <td>Percentage in different base (2-36)</td>
+            <td>以其他进制（2-36）表示的百分比</td>
             <td><code>base_percentage_conventional&lt;16&gt;(1, 4)</code> → <code>19.00%</code></td>
           </tr>
           <tr>
             <td><code>base_percentage_sex_ratio&lt;base&gt;(male, female)</code></td>
-            <td>Sex ratio in different base (2-36)</td>
+            <td>以其他进制（2-36）表示的性别比</td>
             <td><code>base_percentage_sex_ratio&lt;16&gt;(103, 100)</code> → <code>67.00:100</code></td>
           </tr>
         </tbody>
       </table>
       <p>
-        <strong>Template parameters:</strong> All manipulators accept optional template parameters:
-        <code>&lt;uppercase, full, showpos&gt;</code> to control formatting.
+        <strong>模板参数：</strong>所有操纵器都接受可选的模板参数 <code>&lt;uppercase, full, showpos&gt;</code> 来控制格式化。
       </p>
     </section>
 
     <section>
-      <h2>Key Takeaways</h2>
+      <h2>要点</h2>
       <ul>
         <li>
-          Real-world applications often combine multiple distributions (uniform for selection,
-          uniform for size, Bernoulli for binary outcomes).
+          真实世界的应用往往要组合多个分布（用均匀分布选元素、用均匀分布定大小、用伯努利分布处理二值结果）。
         </li>
         <li>
-          <code>ibuf_white_hole_engine</code> provides cryptographically secure randomness suitable
-          for password generation.
+          <code>ibuf_white_hole_engine</code> 提供密码学安全的随机性，适合生成密码。
         </li>
         <li>
-          Distributions like <code>bernoulli_distribution</code> make it easy to model probabilistic
-          events with specific probabilities.
+          <code>bernoulli_distribution</code> 这样的分布让具有特定概率的随机事件极易建模。
         </li>
         <li>
-          Mapping uniform distributions to character sets is a common pattern in password generators.
+          把均匀分布映射到字符集合是密码生成器中的常见模式。
         </li>
         <li>
-          Statistical simulations benefit from using the correct distribution rather than manual
-          transformations.
+          统计仿真受益于使用正确的分布，而不是手动变换。
         </li>
         <li>
-          <strong>Sex ratio misconception:</strong> The simulation above demonstrates that even if
-          every family keeps having children until they get a boy, the overall sex ratio at birth
-          remains at the natural ratio (approximately 103:100 male-to-female). This is a common
-          misunderstanding &mdash; stopping rules do not affect the underlying probability. In large
-          samples, the ratio will always converge to the natural biological ratio. The only real-world
-          causes of skewed sex ratios are sex-selective abortion, female infanticide, and other
-          sex-selective technologies, not family planning decisions.
+          <strong>性别比误解：</strong>上面的模拟表明，即使每个家庭都一直生到有男孩为止，出生时的总体性别比仍保持在自然比例（约 103:100 男比女）。这是一个常见的误解 &mdash; 停止规则不影响底层的概率。在大样本中，这个比例总会收敛到自然生物比例。现实中造成性别比失衡的真正原因是性别选择性流产、溺杀女婴以及其他性别选择技术，而不是家庭生育计划。
         </li>
         <li>
-          <strong>Late boys are just probability:</strong> The sample output shows that some families
-          have their first boy as the 10th, 15th, or even 29th child. This is not a genetic defect
-          &mdash; it's simply the laws of probability. With a large enough population, it's
-          statistically expected that some families will have long streaks of girls. Each birth is an
-          independent event, and "unlucky" streaks are a natural consequence of randomness.
+          <strong>晚来的男孩只是概率：</strong>示例输出显示，有些家庭的第一个男孩是第 10 个、第 15 个，甚至第 29 个孩子。这不是遗传缺陷 &mdash; 这只是概率规律。在足够大的人口中，从统计上说必然会有家庭出现很长的女孩连串。每次出生都是独立事件，“运气不好”的连串是随机性的自然结果。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/12.random/07.distributions/" class="prev-button">&larr; Ch12.7: Advanced Distributions</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/12.random/07.distributions/" class="prev-button">&larr; 第12.7章: 进阶分布</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a>
     </div>
   </main>
 </body>

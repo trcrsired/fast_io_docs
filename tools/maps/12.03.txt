@@ -1,0 +1,42 @@
+1|第12.3章: ibuf_white_hole_engine - 使用 fast_io 学习 C++ 教程
+2|第12.3章: ibuf_white_hole_engine
+3|什么是 ibuf_white_hole_engine？
+4|<code>::fast_io::ibuf_white_hole_engine</code> 是一个密码学安全的随机数引擎，直接读取操作系统的熵源。“白洞”这个名字是个比喻：黑洞吸收一切，而白洞则<em>喷出</em>随机字节。
+5|这个引擎满足 C++ 的 <strong>UniformRandomBitGenerator</strong> 要求，因此能与 <code>&lt;random&gt;</code> 中的所有分布无缝配合，例如 <code>::std::uniform_int_distribution</code>、<code>::std::bernoulli_distribution</code> 等。
+6|关键特性
+7|<strong>带缓冲 I/O：</strong>一次从操作系统熵源读取 8 KB，摊薄系统调用开销。大多数生成随机数的调用只是一次指针移动加一次 <code>memcpy</code> &mdash; 没有系统调用。
+8|<strong>安全清空内存：</strong>引擎销毁时内部缓冲区被安全擦除，保护密码学密钥材料。
+9|<strong>自动选择平台：</strong>为你的平台使用最佳的可用熵源（<code>getrandom()</code>、<code>/dev/urandom</code>、<code>RtlGenRandom</code> 等）。
+10|<strong>符合标准：</strong>可与 <code>&lt;random&gt;</code> 中的任何 C++ 分布配合。
+11|<strong>线程安全：</strong>每个引擎实例相互独立。多个线程可以使用各自的引擎实例而无需同步。
+12|基本用法
+13|相关主题
+14|<code>ibuf_white_hole_engine</code> 也能配合 <code>::std::shuffle</code> 做密码学安全的容器洗牌。详见<a href="/docs/12.random/05.shuffle/">第12.5章: 用 std::shuffle 洗牌</a>。
+15|它是如何实现的
+16|这个引擎是以类型别名实现的：
+17|其中 <code>ibuf_white_hole</code> 是平台专用随机源之上的输入缓冲包装。缓冲模式包含 <code>buffer_mode::secure_clear</code>，确保缓冲区在销毁时被擦除。
+18|<code>operator()()</code> 方法从带缓冲的来源读取 <code>sizeof(::std::size_t)</code> 个字节，并作为 <code>::std::size_t</code> 返回。大多数调用由缓冲区直接满足，不发生系统调用。
+19|用 ibuf_white_hole 读取原始字节
+20|如果你需要原始随机字节（例如创建密码学密钥或 token），可以直接把 <code>::fast_io::ibuf_white_hole</code> 当作输入流使用：
+21|<code>ibuf_white_hole</code> 是底层的输入流类型。它通过标准 I/O 接口（<code>read_all</code>、<code>read_some</code> 等）提供与引擎相同的、带缓冲的密码学安全随机字节。
+22|一次性使用：native_white_hole
+23|如果你只需要生成一次随机字节（例如创建一个密钥或 token），请使用 <code>::fast_io::native_white_hole</code> 而不是 <code>ibuf_white_hole</code>。<code>native_white_hole</code> 不带缓冲、直接发起系统调用，在你不会复用这个流时更高效。
+24|<strong>重要：</strong>请始终使用 <code>::fast_io::secure_clear_guard</code>，在 API 密钥、token 或密码学密钥等敏感数据离开作用域时自动把它们从内存中擦除。这个 RAII 守卫防止秘密通过内存转储、交换文件或调试工具泄漏，即使发生异常也一样。
+25|<strong>什么时候用 <code>native_white_hole</code>，什么时候用 <code>ibuf_white_hole</code>：</strong>
+26|一次性生成秘密、密钥或 token，且不会复用该流时，用 <code>native_white_hole</code>。没有缓冲开销。
+27|当你需要在一段时间内多次取得随机值时，用 <code>ibuf_white_hole</code> 或 <code>ibuf_white_hole_engine</code>。8KB 缓冲区摊薄了系统调用开销。
+28|什么时候使用
+29|在下列情况下使用 <code>ibuf_white_hole_engine</code>：
+30|你需要密码学安全的随机数
+31|生成密码学密钥、token 或会话 ID
+32|为密码加盐
+33|任何安全敏感的应用
+34|你不需要可复现的随机性
+35|需要可复现的随机性（调试、测试、仿真）时，见<a href="/docs/12.random/04.seedseq/">第12.4章: 为可复现引擎播种</a>。
+36|要点
+37|<code>ibuf_white_hole_engine</code> 是密码学安全、带缓冲的随机引擎，会自动使用最佳的平台专用熵源。
+38|它满足 UniformRandomBitGenerator 要求，可直接配合所有 C++ 分布使用。
+39|8 KB 缓冲区摊薄了系统调用开销，因此尽管从操作系统读取依然很快。
+40|缓冲区在销毁时被安全清空，保护敏感数据。
+41|在需要不可预测性的安全敏感应用中使用它。
+42|<a href="/docs/12.random/02.distributions/" class="prev-button">&larr; 第12.2章: 分布</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/12.random/04.seedseq/" class="next-button">第12.4章: seed_seq &rarr;</a>

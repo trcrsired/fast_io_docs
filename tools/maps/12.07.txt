@@ -1,0 +1,32 @@
+1|第12.6章: 进阶分布 - 使用 fast_io 学习 C++ 教程
+2|第12.6章: 进阶分布
+3|不止于均匀整数
+4|C++ 的 <code>&lt;random&gt;</code> 库提供的分布远不止 <code>uniform_int_distribution</code>。它们全都能与 <code>ibuf_white_hole_engine</code> 无缝配合，因为后者满足 UniformRandomBitGenerator 要求。
+5|一些常用分布包括：
+6|<code>::std::uniform_real_distribution</code> &mdash; 均匀分布的浮点值
+7|<code>::std::normal_distribution</code> &mdash; 正态（高斯）分布
+8|<code>::std::bernoulli_distribution</code> &mdash; 给定概率的布尔值
+9|<code>::std::binomial_distribution</code> &mdash; n 次试验中的成功次数
+10|<code>::std::poisson_distribution</code> &mdash; 固定区间内的事件数
+11|<code>::std::exponential_distribution</code> &mdash; 事件之间的时间
+12|完整清单与详细文档见 <a href="https://en.cppreference.com/cpp/numeric/random" target="_blank" rel="noopener"> cppreference &mdash; Random number generation</a>。
+13|示例：正态分布
+14|正态（高斯）分布在统计、仿真和机器学习中常用。它产生的值围绕均值聚集，标准差由参数给定。
+15|分布内部用 Box-Muller 或 Ziggurat 之类的算法，把均匀随机比特变换为正态分布的值，这些复杂工作都由它承担。
+16|示例：伯努利分布
+17|伯努利分布以给定概率产生布尔值（<code>true</code> 或 <code>false</code>）。它适合模拟抛硬币、是/否决策，或任何二值结果。
+18|正确使用分布
+19|记住这些要点：
+20|<strong>绝不要用取模</strong>生成区间内的值，请始终使用合适的分布。
+21|<strong>为你的用例选择正确的分布</strong> &mdash; 均匀、正态、伯努利等。
+22|<strong>使用 <code>ibuf_white_hole_engine</code></strong> 获得安全、自动的播种。
+23|需要可复现结果时，用来自安全引擎的 <code>::std::seed_seq</code> 为 <code>::std::mt19937_64</code> 播种。
+24|延伸阅读
+25|关于所有可用分布、它们的参数以及用法示例的完整文档，见：
+26|<a href="https://en.cppreference.com/cpp/numeric/random" target="_blank" rel="noopener"> cppreference &mdash; Random number generation</a>
+27|要点
+28|C++ 提供的分布远不止 <code>uniform_int_distribution</code>，还包括 <code>normal_distribution</code>、<code>bernoulli_distribution</code> 以及许多其他分布。
+29|所有分布都能与 <code>ibuf_white_hole_engine</code> 无缝配合。
+30|为你的用例选择合适的分布 &mdash; 不要手动变换均匀值。
+31|完整文档见 <a href="https://en.cppreference.com/cpp/numeric/random" target="_blank" rel="noopener"> cppreference</a>。
+32|<a href="/docs/12.random/06.security/" class="prev-button">&larr; 第12.6章: 安全性</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/12.random/08.examples/" class="next-button">第12.8章: 示例 &rarr;</a>

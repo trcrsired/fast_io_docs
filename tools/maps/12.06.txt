@@ -1,0 +1,28 @@
+1|第12.5章: 安全性考量 - 使用 fast_io 学习 C++ 教程
+2|第12.5章: 安全性考量
+3|为什么这些随机源是安全的
+4|<code>ibuf_white_hole_engine</code> 与平台专用的随机源适合密码学用途，因为它们：
+5|<strong>读取 OS 熵源：</strong>它们使用操作系统的密码学安全随机数生成器，后者从硬件来源（时序抖动、硬件随机数发生器等等）收集熵。
+6|<strong>不可预测：</strong>即使攻击者观察到了此前的全部输出，也无法预测未来的输出。
+7|<strong>没有隐藏状态：</strong>不存在可被攻破的全局状态。每个引擎实例相互独立，而且线程安全。
+8|<strong>安全清空内存：</strong>引擎销毁时内部缓冲区被擦除，保护密码学密钥材料不被内存转储获取。
+9|什么时候使用
+10|生成密码学密钥
+11|创建安全的 token 与会话 ID
+12|为密码加盐
+13|为仿真或游戏的伪随机引擎播种
+14|任何安全敏感的应用
+15|什么时候不该直接使用
+16|<strong>高性能应用：</strong>当你每秒需要数以百万计的随机数时，请改用从安全源播种的 <code>::std::mt19937</code> 这类快速伪随机引擎。
+17|<strong>可复现的结果：</strong>当你需要为调试或测试重现同一序列时，请使用固定种子（保存到文件）的已播种伪随机引擎。
+18|常见错误：取模偏差
+19|<strong>绝不要用取模（<code>value % range</code>）来生成区间内的随机数。</strong>这会因鸽笼原理造成有偏分布。
+20|请始终使用 <code>::std::uniform_int_distribution</code> 或 <code>&lt;random&gt;</code> 中的其他分布。分布使用拒绝采样，保证区间内每个值的概率完全相同。
+21|详见<a href="/docs/12.random/02.distributions/">第12.2章: 鸽笼原理</a>。
+22|要点
+23|<code>ibuf_white_hole_engine</code> 是密码学安全的，适合密码学应用。
+24|用它生成密钥、token、密码，以及任何安全敏感的应用。
+25|对高性能或可复现的需求，用来自安全引擎的 <code>::std::seed_seq</code> 为快速伪随机引擎播种。
+26|<strong>绝不要用取模</strong>生成区间内的数值 &mdash; 请使用分布。
+27|引擎销毁时会安全清空缓冲区，保护敏感数据。
+28|<a href="/docs/12.random/05.shuffle/" class="prev-button">&larr; 第12.5章: shuffle</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/12.random/07.distributions/" class="next-button">第12.7章: 进阶分布 &rarr;</a>
