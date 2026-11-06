@@ -3,26 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch13.11: Putting It Together - C++ Tutorial with fast_io</title>
+  <title>第13.11章: 综合起来 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch13.11: Putting It Together</h1>
+    <h1>第13.11章: 综合起来</h1>
     <p class="lang-switch"><a href="/docs/13.class/11.puttingtogether/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. The Finished Class</h2>
+      <h2>1. 完成后的类</h2>
 
       <p>
-        This is the same <code>account</code> that grew through the chapter. It now uses
-        every idea in it: a private invariant, a private constructor behind a named one,
-        checked modifiers, <code>const</code> accessors, chaining through
-        <code>*this</code>, class-wide static data and functions, and one
-        <code>friend</code>.
+        这就是贯穿全章生长起来的那个 <code>account</code>。现在它用上了本章的每一个想法：私有的不变量、藏在具名构造函数背后的私有构造函数、带检查的修改器、<code>const</code> 访问器、通过 <code>*this</code> 实现的链式调用、类范围的静态数据与静态函数，以及一个 <code>friend</code>。
       </p>
 
       <pre><code class="language-cpp">
@@ -133,210 +128,196 @@ the program keeps running
     </section>
 
     <section>
-      <h2>2. Reading It Back</h2>
+      <h2>2. 回头解读</h2>
 
       <table>
         <thead>
           <tr>
-            <th>In the class</th>
-            <th>What it is doing</th>
-            <th>From</th>
+            <th>类中的部分</th>
+            <th>它在做什么</th>
+            <th>出自</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>static account open(...) throws</code></td>
-            <td>The only way in: a named constructor that validates before the object
-              exists, and the only caller of the private constructor.</td>
-            <td><a href="/zhcn/docs/13.class/09.staticfunctions/">Ch13.9</a></td>
+            <td>
+              唯一的入口：一个在对象存在之前完成校验的具名构造函数，也是私有构造函数的唯一调用者。
+            </td>
+            <td><a href="/zhcn/docs/13.class/09.staticfunctions/">第13.9章</a></td>
           </tr>
           <tr>
-            <td><code>explicit account(...) noexcept</code> after
-              <code>private:</code></td>
-            <td>Builds the object from a value that
-              <code>open</code> has already checked. Hidden so that nobody can skip the
-              check.</td>
-            <td><a href="/zhcn/docs/13.class/04.access/">Ch13.4</a>,
-              <a href="/zhcn/docs/13.class/06.constructors/">Ch13.6</a></td>
+            <td>
+              <code>private:</code> 之后的 <code>explicit account(...) noexcept</code>
+            </td>
+            <td>
+              用 <code>open</code> 已经检查过的值构造对象。它被藏起来，以便没有人能跳过检查。
+            </td>
+            <td>
+              <a href="/zhcn/docs/13.class/04.access/">第13.4章</a>、<a href="/zhcn/docs/13.class/06.constructors/">第13.6章</a>
+            </td>
           </tr>
           <tr>
             <td><code>balance() const noexcept</code></td>
-            <td>A read-only accessor returning a value, callable on a
-              <code>const</code> object.</td>
-            <td><a href="/zhcn/docs/13.class/03.constmethods/">Ch13.3</a></td>
+            <td>
+              返回值形式的只读访问器，可在 <code>const</code> 对象上调用。
+            </td>
+            <td><a href="/zhcn/docs/13.class/03.constmethods/">第13.3章</a></td>
           </tr>
           <tr>
-            <td><code>deposit(...) throws</code>, <code>withdraw(...) throws</code></td>
-            <td>The only two ways the balance may change, each checking the invariant
-              before writing, each reporting refusal with
-              <code>::std::errc::invalid_argument</code>.</td>
-            <td><a href="/zhcn/docs/13.class/05.encapsulation/">Ch13.5</a></td>
+            <td><code>deposit(...) throws</code>、<code>withdraw(...) throws</code></td>
+            <td>
+              余额唯一可能改变的两条途径，各自在写入前检查不变量，各自用 <code>::std::errc::invalid_argument</code> 报告拒绝。
+            </td>
+            <td><a href="/zhcn/docs/13.class/05.encapsulation/">第13.5章</a></td>
           </tr>
           <tr>
-            <td><code>return *this;</code> with return type <code>account &amp;</code></td>
-            <td>Call chaining: <code>a.deposit(50).deposit(25);</code></td>
-            <td><a href="/zhcn/docs/13.class/07.this/">Ch13.7</a></td>
+            <td>返回类型为 <code>account &amp;</code> 的 <code>return *this;</code></td>
+            <td>链式调用：<code>a.deposit(50).deposit(25);</code></td>
+            <td><a href="/zhcn/docs/13.class/07.this/">第13.7章</a></td>
           </tr>
           <tr>
             <td><code>inline static ::std::size_t next_id_{1};</code></td>
-            <td>One identifier source shared by every account, touched only by the
-              constructor.</td>
-            <td><a href="/zhcn/docs/13.class/08.staticdata/">Ch13.8</a></td>
+            <td>
+              所有账户共享的标识符来源，只有构造函数会碰它。
+            </td>
+            <td><a href="/zhcn/docs/13.class/08.staticdata/">第13.8章</a></td>
           </tr>
           <tr>
             <td><code>static ::std::size_t opened() noexcept</code></td>
-            <td>A fact about the class, callable without any object.</td>
-            <td><a href="/zhcn/docs/13.class/09.staticfunctions/">Ch13.9</a></td>
+            <td>关于类的一个事实，不需要任何对象就能调用。</td>
+            <td><a href="/zhcn/docs/13.class/09.staticfunctions/">第13.9章</a></td>
           </tr>
           <tr>
             <td><code>friend bool richer(account const &amp;, account const &amp;)</code></td>
-            <td>A symmetric comparison that the class chose to allow, so that the
-              balances stay private.</td>
-            <td><a href="/zhcn/docs/13.class/10.friend/">Ch13.10</a></td>
+            <td>
+              类自己选择允许的对称比较，从而让余额保持私有。
+            </td>
+            <td><a href="/zhcn/docs/13.class/10.friend/">第13.10章</a></td>
           </tr>
         </tbody>
       </table>
 
       <p>
-        Note what is <em>not</em> in the class: no public data member, no setter for the
-        balance, no getter that hands out a reference, no way to make an account without
-        going through a check. Every line outside the class in <code>main</code> could be
-        written by somebody who has never seen the definition, and they still cannot
-        produce an invalid account.
+        注意类里<em>没有</em>什么：没有公有数据成员，没有余额的 setter，没有交出引用的 getter，也没有任何不经过检查就造出账户的办法。<code>main</code> 中类外面的每一行，都可以由从未见过该定义的人写出来，而他们依然造不出一个无效的账户。
       </p>
     </section>
 
     <section>
-      <h2>3. The Design Checklist</h2>
+      <h2>3. 设计清单</h2>
 
-      <p>When you write a class of your own, walk this list once:</p>
+      <p>当你写自己的类时，把这个清单走一遍：</p>
 
       <ol>
         <li>
-          <strong>Write the invariant as one sentence.</strong> If you cannot, the type
-          is probably two types, or it is a plain <code>struct</code> and needs no wall.
+          <strong>把不变量写成一句话。</strong>如果写不出来，这个类型大概是两个类型，或者它就是一个普通 <code>struct</code>，不需要墙。
         </li>
         <li>
-          <strong>Make the data private and everything else private until proven
-            needed.</strong> The interface is the small set of names you will keep.
+          <strong>把数据设为私有，其他东西也一律私有，直到证明需要公开。</strong>接口就是你要保留的那一小份名字。
         </li>
         <li>
-          <strong>Make every constructor establish the invariant</strong>, and make a
-          validating constructor <code>throws</code>. Validate first, then write.
+          <strong>让每个构造函数都建立不变量</strong>，并让带校验的构造函数是 <code>throws</code>。先校验，再写入。
         </li>
         <li>
-          <strong>Give every read-only member function <code>const</code></strong>, and
-          return values (or <code>const &amp;</code>), never a writable reference to the
-          storage.
+          <strong>给每个只读成员函数加 <code>const</code></strong>，返回值为值（或 <code>const &amp;</code>），绝不要返回对存储的可写引用。
         </li>
         <li>
-          <strong>Give the class a name for each way of building it</strong> when the
-          constructors would otherwise be a puzzle: <code>open</code>,
-          <code>from_history</code>, <code>parse</code>.
+          <strong>当构造函数本来会变成一个谜题时，为每种构造方式给类起个名字</strong>：<code>open</code>、<code>from_history</code>、<code>parse</code>。
         </li>
         <li>
-          <strong>Mark every member function <code>noexcept</code> or
-            <code>throws</code></strong>. If a member function can fail, its caller must
-          deal with it; that is information the signature has to carry.
+          <strong>把每个成员函数标为 <code>noexcept</code> 或 <code>throws</code></strong>。如果成员函数可能失败，调用者就必须处理它；这是签名必须携带的信息。
         </li>
         <li>
-          <strong>Use static members for facts about the class</strong>, and treat any
-          mutable static member as shared state that needs a reason.
+          <strong>关于类的事实就用静态成员</strong>，并且把任何可变静态成员当作需要理由的共享状态。
         </li>
         <li>
-          <strong>Open the wall with <code>friend</code> only for operations that are
-            symmetric between objects</strong>, after checking that a member function
-          or an accessor would not do.
+          <strong>只用 <code>friend</code> 为对象之间对称的操作开墙</strong>，并且要在确认成员函数或访问器做不到之后才这么做。
         </li>
       </ol>
     </section>
 
     <section>
-      <h2>4. Mistakes That Cost the Most</h2>
+      <h2>4. 代价最大的错误</h2>
 
       <table>
         <thead>
           <tr>
-            <th>Mistake</th>
-            <th>What it costs</th>
-            <th>Do instead</th>
+            <th>错误</th>
+            <th>代价</th>
+            <th>应该这样做</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Private data, plus a getter <em>and</em> a setter that accepts anything.</td>
-            <td>The wall is decorative: the invariant is still unenforced, and the class
-              is longer.</td>
-            <td>Name the operations (<code>deposit</code>, <code>withdraw</code>) and
-              check inside them.</td>
+            <td>私有数据，外加一个 getter <em>和</em> 一个什么都接受的 setter。</td>
+            <td>
+              墙只是装饰：不变量依然没有被强制，而类变长了。
+            </td>
+            <td>
+              给操作起名字（<code>deposit</code>、<code>withdraw</code>），并在它们内部检查。
+            </td>
           </tr>
           <tr>
-            <td>Forgetting <code>const</code> on the accessors.</td>
-            <td>Nobody can pass your type to a function that takes
-              <code>T const &amp;</code>, so every caller becomes non-<code>const</code>
-              and the safety evaporates.</td>
-            <td>Add <code>const</code> the moment you write a member function that does
-              not write.</td>
+            <td>访问器上忘记 <code>const</code>。</td>
+            <td>
+              没有人能把你的类型传给接受 <code>T const &amp;</code> 的函数，于是每个调用者都变成非 <code>const</code>，安全性随之蒸发。
+            </td>
+            <td>
+              在你写下不会写入的成员函数的那一刻就加上 <code>const</code>。
+            </td>
           </tr>
           <tr>
-            <td>Returning <code>::std::int_least64_t &amp;</code> from an accessor.</td>
-            <td><code>a.balance() = -1000;</code> compiles, and the invariant is gone.</td>
-            <td>Return by value, or <code>const &amp;</code> for large members.</td>
+            <td>从访问器返回 <code>::std::int_least64_t &amp;</code>。</td>
+            <td><code>a.balance() = -1000;</code> 能编译，而不变量荡然无存。</td>
+            <td>按值返回，对大成员则返回 <code>const &amp;</code>。</td>
           </tr>
           <tr>
-            <td>Assigning in the constructor body instead of the initializer list.</td>
-            <td>Members are written twice, the list order stops matching, and members
-              that cannot be assigned stop working.</td>
-            <td>Initialize in the member initializer list, in declaration order.</td>
+            <td>在构造函数体里赋值，而不是用初始化列表。</td>
+            <td>
+              成员被写两次，列表顺序不再匹配，而不能赋值的成员干脆无法工作。
+            </td>
+            <td>在成员初始化列表里按声明顺序初始化。</td>
           </tr>
           <tr>
-            <td>Single-argument constructors without <code>explicit</code>.</td>
-            <td>Silent conversions turn a wrong call into a wrong object.</td>
-            <td><code>explicit</code>, unless the conversion is the point of the
-              type.</td>
+            <td>单实参构造函数没有 <code>explicit</code>。</td>
+            <td>悄悄发生的转换把一次错误的调用变成错误的对象。</td>
+            <td>
+              加 <code>explicit</code>，除非这种转换正是该类型的意义所在。
+            </td>
           </tr>
           <tr>
-            <td>A public constructor that does not check, next to a checking factory.</td>
-            <td>Half the objects in the program are valid and half are not, and the
-              invariant is worthless.</td>
-            <td>One door. Make the unchecked constructor private.</td>
+            <td>一边是带检查的工厂函数，一边是不检查的公有构造函数。</td>
+            <td>
+              程序里一半对象有效、一半无效，不变量一文不值。
+            </td>
+            <td>只留一扇门。把不检查的构造函数设为私有。</td>
           </tr>
           <tr>
-            <td>Catching a herbception and continuing as if the operation happened.</td>
-            <td>The caller believes the deposit succeeded. Silent wrong answers are worse
-              than a stop.</td>
-            <td>Handle it, propagate it, or let it reach the top and stop the program.</td>
+            <td>捕获赫布异常后，当作操作已经发生一样继续。</td>
+            <td>
+              调用者以为存款成功了。悄悄给出的错误答案比停下来更糟。
+            </td>
+            <td>处理它、向上传播它，或者让它到达顶层并让程序停下。</td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>5. Where You Are Now</h2>
+      <h2>5. 你现在的位置</h2>
 
       <p>
-        You can define a type that owns its data, decides what the outside may do, keeps
-        a promise, and reports failure in the one way this tutorial uses everywhere:
-        <code>throws</code> and <code>catch throws (::std::error e)</code>. That is
-        enough to build the rest of the language on. Everything that follows &mdash;
-        operators, generic code, the standard library&rsquo;s own types &mdash; is
-        written in terms of classes like this one.
+        你已经能定义一个拥有自己数据的类型，决定外部可以做什么，维持一个承诺，并用本教程处处使用的唯一方式报告失败：<code>throws</code> 加 <code>catch throws (::std::error e)</code>。这足以支撑语言剩余的部分。后面的一切 &mdash; 运算符、泛型代码、标准库自己的类型 &mdash; 都是用这样的类写成的。
       </p>
 
       <div class="important">
-        <strong>The one thing to carry forward.</strong>
-        A class is a promise. <code>private</code> is what makes the promise believable,
-        <code>const</code> is what makes it readable, a constructor is what makes it true
-        from the first moment an object exists, and <code>throws</code> is what happens
-        when somebody asks for something the promise cannot allow.
+        <strong>要带走的一件事。</strong>类是一个承诺。<code>private</code> 让承诺可信，<code>const</code> 让承诺可读，构造函数让承诺从对象存在的第一刻起就为真，而 <code>throws</code> 是当有人要求承诺无法允许的东西时发生的事。
       </div>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/13.class/10.friend/" class="prev-button">&larr; Ch13.10: friend</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/14.fiverules/" class="next-button">Ch14: The Rule of Five &rarr;</a>
+      <a href="/zhcn/docs/13.class/10.friend/" class="prev-button">&larr; 第13.10章: friend</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/14.fiverules/" class="next-button">第14章: 五法则 &rarr;</a>
     </div>
   </main>
 </body>

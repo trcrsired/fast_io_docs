@@ -3,32 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch13.10: friend - C++ Tutorial with fast_io</title>
+  <title>第13.10章: friend - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch13.10: friend: Letting One Outsider In</h1>
+    <h1>第13.10章: friend：放进一个外来者</h1>
     <p class="lang-switch"><a href="/docs/13.class/10.friend/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. The Operation That Belongs to the Type but Cannot Be a Member</h2>
+      <h2>1. 属于类型、却无法作为成员的操作</h2>
 
       <p>
-        Sometimes the operation you need takes two objects of the class and treats them
-        as equals. The midpoint of two points, the distance between two points, the sum
-        of two vectors: none of them is &ldquo;a method of the left-hand
-        object&rdquo;, and none of them can be written outside the class either,
-        because the data it needs is private.
+        有时你需要的操作接受该类的两个对象并把它们平等对待。两个点的中点、两个点之间的距离、两个向量的和：它们都不是“左手那个对象的方法”，而写在类外面也做不到，因为它需要的数据是私有的。
       </p>
 
       <p>
-        <strong><code>friend</code> is how the class gives one named outsider the
-        access its own member functions already have.</strong> The permission is granted
-        inside the class, by the class that owns the data:
+        <strong><code>friend</code> 就是类给予某个具名外来者以自身成员函数所拥有的访问权限的方式。</strong>许可在类内部授予，由拥有数据的那个类来授予：
       </p>
 
       <pre><code class="language-cpp">
@@ -43,15 +36,12 @@ private:
 </code></pre>
 
       <p>
-        The <code>friend</code> line is a <em>declaration</em> of an ordinary free
-        function that happens to be allowed to look inside. It is not a member: it has
-        no <code>this</code>, it is not called with an object, and it is not part of the
-        class&rsquo;s list of member functions.
+        <code>friend</code> 那一行是一个普通自由函数的<em>声明</em>，只不过它被允许往里看。它不是成员：它没有 <code>this</code>，不在对象上调用，也不属于类的成员函数列表。
       </p>
     </section>
 
     <section>
-      <h2>2. A Friend Function and a Friend Class</h2>
+      <h2>2. 友元函数与友元类</h2>
 
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -119,129 +109,96 @@ midpoint: x = 5, y = 10
 </code></pre>
 
       <p>
-        Two grants, two shapes:
+        两种授予，两种形状：
       </p>
 
       <ul>
         <li>
-          <strong><code>friend point midpoint(point const &amp;, point const &amp;)</code></strong>
-          &mdash; one free function may read <code>x_</code> and <code>y_</code>, and
-          may use the public constructor. Nothing else changes.
+          <strong><code>friend point midpoint(point const &amp;, point const &amp;)</code></strong> &mdash; 一个自由函数可以读 <code>x_</code> 与 <code>y_</code>，也可以使用公有构造函数。别的什么都不变。
         </li>
         <li>
-          <strong><code>friend class inspector;</code></strong> &mdash; every member
-          function of <code>inspector</code> may read them, including the static
-          <code>dump</code> used above. The grant is to the class as a whole, exactly
-          as <code>private</code> is granted to a class as a whole
-          (<a href="/zhcn/docs/13.class/04.access/">Ch13.4</a>).
+          <strong><code>friend class inspector;</code></strong> &mdash; <code>inspector</code> 的每个成员函数都可以读它们，包括上面用到的静态 <code>dump</code>。授予的对象是整个类，正如 <code>private</code> 也是授予整个类一样（<a href="/zhcn/docs/13.class/04.access/">第13.4章</a>）。
         </li>
       </ul>
 
       <div class="note">
-        <strong>Why <code>midpoint(a, b)</code> is callable at all.</strong>
-        A function declared only inside a class as a <code>friend</code> is invisible to
-        ordinary name lookup, but it is found when one of its arguments is of the class
-        type &mdash; that is argument-dependent lookup, and it is why
-        <code>midpoint(a, b)</code> resolves without a second declaration at namespace
-        scope. If you want to be able to call it with the class type nowhere in the
-        arguments, declare it at namespace scope as well.
+        <strong>为什么 <code>midpoint(a, b)</code> 能被调用。</strong>一个只在类内声明为 <code>friend</code> 的函数对普通名字查找不可见，但当它的某个实参具有该类类型时它会被找到 &mdash; 这就是实参依赖查找，也正是 <code>midpoint(a, b)</code> 不需要在命名空间作用域再声明一次就能解析的原因。如果你希望实参里完全不含该类类型时也能调用它，那就同时在命名空间作用域声明它。
       </div>
     </section>
 
     <section>
-      <h2>3. What <code>friend</code> Is Not</h2>
+      <h2>3. <code>friend</code> 不是什么</h2>
 
       <table>
         <thead>
           <tr>
-            <th>People expect</th>
-            <th>What actually happens</th>
+            <th>人们以为</th>
+            <th>实际发生的是</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>&ldquo;Friendship goes both ways.&rdquo;</td>
-            <td>It does not. If <code>inspector</code> is a friend of
-              <code>point</code>, then <code>inspector</code> may look inside a
-              <code>point</code> &mdash; but <code>point</code> gains nothing, and
-              <code>inspector</code>&rsquo;s own private members are still private to
-              <code>point</code>.</td>
+            <td>“友谊是双向的。”</td>
+            <td>
+              并非如此。如果 <code>inspector</code> 是 <code>point</code> 的友元，那么 <code>inspector</code> 可以看 <code>point</code> 内部 &mdash; 但 <code>point</code> 什么也没得到，<code>inspector</code> 自己的私有成员对 <code>point</code> 依然是私有的。
+            </td>
           </tr>
           <tr>
-            <td>&ldquo;A friend of my friend is my friend.&rdquo;</td>
-            <td>It is not transitive. <code>inspector</code> being a friend of
-              <code>point</code> says nothing about any other class.</td>
+            <td>“我朋友的也是我的朋友。”</td>
+            <td>
+              它不可传递。<code>inspector</code> 是 <code>point</code> 的友元，这并不说明任何别的类。
+            </td>
           </tr>
           <tr>
-            <td>&ldquo;I can declare myself a friend.&rdquo;</td>
-            <td>You cannot. Only the class that owns the data can grant access to it.
-              Friendship is given, never taken.</td>
+            <td>“我可以把自己声明为友元。”</td>
+            <td>
+              不行。只有拥有数据的类才能授予访问权。友谊是给予的，从不被索取。
+            </td>
           </tr>
           <tr>
-            <td>&ldquo;A friend is a member.&rdquo;</td>
-            <td>It is not. There is no <code>this</code> inside a friend function, and
-              it is not listed among the class&rsquo;s member functions.</td>
+            <td>“友元就是成员。”</td>
+            <td>
+              不是。友元函数内部没有 <code>this</code>，它也不列在类的成员函数中。
+            </td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>4. Reach for It Last</h2>
+      <h2>4. 最后才用它</h2>
 
       <p>
-        <code>friend</code> is the narrowest hole you can open in the wall, and it is
-        still a hole. Before granting one, check the cheaper options in this order:
+        <code>friend</code> 是你能在墙上开的最窄的洞，但它仍然是一个洞。授予之前，按这个顺序检查更便宜的做法：
       </p>
 
       <ol>
         <li>
-          <strong>Can a member function do it?</strong> If the operation has a natural
-          subject object, make it a member. <code>midpoint</code> has no natural subject
-          &mdash; that is why it is not one.
+          <strong>能用成员函数做吗？</strong>如果这个操作有一个自然的主体对象，就把它做成成员。<code>midpoint</code> 没有自然主体 &mdash; 这就是它不作为成员的原因。
         </li>
         <li>
-          <strong>Can the public interface do it?</strong> A friend function built on
-          public accessors (<code>a.x()</code>, <code>a.y()</code>) needs no grant at
-          all. Use that whenever the accessors already exist; it keeps the class closed
-          and the function testable.
+          <strong>能用公有接口做吗？</strong>基于公有访问器（<code>a.x()</code>、<code>a.y()</code>）的友元函数完全不需要授权。当访问器已经存在时就那样做；这能让类保持封闭，也让函数可测试。
         </li>
         <li>
-          <strong>Is it about the class, not an object?</strong> Then a static member
-          function is the right shape
-          (<a href="/zhcn/docs/13.class/09.staticfunctions/">Ch13.9</a>).
+          <strong>它是关于类而不是关于对象的吗？</strong>那就该用静态成员函数（<a href="/zhcn/docs/13.class/09.staticfunctions/">第13.9章</a>）。
         </li>
         <li>
-          <strong>Otherwise</strong> &mdash; symmetric operations between two objects
-          are the classic case &mdash; <code>friend</code> is the tool.
+          <strong>否则</strong> &mdash; 两个对象之间的对称操作是经典情形 &mdash; <code>friend</code> 就是合适的工具。
         </li>
       </ol>
 
       <div class="warning">
-        <strong><code>friend</code> creates coupling.</strong>
-        A friend function is now part of the class&rsquo;s implementation: change the
-        data members and the friend breaks, even though it is not visibly in the class.
-        That is acceptable for the two or three operations that genuinely belong to the
-        type&rsquo;s interface, and it is a maintenance trap if you hand out friendship
-        to whatever needs a shortcut. If several outsiders need the same data, the
-        design question is usually whether that data should have a public accessor
-        &mdash; not whether to add a fifth friend.
+        <strong><code>friend</code> 会制造耦合。</strong>友元函数现在成了类实现的一部分：改动数据成员，友元就坏了，尽管它在类里并不显眼。对真正属于该类型接口的两三个操作来说，这是可以接受的；而如果你把友谊发给任何需要走捷径的东西，它就是一个维护陷阱。如果好几个外来者都需要同一份数据，设计问题通常是那份数据该不该有公有访问器 &mdash; 而不是要不要加第五个友元。
       </div>
 
       <div class="note">
-        <strong>This is also how operators are written.</strong> An operator such as
-        <code>+</code> or <code>==</code> that takes two objects of the class has the
-        same shape as <code>midpoint</code>, and is usually declared as a
-        <code>friend</code> for the same reason. Operators are covered later in the
-        tutorial, once you have classes and references in hand.
+        <strong>运算符也是这样写的。</strong>像 <code>+</code> 或 <code>==</code> 这样接受两个该类对象的运算符，与 <code>midpoint</code> 形状相同，通常也因为同样的理由声明为 <code>friend</code>。运算符会在教程后面、在你手上有了类和引用之后再讲。
       </div>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/13.class/09.staticfunctions/" class="prev-button">&larr; Ch13.9: Static Member Functions</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/13.class/11.puttingtogether/" class="next-button">Ch13.11: Putting It Together &rarr;</a>
+      <a href="/zhcn/docs/13.class/09.staticfunctions/" class="prev-button">&larr; 第13.9章: 静态成员函数</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/13.class/11.puttingtogether/" class="next-button">第13.11章: 综合起来 &rarr;</a>
     </div>
   </main>
 </body>

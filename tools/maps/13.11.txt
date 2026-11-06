@@ -1,0 +1,72 @@
+1|第13.11章: 综合起来 - 使用 fast_io 学习 C++ 教程
+2|第13.11章: 综合起来
+3|1. 完成后的类
+4|这就是贯穿全章生长起来的那个 <code>account</code>。现在它用上了本章的每一个想法：私有的不变量、藏在具名构造函数背后的私有构造函数、带检查的修改器、<code>const</code> 访问器、通过 <code>*this</code> 实现的链式调用、类范围的静态数据与静态函数，以及一个 <code>friend</code>。
+5|2. 回头解读
+6|类中的部分
+7|它在做什么
+8|出自
+9|<code>static account open(...) throws</code>
+10|唯一的入口：一个在对象存在之前完成校验的具名构造函数，也是私有构造函数的唯一调用者。
+11|<a href="/docs/13.class/09.staticfunctions/">第13.9章</a>
+12|<code>private:</code> 之后的 <code>explicit account(...) noexcept</code>
+13|用 <code>open</code> 已经检查过的值构造对象。它被藏起来，以便没有人能跳过检查。
+14|<a href="/docs/13.class/04.access/">第13.4章</a>、<a href="/docs/13.class/06.constructors/">第13.6章</a>
+15|<code>balance() const noexcept</code>
+16|返回值形式的只读访问器，可在 <code>const</code> 对象上调用。
+17|<a href="/docs/13.class/03.constmethods/">第13.3章</a>
+18|<code>deposit(...) throws</code>、<code>withdraw(...) throws</code>
+19|余额唯一可能改变的两条途径，各自在写入前检查不变量，各自用 <code>::std::errc::invalid_argument</code> 报告拒绝。
+20|<a href="/docs/13.class/05.encapsulation/">第13.5章</a>
+21|返回类型为 <code>account &amp;</code> 的 <code>return *this;</code>
+22|链式调用：<code>a.deposit(50).deposit(25);</code>
+23|<a href="/docs/13.class/07.this/">第13.7章</a>
+24|<code>inline static ::std::size_t next_id_{1};</code>
+25|所有账户共享的标识符来源，只有构造函数会碰它。
+26|<a href="/docs/13.class/08.staticdata/">第13.8章</a>
+27|<code>static ::std::size_t opened() noexcept</code>
+28|关于类的一个事实，不需要任何对象就能调用。
+29|<a href="/docs/13.class/09.staticfunctions/">第13.9章</a>
+30|<code>friend bool richer(account const &amp;, account const &amp;)</code>
+31|类自己选择允许的对称比较，从而让余额保持私有。
+32|<a href="/docs/13.class/10.friend/">第13.10章</a>
+33|注意类里<em>没有</em>什么：没有公有数据成员，没有余额的 setter，没有交出引用的 getter，也没有任何不经过检查就造出账户的办法。<code>main</code> 中类外面的每一行，都可以由从未见过该定义的人写出来，而他们依然造不出一个无效的账户。
+34|3. 设计清单
+35|当你写自己的类时，把这个清单走一遍：
+36|<strong>把不变量写成一句话。</strong>如果写不出来，这个类型大概是两个类型，或者它就是一个普通 <code>struct</code>，不需要墙。
+37|<strong>把数据设为私有，其他东西也一律私有，直到证明需要公开。</strong>接口就是你要保留的那一小份名字。
+38|<strong>让每个构造函数都建立不变量</strong>，并让带校验的构造函数是 <code>throws</code>。先校验，再写入。
+39|<strong>给每个只读成员函数加 <code>const</code></strong>，返回值为值（或 <code>const &amp;</code>），绝不要返回对存储的可写引用。
+40|<strong>当构造函数本来会变成一个谜题时，为每种构造方式给类起个名字</strong>：<code>open</code>、<code>from_history</code>、<code>parse</code>。
+41|<strong>把每个成员函数标为 <code>noexcept</code> 或 <code>throws</code></strong>。如果成员函数可能失败，调用者就必须处理它；这是签名必须携带的信息。
+42|<strong>关于类的事实就用静态成员</strong>，并且把任何可变静态成员当作需要理由的共享状态。
+43|<strong>只用 <code>friend</code> 为对象之间对称的操作开墙</strong>，并且要在确认成员函数或访问器做不到之后才这么做。
+44|4. 代价最大的错误
+45|错误
+46|代价
+47|应该这样做
+48|私有数据，外加一个 getter <em>和</em> 一个什么都接受的 setter。
+49|墙只是装饰：不变量依然没有被强制，而类变长了。
+50|给操作起名字（<code>deposit</code>、<code>withdraw</code>），并在它们内部检查。
+51|访问器上忘记 <code>const</code>。
+52|没有人能把你的类型传给接受 <code>T const &amp;</code> 的函数，于是每个调用者都变成非 <code>const</code>，安全性随之蒸发。
+53|在你写下不会写入的成员函数的那一刻就加上 <code>const</code>。
+54|从访问器返回 <code>::std::int_least64_t &amp;</code>。
+55|<code>a.balance() = -1000;</code> 能编译，而不变量荡然无存。
+56|按值返回，对大成员则返回 <code>const &amp;</code>。
+57|在构造函数体里赋值，而不是用初始化列表。
+58|成员被写两次，列表顺序不再匹配，而不能赋值的成员干脆无法工作。
+59|在成员初始化列表里按声明顺序初始化。
+60|单实参构造函数没有 <code>explicit</code>。
+61|悄悄发生的转换把一次错误的调用变成错误的对象。
+62|加 <code>explicit</code>，除非这种转换正是该类型的意义所在。
+63|一边是带检查的工厂函数，一边是不检查的公有构造函数。
+64|程序里一半对象有效、一半无效，不变量一文不值。
+65|只留一扇门。把不检查的构造函数设为私有。
+66|捕获赫布异常后，当作操作已经发生一样继续。
+67|调用者以为存款成功了。悄悄给出的错误答案比停下来更糟。
+68|处理它、向上传播它，或者让它到达顶层并让程序停下。
+69|5. 你现在的位置
+70|你已经能定义一个拥有自己数据的类型，决定外部可以做什么，维持一个承诺，并用本教程处处使用的唯一方式报告失败：<code>throws</code> 加 <code>catch throws (::std::error e)</code>。这足以支撑语言剩余的部分。后面的一切 &mdash; 运算符、泛型代码、标准库自己的类型 &mdash; 都是用这样的类写成的。
+71|<strong>要带走的一件事。</strong>类是一个承诺。<code>private</code> 让承诺可信，<code>const</code> 让承诺可读，构造函数让承诺从对象存在的第一刻起就为真，而 <code>throws</code> 是当有人要求承诺无法允许的东西时发生的事。
+72|<a href="/docs/13.class/10.friend/" class="prev-button">&larr; 第13.10章: friend</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/14.fiverules/" class="next-button">第14章: 五法则 &rarr;</a>

@@ -3,26 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch13.9: Static Member Functions - C++ Tutorial with fast_io</title>
+  <title>第13.9章: 静态成员函数 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch13.9: Static Member Functions</h1>
+    <h1>第13.9章: 静态成员函数</h1>
     <p class="lang-switch"><a href="/docs/13.class/09.staticfunctions/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. A Member Function Without an Object</h2>
+      <h2>1. 没有对象的成员函数</h2>
 
       <p>
-        A <strong>static member function</strong> is a member function that is not
-        called on an object. It has no <code>this</code>
-        (<a href="/zhcn/docs/13.class/07.this/">Ch13.7</a>), it is called with the class
-        name instead of a variable name, and it can be called even when no object of
-        the class exists:
+        <strong>静态成员函数</strong>是不在对象上调用的成员函数。它没有 <code>this</code>（<a href="/zhcn/docs/13.class/07.this/">第13.7章</a>），用类名而不是变量名调用，而且即使该类的对象一个都不存在时也能调用：
       </p>
 
       <pre><code class="language-cpp">
@@ -30,20 +25,15 @@
 </code></pre>
 
       <p>
-        Everything else is unchanged: it is inside the class, so it obeys the same
-        access rules &mdash; it may read and write <em>private</em> members, including
-        the private constructors. That combination, &ldquo;outside the object, inside
-        the wall&rdquo;, is what makes it useful.
+        其他一切不变：它在类内部，所以遵守同样的访问规则 &mdash; 它可以读写<em>私有</em>成员，包括私有构造函数。“在对象之外、在墙之内”这种组合，正是它有用的原因。
       </p>
     </section>
 
     <section>
-      <h2>2. Static Member Functions Cannot Be <code>const</code></h2>
+      <h2>2. 静态成员函数不能是 <code>const</code></h2>
 
       <p>
-        <code>const</code> on a member function is a statement about <code>this</code>,
-        and a static member function has no <code>this</code>, so the two cannot be
-        combined:
+        成员函数上的 <code>const</code> 是关于 <code>this</code> 的陈述，而静态成员函数没有 <code>this</code>，所以两者不能结合：
       </p>
 
       <pre><code class="language-text">
@@ -52,22 +42,15 @@ error: static member function 'static int_least32_t counter::instances()'
 </code></pre>
 
       <p>
-        It also cannot name a non-static data member, for the same reason: there is no
-        object, so &ldquo;the member of this object&rdquo; has no meaning. Static
-        members may of course be used &mdash; those belong to the class, which is
-        exactly what a static member function is attached to.
+        出于同样的理由，它也不能指名非静态数据成员：没有对象，所以“这个对象的成员”没有意义。静态成员当然可以使用 &mdash; 它们属于类，而静态成员函数依附的正是类。
       </p>
     </section>
 
     <section>
-      <h2>3. The Main Use: A Named Constructor</h2>
+      <h2>3. 主要用途：具名构造函数</h2>
 
       <p>
-        A constructor has one name: the name of the class. If a class can be built in
-        several ways with several different meanings, constructors stop being
-        expressive: <code>account{100}</code> and <code>account{100, 5}</code> do not
-        say what the numbers are. A static member function gives the construction a
-        <strong>name</strong>, and lets you do work before the object exists:
+        构造函数只有一个名字：类的名字。如果一个类可以用几种方式、几种不同含义来构造，构造函数就不再富有表达力：<code>account{100}</code> 与 <code>account{100, 5}</code> 并没有说明那些数字是什么。静态成员函数给构造过程一个<strong>名字</strong>，并让你在对象存在之前先做工作：
       </p>
 
       <pre><code class="language-cpp">
@@ -144,86 +127,64 @@ account::open failed: [posix](22)Invalid argument
 
       <ul>
         <li>
-          <strong>The constructor is private.</strong> <code>account</code>&rsquo;s
-          real constructor is <code>private</code>, so <code>account{100}</code> outside
-          the class does not compile. <code>open</code> is the only door, and it is a
-          door that checks.
+          <strong>构造函数是私有的。</strong><code>account</code> 真正的构造函数是 <code>private</code>，所以类外部写 <code>account{100}</code> 无法编译。<code>open</code> 是唯一的门，而且是一扇会检查的门。
         </li>
         <li>
-          <strong>The name says what is happening.</strong>
-          <code>account::open(100)</code> reads as an action on the class, not as a
-          puzzle about which two numbers went where.
+          <strong>名字说明了正在发生什么。</strong><code>account::open(100)</code> 读起来像对类的一个动作，而不是在猜两个数字分别放到哪里。
         </li>
         <li>
-          <strong>The check happens once, before the object exists.</strong> A failed
-          <code>open(-5)</code> throws before an account is constructed, so there is no
-          moment where a half-built object exists and no &ldquo;is this object
-          valid?&rdquo; flag anywhere. This is the same guarantee as a validating
-          constructor (<a href="/zhcn/docs/13.class/05.encapsulation/">Ch13.5</a>), with a
-          better name.
+          <strong>检查在对象存在之前发生，而且只发生一次。</strong>失败的 <code>open(-5)</code> 在账户被构造之前就抛出，所以不存在“半成品对象存在”的瞬间，也不需要任何“这个对象有效吗”的标志。这与带校验的构造函数是同一个保证（<a href="/zhcn/docs/13.class/05.encapsulation/">第13.5章</a>），只是名字更好。
         </li>
         <li>
-          <strong>Several named constructors can coexist</strong> without overloading
-          tricks: <code>open(...)</code>, <code>open_with_overdraft(...)</code>,
-          <code>from_history(...)</code>. Each name tells the reader which question it
-          answers.
+          <strong>多个具名构造函数可以并存</strong>，不需要重载技巧：<code>open(...)</code>、<code>open_with_overdraft(...)</code>、<code>from_history(...)</code>。每个名字都告诉读者它回答的是哪个问题。
         </li>
       </ul>
     </section>
 
     <section>
-      <h2>4. When to Write One</h2>
+      <h2>4. 什么时候该写一个</h2>
 
       <table>
         <thead>
           <tr>
-            <th>Use a static member function</th>
-            <th>Use an ordinary member function</th>
+            <th>用静态成员函数</th>
+            <th>用普通成员函数</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>The operation is about the class as a whole: how many exist, what the
-              limits are, how to build one from some other representation.</td>
-            <td>The operation is about one object: deposit, withdraw, balance.</td>
+            <td>
+              操作是关于类整体的：存在多少个、上限是什么、如何从另一种表示构造一个。
+            </td>
+            <td>操作是关于某个对象的：deposit、withdraw、balance。</td>
           </tr>
           <tr>
-            <td>You need to validate or transform the arguments <em>before</em>
-              constructing an object.</td>
-            <td>The object already exists and you are changing or reading it.</td>
+            <td>
+              你需要在构造对象<em>之前</em>校验或变换实参。
+            </td>
+            <td>对象已经存在，你要修改或读取它。</td>
           </tr>
           <tr>
-            <td>You must reach private members but have no object to reach them
-              through.</td>
-            <td>You have the object &mdash; that is the normal case.</td>
+            <td>
+              你必须访问私有成员，却没有对象可供访问。
+            </td>
+            <td>你有对象 &mdash; 那是通常情形。</td>
           </tr>
         </tbody>
       </table>
 
       <div class="note">
-        <strong>A static member function is a free function with access.</strong>
-        If a helper does not need private members and does not conceptually belong to
-        the class, write it as a free function outside the class. That keeps the class
-        small, and it keeps the helper testable on its own. Conversely, if a helper
-        needs to poke at the private data, <code>friend</code>
-        (<a href="/zhcn/docs/13.class/10.friend/">Ch13.10</a>) is the other way to allow it
-        without making the data public.
+        <strong>静态成员函数就是一个有访问权限的自由函数。</strong>如果一个辅助函数不需要私有成员，概念上也不属于这个类，那就把它写成类外面的自由函数。这样能让类保持小，也让辅助函数可以独立测试。反过来，如果辅助函数需要碰私有数据，<code>friend</code>（<a href="/zhcn/docs/13.class/10.friend/">第13.10章</a>）是另一种在不公开数据的前提下允许它访问的办法。
       </div>
 
       <div class="warning">
-        <strong>A static member function is part of the class&rsquo;s interface.</strong>
-        Once it is after <code>public:</code> it is a name you have promised to keep,
-        exactly like a public member function. Put it there only if callers outside the
-        class really need it; a validation helper that only <code>open</code> uses
-        belongs after <code>private:</code>.
+        <strong>静态成员函数是类接口的一部分。</strong>一旦它出现在 <code>public:</code> 之后，它就是你承诺要保留的名字，与公有成员函数完全一样。只有类外面的调用者真的需要它时才放在那里；只被 <code>open</code> 使用的校验辅助函数应当放在 <code>private:</code> 之后。
       </div>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/13.class/08.staticdata/" class="prev-button">&larr; Ch13.8: Static Data Members</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/13.class/10.friend/" class="next-button">Ch13.10: friend &rarr;</a>
+      <a href="/zhcn/docs/13.class/08.staticdata/" class="prev-button">&larr; 第13.8章: 静态数据成员</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/13.class/10.friend/" class="next-button">第13.10章: friend &rarr;</a>
     </div>
   </main>
 </body>
