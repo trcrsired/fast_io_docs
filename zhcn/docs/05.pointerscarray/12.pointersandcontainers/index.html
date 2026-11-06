@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5.12章: 指针与 vector、array 和 string - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第5.12章: 指针与 vector、array 和 string</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        现代 C++ 容器在原始内存之上提供了安全、便利的抽象。
+        然而，三大连续容器——
+        <code>::fast_io::vector</code>、<code>::fast_io::array</code> 和
+        <code>::fast_io::string</code>——在需要时都会暴露原始指针。
+      </p>
+
+      <p>在本章中，你将学到：</p>
+
+      <ul>
+        <li>指针如何与 <code>::fast_io::vector</code> 交互</li>
+        <li>指针如何与 <code>::fast_io::array</code> 交互</li>
+        <li>指针如何与 <code>::fast_io::string</code> 交互</li>
+        <li><code>.data()</code> 返回什么</li>
+        <li><code>.c_str()</code> 返回什么</li>
+        <li>为什么这些容器保证连续存储</li>
+        <li>指针算术如何作用于容器的存储</li>
+        <li><code>::std::to_address</code> 如何从迭代器中取出原始指针</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. VECTOR -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. ::fast_io::vector 与指针</h2>
+      <p>
+        <code>::fast_io::vector&lt;T&gt;</code> 把元素存储在一块连续的内存中。
+        这意味着：
+      </p>
+
+      <ul>
+        <li>元素的布局就像 C 风格数组</li>
+        <li>指针算术与 C 风格数组完全一致</li>
+        <li><code>v.data()</code> 返回指向首元素的指针</li>
+        <li><code>v.index_unchecked(pos)</code> 提供非检查的元素访问</li>
+        <li><code>v.front_unchecked()</code> 提供对首元素的非检查访问</li>
+        <li><code>v.back_unchecked()</code> 提供对末元素的非检查访问</li>
+      </ul>
+
+<pre><code class="language-cpp">
+::fast_io::vector&lt;int&gt; v{1, 2, 3, 4};
+
+int *p = v.data();            // pointer to v[0]
+int *q = p + 2;               // points to v[2]
+
+int a = v.index_unchecked(1); // unchecked v[1]
+int b = v.front_unchecked();  // unchecked v[0]
+int c = v.back_unchecked();   // unchecked v[3]
+</code></pre>
+
+      <p>
+        ⚠️ <strong>非检查访问从不执行边界检查。</strong>
+      </p>
+
+      <p>
+        <strong>注意：</strong><code>fast_io</code> 中的边界检查通常极其廉价。
+        当检测到越界访问时，<code>fast_io</code> 会立刻调用
+        <code>fast_terminate()</code>，既不打印诊断信息，也不
+        执行昂贵的错误处理。这让带检查的访问既快速又能提供安全性。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. ARRAY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. ::fast_io::array 与指针</h2>
+      <p>
+        <code>::fast_io::array&lt;T, N&gt;</code> 是固定大小的容器，行为
+        类似更安全的 C 风格数组。
+      </p>
+
+      <p>它提供：</p>
+
+      <ul>
+        <li>连续存储</li>
+        <li><strong>带边界检查</strong>的 <code>[]</code> 访问</li>
+        <li>用于有意非检查访问的 <code>index_unchecked(pos)</code></li>
+        <li>对首元素的非检查访问 <code>front_unchecked()</code></li>
+        <li>对末元素的非检查访问 <code>back_unchecked()</code></li>
+        <li>返回指向首元素指针的 <code>.data()</code></li>
+      </ul>
+
+<pre><code class="language-cpp">
+::fast_io::array&lt;int, 3&gt; a{10, 20, 30};
+
+int *p = a.data();            // pointer to a[0]
+int *q = p + 1;               // points to a[1]
+
+int x = a.index_unchecked(2); // unchecked a[2]
+int y = a.front_unchecked();  // unchecked a[0]
+int z = a.back_unchecked();   // unchecked a[2]
+</code></pre>
+
+      <p>
+        ⚠️ <strong>非检查函数从不执行边界检查。</strong>
+      </p>
+
+      <p>
+        <strong>注意：</strong><code>fast_io</code> 中的边界检查极其廉价，
+        因为失败时唯一采取的动作就是 <code>fast_terminate()</code>。
+      </p>
+
+      <p>
+        与 C 风格数组不同，<code>::fast_io::array</code> 允许大小为 0。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. STRING -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. ::fast_io::string 与指针</h2>
+      <p>
+        <code>::fast_io::string</code> 把字符存储在一块连续的内存中。
+        这意味着：
+      </p>
+
+      <ul>
+        <li><code>s.data()</code> 返回指向首字符的指针</li>
+        <li><code>s.c_str()</code> 返回<strong>以空字符结尾</strong>的指针</li>
+        <li>指针算术与 <code>char[]</code> 完全一致</li>
+        <li><code>s.index_unchecked(pos)</code> 提供非检查的字符访问</li>
+        <li><code>s.front_unchecked()</code> 提供对首字符的非检查访问</li>
+        <li><code>s.back_unchecked()</code> 提供对末字符的非检查访问</li>
+      </ul>
+
+<pre><code class="language-cpp">
+::fast_io::string s{"Hello"};
+
+char *p = s.data();            // pointer to 'H'
+char const *q = s.c_str();     // pointer to 'H', null-terminated
+
+char a = s.index_unchecked(1); // unchecked 'e'
+char b = s.front_unchecked();  // unchecked 'H'
+char c = s.back_unchecked();   // unchecked 'o'
+</code></pre>
+
+      <p>
+        ⚠️ <strong>非检查访问不验证边界。</strong>
+      </p>
+
+      <p>
+        <strong>注意：</strong><code>fast_io</code> 中的边界检查极其廉价，
+        因为失败时会立刻调用 <code>fast_terminate()</code>。
+      </p>
+
+      <p>
+        <strong>提醒：</strong><br>
+        <code>s.data()</code> 可能不是以空字符结尾的。<br>
+        <code>s.c_str()</code> 始终以空字符结尾。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. CONTIGUOUS STORAGE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 连续存储的保证</h2>
+      <p>
+        这三种容器都保证其元素是连续存储的：
+      </p>
+
+      <ul>
+        <li><code>::fast_io::vector</code></li>
+        <li><code>::fast_io::array</code></li>
+        <li><code>::fast_io::string</code></li>
+      </ul>
+
+      <p>
+        这意味着只要你保持在边界之内，指针算术就是有效的。
+      </p>
+
+<pre><code class="language-cpp">
+int *p = v.data();
+int *end = p + v.size();   // one past the end
+</code></pre>
+
+      <p>
+        这与 C 风格数组的行为完全相同。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. NO DECAY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. 容器不会退化</h2>
+      <p>
+        C 风格数组在大多数表达式中会自动退化。
+        容器则<strong>不会</strong>。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{1,2,3};
+int *p = a;   // decay
+</code></pre>
+
+      <p>但是：</p>
+
+<pre><code class="language-cpp">
+::fast_io::vector&lt;int&gt; v{1,2,3};
+
+// int *p = v;   // ❌ does not compile
+</code></pre>
+
+      <p>
+        你必须显式地用 <code>.data()</code> 请求一个指针。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 6. POINTER ARITHMETIC -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>6. 作用于容器存储的指针算术</h2>
+      <p>
+        一旦你从 <code>.data()</code> 获得了指针，指针算术的行为就
+        与 C 风格数组完全相同。
+      </p>
+
+<pre><code class="language-cpp">
+int *p = a.data();
+int *q = p + 2;   // points to a[2]
+</code></pre>
+
+      <p>对 <code>::fast_io::string</code> 同样适用：</p>
+
+<pre><code class="language-cpp">
+char *p = s.data();
+char *q = p + 4;   // points to 'o'
+</code></pre>
+
+      <p>
+        一如既往，越界就是未定义行为。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 7. std::to_address -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>7. ::std::to_address 与容器迭代器</h2>
+      <p>
+        <code>::std::to_address</code> 是从任何行为类似指针的东西
+        获取原始指针的通用方式。
+      </p>
+
+      <ul>
+        <li>裸指针</li>
+        <li>容器迭代器</li>
+        <li>类似指针的对象</li>
+      </ul>
+
+      <p>
+        这很重要，因为容器迭代器<strong>并不是</strong>裸指针，
+        尽管它们的行为像裸指针。
+      </p>
+
+      <h3>示例：::fast_io::vector</h3>
+
+<pre><code class="language-cpp">
+auto it = v.begin();          
+int *p = ::std::to_address(it);
+</code></pre>
+
+      <h3>示例：::fast_io::array</h3>
+
+<pre><code class="language-cpp">
+auto it = a.begin();
+int *p = ::std::to_address(it);
+</code></pre>
+
+      <h3>示例：::fast_io::string</h3>
+
+<pre><code class="language-cpp">
+auto it = s.begin();
+char *p = ::std::to_address(it);
+</code></pre>
+
+      <p>
+        <code>::std::to_address</code> 是从迭代器中取出原始指针的现代、
+        标准认可的方式。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 8. SUMMARY TABLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>8. 汇总表</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>容器</th>
+            <th>连续？</th>
+            <th>.data() 得到的指针</th>
+            <th>空字符结尾？</th>
+            <th>退化？</th>
+            <th>非检查访问？</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::vector&lt;T&gt;</code></td>
+            <td>✔ 是</td>
+            <td><code>T*</code></td>
+            <td>❌ 否</td>
+            <td>❌ 否</td>
+            <td>✔ index/front/back_unchecked()</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::array&lt;T,N&gt;</code></td>
+            <td>✔ 是</td>
+            <td><code>T*</code></td>
+            <td>❌ 否</td>
+            <td>❌ 否</td>
+            <td>✔ index/front/back_unchecked()</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::string</code></td>
+            <td>✔ 是</td>
+            <td><code>char*</code></td>
+            <td>✔ 通过 <code>.c_str()</code></td>
+            <td>❌ 否</td>
+            <td>✔ index/front/back_unchecked()</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ========================= -->
+    <!-- KEY TAKEAWAYS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>::fast_io::vector</code>、<code>::fast_io::array</code> 和 <code>::fast_io::string</code> 都提供连续存储。</li>
+        <li><code>.data()</code> 返回指向首元素的指针。</li>
+        <li>对 <code>::fast_io::string</code>，<code>.c_str()</code> 返回以空字符结尾的指针。</li>
+        <li>容器不会退化；你必须调用 <code>.data()</code>。</li>
+        <li>作用于容器存储的指针算术与 C 风格数组完全一致。</li>
+        <li><code>index_unchecked()</code>、<code>front_unchecked()</code> 和 <code>back_unchecked()</code> 提供快速的非检查访问。</li>
+        <li><code>fast_io</code> 中的边界检查极其廉价，因为它使用 <code>fast_terminate()</code>。</li>
+        <li><code>::std::to_address</code> 从迭代器中取出原始指针。</li>
+        <li>越界的指针算术是未定义行为。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/05.pointerscarray/11.voidpointer/" class="prev-button">← 第5.11章: void*</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/05.pointerscarray/13.strictaliasing/" class="next-button">第5.13章: 严格别名规则 →</a>
+    </div>
+  </main>
+</body>
+</html>

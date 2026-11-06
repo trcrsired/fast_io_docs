@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5.8章: C 风格字符串 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第5.8章: C 风格字符串</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        C 风格字符串是以特殊字符 <code>'\0'</code>（<strong>空终止符</strong>）结尾的
+        C 风格字符数组。这个约定源自 C 语言，并且为了
+        兼容性而保留在现代 C++ 中。
+      </p>
+
+      <p>
+        在本章中，你将学到：
+      </p>
+
+      <ul>
+        <li>什么是 C 风格字符串</li>
+        <li>以空字符结尾的数组如何工作</li>
+        <li>字符串字面量以及它们为何只读</li>
+        <li>为什么 C 风格字符串会退化为指针</li>
+        <li>为什么指向 C 风格字符串的指针应始终使用 <code>char const*</code></li>
+        <li>为什么 fast_io 能打印字符串字面量，却不能打印指向它的指针</li>
+        <li><code>strlen</code> 与 <code>strnlen</code> 如何工作</li>
+        <li>fast_io 提供了哪些用于打印 C 风格字符串的操纵器</li>
+        <li>宽字符与 Unicode C 风格字符串如何工作</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. 什么是 C 风格字符串？</h2>
+      <p>
+        C 风格字符串就是一个以 <code>'\0'</code> 结尾的 <code>char</code>
+        C 风格数组。
+      </p>
+
+<pre><code class="language-cpp">
+char s[6]{'H', 'e', 'l', 'l', 'o', '\0'};
+</code></pre>
+
+      <p>内存布局：</p>
+
+<pre><code class="language-text">
+Address:   2000  2001  2002  2003  2004  2005
+Memory:    [ H ][ e ][ l ][ l ][ o ][ \0 ]
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. 为什么 C 风格字符串必须以 '\0' 结尾</h2>
+      <p>
+        C 风格字符串不存储自己的长度。
+        相反，处理它们的代码会扫描字符，直到找到 <code>'\0'</code>。
+      </p>
+
+      <p>如果缺少空终止符：</p>
+
+      <ul>
+        <li>程序会读到数组末尾之外</li>
+        <li>这是未定义行为</li>
+        <li>程序可能崩溃，或者读到垃圾内存</li>
+      </ul>
+
+<pre><code class="language-cpp">
+char bad[5]{'H', 'e', 'l', 'l', 'o'};  // ❌ no '\0'
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. 字符串字面量</h2>
+      <p>
+        像 <code>"Hello"</code> 这样的字符串字面量被存储为一个
+        <strong>常量 char 的 C 风格数组</strong>，并带有一个空终止符。
+      </p>
+
+<pre><code class="language-cpp">
+char const *p = "Hello";
+</code></pre>
+
+      <p>内存布局：</p>
+
+<pre><code class="language-text">
+"Hello" → [ H ][ e ][ l ][ l ][ o ][ \0 ]
+</code></pre>
+
+      <p>重要规则：</p>
+
+      <ul>
+        <li>字符串字面量具有静态存储期</li>
+        <li>字符串字面量是只读的</li>
+        <li>写入字符串字面量是未定义行为</li>
+      </ul>
+
+<pre><code class="language-cpp">
+// char *p = "Hello";   // allowed to compile, but dangerous
+// p[0] = 'h';          // ❌ undefined behavior
+</code></pre>
+
+      <p>
+        指向 C 风格字符串的指针请始终写成 <strong><code>char const*</code></strong>。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. C 风格字符串就是 C 风格数组</h2>
+      <p>
+        C 风格字符串只是一个 <code>char</code> 的 C 风格数组。
+        因此，前面章节中的所有规则都适用：
+      </p>
+
+      <ul>
+        <li>数组是连续的</li>
+        <li>数组会退化为指针</li>
+        <li>指针算术作用于字符</li>
+        <li>越界访问是未定义行为</li>
+      </ul>
+
+<pre><code class="language-cpp">
+char s[6]{"Hello"};
+
+char const *p = s;   // decay
+char const *q = p + 1; // points to 'e'
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. 为什么 fast_io 能打印字符串字面量，却不能打印指向它的指针</h2>
+      <p>
+        字符串字面量本质上是<strong>C 风格数组</strong>。
+        fast_io 能识别字符的 C 风格数组，并把它们当字符串打印。
+      </p>
+
+<pre><code class="language-cpp">
+print("hello world\n");   // ✔ works
+</code></pre>
+
+      <p>
+        然而，一旦数组退化为指针，fast_io 就无法知道该指针是否指向
+        一个有效的 C 风格字符串。
+        它拒绝直接打印裸指针。
+      </p>
+
+<pre><code class="language-cpp">
+char const *ptr = "hello world\n";
+
+// print(ptr);   // ❌ does NOT work
+</code></pre>
+
+      <p>
+        fast_io 必须假定：
+      </p>
+
+      <ul>
+        <li>匹配 <code>char_type</code> 的 C 风格数组是字符串字面量</li>
+        <li>指针<strong>不</strong>自动等同于 C 风格字符串</li>
+      </ul>
+
+      <p>
+        这就是为什么：
+      </p>
+
+<pre><code class="language-text">
+print("hello");     ✔ works (array)
+print(ptr);         ❌ does not work (pointer)
+</code></pre>
+
+      <p>
+        要把指针作为 C 风格字符串打印，请使用：
+      </p>
+
+<pre><code class="language-cpp">
+println(os_c_str(ptr));
+</code></pre>
+    </section>
+
+    <section>
+      <h2>6. strlen 与 strnlen</h2>
+      <p>
+        <code>strlen</code> 通过扫描直到 <code>'\0'</code> 来计算 C 风格字符串的
+        长度。
+      </p>
+
+<pre><code class="language-cpp">
+char s[6]{"Hello"};
+
+std::size_t n = strlen(s);   // returns 5
+</code></pre>
+
+      <p>
+        <strong>重要：</strong>
+        <code>strlen</code> 假定字符串已正确以空字符结尾。
+        如果缺少 <code>'\0'</code>，它就会读到末尾之外 → 未定义行为。
+      </p>
+
+      <h3>strnlen</h3>
+      <p>
+        <code>strnlen</code> 类似，但在达到最大字符数后停止。
+      </p>
+
+<pre><code class="language-cpp">
+std::size_t n = strnlen(s, 6);   // safe upper bound
+</code></pre>
+
+      <p>
+        <code>strnlen</code> 更安全，因为它能防止扫描无界的内存。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 用于 C 风格字符串的 fast_io 操纵器</h2>
+      <p>
+        fast_io 提供了用于打印指针与 C 风格字符串的操纵器。
+      </p>
+
+      <h3>pointervw(ptr)</h3>
+      <p>把指针值作为地址打印。</p>
+
+<pre><code class="language-cpp">
+char const *p = "Hello";
+println(pointervw(p));   // prints address of p
+</code></pre>
+
+      <h3>os_c_str(ptr)</h3>
+      <p>打印一个以空字符结尾的 C 风格字符串。</p>
+
+<pre><code class="language-cpp">
+println(os_c_str(p));    // prints "Hello"
+</code></pre>
+
+      <h3>os_c_str(ptr, n)</h3>
+      <p>打印 C 风格字符串，但最多在 <code>n</code> 个字符之后停止。</p>
+
+<pre><code class="language-cpp">
+println(os_c_str(p, 3));   // prints "Hel"
+</code></pre>
+    </section>
+
+    <section>
+      <h2>8. 宽字符与 Unicode C 风格字符串</h2>
+      <p>
+        C++ 支持多种字符类型，每种都有自己的 C 风格字符串形式：
+      </p>
+
+      <ul>
+        <li><code>char</code> —— 窄字符串</li>
+        <li><code>wchar_t</code> —— 宽字符串</li>
+        <li><code>char8_t</code> —— UTF-8 码元</li>
+        <li><code>char16_t</code> —— UTF-16 码元</li>
+        <li><code>char32_t</code> —— UTF-32 码元</li>
+      </ul>
+
+      <p>每种都使用自己的空终止符：</p>
+
+      <ul>
+        <li><code>char</code> → <code>'\0'</code></li>
+        <li><code>wchar_t</code> → <code>L'\0'</code></li>
+        <li><code>char8_t</code> → <code>u8'\0'</code></li>
+        <li><code>char16_t</code> → <code>u'\0'</code></li>
+        <li><code>char32_t</code> → <code>U'\0'</code></li>
+      </ul>
+
+<pre><code class="language-cpp">
+wchar_t  ws[]{L"Hello"};
+char16_t u16s[]{u"Hello"};
+char32_t u32s[]{U"Hello"};
+char8_t  u8s[]{u8"Hello"};
+</code></pre>
+
+      <p>
+        它们都遵循同样的规则：
+      </p>
+
+      <ul>
+        <li>它们是 C 风格数组</li>
+        <li>它们会退化为指针</li>
+        <li>它们必须以空终止符结尾</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>C 风格字符串是以 <code>'\0'</code> 结尾的字符 C 风格数组。</li>
+        <li>字符串字面量是常量数组，不能被修改。</li>
+        <li>指向 C 风格字符串的指针请始终写成 <strong><code>char const*</code></strong>。</li>
+        <li>C 风格字符串在表达式中会退化为指针。</li>
+        <li><code>strlen</code> 一直扫描到 <code>'\0'</code>，若缺少终止符就不安全。</li>
+        <li><code>strnlen</code> 增加了最大边界，更安全。</li>
+        <li>fast_io 能打印 C 风格数组，但除非使用 <code>os_c_str</code>，否则不能打印指针。</li>
+        <li>fast_io 提供了 <code>pointervw</code>、<code>os_c_str</code> 与 <code>os_c_str(ptr,n)</code>。</li>
+        <li>宽字符与 Unicode C 风格字符串遵循同样的规则，但使用不同的字符类型。</li>
+        <li>C 风格字符串容易出错，因为它们不存储自己的长度。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/05.pointerscarray/07.carraydecay/" class="prev-button">← 第5.7章: C 风格数组退化</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/05.pointerscarray/09.multidim/" class="next-button">第5.9章: 多维 C 风格数组 →</a>
+    </div>
+  </main>
+</body>
+</html>

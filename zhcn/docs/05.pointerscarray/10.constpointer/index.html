@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5.10章: const 与指针 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第5.10章: const 与指针</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        指针与 <code>const</code> 的交互有三种不同的方式。理解
+        这些组合对于编写正确且安全的 C++ 代码至关重要。
+      </p>
+
+      <p>
+        在本章中，你将学到：
+      </p>
+
+      <ul>
+        <li>规则：<strong><code>const</code> 作用于左边。就这样。</strong></li>
+        <li>如何解读 <code>T const*</code>、<code>T* const</code> 与 <code>T const* const</code></li>
+        <li>“指向 const 的指针”与“const 指针”的区别</li>
+        <li>为什么 <strong><code>char const*</code></strong> 是 C 风格字符串的正确类型</li>
+        <li>const 如何与指针算术交互</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. 规则：const 作用于左边。就这样。</h2>
+      <p>
+        这条规则在第2.8章中介绍过，也是解读所有 const 指针类型的基础：
+      </p>
+
+      <p class="important">
+        <strong>如果 <code>const</code> 左边有类型，它就作用于该类型。
+        如果没有，它就作用于右边。</strong>
+      </p>
+
+      <p>示例：</p>
+
+<pre><code class="language-cpp">
+int const x = 5;   // const applies to int
+const int y = 6;   // same meaning, but less clear
+</code></pre>
+
+      <p>
+        对指针而言，这条规则变得极其重要。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 指向 const 的指针：<code>T const*</code></h2>
+      <p>
+        这表示“指向 <strong>const T</strong> 的指针”。
+        指针可以改变，但它所指的对象不可以。
+      </p>
+
+<pre><code class="language-cpp">
+int value{10};
+
+int const *p = ::std::addressof(value);   // pointer to const int
+</code></pre>
+
+      <p>允许：</p>
+
+<pre><code class="language-cpp">
+p = ::std::addressof(value);   // ✔ pointer may change
+</code></pre>
+
+      <p>不允许：</p>
+
+<pre><code class="language-cpp">
+// *p = 20;   // ❌ cannot modify through pointer
+</code></pre>
+
+      <p>
+        这是指向 C 风格字符串的指针的正确类型：
+      </p>
+
+<pre><code class="language-cpp">
+char const *s = "Hello";   // correct
+</code></pre>
+
+      <p>
+        请始终写 <strong><code>T const*</code></strong>，而不是 <code>const T*</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. const 指针：<code>T* const</code></h2>
+      <p>
+        这表示“指向 T 的 <strong>const 指针</strong>”。
+        指针不可以改变，但它所指的对象可以。
+      </p>
+
+<pre><code class="language-cpp">
+int value{10};
+
+int * const p = ::std::addressof(value);   // const pointer
+</code></pre>
+
+      <p>允许：</p>
+
+<pre><code class="language-cpp">
+*p = 20;   // ✔ can modify the pointee
+</code></pre>
+
+      <p>不允许：</p>
+
+<pre><code class="language-cpp">
+// p = nullptr;   // ❌ pointer itself is const
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. 指向 const 的 const 指针：<code>T const* const</code></h2>
+      <p>
+        这表示：
+      </p>
+
+      <ul>
+        <li>指针本身不能改变</li>
+        <li>所指的对象也不能改变</li>
+      </ul>
+
+<pre><code class="language-cpp">
+int value{10};
+
+int const * const p = ::std::addressof(value);
+</code></pre>
+
+      <p>不允许：</p>
+
+<pre><code class="language-cpp">
+// p = nullptr;   // ❌ pointer is const
+// *p = 20;       // ❌ pointee is const
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. 为什么 <code>char const*</code> 是 C 风格字符串的正确类型</h2>
+      <p>
+        字符串字面量是<strong>常量 C 风格数组</strong>。
+        它不能被修改。
+      </p>
+
+<pre><code class="language-cpp">
+char const *s = "Hello";   // correct
+</code></pre>
+
+      <p>
+        写 <code>char const*</code> 让 const 性明确，并遵循规则：
+      </p>
+
+      <p class="important">
+        <strong><code>const</code> 作用于左边。就这样。</strong>
+      </p>
+
+      <p>
+        写 <code>const char*</code> 是允许的，但与该规则不太一致。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. const 与指针算术</h2>
+      <p>
+        const 不影响指针算术。
+        它只影响什么可以被修改。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{1,2,3};
+
+int const *p = a;   // pointer to const int
+p = p + 1;          // ✔ pointer may move
+</code></pre>
+
+      <p>
+        但你仍然不能修改所指对象：
+      </p>
+
+<pre><code class="language-cpp">
+// *p = 10;   // ❌ not allowed
+</code></pre>
+
+      <p>
+        对 const 指针而言：
+      </p>
+
+<pre><code class="language-cpp">
+int * const q = a;   // const pointer
+// q = q + 1;        // ❌ cannot move pointer
+*q = 10;             // ✔ can modify pointee
+</code></pre>
+    </section>
+
+    <section>
+      <h2>7. 汇总表</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>语法</th>
+            <th>含义</th>
+            <th>指针可以改变？</th>
+            <th>所指对象可以改变？</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>T const*</code></td>
+            <td>指向 const T 的指针</td>
+            <td>✔ 可以</td>
+            <td>❌ 不可以</td>
+          </tr>
+          <tr>
+            <td><code>T* const</code></td>
+            <td>指向 T 的 const 指针</td>
+            <td>❌ 不可以</td>
+            <td>✔ 可以</td>
+          </tr>
+          <tr>
+            <td><code>T const* const</code></td>
+            <td>指向 const T 的 const 指针</td>
+            <td>❌ 不可以</td>
+            <td>❌ 不可以</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong><code>const</code> 作用于左边。就这样。</strong></li>
+        <li>请始终写 <strong><code>T const*</code></strong>，而不是 <code>const T*</code>。</li>
+        <li><code>T const*</code> 表示“指向 const T 的指针”。</li>
+        <li><code>T* const</code> 表示“指向 T 的 const 指针”。</li>
+        <li><code>T const* const</code> 表示“指向 const T 的 const 指针”。</li>
+        <li><code>char const*</code> 是 C 风格字符串的正确类型。</li>
+        <li>const 不影响指针算术。</li>
+        <li>const 只影响什么可以被修改。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/05.pointerscarray/09.multidim/" class="prev-button">← 第5.9章: 多维 C 风格数组</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/05.pointerscarray/11.voidpointer/" class="next-button">第5.11章: void* →</a>
+    </div>
+  </main>
+</body>
+</html>

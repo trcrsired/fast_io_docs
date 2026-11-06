@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5.11章: void* - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第5.11章: void*</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        <code>void*</code>（读作“void 指针”）是一种能持有任何对象地址的指针，
+        不管该对象是什么类型。它是一个<strong>无类型指针</strong>。
+        由于它没有类型信息，C++ 限制了你可以对它能做的事。
+      </p>
+
+      <p>
+        在本章中，你将学到：
+      </p>
+
+      <ul>
+        <li>什么是 <code>void*</code></li>
+        <li>为什么 <code>void*</code> 不能被解引用</li>
+        <li>为什么对 <code>void*</code> 禁止指针算术</li>
+        <li><code>void*</code> 如何与 C 风格数组和退化交互</li>
+        <li>为什么 <code>void const*</code> 是只读内存的正确类型</li>
+        <li>为什么底层内存操作要使用 <code>void*</code></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. 什么是 void 指针？</h2>
+      <p>
+        <code>void*</code> 可以存储任何对象的地址。
+        它是 C++ 中最通用的指针类型。
+      </p>
+
+<pre><code class="language-cpp">
+int x{42};
+double y{3.14};
+
+void *p1 = ::std::addressof(x);   // ok
+void *p2 = ::std::addressof(y);   // ok
+</code></pre>
+
+      <p>
+        但由于 <code>void*</code> 没有类型，C++ 并不知道：
+      </p>
+
+      <ul>
+        <li>对象有多大</li>
+        <li>如何解释这些字节</li>
+        <li>如何执行指针算术</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>2. 不能解引用 void 指针</h2>
+      <p>
+        <code>void*</code> 不指向某个具体类型，所以 C++ 不知道
+        <code>*p</code> 该是什么意思。
+      </p>
+
+<pre><code class="language-cpp">
+void *p = ::std::addressof(x);
+
+// *p;   // ❌ error: cannot dereference void*
+</code></pre>
+
+      <p>
+        要访问对象，你必须把该指针转换为有类型的指针。
+        （转换将在后面介绍。）
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 禁止对 void* 做指针算术</h2>
+      <p>
+        指针算术需要知道所指类型的大小。
+        由于 <code>void</code> 没有大小，算术是不允许的。
+      </p>
+
+<pre><code class="language-cpp">
+void *p = ::std::addressof(x);
+
+// p + 1;   // ❌ error: cannot do pointer arithmetic on void*
+</code></pre>
+
+      <p>
+        这项限制可防止意外误用。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. void* 与 C 风格数组退化</h2>
+      <p>
+        当 C 风格数组退化时，它变成指向其首元素的指针。
+        这个指针可以存进 <code>void*</code>。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{1,2,3};
+
+void *p = a;   // decay: a → &a[0], then stored in void*
+</code></pre>
+
+      <p>
+        但由于 <code>void*</code> 是无类型的：
+      </p>
+
+      <ul>
+        <li>你不能对它索引</li>
+        <li>你不能对它做指针算术</li>
+        <li>你不能解引用它</li>
+      </ul>
+
+      <p>
+        它只是一个通用地址。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 用 void const* 表示只读内存</h2>
+      <p>
+        当指向不得修改的内存时，请使用：
+      </p>
+
+<pre><code class="language-cpp">
+void const *p = "Hello";   // pointer to read-only memory
+</code></pre>
+
+      <p>
+        这遵循第2.8章的规则：
+      </p>
+
+      <p class="important">
+        <strong><code>const</code> 作用于左边。就这样。</strong>
+      </p>
+
+      <p>
+        <code>void const*</code> 表示“指向 const void 的指针”，
+        也就是“指向未知类型只读内存的指针”。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 为什么需要 void*</h2>
+      <p>
+        <code>void*</code> 用于那些事先不知道数据类型底层编程。
+        例如：
+      </p>
+
+      <ul>
+        <li>原始内存缓冲区</li>
+        <li>通用存储</li>
+        <li>与 C 库交互</li>
+        <li>内存操作函数（第5.14章）</li>
+      </ul>
+
+      <p>
+        <code>void*</code> 是一种在不携带类型信息的情况下存储“仅仅一个地址”的方式。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. void* 并不能绕过类型系统</h2>
+      <p>
+        <code>void*</code> 并不能神奇地让你把内存当作任意类型使用。
+        它只是暂时移除了类型信息。
+      </p>
+
+      <p>
+        要使用这块内存，你必须把指针转换回正确的类型。
+        （转换将在后面介绍。）
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 汇总表</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>操作</th>
+            <th>允许？</th>
+            <th>原因</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>存储任何对象的地址</td>
+            <td>✔ 允许</td>
+            <td>void* 是无类型的</td>
+          </tr>
+          <tr>
+            <td>解引用</td>
+            <td>❌ 不允许</td>
+            <td>没有类型信息</td>
+          </tr>
+          <tr>
+            <td>指针算术</td>
+            <td>❌ 不允许</td>
+            <td>void 没有大小</td>
+          </tr>
+          <tr>
+            <td>从数组退化</td>
+            <td>✔ 允许</td>
+            <td>数组退化为 &a[0]</td>
+          </tr>
+          <tr>
+            <td>用于只读内存</td>
+            <td>✔ 允许</td>
+            <td>使用 <code>void const*</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>void*</code> 是无类型指针，可以存储任何地址。</li>
+        <li>你不能解引用 <code>void*</code>。</li>
+        <li>你不能对 <code>void*</code> 做指针算术。</li>
+        <li>只有数组的最外层维度会退化，其结果可以存入 <code>void*</code>。</li>
+        <li>只读内存请使用 <code>void const*</code>。</li>
+        <li><code>void*</code> 用于底层内存操作。</li>
+        <li><code>void*</code> 并不能绕过类型系统；它只是暂时隐藏类型信息。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/05.pointerscarray/10.constpointer/" class="prev-button">← 第5.10章: const 与指针</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/05.pointerscarray/12.pointersandcontainers/" class="next-button">第5.12章: 指针与 vector、array 和 string →</a>
+    </div>
+  </main>
+</body>
+</html>

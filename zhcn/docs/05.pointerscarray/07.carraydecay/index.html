@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5.7章: C 风格数组退化 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第5.7章: C 风格数组退化</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        C 风格数组有一种特殊行为，称为<strong>数组退化</strong>。
+        在大多数表达式中，C 风格数组会自动转换（或“退化”）为
+        指向其首元素的指针。这是 C++ 中最重要的规则之一，
+        它解释了为什么数组和指针虽然并不相同，却常常看起来可以互换。
+      </p>
+
+      <p>
+        在本章中，你将学到：
+      </p>
+
+      <ul>
+        <li>什么是 C 风格数组退化</li>
+        <li>退化何时发生</li>
+        <li>退化何时<em>不</em>发生</li>
+        <li>为什么 <code>sizeof(a)</code> 与 <code>sizeof(p)</code> 不同</li>
+        <li>为什么函数参数无法按值接收数组</li>
+        <li>退化如何与指针算术交互</li>
+        <li>如何使用 <code>::std::ranges::begin(a)</code> 与 <code>::std::ranges::end(a)</code></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. 什么是 C 风格数组退化？</h2>
+      <p>
+        当 C 风格数组出现在大多数表达式中时，它会自动转换为
+        指向其首元素的指针。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+
+int *p = a;   // array decays to pointer to a[0]
+</code></pre>
+
+      <p>
+        退化之后：
+      </p>
+
+      <ul>
+        <li><code>a</code> 变成 <code>&a[0]</code></li>
+        <li>数组的大小信息丢失了</li>
+      </ul>
+
+<pre><code class="language-text">
+a (array):
+Address:   1000
+Memory:   [ 10 ][ 20 ][ 30 ]
+
+p (pointer):
+Address:   2000
+Memory:   [ 1000 ]   ← pointer to a[0]
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. 为什么会发生退化？</h2>
+      <p>
+        C 风格数组不能被拷贝或赋值。
+        它们也不能按值传给函数。
+      </p>
+
+      <p>
+        为了让数组能在表达式和函数调用中使用，C++ 会自动
+        把它们转换为指针。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 退化何时发生</h2>
+      <p>
+        退化在大多数表达式中发生，包括：
+      </p>
+
+      <ul>
+        <li>赋值给指针</li>
+        <li>把数组传给函数</li>
+        <li>比较</li>
+        <li>指针算术</li>
+      </ul>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+
+int *p = a;        // decay
+int *q = a + 1;    // decay, then pointer arithmetic
+bool same = (a == p);  // decay, then compare pointers
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. 退化何时不发生</h2>
+      <p>
+        在以下情况下<strong>不</strong>发生退化：
+      </p>
+
+      <ul>
+        <li><strong>sizeof(a)</strong></li>
+        <li><strong>&a</strong>（对整个数组取地址）</li>
+        <li><strong>decltype(a)</strong></li>
+        <li>某些上下文中的<strong>模板实参推导</strong></li>
+      </ul>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+
+std::size_t s1 = sizeof(a);   // 3 * sizeof(int)
+std::size_t s2 = sizeof(a[0]); // sizeof(int)
+
+int *p = a;                   // decay
+std::size_t s3 = sizeof(p);   // size of pointer, NOT array
+</code></pre>
+
+      <p>
+        <strong>关键规则：</strong>
+        <code>sizeof(a)</code> 给出整个数组的大小。
+        <code>sizeof(p)</code> 给出一个指针的大小。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 函数参数中的退化</h2>
+      <p>
+        你不能把 C 风格数组按值传给函数。
+        相反，数组会退化为指针。
+      </p>
+
+<pre><code class="language-cpp">
+void f(int *p);   // receives pointer, not array
+
+int a[3]{10, 20, 30};
+f(a);             // a decays to &a[0]
+</code></pre>
+
+      <p>
+        即使你写成：
+      </p>
+
+<pre><code class="language-cpp">
+void g(int a[3]);
+</code></pre>
+
+      <p>
+        它仍会被解释为：
+      </p>
+
+<pre><code class="language-cpp">
+void g(int *a);   // array size is ignored
+</code></pre>
+    </section>
+
+    <section>
+      <h2>6. 退化与指针算术</h2>
+      <p>
+        退化之后，该指针的行为就像任何其他指向首元素的指针一样。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+
+int *p = a;   // decay
+int *q = p + 2;
+
+int x = *q;   // 30
+</code></pre>
+
+      <p>
+        这就是数组索引能工作的原因：
+      </p>
+
+<pre><code class="language-cpp">
+a[i]   // means *(a + i)
+</code></pre>
+
+      <p>
+        因为 <code>a</code> 退化成了指针。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 使用 ::std::ranges::begin(a) 与 ::std::ranges::end(a)</h2>
+      <p>
+        现代 C++ 不再依赖退化，而是提供了显式的函数来获取
+        C 风格数组的迭代器：
+      </p>
+
+<pre><code class="language-cpp">
+#include <ranges>
+
+int a[3]{10, 20, 30};
+
+int *first = ::std::ranges::begin(a);
+int *last  = ::std::ranges::end(a);   // one past the end
+</code></pre>
+
+      <p>
+        这些函数<strong>不会</strong>求值 <code>a[N]</code>。
+        它们会安全地计算出正确的指针：
+      </p>
+
+      <ul>
+        <li><code>::std::ranges::begin(a)</code> → <code>&a[0]</code></li>
+        <li><code>::std::ranges::end(a)</code> → <code>&a[0] + N</code></li>
+      </ul>
+
+      <p>
+        这是为 C 风格数组获取迭代器的首选现代方式。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 为什么退化可能危险</h2>
+      <p>
+        退化之后，指针不再知道数组的大小。
+        这可能导致：
+      </p>
+
+      <ul>
+        <li>越界的指针算术</li>
+        <li>错误地使用 <code>sizeof</code></li>
+        <li>类型信息丢失</li>
+      </ul>
+
+      <p>
+        例如：
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+int *p = a;
+
+std::size_t s = sizeof(p);   // size of pointer, NOT array
+</code></pre>
+
+      <p>
+        这是常见的缺陷来源。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>C 风格数组在大多数表达式中会自动退化为指针。</li>
+        <li>退化把 <code>a</code> 转换为 <code>&a[0]</code>。</li>
+        <li>退化会丢失数组的大小信息。</li>
+        <li><code>sizeof(a)</code> 给出数组大小；<code>sizeof(p)</code> 给出指针大小。</li>
+        <li>函数参数无法按值接收数组；它们接收到的是指针。</li>
+        <li>由于退化，数组索引 <code>a[i]</code> 定义为 <code>*(a + i)</code>。</li>
+        <li>使用 <code>::std::ranges::begin(a)</code> 与 <code>::std::ranges::end(a)</code> 获取数组迭代器。</li>
+        <li>指针就是 C 风格数组的迭代器。</li>
+        <li>退化可能危险，因为指针不再知道数组大小。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/05.pointerscarray/06.pointerarithmetic/" class="prev-button">← 第5.6章: 指针算术</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/05.pointerscarray/08.cstylestring/" class="next-button">第5.8章: C 风格字符串 →</a>
+    </div>
+  </main>
+</body>
+</html>

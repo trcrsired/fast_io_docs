@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5.9章: 多维 C 风格数组 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第5.9章: 多维 C 风格数组</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        多维 C 风格数组就是元素本身也是 C 风格数组的数组。
+        最常见的形式是二维数组，你可以把它想象成由行和列组成的表格。
+      </p>
+
+      <p>
+        在本章中，你将学到：
+      </p>
+
+      <ul>
+        <li>如何声明和初始化多维 C 风格数组</li>
+        <li>它们在内存中如何布局（行主序）</li>
+        <li>索引如何工作</li>
+        <li>多维数组的退化如何工作</li>
+        <li>为什么只有最外层维度会退化</li>
+        <li>涉及哪些指针类型（例如 <code>int (*)[N]</code>）</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. 声明多维 C 风格数组</h2>
+      <p>
+        二维数组通过同时指定两个维度来声明：
+      </p>
+
+<pre><code class="language-cpp">
+int a[2][3]{
+    {1, 2, 3},
+    {4, 5, 6}
+};
+</code></pre>
+
+      <p>
+        这表示：
+      </p>
+
+      <ul>
+        <li>2 行</li>
+        <li>每行 3 列</li>
+        <li>每一行是一个含 3 个 <code>int</code> 的数组</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>2. 内存布局：行主序</h2>
+      <p>
+        C++ 以<strong>行主序</strong>存储多维数组。
+        这意味着整个第一行先存储，然后是第二行，依此类推。
+      </p>
+
+<pre><code class="language-text">
+int a[2][3] = {
+    {1, 2, 3},
+    {4, 5, 6}
+};
+
+Memory (addresses vary):
+
+Address:   1000 1004 1008 1012 1016 1020
+Memory:    [ 1 ][ 2 ][ 3 ][ 4 ][ 5 ][ 6 ]
+              ↑    ↑    ↑    ↑    ↑    ↑
+             a[0][0] ...        ...  a[1][2]
+</code></pre>
+
+      <p>
+        尽管数组看起来像一张网格，它其实存储为一个连续的块。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 索引多维数组</h2>
+      <p>
+        使用多个 <code>[]</code> 运算符访问元素：
+      </p>
+
+<pre><code class="language-cpp">
+int x = a[0][1];   // 2
+int y = a[1][2];   // 6
+</code></pre>
+
+      <p>
+        表达式 <code>a[i]</code> 指<strong>第 i 行</strong>，它本身
+        是一个含 3 个 <code>int</code> 的数组。
+      </p>
+
+<pre><code class="language-cpp">
+int b[3] = a[0];   // ❌ error: cannot copy arrays
+</code></pre>
+
+      <p>
+        但你可以取它的地址：
+      </p>
+
+<pre><code class="language-cpp">
+int (*row0)[3] = ::std::addressof(a[0]);
+</code></pre>
+
+      <p>
+        <code>a[0]</code> 的类型是 <code>int[3]</code>。
+        <code>&a[0]</code> 的类型是 <code>int (*)[3]</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 多维数组的退化</h2>
+      <p>
+        与一维数组一样，多维数组在大多数表达式中也会退化——但
+        <strong>只有最外层维度会退化</strong>。
+      </p>
+
+<pre><code class="language-cpp">
+int a[2][3];
+
+int (*p)[3] = a;   // decay: a → pointer to array of 3 int
+</code></pre>
+
+      <p>
+        重点：
+      </p>
+
+      <ul>
+        <li><code>a</code> 退化为 <code>int (*)[3]</code></li>
+        <li><code>a[0]</code> 在被用于表达式之前<strong>不</strong>退化</li>
+        <li><code>a[0]</code> 是一个含 3 个 <code>int</code> 的数组</li>
+      </ul>
+
+      <p>
+        这就是为什么：
+      </p>
+
+<pre><code class="language-cpp">
+int *p0 = a[0];   // decay: a[0] → &a[0][0]
+</code></pre>
+
+      <p>
+        而：
+      </p>
+
+<pre><code class="language-cpp">
+int (*p1)[3] = a;   // pointer to row
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. 多维数组的指针算术</h2>
+      <p>
+        对 <code>int (*)[3]</code> 做指针算术会按<strong>整行</strong>移动。
+      </p>
+
+<pre><code class="language-cpp">
+int (*p)[3] = a;
+
+int (*p_next)[3] = p + 1;   // moves to a[1]
+</code></pre>
+
+      <p>
+        而对 <code>int*</code> 做指针算术则按单个元素移动。
+      </p>
+
+<pre><code class="language-cpp">
+int *q = a[0];     // points to a[0][0]
+int *q2 = q + 4;   // points to a[1][1]
+</code></pre>
+
+      <p>
+        这能成立，是因为整个 2×3 数组是连续的。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 使用 ::std::ranges::begin 与 ::std::ranges::end</h2>
+      <p>
+        你可以为外层维度获取迭代器：
+      </p>
+
+<pre><code class="language-cpp">
+#include <ranges>
+
+int a[2][3]{{1,2,3},{4,5,6}};
+
+int (*first)[3] = ::std::ranges::begin(a);
+int (*last)[3]  = ::std::ranges::end(a);
+</code></pre>
+
+      <p>
+        它们计算的是：
+      </p>
+
+      <ul>
+        <li><code>&a[0]</code>（对 <code>begin(a)</code>）</li>
+        <li><code>&a[0] + 2</code>（对 <code>end(a)</code>）</li>
+      </ul>
+
+      <p>
+        它们<strong>不会</strong>搜索 <code>'\0'</code>，因为这不是字符串。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 更高维的数组</h2>
+      <p>
+        你可以扩展到任意维度：
+      </p>
+
+<pre><code class="language-cpp">
+int a[2][3][4];
+</code></pre>
+
+      <p>
+        这是一个含 2 个元素的数组，
+        每个元素是一个含 3 个元素的数组，
+        每个元素又是一个含 4 个 <code>int</code> 的数组。
+      </p>
+
+      <p>
+        内存依然是一整块连续区域。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>多维 C 风格数组就是数组的数组。</li>
+        <li>C++ 以行主序存储多维数组。</li>
+        <li><code>a[i]</code> 本身就是一个数组。</li>
+        <li>对内层维度，<code>&a[i]</code> 的类型是 <code>int (*)[N]</code>。</li>
+        <li>只有最外层维度会退化。</li>
+        <li><code>a</code> 退化为 <code>int (*)[N]</code>。</li>
+        <li><code>a[i]</code> 在用于表达式时退化为 <code>int*</code>。</li>
+        <li>对 <code>int (*)[N]</code> 做指针算术按行移动。</li>
+        <li>对 <code>int*</code> 做指针算术按单个元素移动。</li>
+        <li>外层维度用 <code>::std::ranges::begin(a)</code> 与 <code>::std::ranges::end(a)</code>。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/05.pointerscarray/08.cstylestring/" class="prev-button">← 第5.8章: C 风格字符串</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/05.pointerscarray/10.constpointer/" class="next-button">第5.10章: const 与指针 →</a>
+    </div>
+  </main>
+</body>
+</html>
