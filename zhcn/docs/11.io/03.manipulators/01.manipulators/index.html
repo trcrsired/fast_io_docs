@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.3.1: Manipulators Reference - C++ Tutorial with fast_io</title>
+  <title>第11.3.1章: 操纵器参考 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
@@ -34,22 +34,15 @@
 </head>
 <body>
   <main>
-    <h1>Ch11.3.1: Manipulators Reference</h1>
+    <h1>第11.3.1章: 操纵器参考</h1>
     <p class="lang-switch"><a href="/docs/11.io/03.manipulators/01.manipulators/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
       <p>
-        This page is a complete reference of every manipulator provided by <code>fast_io</code>.
-        Manipulators live in the namespace <code>::fast_io::manipulators</code>, which is
-        aliased as <code>::fast_io::mnp</code> for convenience. They are passed directly to
-        <code>print</code>, <code>println</code>, or <code>scan</code> to control how values
-        are formatted or parsed — no format strings, no implicit conversions, no surprises.
+        本页是 <code>fast_io</code> 提供的所有操纵器的完整参考。操纵器位于 <code>::fast_io::manipulators</code> 命名空间，简写为 <code>::fast_io::mnp</code>；使用它们需要 <code>#include &lt;fast_io.h&gt;</code>。下面每个示例都假定已经 <code>using namespace ::fast_io::iomnp;</code>，这样 <code>print</code>、<code>println</code>、<code>scan</code> 都能按名字使用。
       </p>
       <p>
-        Each section below groups the manipulators by purpose. The tables list the manipulator
-        signature, a short description, and a small usage example using the
-        <code>::fast_io::mnp::</code> prefix.
+        下面每一节按用途对操纵器分组。表格列出操纵器签名、简短说明，以及一个显示调用的例子。
       </p>
     </section>
 
@@ -57,76 +50,72 @@
     <!-- 1. Integer Base                                               -->
     <!-- ============================================================ -->
     <section>
-      <h2>1. Integer Base Manipulators</h2>
+      <h2>1. 整数进制操纵器</h2>
       <p>
-        Control the numeric base used when printing or scanning integers. The
-        <code>base&lt;N&gt;</code> family accepts any base from 2 to 36. Shorthand
-        manipulators are provided for the most common bases: decimal (10), octal (8),
-        binary (2), and hexadecimal (16). The <code>upper</code> variants emit
-        uppercase digits <code>A–F</code> instead of <code>a–f</code>.
+        控制打印或扫描整数时使用的数制。<code>base&lt;N&gt;</code> 家族接受任意 2 到 36 之间的进制。
       </p>
       <table class="manipulator-ref">
         <thead>
           <tr>
-            <th>Manipulator</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操纵器</th>
+            <th>说明</th>
+            <th>示例</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::mnp::base&lt;N&gt;(t)</code></td>
-            <td>Print or scan <code>t</code> in base <em>N</em> (2&nbsp;≤&nbsp;N&nbsp;≤&nbsp;36) with lowercase digits.</td>
+            <td>以小写数字在 <em>N</em> 进制（2&nbsp;≤&nbsp;N&nbsp;≤&nbsp;36）下打印或扫描 <code>t</code>。</td>
             <td><code>::fast_io::mnp::base&lt;36&gt;(value)</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::baseupper&lt;N&gt;(t)</code></td>
-            <td>Like <code>base&lt;N&gt;</code>, but uses uppercase letters <code>A–Z</code> for digit values ≥&nbsp;10.</td>
+            <td>与 <code>base&lt;N&gt;</code> 类似，但对 ≥&nbsp;10 的数字值使用大写字母 <code>A–Z</code>。</td>
             <td><code>::fast_io::mnp::baseupper&lt;16&gt;(value)</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::hex(t)</code></td>
-            <td>Print or scan <code>t</code> in lowercase hexadecimal (base&nbsp;16).</td>
+            <td>以小写十六进制（16 进制）打印或扫描 <code>t</code>。</td>
             <td><code>::fast_io::mnp::hex(0xDEAD)</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::hexupper(t)</code></td>
-            <td>Print or scan <code>t</code> in uppercase hexadecimal (base&nbsp;16, digits <code>A–F</code>).</td>
+            <td>以大写十六进制（16 进制，数字 <code>A–F</code>）打印或扫描 <code>t</code>。</td>
             <td><code>::fast_io::mnp::hexupper(0xBEEF)</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::hex0x(t)</code></td>
-            <td>Like <code>hex</code>, but prefixes the output with <code>0x</code>.</td>
+            <td>与 <code>hex</code> 类似，但在输出前加 <code>0x</code> 前缀。</td>
             <td><code>::fast_io::mnp::hex0x(42)</code> → <code>0x2a</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::hex0xupper(t)</code></td>
-            <td>Like <code>hexupper</code>, but prefixes the output with <code>0x</code>.</td>
+            <td>与 <code>hexupper</code> 类似，但在输出前加 <code>0x</code> 前缀。</td>
             <td><code>::fast_io::mnp::hex0xupper(42)</code> → <code>0x2A</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::dec(t)</code></td>
-            <td>Print or scan <code>t</code> in decimal (base&nbsp;10). This is the default for integers.</td>
+            <td>以十进制（10 进制）打印或扫描 <code>t</code>。这是整数的默认做法。</td>
             <td><code>::fast_io::mnp::dec(1234)</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::oct(t)</code></td>
-            <td>Print or scan <code>t</code> in octal (base&nbsp;8).</td>
+            <td>以八进制（8 进制）打印或扫描 <code>t</code>。</td>
             <td><code>::fast_io::mnp::oct(0777)</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::bin(t)</code></td>
-            <td>Print or scan <code>t</code> in binary (base&nbsp;2).</td>
+            <td>以二进制（2 进制）打印或扫描 <code>t</code>。</td>
             <td><code>::fast_io::mnp::bin(0b1010)</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::uhexfull(t)</code></td>
-            <td>Print <code>t</code> as a zero-padded, full-width lowercase hexadecimal value (all nibbles shown).</td>
+            <td>把 <code>t</code> 打印为零填充、全宽的小写十六进制值（显示所有半字节）。</td>
             <td><code>::fast_io::mnp::uhexfull(std::uint32_t{0xFF})</code> → <code>000000ff</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::uhexupperfull(t)</code></td>
-            <td>Like <code>uhexfull</code>, but uses uppercase hex digits <code>A–F</code>.</td>
+            <td>与 <code>uhexfull</code> 类似，但使用大写十六进制数字 <code>A–F</code>。</td>
             <td><code>::fast_io::mnp::uhexupperfull(std::uint32_t{0xFF})</code> → <code>000000FF</code></td>
           </tr>
         </tbody>
@@ -137,54 +126,52 @@
     <!-- 2. Pointer / Address                                          -->
     <!-- ============================================================ -->
     <section>
-      <h2>2. Pointer / Address Manipulators</h2>
+      <h2>2. 指针 / 地址操纵器</h2>
       <p>
-        Format pointers, addresses, and callable references in a platform-appropriate
-        hexadecimal representation. Each manipulator targets a specific kind of address
-        so the output is unambiguous.
+        以平台合适的十六进制形式格式化指针、地址与可调用引用。
       </p>
       <table class="manipulator-ref">
         <thead>
           <tr>
-            <th>Manipulator</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操纵器</th>
+            <th>说明</th>
+            <th>示例</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::mnp::addrvw(t)</code></td>
-            <td>Print a generic address (pointer, handle, etc.) in hexadecimal with full width and <code>0x</code> prefix.</td>
+            <td>以全宽、带 <code>0x</code> 前缀的十六进制打印通用地址（指针、句柄等）。</td>
             <td><code>::fast_io::mnp::addrvw(ptr)</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::pointervw(t)</code></td>
-            <td>Print an ordinary object pointer in hexadecimal address form.</td>
+            <td>以十六进制地址形式打印普通对象指针。</td>
             <td><code>::fast_io::mnp::pointervw(&amp;obj)</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::itervw(t)</code></td>
-            <td>Print an iterator's underlying address in hexadecimal.</td>
+            <td>以十六进制打印迭代器底层的地址。</td>
             <td><code>::fast_io::mnp::itervw(vec.begin())</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::funcvw(t)</code></td>
-            <td>Print a function pointer in hexadecimal address form.</td>
+            <td>以十六进制地址形式打印函数指针。</td>
             <td><code>::fast_io::mnp::funcvw(&amp;main)</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::fieldptrvw(t)</code></td>
-            <td>Print a pointer-to-data-member in hexadecimal form.</td>
+            <td>以十六进制形式打印数据成员指针。</td>
             <td><code>::fast_io::mnp::fieldptrvw(&amp;MyStruct::field)</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::methodvw(t)</code></td>
-            <td>Print a pointer-to-member-function in hexadecimal form.</td>
+            <td>以十六进制形式打印成员函数指针。</td>
             <td><code>::fast_io::mnp::methodvw(&amp;MyClass::doWork)</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::handlevw(t)</code></td>
-            <td>Print an OS handle or file descriptor value in hexadecimal form.</td>
+            <td>以十六进制形式打印操作系统句柄或文件描述符值。</td>
             <td><code>::fast_io::mnp::handlevw(posix_file.fd())</code></td>
           </tr>
         </tbody>
@@ -195,29 +182,27 @@
     <!-- 3. Boolean                                                    -->
     <!-- ============================================================ -->
     <section>
-      <h2>3. Boolean Manipulators</h2>
+      <h2>3. 布尔操纵器</h2>
       <p>
-        Control how <code>bool</code> values are printed. By default, booleans print
-        as <code>1</code> or <code>0</code>. The <code>boolalpha</code> manipulators
-        switch to textual representation.
+        控制 <code>bool</code> 值如何打印。默认情况下，布尔值打印为 <code>1</code> 或 <code>0</code>。
       </p>
       <table class="manipulator-ref">
         <thead>
           <tr>
-            <th>Manipulator</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操纵器</th>
+            <th>说明</th>
+            <th>示例</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::mnp::boolalpha(b)</code></td>
-            <td>Print <code>b</code> as <code>"true"</code> or <code>"false"</code> (lowercase).</td>
+            <td>把 <code>b</code> 打印为 <code>"true"</code> 或 <code>"false"</code>（小写）。</td>
             <td><code>::fast_io::mnp::boolalpha(flag)</code> → <code>true</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::boolalpha&lt;true&gt;(b)</code></td>
-            <td>Print <code>b</code> as <code>"TRUE"</code> or <code>"FALSE"</code> (uppercase).</td>
+            <td>把 <code>b</code> 打印为 <code>"TRUE"</code> 或 <code>"FALSE"</code>（大写）。</td>
             <td><code>::fast_io::mnp::boolalpha&lt;true&gt;(flag)</code> → <code>TRUE</code></td>
           </tr>
         </tbody>
@@ -228,80 +213,87 @@
     <!-- 4. Floating-Point                                             -->
     <!-- ============================================================ -->
     <section>
-      <h2>4. Floating-Point Manipulators</h2>
+      <h2>4. 浮点操纵器</h2>
       <p>
-        Choose the notation used when printing floating-point values. An optional second
-        argument <code>n</code> controls the precision (number of digits after the radix
-        point). The <code>comma_</code> variants insert locale-style thousand separators
-        into the integer part of the output.
+        选择打印浮点值时使用的记法。可选的第二个实参 <code>n</code> 指定小数位数。
       </p>
       <table class="manipulator-ref">
         <thead>
           <tr>
-            <th>Manipulator</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操纵器</th>
+            <th>说明</th>
+            <th>示例</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><code>::fast_io::mnp::hexfloat(t)</code><br>
-                <code>::fast_io::mnp::hexfloat(t, n)</code></td>
-            <td>Print <code>t</code> in hexadecimal floating-point notation (e.g. <code>0x1.921fb6p+2</code>).</td>
+            <td>
+              <code>::fast_io::mnp::hexfloat(t)</code><br> <code>::fast_io::mnp::hexfloat(t, n)</code>
+            </td>
+            <td>以十六进制浮点记法打印 <code>t</code>（例如 <code>0x1.921fb6p+2</code>）。</td>
             <td><code>::fast_io::mnp::hexfloat(3.14)</code></td>
           </tr>
           <tr>
-            <td><code>::fast_io::mnp::decimal(t)</code><br>
-                <code>::fast_io::mnp::decimal(t, n)</code></td>
-            <td>Print <code>t</code> in plain decimal floating-point notation with <code>n</code> fractional digits.</td>
+            <td>
+              <code>::fast_io::mnp::decimal(t)</code><br> <code>::fast_io::mnp::decimal(t, n)</code>
+            </td>
+            <td>以普通十进制浮点记法打印 <code>t</code>，保留 <code>n</code> 位小数。</td>
             <td><code>::fast_io::mnp::decimal(3.14, 4)</code> → <code>3.1400</code></td>
           </tr>
           <tr>
-            <td><code>::fast_io::mnp::general(t)</code><br>
-                <code>::fast_io::mnp::general(t, n)</code></td>
-            <td>Print <code>t</code> using the shorter of <code>decimal</code> or <code>scientific</code>, with up to <code>n</code> significant digits.</td>
+            <td>
+              <code>::fast_io::mnp::general(t)</code><br> <code>::fast_io::mnp::general(t, n)</code>
+            </td>
+            <td>用 <code>decimal</code> 与 <code>scientific</code> 中较短的那种打印 <code>t</code>，保留 <code>n</code> 位有效数字。</td>
             <td><code>::fast_io::mnp::general(123456.0, 3)</code></td>
           </tr>
           <tr>
-            <td><code>::fast_io::mnp::fixed(t)</code><br>
-                <code>::fast_io::mnp::fixed(t, n)</code></td>
-            <td>Print <code>t</code> in fixed-point notation with <code>n</code> digits after the decimal point.</td>
+            <td>
+              <code>::fast_io::mnp::fixed(t)</code><br> <code>::fast_io::mnp::fixed(t, n)</code>
+            </td>
+            <td>以定点记法打印 <code>t</code>，小数点后保留 <code>n</code> 位。</td>
             <td><code>::fast_io::mnp::fixed(3.14, 2)</code> → <code>3.14</code></td>
           </tr>
           <tr>
-            <td><code>::fast_io::mnp::scientific(t)</code><br>
-                <code>::fast_io::mnp::scientific(t, n)</code></td>
-            <td>Print <code>t</code> in scientific (exponential) notation with <code>n</code> fractional digits.</td>
+            <td>
+              <code>::fast_io::mnp::scientific(t)</code><br> <code>::fast_io::mnp::scientific(t, n)</code>
+            </td>
+            <td>以科学（指数）记法打印 <code>t</code>，保留 <code>n</code> 位小数。</td>
             <td><code>::fast_io::mnp::scientific(3.14, 2)</code> → <code>3.14e+00</code></td>
           </tr>
           <tr>
-            <td><code>::fast_io::mnp::comma_hexfloat(t)</code><br>
-                <code>::fast_io::mnp::comma_hexfloat(t, n)</code></td>
-            <td>Like <code>hexfloat</code>, with thousand separators in the integer part.</td>
+            <td>
+              <code>::fast_io::mnp::comma_hexfloat(t)</code><br> <code>::fast_io::mnp::comma_hexfloat(t, n)</code>
+            </td>
+            <td>与 <code>hexfloat</code> 类似，在整数部分插入千位分隔符。</td>
             <td><code>::fast_io::mnp::comma_hexfloat(4096.0)</code></td>
           </tr>
           <tr>
-            <td><code>::fast_io::mnp::comma_decimal(t)</code><br>
-                <code>::fast_io::mnp::comma_decimal(t, n)</code></td>
-            <td>Like <code>decimal</code>, with thousand separators.</td>
+            <td>
+              <code>::fast_io::mnp::comma_decimal(t)</code><br> <code>::fast_io::mnp::comma_decimal(t, n)</code>
+            </td>
+            <td>与 <code>decimal</code> 类似，插入千位分隔符。</td>
             <td><code>::fast_io::mnp::comma_decimal(1234567.89, 2)</code></td>
           </tr>
           <tr>
-            <td><code>::fast_io::mnp::comma_general(t)</code><br>
-                <code>::fast_io::mnp::comma_general(t, n)</code></td>
-            <td>Like <code>general</code>, with thousand separators.</td>
+            <td>
+              <code>::fast_io::mnp::comma_general(t)</code><br> <code>::fast_io::mnp::comma_general(t, n)</code>
+            </td>
+            <td>与 <code>general</code> 类似，插入千位分隔符。</td>
             <td><code>::fast_io::mnp::comma_general(9876543.21)</code></td>
           </tr>
           <tr>
-            <td><code>::fast_io::mnp::comma_fixed(t)</code><br>
-                <code>::fast_io::mnp::comma_fixed(t, n)</code></td>
-            <td>Like <code>fixed</code>, with thousand separators.</td>
+            <td>
+              <code>::fast_io::mnp::comma_fixed(t)</code><br> <code>::fast_io::mnp::comma_fixed(t, n)</code>
+            </td>
+            <td>与 <code>fixed</code> 类似，插入千位分隔符。</td>
             <td><code>::fast_io::mnp::comma_fixed(12345.678, 2)</code></td>
           </tr>
           <tr>
-            <td><code>::fast_io::mnp::comma_scientific(t)</code><br>
-                <code>::fast_io::mnp::comma_scientific(t, n)</code></td>
-            <td>Like <code>scientific</code>, with thousand separators.</td>
+            <td>
+              <code>::fast_io::mnp::comma_scientific(t)</code><br> <code>::fast_io::mnp::comma_scientific(t, n)</code>
+            </td>
+            <td>与 <code>scientific</code> 类似，插入千位分隔符。</td>
             <td><code>::fast_io::mnp::comma_scientific(1234567.89, 2)</code></td>
           </tr>
         </tbody>
@@ -312,61 +304,57 @@
     <!-- 5. Width / Alignment                                          -->
     <!-- ============================================================ -->
     <section>
-      <h2>5. Width / Alignment Manipulators</h2>
+      <h2>5. 宽度 / 对齐操纵器</h2>
       <p>
-        Pad the output of <code>t</code> to a minimum field width of <code>n</code>
-        columns. An optional third argument <code>ch</code> sets the fill character
-        (default is a space). These mirror the alignment options familiar from
-        <code>&lt;iomanip&gt;</code> but are resolved entirely at compile time where
-        possible.
+        把 <code>t</code> 的输出补齐到至少 <code>n</code> 列宽。可选的第三个实参是填充字符。
       </p>
       <table class="manipulator-ref">
         <thead>
           <tr>
-            <th>Manipulator</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操纵器</th>
+            <th>说明</th>
+            <th>示例</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::mnp::left(t, n)</code></td>
-            <td>Left-align <code>t</code> in a field of width <code>n</code>, padded with spaces.</td>
+            <td>在宽度为 <code>n</code> 的字段内左对齐 <code>t</code>，用空格填充。</td>
             <td><code>::fast_io::mnp::left("hi", 10)</code> → <code>"hi&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::left(t, n, ch)</code></td>
-            <td>Left-align <code>t</code> in a field of width <code>n</code>, padded with <code>ch</code>.</td>
+            <td>在宽度为 <code>n</code> 的字段内左对齐 <code>t</code>，用 <code>ch</code> 填充。</td>
             <td><code>::fast_io::mnp::left("hi", 10, '.')</code> → <code>"hi........"</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::right(t, n)</code></td>
-            <td>Right-align <code>t</code> in a field of width <code>n</code>, padded with spaces.</td>
+            <td>在宽度为 <code>n</code> 的字段内右对齐 <code>t</code>，用空格填充。</td>
             <td><code>::fast_io::mnp::right("hi", 10)</code> → <code>"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hi"</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::right(t, n, ch)</code></td>
-            <td>Right-align <code>t</code> in a field of width <code>n</code>, padded with <code>ch</code>.</td>
+            <td>在宽度为 <code>n</code> 的字段内右对齐 <code>t</code>，用 <code>ch</code> 填充。</td>
             <td><code>::fast_io::mnp::right("hi", 10, '_')</code> → <code>"________hi"</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::middle(t, n)</code></td>
-            <td>Center <code>t</code> in a field of width <code>n</code>, padded with spaces.</td>
+            <td>在宽度为 <code>n</code> 的字段内居中 <code>t</code>，用空格填充。</td>
             <td><code>::fast_io::mnp::middle("hi", 10)</code> → <code>"&nbsp;&nbsp;&nbsp;&nbsp;hi&nbsp;&nbsp;&nbsp;&nbsp;"</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::middle(t, n, ch)</code></td>
-            <td>Center <code>t</code> in a field of width <code>n</code>, padded with <code>ch</code>.</td>
+            <td>在宽度为 <code>n</code> 的字段内居中 <code>t</code>，用 <code>ch</code> 填充。</td>
             <td><code>::fast_io::mnp::middle("hi", 10, '=')</code> → <code>"====hi===="</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::internal(t, n)</code></td>
-            <td>Pad after any sign or base prefix but before the digits, in a field of width <code>n</code>, with spaces.</td>
+            <td>在宽度为 <code>n</code> 的字段内，把填充放在符号或进制前缀之后、数字之前，用空格填充。</td>
             <td><code>::fast_io::mnp::internal(-42, 8)</code> → <code>"-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;42"</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::internal(t, n, ch)</code></td>
-            <td>Like <code>internal</code>, but uses <code>ch</code> as the fill character.</td>
+            <td>与 <code>internal</code> 类似，但用 <code>ch</code> 作为填充字符。</td>
             <td><code>::fast_io::mnp::internal(-42, 8, '0')</code> → <code>"-0000042"</code></td>
           </tr>
         </tbody>
@@ -377,30 +365,27 @@
     <!-- 6. Conditional                                                -->
     <!-- ============================================================ -->
     <section>
-      <h2>6. Conditional Manipulators</h2>
+      <h2>6. 条件操纵器</h2>
       <p>
-        Select between two alternative outputs at runtime based on a boolean predicate.
-        When the predicate is <code>true</code>, <code>t1</code> is printed; otherwise
-        <code>t2</code> is printed. The single-argument overload omits the
-        <em>else</em> branch (printing nothing when the predicate is false).
+        在运行期根据一个布尔谓词在两种输出之间选择。谓词为真时用第一种，否则用第二种。
       </p>
       <table class="manipulator-ref">
         <thead>
           <tr>
-            <th>Manipulator</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操纵器</th>
+            <th>说明</th>
+            <th>示例</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::mnp::cond(pred, t1, t2)</code></td>
-            <td>Print <code>t1</code> if <code>pred</code> is <code>true</code>; otherwise print <code>t2</code>.</td>
+            <td><code>pred</code> 为 <code>true</code> 时打印 <code>t1</code>，否则打印 <code>t2</code>。</td>
             <td><code>::fast_io::mnp::cond(ok, "pass", "fail")</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::cond(pred, t1)</code></td>
-            <td>Print <code>t1</code> if <code>pred</code> is <code>true</code>; otherwise print nothing.</td>
+            <td><code>pred</code> 为 <code>true</code> 时打印 <code>t1</code>，否则什么都不打印。</td>
             <td><code>::fast_io::mnp::cond(showDetail, extra)</code></td>
           </tr>
         </tbody>
@@ -411,30 +396,27 @@
     <!-- 7. Percentage                                                 -->
     <!-- ============================================================ -->
     <section>
-      <h2>7. Percentage Manipulators</h2>
+      <h2>7. 百分比操纵器</h2>
       <p>
-        Format the ratio <code>num&nbsp;/&nbsp;deno</code> as a human-readable percentage.
-        <code>percentage_conventional</code> multiplies by 100 and appends <code>%</code>.
-        The <code>base_percentage_conventional&lt;N&gt;</code> variant lets you specify
-        the output base <em>N</em> (default 10) for the percentage digits.
+        把比例 <code>num&nbsp;/&nbsp;deno</code> 格式化成人类可读的百分比。<code>percentage_*</code> 家族还可与逗号小数分隔符组合。
       </p>
       <table class="manipulator-ref">
         <thead>
           <tr>
-            <th>Manipulator</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操纵器</th>
+            <th>说明</th>
+            <th>示例</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::mnp::percentage_conventional(num, deno)</code></td>
-            <td>Print <code>num/deno</code> as a conventional base-10 percentage (e.g. <code>75%</code>).</td>
+            <td>以常规的 10 进制百分比打印 <code>num/deno</code>（例如 <code>75%</code>）。</td>
             <td><code>::fast_io::mnp::percentage_conventional(3, 4)</code> → <code>75%</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::base_percentage_conventional&lt;N&gt;(num, deno)</code></td>
-            <td>Print <code>num/deno</code> as a percentage in base <em>N</em>.</td>
+            <td>以 <em>N</em> 进制打印 <code>num/deno</code> 的百分比。</td>
             <td><code>::fast_io::mnp::base_percentage_conventional&lt;16&gt;(0xFF, 0x100)</code></td>
           </tr>
         </tbody>
@@ -445,23 +427,22 @@
     <!-- 8. Ordinal                                                    -->
     <!-- ============================================================ -->
     <section>
-      <h2>8. Ordinal Manipulator</h2>
+      <h2>8. 序数操纵器</h2>
       <p>
-        Append the English ordinal suffix (<code>st</code>, <code>nd</code>,
-        <code>rd</code>, or <code>th</code>) to an integer.
+        追加英文序数后缀（<code>st</code>、<code>nd</code>、<code>rd</code> 或 <code>th</code>）。
       </p>
       <table class="manipulator-ref">
         <thead>
           <tr>
-            <th>Manipulator</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操纵器</th>
+            <th>说明</th>
+            <th>示例</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::mnp::ordinal(t)</code></td>
-            <td>Print integer <code>t</code> with its English ordinal suffix: <code>1st</code>, <code>2nd</code>, <code>3rd</code>, <code>4th</code>, etc.</td>
+            <td>打印整数 <code>t</code> 并附上英文序数后缀：<code>1st</code>、<code>2nd</code>、<code>3rd</code>、<code>4th</code>。</td>
             <td><code>::fast_io::mnp::ordinal(42)</code> → <code>42nd</code></td>
           </tr>
         </tbody>
@@ -472,25 +453,22 @@
     <!-- 9. Range View                                                 -->
     <!-- ============================================================ -->
     <section>
-      <h2>9. Range View Manipulator</h2>
+      <h2>9. Range 视图操纵器</h2>
       <p>
-        Print every element of a range, separated by a given delimiter. This replaces
-        the need for manual loops when displaying containers such as
-        <code>std::vector</code>, <code>std::array</code>, or any
-        <code>std::ranges::range</code>.
+        打印 range 的每个元素，用给定分隔符隔开。这取代了手写循环的需要。
       </p>
       <table class="manipulator-ref">
         <thead>
           <tr>
-            <th>Manipulator</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操纵器</th>
+            <th>说明</th>
+            <th>示例</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::mnp::rgvw(r, sep)</code></td>
-            <td>Print every element of range <code>r</code>, inserting the string <code>sep</code> between consecutive elements.</td>
+            <td>打印 range <code>r</code> 的每个元素，在相邻元素之间插入字符串 <code>sep</code>。</td>
             <td><code>::fast_io::mnp::rgvw(vec, ",")</code> → <code>1,2,3</code></td>
           </tr>
         </tbody>
@@ -501,38 +479,37 @@
     <!-- 10. Character / String                                        -->
     <!-- ============================================================ -->
     <section>
-      <h2>10. Character / String Manipulators</h2>
+      <h2>10. 字符 / 字符串操纵器</h2>
       <p>
-        Low-level helpers for printing individual characters and C-style string
-        pointers without relying on null-termination assumptions.
+        用于打印单个字符和 C 风格字符串指针的底层辅助工具，不依赖任何分配。
       </p>
       <table class="manipulator-ref">
         <thead>
           <tr>
-            <th>Manipulator</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操纵器</th>
+            <th>说明</th>
+            <th>示例</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::mnp::chvw(ch)</code></td>
-            <td>Print a single character <code>ch</code>.</td>
+            <td>打印单个字符 <code>ch</code>。</td>
             <td><code>::fast_io::mnp::chvw('A')</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::small_scatter(s)</code></td>
-            <td>Print a small string literal or compile-time-known string <code>s</code> without a heap allocation.</td>
+            <td>打印一小段字符串字面量或编译期已知的字符串 <code>s</code>，不发生堆分配。</td>
             <td><code>::fast_io::mnp::small_scatter("hello")</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::os_c_str(ch, n)</code></td>
-            <td>Print <code>n</code> characters from the C string pointer <code>ch</code>, without requiring null termination.</td>
+            <td>从 C 字符串指针 <code>ch</code> 打印 <code>n</code> 个字符，不要求以空字符结尾。</td>
             <td><code>::fast_io::mnp::os_c_str(buf, len)</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::os_c_str_null_terminated(ch, n)</code></td>
-            <td>Print up to <code>n</code> characters from the null-terminated C string <code>ch</code>, stopping at the first <code>'\0'</code>.</td>
+            <td>从以空字符结尾的 C 字符串 <code>ch</code> 打印至多 <code>n</code> 个字符，遇到空字符时停止。</td>
             <td><code>::fast_io::mnp::os_c_str_null_terminated(cstr, maxLen)</code></td>
           </tr>
         </tbody>
@@ -543,39 +520,37 @@
     <!-- 11. Hex Encoding                                              -->
     <!-- ============================================================ -->
     <section>
-      <h2>11. Hex Encoding Manipulators</h2>
+      <h2>11. 十六进制编码操纵器</h2>
       <p>
-        Encode a contiguous sequence of bytes as a hexadecimal string. These
-        manipulators accept either a pair of iterators <code>[first,&nbsp;last)</code>
-        or an entire contiguous range (such as <code>std::vector&lt;std::byte&gt;</code>).
+        把一段连续的字节编码成十六进制字符串。这些操纵器既接受迭代器对，也接受 range。
       </p>
       <table class="manipulator-ref">
         <thead>
           <tr>
-            <th>Manipulator</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操纵器</th>
+            <th>说明</th>
+            <th>示例</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::mnp::hex_encode(first, last)</code></td>
-            <td>Encode bytes in <code>[first,&nbsp;last)</code> as a lowercase hex string.</td>
+            <td>把 <code>[first,&nbsp;last)</code> 中的字节编码成小写十六进制串。</td>
             <td><code>::fast_io::mnp::hex_encode(buf.data(), buf.data() + buf.size())</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::hex_encode_upper(first, last)</code></td>
-            <td>Encode bytes in <code>[first,&nbsp;last)</code> as an uppercase hex string.</td>
+            <td>把 <code>[first,&nbsp;last)</code> 中的字节编码成大写十六进制串。</td>
             <td><code>::fast_io::mnp::hex_encode_upper(buf.data(), buf.data() + buf.size())</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::hex_encode(range)</code></td>
-            <td>Encode every byte in the contiguous range <code>range</code> as a lowercase hex string.</td>
+            <td>把连续 range <code>range</code> 中的每个字节编码成小写十六进制串。</td>
             <td><code>::fast_io::mnp::hex_encode(digest)</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::hex_encode_upper(range)</code></td>
-            <td>Encode every byte in the contiguous range <code>range</code> as an uppercase hex string.</td>
+            <td>把连续 range <code>range</code> 中的每个字节编码成大写十六进制串。</td>
             <td><code>::fast_io::mnp::hex_encode_upper(digest)</code></td>
           </tr>
         </tbody>
@@ -586,53 +561,48 @@
     <!-- 12. Crypto Hash File                                          -->
     <!-- ============================================================ -->
     <section>
-      <h2>12. Crypto Hash File Manipulators</h2>
+      <h2>12. 加密哈希文件操纵器</h2>
       <p>
-        Adapt a crypto-hash context (e.g. <code>sha256_context</code>,
-        <code>md5_context</code>) so it can be written to as if it were an output
-        stream. The <code>as_file</code> family wraps the context reference and
-        selects the character type of the output stream. Once the hashing is done,
-        use the hex-encoding manipulators above or <code>hash_digest</code> to
-        retrieve the result.
+        把加密哈希上下文（例如 <code>sha256_context</code>、<code>md5_context</code>）适配成输出文件，从而可以增量地对数据做哈希。
       </p>
       <table class="manipulator-ref">
         <thead>
           <tr>
-            <th>Manipulator</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操纵器</th>
+            <th>说明</th>
+            <th>示例</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::mnp::as_file(hashctx)</code></td>
-            <td>Wrap <code>hashctx</code> as a narrow (<code>char</code>) output file for incremental hashing.</td>
+            <td>把 <code>hashctx</code> 包装成窄字符（<code>char</code>）输出文件，用于增量哈希。</td>
             <td><code>print(::fast_io::mnp::as_file(ctx), data);</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::u8as_file(hashctx)</code></td>
-            <td>Wrap <code>hashctx</code> as a <code>char8_t</code> output file.</td>
+            <td>把 <code>hashctx</code> 包装成 <code>char8_t</code> 输出文件。</td>
             <td><code>print(::fast_io::mnp::u8as_file(ctx), u8"data");</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::was_file(hashctx)</code></td>
-            <td>Wrap <code>hashctx</code> as a <code>wchar_t</code> output file.</td>
+            <td>把 <code>hashctx</code> 包装成 <code>wchar_t</code> 输出文件。</td>
             <td><code>print(::fast_io::mnp::was_file(ctx), L"data");</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::u16as_file(hashctx)</code></td>
-            <td>Wrap <code>hashctx</code> as a <code>char16_t</code> output file.</td>
+            <td>把 <code>hashctx</code> 包装成 <code>char16_t</code> 输出文件。</td>
             <td><code>print(::fast_io::mnp::u16as_file(ctx), u"data");</code></td>
           </tr>
           <tr>
             <td><code>::fast_io::mnp::u32as_file(hashctx)</code></td>
-            <td>Wrap <code>hashctx</code> as a <code>char32_t</code> output file.</td>
+            <td>把 <code>hashctx</code> 包装成 <code>char32_t</code> 输出文件。</td>
             <td><code>print(::fast_io::mnp::u32as_file(ctx), U"data");</code></td>
           </tr>
         </tbody>
       </table>
       <p>
-        A complete hashing example:
+        一个完整的哈希示例：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -654,22 +624,15 @@ int main()
     <!-- Summary                                                       -->
     <!-- ============================================================ -->
     <section>
-      <h2>Summary</h2>
+      <h2>小结</h2>
       <p>
-        Every manipulator in <code>::fast_io::mnp::</code> is a lightweight,
-        trivially-copyable wrapper that carries formatting intent through the type
-        system. There are no global formatting flags, no locale-dependent surprises,
-        and no format strings to get wrong. Combined with
-        <code>print</code> / <code>println</code> / <code>scan</code>, they give
-        you full control over input and output formatting — safely and efficiently.
+        <code>::fast_io::mnp::</code> 中的每个操纵器都是一个轻量、可平凡复制的包装对象，只作用于它所包装的值。不存在需要恢复的流状态，也没有需要记住的全局格式串。
       </p>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/03.manipulators/" class="prev-button">&larr; Ch11.3: Manipulators</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/04.fileio/" class="next-button">Ch11.4: File I/O &rarr;</a>
+      <a href="/zhcn/docs/11.io/03.manipulators/" class="prev-button">&larr; 第11.3章: 操纵器</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/04.operations/" class="next-button">第11.4章: I/O 操作 &rarr;</a>
     </div>
   </main>
 </body>

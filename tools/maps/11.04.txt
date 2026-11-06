@@ -1,0 +1,180 @@
+1|第11.4章: I/O 操作 - 使用 fast_io 学习 C++ 教程
+2|第11.4章: I/O 操作
+3|概述
+4|所有底层 I/O 操作都在 <code>::fast_io::operations</code> 命名空间中。它们作用于设备与原始缓冲区之间，构成 <code>print</code>、<code>scan</code> 与带缓冲文件类型建立于其上的那一层。
+5|1. read_some / read_all
+6|<code>read_some</code> 尝试从设备读入一段连续缓冲区。它<strong>可能只读取一部分</strong>，并返回最后读到的那个字节之后的位置。
+7|<code>read_all</code> 在内部循环，直到缓冲区被完全填满，或者遇到 EOF/错误为止。
+8|2. read_some_bytes / read_all_bytes
+9|与 <code>read_some</code> / <code>read_all</code> 相同，但作用于 <code>::std::byte*</code>。
+10|3. pread_some / pread_all
+11|<strong>按位置读取</strong> &mdash; 在给定的文件偏移处读取，而不改变文件位置。
+12|签名多了一个 <code>offset</code> 参数（从文件开头算起的字节数）。
+13|4. pread_some_bytes / pread_all_bytes
+14|与 <code>pread_some</code> / <code>pread_all</code> 相同，但接受 <code>::std::byte*</code>。
+15|5. scatter_read_some / scatter_read_all
+16|<strong>散布（聚集）读取</strong>在一次系统调用中读入多个不连续的缓冲区。
+17|参数是一个 <code>::fast_io::io_scatter_t</code> 的 span，每一项描述一个 base/length 对。
+18|6. scatter_pread_some / scatter_pread_all
+19|把散布读取与按位置读取结合起来 &mdash; 从给定偏移处读入多个缓冲区。
+20|8. write_some / write_all
+21|<code>write_some</code> 尝试把一段连续缓冲区写入设备。它<strong>可能只写入一部分</strong>，并返回第一个未写出的位置。
+22|<code>write_all</code> 在内部循环，直到每个字节都被写出，或者发生硬错误为止。
+23|9. write_some_bytes / write_all_bytes
+24|与 <code>write_some</code> / <code>write_all</code> 相同，但作用于 <code>::std::byte const*</code>。
+25|10. pwrite_some / pwrite_all
+26|<strong>按位置写入</strong> &mdash; 在给定的文件偏移处写入，而不改变文件位置。
+27|签名多了一个 <code>offset</code> 参数（从文件开头算起的字节数）。
+28|11. pwrite_some_bytes / pwrite_all_bytes
+29|与 <code>pwrite_some</code> / <code>pwrite_all</code> 相同，但接受 <code>::std::byte const*</code>。
+30|12. scatter_write_some / scatter_write_all
+31|<strong>散布（聚集）写入</strong>在一次系统调用中写出多个不连续的缓冲区。
+32|参数是一个 <code>::fast_io::io_scatter_t</code> 的 span，每一项描述一个 base/length 对。
+33|13. scatter_pwrite_some / scatter_pwrite_all
+34|把散布写入与按位置写入结合起来 &mdash; 在给定偏移处写出多个缓冲区。
+35|14. char_put
+36|写出单个字符。所有写变体都有对应的 <code>char_put</code> 版本，用于逐字符写入。
+37|对带缓冲的设备（<code>obuf_file</code>），反复调用 <code>char_put</code> 很便宜；对不带缓冲的设备则代价极高。
+38|15. 完整参考表
+39|操作
+40|指针类型
+41|读/写
+42|按位置？
+43|散布？
+44|是否循环？
+46|<code>char*</code>
+47|读
+48|否
+49|否
+50|否（允许部分）
+52|<code>char*</code>
+53|读
+54|否
+55|否
+56|是
+58|<code>::std::byte*</code>
+59|读
+60|否
+61|否
+62|否（允许部分）
+64|<code>::std::byte*</code>
+65|读
+66|否
+67|否
+68|是
+70|<code>char*</code>
+71|读
+72|是
+73|否
+74|否（允许部分）
+76|<code>char*</code>
+77|读
+78|是
+79|否
+80|是
+82|<code>::std::byte*</code>
+83|读
+84|是
+85|否
+86|否（允许部分）
+88|<code>::std::byte*</code>
+89|读
+90|是
+91|否
+92|是
+94|<code>char</code>（散布）
+95|读
+96|否
+97|是
+98|否（允许部分）
+100|<code>char</code>（散布）
+101|读
+102|否
+103|是
+104|是
+106|<code>char</code>（散布）
+107|读
+108|是
+109|是
+110|否（允许部分）
+112|<code>char</code>（散布）
+113|读
+114|是
+115|是
+116|是
+118|<code>char const*</code>
+119|写
+120|否
+121|否
+122|否（允许部分）
+124|<code>char const*</code>
+125|写
+126|否
+127|否
+128|是
+130|<code>::std::byte const*</code>
+131|写
+132|否
+133|否
+134|否（允许部分）
+136|<code>::std::byte const*</code>
+137|写
+138|否
+139|否
+140|是
+142|<code>char const*</code>
+143|写
+144|是
+145|否
+146|否（允许部分）
+148|<code>char const*</code>
+149|写
+150|是
+151|否
+152|是
+154|<code>::std::byte const*</code>
+155|写
+156|是
+157|否
+158|否（允许部分）
+160|<code>::std::byte const*</code>
+161|写
+162|是
+163|否
+164|是
+166|<code>char</code>（散布）
+167|写
+168|否
+169|是
+170|否（允许部分）
+172|<code>char</code>（散布）
+173|写
+174|否
+175|是
+176|是
+178|<code>char</code>（散布）
+179|写
+180|是
+181|是
+182|否（允许部分）
+184|<code>char</code>（散布）
+185|写
+186|是
+187|是
+188|是
+190|单个 <code>char</code>
+191|写
+192|否
+193|否
+194|要点
+195|<code>read_some</code> 可能只做部分读取 &mdash; 它返回最后读到的字节之后的位置。
+196|<code>write_some</code> 可能只做部分写入 &mdash; 它返回第一个未写出的位置。
+197|每个操作都有一个 <code>_bytes</code> 变体，接受 <code>::std::byte*</code>（以及对应的 <code>::std::byte const*</code>）。
+198|<code>pread_*</code> 系列在给定偏移处读取，而不改变文件位置。
+199|<code>pwrite_*</code> 系列在给定偏移处写入，而不改变文件位置。
+200|<code>scatter_read_*</code> 在一次系统调用中读入多个缓冲区（类似 POSIX 的 <code>readv</code>）。
+201|<code>scatter_write_*</code> 在一次系统调用中写出多个缓冲区（类似 POSIX 的 <code>writev</code>）。
+202|<code>scatter_pread_*</code> 与 <code>scatter_pwrite_*</code> 把散布与按位置操作结合起来。
+203|<code>char_put</code> 写出单个字符 &mdash; 在带缓冲设备上便宜，在不带缓冲设备上灾难性地昂贵。
+204|优先使用 <code>read_all</code> / <code>write_all</code>（或者带缓冲的 <code>::fast_io::io::</code> 设施），而不是自己循环 <code>read_some</code> / <code>write_some</code>。
+205|<a href="/docs/11.io/03.manipulators/" class="prev-button">&larr; 第11.3章: 操纵器</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/05.buffered/" class="next-button">第11.5章: 带缓冲与不带缓冲的 I/O &rarr;</a>

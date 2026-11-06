@@ -3,41 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.4: I/O Operations - C++ Tutorial with fast_io</title>
+  <title>第11.4章: I/O 操作 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.4: I/O Operations</h1>
+    <h1>第11.4章: I/O 操作</h1>
     <p class="lang-switch"><a href="/docs/11.io/04.operations/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        All low-level I/O operations live in the <code>::fast_io::operations</code>
-        namespace. These are the raw building blocks that higher-level functions
-        like <code>::fast_io::io::println</code> and <code>::fast_io::read</code> are
-        built on. You rarely need to call them directly, but understanding them
-        is important for performance-critical code and for writing custom devices.
+        所有底层 I/O 操作都在 <code>::fast_io::operations</code> 命名空间中。它们作用于设备与原始缓冲区之间，构成 <code>print</code>、<code>scan</code> 与带缓冲文件类型建立于其上的那一层。
       </p>
     </section>
 
     <section>
       <h2>1. read_some / read_all</h2>
       <p>
-        <code>read_some</code> attempts to read into a contiguous buffer from a
-        device. It <strong>may read fewer bytes than requested</strong> and
-        returns a pointer past the last byte read. This mirrors the
-        semantics of POSIX <code>read()</code> &mdash; a short read is not an
-        error (it may indicate EOF or a non-blocking device).
+        <code>read_some</code> 尝试从设备读入一段连续缓冲区。它<strong>可能只读取一部分</strong>，并返回最后读到的那个字节之后的位置。
       </p>
       <p>
-        <code>read_all</code> loops internally until the buffer is completely
-        filled or EOF/error occurs. This is what you usually want when reading
-        a known amount of data.
+        <code>read_all</code> 在内部循环，直到缓冲区被完全填满，或者遇到 EOF/错误为止。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -67,9 +56,7 @@ int main() {
     <section>
       <h2>2. read_some_bytes / read_all_bytes</h2>
       <p>
-        Identical to <code>read_some</code> / <code>read_all</code> but
-        operate on <code>::std::byte*</code> instead of
-        <code>char*</code>. Use these for binary data.
+        与 <code>read_some</code> / <code>read_all</code> 相同，但作用于 <code>::std::byte*</code>。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -93,14 +80,10 @@ int main() {
     <section>
       <h2>3. pread_some / pread_all</h2>
       <p>
-        <strong>Positional reads</strong> &mdash; read at a given file offset
-        without changing the file&rsquo;s current position. This mirrors
-        POSIX <code>pread()</code>. Useful for concurrent readers that must
-        not disturb each other&rsquo;s file position.
+        <strong>按位置读取</strong> &mdash; 在给定的文件偏移处读取，而不改变文件位置。
       </p>
       <p>
-        The signature takes an extra <code>offset</code> parameter (in bytes
-        from the start of the file).
+        签名多了一个 <code>offset</code> 参数（从文件开头算起的字节数）。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -124,8 +107,7 @@ int main() {
     <section>
       <h2>4. pread_some_bytes / pread_all_bytes</h2>
       <p>
-        Same as <code>pread_some</code> / <code>pread_all</code> but accept
-        <code>::std::byte*</code>. Use for binary positional reads.
+        与 <code>pread_some</code> / <code>pread_all</code> 相同，但接受 <code>::std::byte*</code>。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -146,14 +128,10 @@ int main() {
     <section>
       <h2>5. scatter_read_some / scatter_read_all</h2>
       <p>
-        <strong>Scatter (gather) reads</strong> read into multiple non-contiguous
-        buffers in a single syscall &mdash; equivalent to POSIX
-        <code>readv()</code>. This avoids copying data into a temporary
-        contiguous buffer and then distributing it.
+        <strong>散布（聚集）读取</strong>在一次系统调用中读入多个不连续的缓冲区。
       </p>
       <p>
-        The argument is a span of <code>::fast_io::io_scatter_t</code>, each
-        describing one base/length pair.
+        参数是一个 <code>::fast_io::io_scatter_t</code> 的 span，每一项描述一个 base/length 对。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -181,9 +159,7 @@ int main() {
     <section>
       <h2>6. scatter_pread_some / scatter_pread_all</h2>
       <p>
-        Combines scatter reads with positional reads &mdash; reads into multiple
-        buffers from a given offset without changing the file position. This is
-        the scatter equivalent of <code>preadv()</code>.
+        把散布读取与按位置读取结合起来 &mdash; 从给定偏移处读入多个缓冲区。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -209,15 +185,10 @@ int main() {
     <section>
       <h2>8. write_some / write_all</h2>
       <p>
-        <code>write_some</code> attempts to write a contiguous buffer to a
-        device. It <strong>may write fewer bytes than requested</strong> and
-        returns a pointer to the first unwritten character. This mirrors the
-        semantics of POSIX <code>write()</code> &mdash; a short write is not an
-        error.
+        <code>write_some</code> 尝试把一段连续缓冲区写入设备。它<strong>可能只写入一部分</strong>，并返回第一个未写出的位置。
       </p>
       <p>
-        <code>write_all</code> loops internally until every byte has been
-        written or a hard error occurs. This is what you usually want.
+        <code>write_all</code> 在内部循环，直到每个字节都被写出，或者发生硬错误为止。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -243,9 +214,7 @@ int main() {
     <section>
       <h2>9. write_some_bytes / write_all_bytes</h2>
       <p>
-        Identical to <code>write_some</code> / <code>write_all</code> but
-        operate on <code>::std::byte const*</code> instead of
-        <code>char const*</code>. Use these for binary data.
+        与 <code>write_some</code> / <code>write_all</code> 相同，但作用于 <code>::std::byte const*</code>。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -272,14 +241,10 @@ int main() {
     <section>
       <h2>10. pwrite_some / pwrite_all</h2>
       <p>
-        <strong>Positional writes</strong> &mdash; write at a given file offset
-        without changing the file&rsquo;s current position. This mirrors
-        POSIX <code>pwrite()</code>. Useful for concurrent writers that must
-        not disturb each other&rsquo;s file position.
+        <strong>按位置写入</strong> &mdash; 在给定的文件偏移处写入，而不改变文件位置。
       </p>
       <p>
-        The signature takes an extra <code>offset</code> parameter (in bytes
-        from the start of the file).
+        签名多了一个 <code>offset</code> 参数（从文件开头算起的字节数）。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -304,8 +269,7 @@ int main() {
     <section>
       <h2>11. pwrite_some_bytes / pwrite_all_bytes</h2>
       <p>
-        Same as <code>pwrite_some</code> / <code>pwrite_all</code> but accept
-        <code>::std::byte const*</code>. Use for binary positional writes.
+        与 <code>pwrite_some</code> / <code>pwrite_all</code> 相同，但接受 <code>::std::byte const*</code>。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -329,14 +293,10 @@ int main() {
     <section>
       <h2>12. scatter_write_some / scatter_write_all</h2>
       <p>
-        <strong>Scatter (gather) writes</strong> write multiple non-contiguous
-        buffers in a single syscall &mdash; equivalent to POSIX
-        <code>writev()</code>. This avoids copying scattered data into a
-        temporary contiguous buffer.
+        <strong>散布（聚集）写入</strong>在一次系统调用中写出多个不连续的缓冲区。
       </p>
       <p>
-        The argument is a span of <code>::fast_io::io_scatter_t</code>, each
-        describing one base/length pair.
+        参数是一个 <code>::fast_io::io_scatter_t</code> 的 span，每一项描述一个 base/length 对。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -364,9 +324,7 @@ int main() {
     <section>
       <h2>13. scatter_pwrite_some / scatter_pwrite_all</h2>
       <p>
-        Combines scatter writes with positional writes &mdash; writes multiple
-        buffers at a given offset without changing the file position. This is
-        the scatter equivalent of <code>pwritev()</code>.
+        把散布写入与按位置写入结合起来 &mdash; 在给定偏移处写出多个缓冲区。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -393,8 +351,7 @@ int main() {
     <section>
       <h2>14. char_put</h2>
       <p>
-        Writes a single character. All write variants also have a
-        <code>char_put</code> counterpart for emitting one character at a time.
+        写出单个字符。所有写变体都有对应的 <code>char_put</code> 版本，用于逐字符写入。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -409,226 +366,222 @@ int main() {
 }
 </code></pre>
       <p>
-        For buffered devices (<code>obuf_file</code>), repeated
-        <code>char_put</code> calls are cheap &mdash; they just write into the
-        user-space buffer. For unbuffered devices (<code>native_file</code>),
-        each <code>char_put</code> is a syscall &mdash; extremely slow. See
-        <a href="/zhcn/docs/11.io/05.buffered/">Ch11.5</a>.
+        对带缓冲的设备（<code>obuf_file</code>），反复调用 <code>char_put</code> 很便宜；对不带缓冲的设备则代价极高。
       </p>
     </section>
 
     <section>
-      <h2>15. Complete Reference Table</h2>
+      <h2>15. 完整参考表</h2>
       <table>
         <thead>
           <tr>
-            <th>Operation</th>
-            <th>Pointer Type</th>
-            <th>Read/Write</th>
-            <th>Positional?</th>
-            <th>Scatter?</th>
-            <th>Loops?</th>
+            <th>操作</th>
+            <th>指针类型</th>
+            <th>读/写</th>
+            <th>按位置？</th>
+            <th>散布？</th>
+            <th>是否循环？</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>read_some</code></td>
             <td><code>char*</code></td>
-            <td>Read</td>
-            <td>No</td>
-            <td>No</td>
-            <td>No (partial OK)</td>
+            <td>读</td>
+            <td>否</td>
+            <td>否</td>
+            <td>否（允许部分）</td>
           </tr>
           <tr>
             <td><code>read_all</code></td>
             <td><code>char*</code></td>
-            <td>Read</td>
-            <td>No</td>
-            <td>No</td>
-            <td>Yes</td>
+            <td>读</td>
+            <td>否</td>
+            <td>否</td>
+            <td>是</td>
           </tr>
           <tr>
             <td><code>read_some_bytes</code></td>
             <td><code>::std::byte*</code></td>
-            <td>Read</td>
-            <td>No</td>
-            <td>No</td>
-            <td>No (partial OK)</td>
+            <td>读</td>
+            <td>否</td>
+            <td>否</td>
+            <td>否（允许部分）</td>
           </tr>
           <tr>
             <td><code>read_all_bytes</code></td>
             <td><code>::std::byte*</code></td>
-            <td>Read</td>
-            <td>No</td>
-            <td>No</td>
-            <td>Yes</td>
+            <td>读</td>
+            <td>否</td>
+            <td>否</td>
+            <td>是</td>
           </tr>
           <tr>
             <td><code>pread_some</code></td>
             <td><code>char*</code></td>
-            <td>Read</td>
-            <td>Yes</td>
-            <td>No</td>
-            <td>No (partial OK)</td>
+            <td>读</td>
+            <td>是</td>
+            <td>否</td>
+            <td>否（允许部分）</td>
           </tr>
           <tr>
             <td><code>pread_all</code></td>
             <td><code>char*</code></td>
-            <td>Read</td>
-            <td>Yes</td>
-            <td>No</td>
-            <td>Yes</td>
+            <td>读</td>
+            <td>是</td>
+            <td>否</td>
+            <td>是</td>
           </tr>
           <tr>
             <td><code>pread_some_bytes</code></td>
             <td><code>::std::byte*</code></td>
-            <td>Read</td>
-            <td>Yes</td>
-            <td>No</td>
-            <td>No (partial OK)</td>
+            <td>读</td>
+            <td>是</td>
+            <td>否</td>
+            <td>否（允许部分）</td>
           </tr>
           <tr>
             <td><code>pread_all_bytes</code></td>
             <td><code>::std::byte*</code></td>
-            <td>Read</td>
-            <td>Yes</td>
-            <td>No</td>
-            <td>Yes</td>
+            <td>读</td>
+            <td>是</td>
+            <td>否</td>
+            <td>是</td>
           </tr>
           <tr>
             <td><code>scatter_read_some</code></td>
-            <td><code>char</code> (scatter)</td>
-            <td>Read</td>
-            <td>No</td>
-            <td>Yes</td>
-            <td>No (partial OK)</td>
+            <td><code>char</code>（散布）</td>
+            <td>读</td>
+            <td>否</td>
+            <td>是</td>
+            <td>否（允许部分）</td>
           </tr>
           <tr>
             <td><code>scatter_read_all</code></td>
-            <td><code>char</code> (scatter)</td>
-            <td>Read</td>
-            <td>No</td>
-            <td>Yes</td>
-            <td>Yes</td>
+            <td><code>char</code>（散布）</td>
+            <td>读</td>
+            <td>否</td>
+            <td>是</td>
+            <td>是</td>
           </tr>
           <tr>
             <td><code>scatter_pread_some</code></td>
-            <td><code>char</code> (scatter)</td>
-            <td>Read</td>
-            <td>Yes</td>
-            <td>Yes</td>
-            <td>No (partial OK)</td>
+            <td><code>char</code>（散布）</td>
+            <td>读</td>
+            <td>是</td>
+            <td>是</td>
+            <td>否（允许部分）</td>
           </tr>
           <tr>
             <td><code>scatter_pread_all</code></td>
-            <td><code>char</code> (scatter)</td>
-            <td>Read</td>
-            <td>Yes</td>
-            <td>Yes</td>
-            <td>Yes</td>
+            <td><code>char</code>（散布）</td>
+            <td>读</td>
+            <td>是</td>
+            <td>是</td>
+            <td>是</td>
           </tr>
           <tr>
             <td><code>write_some</code></td>
             <td><code>char const*</code></td>
-            <td>Write</td>
-            <td>No</td>
-            <td>No</td>
-            <td>No (partial OK)</td>
+            <td>写</td>
+            <td>否</td>
+            <td>否</td>
+            <td>否（允许部分）</td>
           </tr>
           <tr>
             <td><code>write_all</code></td>
             <td><code>char const*</code></td>
-            <td>Write</td>
-            <td>No</td>
-            <td>No</td>
-            <td>Yes</td>
+            <td>写</td>
+            <td>否</td>
+            <td>否</td>
+            <td>是</td>
           </tr>
           <tr>
             <td><code>write_some_bytes</code></td>
             <td><code>::std::byte const*</code></td>
-            <td>Write</td>
-            <td>No</td>
-            <td>No</td>
-            <td>No (partial OK)</td>
+            <td>写</td>
+            <td>否</td>
+            <td>否</td>
+            <td>否（允许部分）</td>
           </tr>
           <tr>
             <td><code>write_all_bytes</code></td>
             <td><code>::std::byte const*</code></td>
-            <td>Write</td>
-            <td>No</td>
-            <td>No</td>
-            <td>Yes</td>
+            <td>写</td>
+            <td>否</td>
+            <td>否</td>
+            <td>是</td>
           </tr>
           <tr>
             <td><code>pwrite_some</code></td>
             <td><code>char const*</code></td>
-            <td>Write</td>
-            <td>Yes</td>
-            <td>No</td>
-            <td>No (partial OK)</td>
+            <td>写</td>
+            <td>是</td>
+            <td>否</td>
+            <td>否（允许部分）</td>
           </tr>
           <tr>
             <td><code>pwrite_all</code></td>
             <td><code>char const*</code></td>
-            <td>Write</td>
-            <td>Yes</td>
-            <td>No</td>
-            <td>Yes</td>
+            <td>写</td>
+            <td>是</td>
+            <td>否</td>
+            <td>是</td>
           </tr>
           <tr>
             <td><code>pwrite_some_bytes</code></td>
             <td><code>::std::byte const*</code></td>
-            <td>Write</td>
-            <td>Yes</td>
-            <td>No</td>
-            <td>No (partial OK)</td>
+            <td>写</td>
+            <td>是</td>
+            <td>否</td>
+            <td>否（允许部分）</td>
           </tr>
           <tr>
             <td><code>pwrite_all_bytes</code></td>
             <td><code>::std::byte const*</code></td>
-            <td>Write</td>
-            <td>Yes</td>
-            <td>No</td>
-            <td>Yes</td>
+            <td>写</td>
+            <td>是</td>
+            <td>否</td>
+            <td>是</td>
           </tr>
           <tr>
             <td><code>scatter_write_some</code></td>
-            <td><code>char</code> (scatter)</td>
-            <td>Write</td>
-            <td>No</td>
-            <td>Yes</td>
-            <td>No (partial OK)</td>
+            <td><code>char</code>（散布）</td>
+            <td>写</td>
+            <td>否</td>
+            <td>是</td>
+            <td>否（允许部分）</td>
           </tr>
           <tr>
             <td><code>scatter_write_all</code></td>
-            <td><code>char</code> (scatter)</td>
-            <td>Write</td>
-            <td>No</td>
-            <td>Yes</td>
-            <td>Yes</td>
+            <td><code>char</code>（散布）</td>
+            <td>写</td>
+            <td>否</td>
+            <td>是</td>
+            <td>是</td>
           </tr>
           <tr>
             <td><code>scatter_pwrite_some</code></td>
-            <td><code>char</code> (scatter)</td>
-            <td>Write</td>
-            <td>Yes</td>
-            <td>Yes</td>
-            <td>No (partial OK)</td>
+            <td><code>char</code>（散布）</td>
+            <td>写</td>
+            <td>是</td>
+            <td>是</td>
+            <td>否（允许部分）</td>
           </tr>
           <tr>
             <td><code>scatter_pwrite_all</code></td>
-            <td><code>char</code> (scatter)</td>
-            <td>Write</td>
-            <td>Yes</td>
-            <td>Yes</td>
-            <td>Yes</td>
+            <td><code>char</code>（散布）</td>
+            <td>写</td>
+            <td>是</td>
+            <td>是</td>
+            <td>是</td>
           </tr>
           <tr>
             <td><code>char_put</code></td>
-            <td>single <code>char</code></td>
-            <td>Write</td>
-            <td>No</td>
-            <td>No</td>
+            <td>单个 <code>char</code></td>
+            <td>写</td>
+            <td>否</td>
+            <td>否</td>
             <td>N/A</td>
           </tr>
         </tbody>
@@ -636,26 +589,24 @@ int main() {
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li><code>read_some</code> may do a partial read &mdash; it returns past the last byte read. <code>read_all</code> loops until the buffer is full or EOF.</li>
-        <li><code>write_some</code> may do a partial write &mdash; it returns the first unwritten position. <code>write_all</code> loops until everything is written.</li>
-        <li>Every operation has a <code>_bytes</code> variant that takes <code>::std::byte*</code> (or <code>::std::byte const*</code> for writes) for binary data.</li>
-        <li><code>pread_*</code> operations read at a given offset without changing the file position (like POSIX <code>pread()</code>).</li>
-        <li><code>pwrite_*</code> operations write at a given offset without changing the file position (like POSIX <code>pwrite()</code>).</li>
-        <li><code>scatter_read_*</code> reads into multiple buffers in one syscall (like POSIX <code>readv()</code>) &mdash; avoids copying into a temporary contiguous buffer.</li>
-        <li><code>scatter_write_*</code> writes multiple buffers in one syscall (like POSIX <code>writev()</code>) &mdash; avoids copying into a temporary contiguous buffer.</li>
-        <li><code>scatter_pread_*</code> and <code>scatter_pwrite_*</code> combine scatter with positional reads/writes.</li>
-        <li><code>char_put</code> writes a single character &mdash; cheap on buffered devices, catastrophically slow on unbuffered ones.</li>
-        <li>Prefer <code>read_all</code> / <code>write_all</code> (or buffered <code>::fast_io::io::print</code> / <code>::fast_io::io::scan</code>) for most code. Reach for <code>read_some</code> / <code>write_some</code> only when you need to handle partial reads/writes yourself.</li>
+        <li><code>read_some</code> 可能只做部分读取 &mdash; 它返回最后读到的字节之后的位置。</li>
+        <li><code>write_some</code> 可能只做部分写入 &mdash; 它返回第一个未写出的位置。</li>
+        <li>每个操作都有一个 <code>_bytes</code> 变体，接受 <code>::std::byte*</code>（以及对应的 <code>::std::byte const*</code>）。</li>
+        <li><code>pread_*</code> 系列在给定偏移处读取，而不改变文件位置。</li>
+        <li><code>pwrite_*</code> 系列在给定偏移处写入，而不改变文件位置。</li>
+        <li><code>scatter_read_*</code> 在一次系统调用中读入多个缓冲区（类似 POSIX 的 <code>readv</code>）。</li>
+        <li><code>scatter_write_*</code> 在一次系统调用中写出多个缓冲区（类似 POSIX 的 <code>writev</code>）。</li>
+        <li><code>scatter_pread_*</code> 与 <code>scatter_pwrite_*</code> 把散布与按位置操作结合起来。</li>
+        <li><code>char_put</code> 写出单个字符 &mdash; 在带缓冲设备上便宜，在不带缓冲设备上灾难性地昂贵。</li>
+        <li>优先使用 <code>read_all</code> / <code>write_all</code>（或者带缓冲的 <code>::fast_io::io::</code> 设施），而不是自己循环 <code>read_some</code> / <code>write_some</code>。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/03.manipulators/" class="prev-button">&larr; Ch11.3: Manipulators</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/05.buffered/" class="next-button">Ch11.5: Buffered vs Unbuffered I/O &rarr;</a>
+      <a href="/zhcn/docs/11.io/03.manipulators/" class="prev-button">&larr; 第11.3章: 操纵器</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/05.buffered/" class="next-button">第11.5章: 带缓冲与不带缓冲的 I/O &rarr;</a>
     </div>
   </main>
 </body>
