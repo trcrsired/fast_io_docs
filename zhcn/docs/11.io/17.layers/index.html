@@ -3,83 +3,67 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.17: Relationship Between File Layers - C++ Tutorial with fast_io</title>
+  <title>第11.17章: 文件各层之间的关系 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.17: Relationship Between File Layers</h1>
+    <h1>第11.17章: 文件各层之间的关系</h1>
     <p class="lang-switch"><a href="/docs/11.io/17.layers/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Why This Chapter Matters</h2>
+      <h2>为什么这一章重要</h2>
       <p>
-        So far we have met six families of file types: <code>wine</code>, <code>nt</code>,
-        <code>win32</code>, <code>posix</code>, <code>c</code>, and <code>filebuf</code>.
-        They look like separate, parallel APIs &mdash; but they are not. They form a
-        <strong>stack</strong>, and every layer is implemented in terms of the one below it.
+        到目前为止我们见到了六个文件类型家族：<code>wine</code>、<code>nt</code>、<code>win32</code>、<code>posix</code>、<code>c</code> 和 <code>filebuf</code>。它们看起来像是彼此平行、互不相干的 API &mdash; 但并不是。它们构成一个<strong>栈</strong>，每一层都是用下面那层实现的。
       </p>
       <p>
-        Understanding this stack is the key to using <code>fast_io</code> well. It explains
-        why <code>iobuf_file</code> &ldquo;just works&rdquo; on every platform, why you can
-        freely mix layers, and what <code>native_file</code> really means.
+        理解这个栈是良好使用 <code>fast_io</code> 的关键。它解释了为什么 <code>iobuf_file</code> 在每个平台上都“就是能用”、为什么你可以自由混用各层，以及 <code>native_file</code> 真正意味着什么。
       </p>
     </section>
 
     <section>
-      <h2>The Layer Hierarchy</h2>
+      <h2>层次结构</h2>
       <p>
-        From the lowest layer (closest to the kernel) to the highest layer:
+        从最底层（最接近内核）到最高层：
       </p>
       <ul>
-        <li><strong>Layer 1:</strong> <code>wine</code> (lowest, Wine translation layer)</li>
-        <li><strong>Layer 2:</strong> <code>nt</code> / <code>zw</code> (NT kernel interface, Nt* and Zw* functions are identical in user space)</li>
-        <li><strong>Layer 3:</strong> <code>win32</code> (Win32 API)</li>
-        <li><strong>Layer 4:</strong> <code>posix</code> (POSIX file descriptors)</li>
-        <li><strong>Layer 5:</strong> <code>c</code> (C stdlib FILE*)</li>
-        <li><strong>Layer 6:</strong> <code>filebuf</code> (C++ stdlib, highest)</li>
+        <li><strong>第 1 层：</strong><code>wine</code>（最低层，Wine 翻译层）</li>
+        <li><strong>第 2 层：</strong><code>nt</code> / <code>zw</code>（NT 内核接口，Nt* 与 Zw* 函数在用户空间完全相同）</li>
+        <li><strong>第 3 层：</strong><code>win32</code>（Win32 API）</li>
+        <li><strong>第 4 层：</strong><code>posix</code>（POSIX 文件描述符）</li>
+        <li><strong>第 5 层：</strong><code>c</code>（C 标准库 FILE*）</li>
+        <li><strong>第 6 层：</strong><code>filebuf</code>（C++ 标准库，最高层）</li>
       </ul>
       <p>
-        <strong>These 6 layers exist in <em>all</em> programming languages</strong>, not just C++.
-        Every modern language is built on top of C or C++ runtimes, or uses the same OS APIs
-        directly. When you do file I/O in Python, Java, Rust, Go, or any other language, you're
-        ultimately going through these same layers:
+        <strong>这 6 层在<em>所有</em>编程语言中都存在</strong>，不只是 C++。每种现代语言都建立在 C 或 C++ 运行时之上，或者直接使用同样的操作系统 API。当你在 Python、Java、Rust、Go 或任何其他语言里做文件 I/O 时，最终都要经过同样的这些层：
       </p>
       <ul>
-        <li>Python's <code>open()</code> uses CPython's C implementation, which calls libc</li>
-        <li>Java's <code>FileInputStream</code> uses JNI to call C/C++ code</li>
-        <li>Rust's <code>std::fs::File</code> calls OS APIs directly or through libc</li>
-        <li>Go's <code>os.Open</code> uses cgo to call C functions or direct syscalls</li>
-        <li>Node.js uses libuv, which wraps POSIX/Win32 APIs</li>
+        <li>Python 的 <code>open()</code> 使用 CPython 的 C 实现，后者调用 libc</li>
+        <li>Java 的 <code>FileInputStream</code> 用 JNI 调用 C/C++ 代码</li>
+        <li>Rust 的 <code>std::fs::File</code> 直接调用操作系统 API，或者经由 libc</li>
+        <li>Go 的 <code>os.Open</code> 用 cgo 调用 C 函数，或者直接发起系统调用</li>
+        <li>Node.js 使用 libuv，而 libuv 包装 POSIX/Win32 API</li>
       </ul>
       <p>
-        Understanding these layers helps you understand how <em>any</em> language's file I/O works
-        under the hood, not just C++. <strong>Therefore, understanding them is crucial for working
-        with any programming language</strong> &mdash; whether you're debugging performance issues
-        in Python, understanding why Java's file operations behave a certain way, or optimizing
-        I/O in Rust, the same principles apply.
+        理解这些层能帮你理解<em>任何</em>语言的文件 I/O 在底下是如何工作的，而不只是 C++。<strong>因此，理解它们对使用任何编程语言都至关重要</strong> &mdash; 无论是在 Python 里调试性能问题、理解 Java 的文件操作为何表现出某种行为，还是在 Rust 里优化 I/O，同样的原理都适用。
       </p>
       <p>
-        Written as a chain, with the arrow meaning &ldquo;is built on top of&rdquo;:
+        写成一串链条，箭头表示“建立在……之上”：
       </p>
       <pre><code>
     wine (1)  =&gt;  nt/zw (2)  =&gt;  win32 (3)  =&gt;  posix (4)  =&gt;  c (5)  =&gt;  filebuf (6)
       </code></pre>
       <p>
-        Each layer <strong>wraps the one below it</strong>. When that is not possible
-        (because the layer below does not expose a usable API), the layer calls the
-        underlying system call directly and wraps <em>that</em>.
+        每一层都<strong>包装它下面那层</strong>。当这不可能时（因为下面那层没有暴露可用的 API），这一层就直接调用底层系统调用并包装<em>那个</em>。
       </p>
     </section>
 
     <section>
-      <h2>Layer Diagram</h2>
+      <h2>层次图</h2>
       <p>
-        The layer stack is <strong>platform-specific</strong>. Not all layers are present on every
-        platform. Here is the general hierarchy showing all possible layers:
+        这个层栈是<strong>平台相关</strong>的，并非每个平台都有全部层。下面是展示所有可能层的一般层次：
       </p>
       <pre><code>
     +------------------------------------------------+
@@ -115,19 +99,18 @@
               [ kernel ]
       </code></pre>
       <p>
-        <strong>Note:</strong> This is a simplified overview. The actual layers depend on the platform.
-        Not all layers are present on every platform:
+        <strong>注意：</strong>这是一个简化的概览。实际的层取决于平台，并非每个平台都有全部层：
       </p>
       <ul>
-        <li><strong>On POSIX systems</strong> (Linux, macOS, FreeBSD): Only layers 4-6 are present (libc POSIX fd, libc FILE*, filebuf). Layers 1-3 (wine, nt, win32) do not exist.</li>
-        <li><strong>On Windows</strong> (native): All layers 2-6 are present (NT HANDLE, Win32 HANDLE, CRT fd, CRT FILE*, filebuf). The CRT file descriptors (layer 4) exist through the C runtime (MSVCRT/UCRT) and are wrappers around HANDLEs internally.</li>
-        <li><strong>On Wine</strong>: All layers may be present. Wine translates Windows API calls (layers 2-3) into host POSIX calls (layer 4), then into the host kernel.</li>
+        <li><strong>在 POSIX 系统上</strong>（Linux、macOS、FreeBSD）：只有第 4-6 层存在（libc POSIX fd、libc FILE*、filebuf）。第 1-3 层（wine、nt、win32）不存在。</li>
+        <li><strong>在 Windows 上</strong>（原生）：第 2-6 层都存在（NT HANDLE、Win32 HANDLE、CRT fd、CRT FILE*、filebuf）。CRT 文件描述符（第 4 层）由 C 运行时（MSVCRT/UCRT）提供，内部是 HANDLE 的包装。</li>
+        <li><strong>在 Wine 上</strong>：所有层都可能存在。Wine 把 Windows API 调用（第 2-3 层）翻译成宿主 POSIX 调用（第 4 层），再进入宿主内核。</li>
       </ul>
       <p>
-        Below are the detailed diagrams for each typical platform:
+        下面是每个典型平台的详细图示。
       </p>
 
-      <h3>On POSIX Systems (Linux, macOS, FreeBSD, etc.)</h3>
+      <h3>在 POSIX 系统上（Linux、macOS、FreeBSD 等）</h3>
       <pre><code>
     +------------------------------------------------+
     |       std::filebuf  (C++ stdlib)               |  &lt;- filebuf_file (Layer 6)
@@ -152,12 +135,10 @@
           [ kernel ]
       </code></pre>
       <p>
-        On POSIX systems, the stack is straightforward: C++ stdlib wraps libc, which provides
-        both <code>FILE*</code> and POSIX file descriptors, which wrap system calls that enter
-        the kernel. Both <code>FILE*</code> and POSIX file descriptors are part of libc.
+        在 POSIX 系统上，这个栈很直接：C++ 标准库包装 libc，libc 同时提供 <code>FILE*</code> 和 POSIX 文件描述符，后者包装进入内核的系统调用。<code>FILE*</code> 与 POSIX 文件描述符都是 libc 的一部分。
       </p>
 
-      <h3>On Windows (Native)</h3>
+      <h3>在 Windows 上（原生）</h3>
       <pre><code>
     +------------------------------------------------+
     |       std::filebuf  (C++ stdlib)               |  &lt;- filebuf_file (Layer 6)
@@ -187,14 +168,10 @@
           [ kernel: ntoskrnl.exe ]
       </code></pre>
       <p>
-        On Windows, the CRT (C Runtime: MSVCRT or UCRT) provides both <code>FILE*</code> (layer 5)
-        and file descriptors (layer 4). The file descriptors are wrappers around Win32 HANDLEs &mdash;
-        internally, the CRT calls <code>CreateFileW</code> and stores the HANDLE, then returns a
-        small integer file descriptor that maps to that HANDLE. You can convert between them using
-        <code>_get_osfhandle(fd)</code> and <code>_open_osfhandle(handle, flags)</code> (see Ch11.14).
+        在 Windows 上，CRT（C 运行时：MSVCRT 或 UCRT）同时提供 <code>FILE*</code>（第 5 层）和文件描述符（第 4 层）。文件描述符是 Win32 HANDLE 的包装 &mdash; 内部上，CRT 调用 <code>CreateFileW</code> 并保存 HANDLE，然后返回一个映射到该 HANDLE 的小整数文件描述符。你可以用 <code>_get_osfhandle(fd)</code> 与 <code>_open_osfhandle(handle, flags)</code> 在两者之间转换（见第11.14章）。
       </p>
 
-      <h3>On Wine (Windows Programs on POSIX Host)</h3>
+      <h3>在 Wine 上（POSIX 宿主上的 Windows 程序）</h3>
       <pre><code>
     +------------------------------------------------+
     |       std::filebuf  (C++ stdlib)               |  &lt;- filebuf_file (Layer 6)
@@ -239,113 +216,70 @@
           [ host kernel: Linux, macOS, etc. ]
       </code></pre>
       <p>
-        On Wine, the Windows layers (CRT, Win32, NT) are present, but Wine translates NT syscalls into
-        host POSIX syscalls. So the call chain goes through Wine's translation layer (layer 1), then into
-        the host's libc, then into the host kernel. This is why Wine programs can run on
-        Linux, macOS, and FreeBSD.
+        在 Wine 上，Windows 各层（CRT、Win32、NT）都存在，但 Wine 把 NT 系统调用翻译成宿主 POSIX 系统调用。所以调用链经过 Wine 的翻译层（第 1 层），然后进入宿主的 libc，再进入宿主内核。这就是 Wine 程序能在 Linux、macOS 和 FreeBSD 上运行的原因。
       </p>
       <p>
-        Each layer corresponds to a real system component:
+        每一层都对应一个真实的系统组件：
       </p>
       <ul>
         <li>
-          <strong>filebuf</strong> &mdash; the C++ standard library (<code>libstdc++</code>,
-          <code>libc++</code>, or MSVC&rsquo;s STL). On Windows these ship as
-          <code>libstdc++-6.dll</code> (MinGW), <code>libc++.dll</code> / <code>c++.dll</code>
-          (LLVM libc++ &mdash; <code>libc++.dll</code> for <code>${CPU}-windows-gnu</code>,
-          <code>c++.dll</code> for <code>${CPU}-windows-msvc</code>), or
-          <code>msvcp{version}.dll</code> (MSVC, e.g. <code>msvcp140.dll</code>).
+          <strong>filebuf</strong> &mdash; C++ 标准库（<code>libstdc++</code>、<code>libc++</code>，或 MSVC 的 STL）。在 Windows 上它们以 <code>libstdc++-6.dll</code>（MinGW）、<code>libc++.dll</code> / <code>c++.dll</code>（LLVM libc++ &mdash; <code>${CPU}-windows-gnu</code> 用 <code>libc++.dll</code>，<code>${CPU}-windows-msvc</code> 用 <code>c++.dll</code>）或 <code>msvcp{version}.dll</code>（MSVC，例如 <code>msvcp140.dll</code>）的形式存在。
         </li>
         <li>
-          <strong>c</strong> &mdash; libc (<code>glibc</code>, <code>musl</code>,
-          <code>msvcrt.dll</code>/<code>ucrt</code>). <code>FILE*</code>, <code>fopen</code>,
-          <code>fread</code>, <code>fprintf</code>, and <code>printf</code> live here. On POSIX
-          systems, libc also provides the POSIX file descriptor layer (layer 4).
+          <strong>c</strong> &mdash; libc（<code>glibc</code>、<code>musl</code>、<code>msvcrt.dll</code>/<code>ucrt</code>）。<code>FILE*</code>、<code>fopen</code>、<code>fread</code>、<code>fprintf</code> 和 <code>printf</code> 住在这里。在 POSIX 系统上，libc 还提供 POSIX 文件描述符层（第 4 层）。
         </li>
         <li>
-          <strong>posix</strong> &mdash; POSIX file descriptors and syscalls (<code>open</code>,
-          <code>read</code>, <code>write</code>, <code>close</code>). This is part of libc on
-          Linux/macOS/FreeBSD. On Windows, there is no native POSIX layer (except through
-          compatibility layers).
+          <strong>posix</strong> &mdash; POSIX 文件描述符与系统调用（<code>open</code>、<code>read</code>、<code>write</code>、<code>close</code>）。在 Linux/macOS/FreeBSD 上这是 libc 的一部分。在 Windows 上没有原生 POSIX 层（兼容层除外）。
         </li>
         <li>
-          <strong>win32</strong> &mdash; <strong>kernel32.dll</strong> on Windows.
-          <code>CreateFileW</code>, <code>ReadFile</code>, <code>WriteFile</code>, and other
-          Win32 file APIs live here. This is the &ldquo;traditional&rdquo; Windows API.
+          <strong>win32</strong> &mdash; Windows 上的 <strong>kernel32.dll</strong>。<code>CreateFileW</code>、<code>ReadFile</code>、<code>WriteFile</code> 以及其他 Win32 文件 API 住在这里。这是“传统的”Windows API。
         </li>
         <li>
-          <strong>nt</strong> &mdash; <strong>ntdll.dll</strong> on Windows.
-          <code>NtCreateFile</code>, <code>NtReadFile</code>, <code>NtWriteFile</code>, and
-          other native NT APIs live here. This is the <strong>real</strong> Windows kernel
-          interface &mdash; kernel32.dll itself is built on top of ntdll.dll.
+          <strong>nt</strong> &mdash; Windows 上的 <strong>ntdll.dll</strong>。<code>NtCreateFile</code>、<code>NtReadFile</code>、<code>NtWriteFile</code> 以及其他原生 NT API 住在这里。这是<strong>真正的</strong> Windows 内核接口 &mdash; kernel32.dll 本身也是建立在 ntdll.dll 之上的。
         </li>
         <li>
-          <strong>zw</strong> &mdash; Also in <strong>ntdll.dll</strong>. <code>ZwCreateFile</code>,
-          <code>ZwReadFile</code>, <code>ZwWriteFile</code>, etc. In user space, <code>Nt*</code>
-          and <code>Zw*</code> functions are <strong>identical</strong> &mdash; they both call
-          into the kernel. The difference is only in the kernel: <code>Nt*</code> functions
-          validate parameters (for calls from user mode), while <code>Zw*</code> functions skip
-          parameter validation (for calls from trusted kernel mode code). <code>fast_io</code>
-          provides <code>::fast_io::zw_file</code> as an alias for <code>::fast_io::nt_file</code>
-          since they behave the same in user space.
+          <strong>zw</strong> &mdash; 也在 <strong>ntdll.dll</strong> 里。<code>ZwCreateFile</code>、<code>ZwReadFile</code>、<code>ZwWriteFile</code> 等。在用户空间，<code>Nt*</code> 与 <code>Zw*</code> 函数<strong>完全相同</strong> &mdash; 它们都调用进入内核。区别只在内核态：<code>Nt*</code> 函数校验指针参数（用于来自用户态的调用），而 <code>Zw*</code> 函数跳过参数校验（用于来自可信内核态代码的调用）。由于在用户空间行为相同，<code>fast_io</code> 把 <code>::fast_io::zw_file</code> 提供为 <code>::fast_io::nt_file</code> 的别名。
         </li>
         <li>
-          <strong>wine</strong> &mdash; Wine&rsquo;s translation layer. When running Windows
-          programs on Linux/macOS, Wine translates NT syscalls into host POSIX syscalls.
+          <strong>wine</strong> &mdash; Wine 的翻译层。在 Linux/macOS 上运行 Windows 程序时，Wine 把 NT 系统调用翻译成宿主 POSIX 系统调用。
         </li>
       </ul>
       <p>
-        So when you call <code>std::fstream</code>, the call chain on Windows is:
-        C++ stdlib &rarr; libc (MSVCRT/ucrt, <code>FILE*</code>) &rarr; kernel32.dll
-        (<code>CreateFileW</code>) &rarr; ntdll.dll (<code>NtCreateFile</code>) &rarr; kernel.
-        On Linux, it is: C++ stdlib &rarr; libc (glibc/musl, <code>FILE*</code> and POSIX fd) &rarr;
-        <code>open()</code>/<code>read()</code> syscalls &rarr; kernel.
+        所以当你调用 <code>std::fstream</code> 时，Windows 上的调用链是：C++ 标准库 &rarr; libc（MSVCRT/ucrt，<code>FILE*</code>）&rarr; kernel32.dll（<code>CreateFileW</code>）&rarr; ntdll.dll（<code>NtCreateFile</code>）&rarr; 内核。在 Linux 上则是：C++ 标准库 &rarr; libc（glibc/musl，<code>FILE*</code> 与 POSIX fd）&rarr; <code>open()</code>/<code>read()</code> 系统调用 &rarr; 内核。
       </p>
       <p>
-        <code>fast_io</code> lets you skip layers. If you want zero overhead, use
-        <code>native_file</code> to call the kernel directly. If you need compatibility with
-        legacy code, use <code>c_file</code> or <code>filebuf_file</code>. You choose the
-        layer that fits your needs.
+        <code>fast_io</code> 让你跳过一些层。如果你要不带缓冲地直接调用内核，就用 <code>native_file</code>；如果你需要与遗留代码兼容，就用 <code>c_file</code> 或 <code>filebuf_file</code>。你选适合自己需要的层。
       </p>
       <p>
-        On Linux, FreeBSD, and macOS, only the <code>posix</code> branch is used. On
-        Windows, the <code>nt</code> and <code>win32</code> branches are used. The
-        <code>wine</code> branch is only used when running under Wine on a POSIX host.
+        在 Linux、FreeBSD 和 macOS 上只用 <code>posix</code> 分支。在 Windows 上使用 <code>nt</code> 与 <code>win32</code> 分支。只有在 POSIX 宿主上运行于 Wine 下时才使用 <code>wine</code> 分支。
       </p>
       <p>
-        <strong>Platform availability:</strong>
+        <strong>平台可用性：</strong>
       </p>
       <ul>
-        <li><code>wine_file</code> is only available when compiling for Wine (running on a POSIX host).</li>
-        <li><code>nt_file</code> and <code>win32_file</code> are only available on Windows (and Wine).</li>
-        <li><code>posix_file</code> is available on all POSIX-compliant systems (Linux, macOS, FreeBSD, etc.) and also on Windows when using a POSIX compatibility layer.</li>
-        <li><code>c_file</code> and <code>filebuf_file</code> are available everywhere, since they rely on the C and C++ standard libraries.</li>
+        <li><code>wine_file</code> 只在为 Wine 编译时可用（运行在 POSIX 宿主上）。</li>
+        <li><code>nt_file</code> 与 <code>win32_file</code> 只在 Windows（以及 Wine）上可用。</li>
+        <li><code>posix_file</code> 在所有符合 POSIX 的系统（Linux、macOS、FreeBSD 等）上可用，在使用 POSIX 兼容层时在 Windows 上也可用。</li>
+        <li><code>c_file</code> 与 <code>filebuf_file</code> 到处都可用，因为它们依赖 C 与 C++ 标准库。</li>
       </ul>
       <p>
-        <strong>Important:</strong> These relationships are <strong>not</strong> defined by
-        <code>fast_io</code>. They are defined by the operating system and the compiler&rsquo;s
-        C/C++ runtime vendors. For example, on POSIX systems, libc&rsquo;s
-        <code>FILE*</code> is implemented on top of POSIX file descriptors by the libc
-        implementation (glibc, musl, etc.), and the C++ stdlib&rsquo;s
-        <code>::std::filebuf</code> is implemented on top of <code>FILE*</code> by the C++
-        runtime library. <code>fast_io</code> merely summarizes and wraps these existing
-        relationships &mdash; it does not invent new ones.
+        <strong>重要：</strong>这些关系<strong>不是</strong>由 <code>fast_io</code> 定义的，而是由操作系统和编译器的 C/C++ 运行时供应商定义的。例如在 POSIX 系统上，libc 的 <code>FILE*</code> 是由 libc 实现（glibc、musl 等）建立在 POSIX 文件描述符之上的，而 C++ 标准库的 <code>::std::filebuf</code> 是由 C++ 运行时库建立在 <code>FILE*</code> 之上的。<code>fast_io</code> 只是总结并包装这些既有的关系 &mdash; 它不发明新的关系。
       </p>
     </section>
 
     <section>
-      <h2>Complete Layer Reference</h2>
+      <h2>完整的层参考</h2>
       <p>
-        The following table summarizes all the file layers, their types, and what they wrap:
+        下表总结了所有文件层、它们的类型以及各自包装什么：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Layer</th>
-            <th>Owning type</th>
-            <th>Observer type</th>
-            <th>Handle name</th>
-            <th>Wraps</th>
+            <th>层</th>
+            <th>拥有式类型</th>
+            <th>观察者类型</th>
+            <th>句柄名</th>
+            <th>包装</th>
           </tr>
         </thead>
         <tbody>
@@ -354,7 +288,7 @@
             <td><code>::fast_io::wine_file</code></td>
             <td><code>::fast_io::wine_io_observer</code></td>
             <td><code>host_fd</code></td>
-            <td>Wine host fd</td>
+            <td>Wine 宿主 fd</td>
           </tr>
           <tr>
             <td><code>nt</code></td>
@@ -379,73 +313,55 @@
           </tr>
           <tr>
             <td><code>c</code></td>
+            <td><code>c</code></td>
             <td><code>::fast_io::c_file</code></td>
             <td><code>::fast_io::c_io_observer</code></td>
             <td><code>fp</code></td>
-            <td>FILE* / fopen</td>
           </tr>
           <tr>
+            <td>FILE* / fopen</td>
             <td><code>filebuf</code></td>
             <td><code>::fast_io::filebuf_file</code></td>
             <td><code>::fast_io::filebuf_io_observer</code></td>
             <td><code>fb</code></td>
-            <td>::std::filebuf*</td>
           </tr>
         </tbody>
       </table>
       <p>
-        The <strong>handle name</strong> column shows the member function name used to access
-        the underlying native handle. For example, <code>posix_file::native_handle()</code> returns
-        the <code>fd</code> (file descriptor), while <code>nt_file::native_handle()</code> returns
-        the <code>handle</code> (NT HANDLE).
+        <strong>句柄名</strong>一列给出用于访问底层原生句柄的成员函数名。例如 <code>posix_file::native_handle()</code> 返回 <code>fd</code>（文件描述符），而 <code>nt_file::native_handle()</code> 返回 <code>handle</code>（NT HANDLE）。
       </p>
     </section>
 
     <section>
-      <h2>The Golden Rule of Wrapping</h2>
+      <h2>包装的黄金法则</h2>
       <p>
-        <code>fast_io</code> provides a wrapper for <strong>every</strong> layer, and each
-        wrapper does one of two things:
+        <code>fast_io</code> 为<strong>每一</strong>层提供包装，而每个包装做两件事之一：
       </p>
       <ol>
         <li>
-          <strong>Wraps the API of the layer below.</strong> For example,
-          <code>c_file</code> is built on top of <code>posix_file</code> because the C
-          stdlib on POSIX is itself built on top of POSIX file descriptors.
+          <strong>包装下面那层的 API。</strong>例如 <code>c_file</code> 建立在 <code>posix_file</code> 之上，因为 POSIX 上的 C 标准库本身就建立在 POSIX 文件描述符之上。
         </li>
         <li>
-          <strong>Calls the lower syscall directly</strong> when the runtime below does not
-          expose a usable API. This is often the case going from <code>c_file</code> down
-          to <code>posix_file</code>, because libc does not publicly expose its internal
-          fd &mdash; so <code>fast_io</code> goes straight to the syscall and wraps the
-          result.
+          当下面的运行时没有暴露可用 API 时，<strong>直接调用更底层的系统调用</strong>。从 <code>c_file</code> 往下到 <code>posix_file</code> 时常常如此，因为 libc 并不公开暴露它内部的 fd &mdash; 于是 <code>fast_io</code> 直接发起系统调用并包装结果。
         </li>
       </ol>
     </section>
 
     <section>
-      <h2>Converting Between Layers</h2>
+      <h2>在层之间转换</h2>
       <p>
-        When you need to move between layers, the direction determines the method:
+        当你在层之间移动时，方向决定方法：
       </p>
       <ul>
         <li>
-          <strong>Lower to higher</strong> (e.g., <code>posix_file</code> &rarr; <code>c_file</code>
-          &rarr; <code>filebuf_file</code>): use <code>::std::move</code>. Ownership of the
-          handle is transferred upward.
+          <strong>由低到高</strong>（例如 <code>posix_file</code> &rarr; <code>c_file</code> &rarr; <code>filebuf_file</code>）：使用 <code>::std::move</code>。句柄的所有权被向上转移。
         </li>
         <li>
-          <strong>Higher to lower</strong> (e.g., <code>filebuf_file</code> &rarr; <code>c_file</code>
-          &rarr; <code>posix_file</code>): use <code>static_cast</code> to the lower layer&rsquo;s
-          <code>io_observer</code>. This gives you a non-owning view of the underlying handle.
+          <strong>由高到低</strong>（例如 <code>filebuf_file</code> &rarr; <code>c_file</code> &rarr; <code>posix_file</code>）：用 <code>static_cast</code> 转换到底层的 <code>io_observer</code>。这给你一个对底层句柄的非拥有视图。
         </li>
       </ul>
       <p>
-        <strong>Cross-layer conversions are also allowed.</strong> You don&rsquo;t need to convert
-        one layer at a time. For example, you can move directly from <code>nt_file</code> (the
-        lowest Windows layer) to <code>filebuf_file</code> (the highest layer), skipping the
-        intermediate <code>win32_file</code>, <code>posix_file</code>, and <code>c_file</code>
-        layers:
+        <strong>跨层转换也是允许的。</strong>你不需要一层一层地转换。例如可以直接从 <code>nt_file</code>（Windows 最低层）移动到 <code>filebuf_file</code>（最高层），跳过中间的 <code>win32_file</code>、<code>posix_file</code> 和 <code>c_file</code>：
       </p>
 <pre><code class="language-cpp">
 // Cross-layer conversion: skip intermediate layers
@@ -457,8 +373,7 @@
 // This works because filebuf_file's constructor accepts any lower-layer file type
 </code></pre>
       <p>
-        Similarly, you can <code>static_cast</code> from any higher layer directly to any lower
-        layer&rsquo;s observer:
+        同样地，你可以从任何高层的 <code>static_cast</code> 直接到任何低层的观察者：
       </p>
 <pre><code class="language-cpp">
 // Direct cast from filebuf_file to nt_io_observer (skipping intermediate layers)
@@ -467,18 +382,10 @@ auto nt_iob{static_cast&lt;::fast_io::nt_io_observer&gt;(fbf)};
 HANDLE handle{nt_iob.native_handle()};  // access the raw NT handle
 </code></pre>
       <p>
-        This flexibility lets you jump directly to the layer you need without tedious
-        step-by-step conversions.
+        这种灵活性让你能直接跳到需要的层，而不必繁琐地逐步转换。
       </p>
       <div class="note">
-        <strong>Special case: <code>nt_file</code> and <code>win32_file</code></strong>
-        <p>
-          Although <code>nt_file</code> (layer 2) and <code>win32_file</code> (layer 3) are
-          conceptually different layers from an API perspective, they both use the same
-          <code>HANDLE</code> type at the OS level. If you need to convert between their observers,
-          just use <code>static_cast</code>:
-        </p>
-<pre><code class="language-cpp">
+        <strong>特殊情况：<code>nt_file</code> 与 <code>win32_file</code></strong> <p> 尽管从 API 角度看 <code>nt_file</code>（第 2 层）与 <code>win32_file</code>（第 3 层）在概念上是不同的层，但在操作系统层面它们使用同一种 <code>HANDLE</code> 类型。如果你需要在它们的观察者之间转换，直接用 <code>static_cast</code> 即可： </p> <pre><code class="language-cpp">
 // Convert between nt_io_observer and win32_io_observer
 ::fast_io::nt_io_observer nt_iob(/* ... */);
 auto win32_iob{static_cast&lt;::fast_io::win32_io_observer&gt;(nt_iob)};
@@ -486,11 +393,6 @@ auto win32_iob{static_cast&lt;::fast_io::win32_io_observer&gt;(nt_iob)};
 // The reverse also works
 auto nt_iob2{static_cast&lt;::fast_io::nt_io_observer&gt;(win32_iob)};
 </code></pre>
-        <p>
-          This is different from true layer transitions (like <code>posix_file</code> &rarr;
-          <code>c_file</code>), where the handle type actually changes and must be wrapped in
-          a new abstraction.
-        </p>
       </div>
 <pre><code class="language-cpp">
 // Standard layer-by-layer conversion
@@ -504,34 +406,26 @@ int fd{piob.fd};  // access the raw handle
     </section>
 
     <section>
-      <h2>What Does <code>native_xxx</code> Mean?</h2>
+      <h2><code>native_xxx</code> 是什么意思？</h2>
       <p>
-        <code>::fast_io::native_file</code> is an alias for the lowest unbuffered layer
-        that <code>fast_io</code> wants to use on the current platform. It is chosen at
-        compile time:
+        <code>::fast_io::native_file</code> 是 <code>fast_io</code> 在当前平台上想用的最低不带缓冲层的别名。它在编译期被选定：
       </p>
       <ul>
         <li>
-          <strong>Linux, FreeBSD, macOS, &hellip;</strong> &rarr;
-          <code>::fast_io::native_file</code> = <code>::fast_io::posix_file</code>
+          <strong>Linux、FreeBSD、macOS 等</strong> &rarr; <code>::fast_io::native_file</code> = <code>::fast_io::posix_file</code>
         </li>
         <li>
-          <strong>Windows NT family</strong> (NT, 2000, XP, 7, 10, 11) &rarr;
-          <code>::fast_io::native_file</code> = <code>::fast_io::nt_file</code>
+          <strong>Windows NT 家族</strong>（NT、2000、XP、7、10、11）&rarr; <code>::fast_io::native_file</code> = <code>::fast_io::nt_file</code>
         </li>
         <li>
-          <strong>Windows 9x family</strong> (95, 98, ME) &rarr;
-          <code>::fast_io::native_file</code> = <code>::fast_io::win32_file</code>
+          <strong>Windows 9x 家族</strong>（95、98、ME）&rarr; <code>::fast_io::native_file</code> = <code>::fast_io::win32_file</code>
         </li>
       </ul>
       <p>
-        The same aliasing rule applies to the observers: <code>native_io_observer</code> is
-        <code>posix_io_observer</code> on POSIX systems, <code>nt_io_observer</code> on
-        Windows NT.
+        同样的别名规则适用于观察者：<code>native_io_observer</code> 在 POSIX 系统上是 <code>posix_io_observer</code>，在 Windows NT 上是 <code>nt_io_observer</code>。
       </p>
       <p>
-        The buffered type <code>basic_iobuf_file</code> is then defined in terms of
-        <code>basic_native_file</code>:
+        带缓冲的类型 <code>basic_iobuf_file</code> 则是用 <code>basic_native_file</code> 定义的：
       </p>
       <pre><code class="language-cpp">
 template&lt;::std::integral char_type&gt;
@@ -539,17 +433,14 @@ using basic_iobuf_file = ::fast_io::basic_iobuf&lt;
     ::fast_io::basic_native_file&lt;char_type&gt;&gt;;
       </code></pre>
       <p>
-        So when you write <code>::fast_io::iobuf_file f(u8"x.txt", open_mode::out);</code>,
-        you are getting buffered I/O on top of whichever layer <code>fast_io</code> considers
-        native for your platform.
+        所以当你写 <code>::fast_io::iobuf_file f(u8"x.txt", open_mode::out);</code> 时，你得到的是建立在“<code>fast_io</code> 认为属于你平台的 native 层”之上的带缓冲 I/O。
       </p>
     </section>
 
     <section>
-      <h2>Mixing Layers</h2>
+      <h2>混用各层</h2>
       <p>
-        Because every layer exposes the same <code>print</code> / <code>scan</code> interface
-        through concepts, you can mix them freely:
+        因为每一层都通过概念暴露相同的 <code>print</code> / <code>scan</code> 接口，你可以自由混用它们：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -576,17 +467,14 @@ int main()
 }
       </code></pre>
       <p>
-        Each <code>::std::move</code> promotes the handle one layer upward. Ownership is
-        transferred, not duplicated.
+        每次 <code>::std::move</code> 都把句柄提升一层。所有权被转移，而不是被复制。
       </p>
     </section>
 
     <section>
-      <h2>Building an <code>std::fstream</code> from a Syscall-Level Handle</h2>
+      <h2>从系统调用级别的句柄构建 <code>std::fstream</code></h2>
       <p>
-        Because every layer can be constructed from the one below it via <code>::std::move</code>,
-        you can start at the syscall level and ascend through every layer until you reach a
-        fully working <code>::std::fstream</code>:
+        因为每一层都能通过 <code>::std::move</code> 从下面那层构造，你可以从系统调用层开始，逐层上升，直到得到一个完全可用的 <code>::std::fstream</code>：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -615,18 +503,14 @@ int main()
 }
       </code></pre>
       <p>
-        Each <code>::std::move</code> promotes the handle one layer upward. Ownership is
-        transferred, not duplicated. This is not a parlor trick &mdash; it is the natural
-        consequence of every layer being interoperable with the one next to it.
+        每次 <code>::std::move</code> 都把句柄提升一层。所有权被转移，而不是被复制。这不是杂耍 &mdash; 这是每一层都与相邻层可互操作的自然结果。
       </p>
     </section>
 
     <section>
-      <h2>Getting the Raw File Descriptor Out of an <code>iobuf_file</code></h2>
+      <h2>从 <code>iobuf_file</code> 中取出原始文件描述符</h2>
       <p>
-        Because the layers are transparent, you can start at the top and descend all the
-        way back down to a raw <code>int fd</code>. The idiomatic way is through
-        <code>static_cast</code> to the appropriate observer type:
+        因为各层是透明的，你可以从顶层开始一路下降回原始的 <code>int fd</code>。惯用做法是通过 <code>static_cast</code> 转换到合适的观察者类型：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -657,57 +541,40 @@ int main()
 }
       </code></pre>
       <p>
-        On Windows the same idea works, but you descend to
-        <code>::fast_io::nt_io_observer</code> (or <code>::fast_io::win32_io_observer</code>)
-        and the raw handle is a <code>void*</code> rather than an <code>int</code>.
+        在 Windows 上同样的思路也成立，只是你要下降到 <code>::fast_io::nt_io_observer</code>（或 <code>::fast_io::win32_io_observer</code>），而原始句柄是 <code>void*</code> 而不是 <code>int</code>。
       </p>
     </section>
 
     <section>
-      <h2>Key Takeaways</h2>
+      <h2>要点</h2>
       <div class="warning">
-        <strong>Memorize these six layers.</strong> They are not arbitrary &mdash; they reflect
-        how operating systems and compiler runtimes actually implement file I/O. Understanding
-        this hierarchy explains why <code>FILE*</code> behaves the way it does, why
-        <code>mmap</code> is faster than <code>fread</code>, and how different APIs relate to
-        each other under the hood.
+        <strong>把这六层背下来。</strong>它们不是随意的 &mdash; 它们反映了操作系统和编译器运行时实际是如何实现文件 I/O 的。理解这个层次结构能解释 <code>FILE*</code> 为何有这样的行为、<code>mmap</code> 为何比 <code>fread</code> 快，以及不同 API 在底下是如何相互关联的。
       </div>
       <ul>
         <li>
-          The six layers form a strict hierarchy:
-          <code>wine =&gt; nt =&gt; win32 =&gt; posix =&gt; c =&gt; filebuf</code>.
+          这六层构成严格的层次：<code>wine =&gt; nt =&gt; win32 =&gt; posix =&gt; c =&gt; filebuf</code>。
         </li>
         <li>
-          Each layer wraps the one below it. When the layer below does not expose a usable
-          API, <code>fast_io</code> calls the kernel directly and wraps that instead.
+          每一层包装它下面那层。当下面那层没有暴露可用 API 时，<code>fast_io</code> 直接调用内核并包装那个。
         </li>
         <li>
-          <code>fast_io</code> provides a wrapper for <strong>every</strong> layer and lets
-          you mix layers together freely.
+          <code>fast_io</code> 为<strong>每一</strong>层提供包装，并让你自由混用各层。
         </li>
         <li>
-          <code>native_xxx</code> is the layer <code>fast_io</code> wants at the lowest
-          level on the current platform: <code>posix_file</code> on POSIX systems,
-          <code>nt_file</code> on Windows NT, <code>win32_file</code> on Windows 9x.
+          <code>native_xxx</code> 是 <code>fast_io</code> 在当前平台最低层想用的那一层：POSIX 系统上是 <code>posix_file</code>，Windows NT 上是 <code>nt_file</code>，Windows 9x 上是 <code>win32_file</code>。
         </li>
         <li>
-          You can build an <code>::std::fstream</code> from a syscall-level handle by moving
-          through each layer: <code>posix_file</code> &rarr; <code>c_file</code> &rarr;
-          <code>filebuf_file</code> &rarr; <code>::std::ofstream::rdbuf()</code>.
+          你可以从系统调用级别的句柄出发，逐层移动构建出 <code>::std::fstream</code>：<code>posix_file</code> &rarr; <code>c_file</code> &rarr; <code>filebuf_file</code> &rarr; <code>::std::ofstream::rdbuf()</code>。
         </li>
         <li>
-          You can descend in the other direction too: a
-          <code>static_cast</code> to the appropriate <code>xxx_io_observer</code> gives
-          you a non-owning view, and the observer exposes the raw native handle.
+          你也可以往反方向下降：<code>static_cast</code> 到合适的 <code>xxx_io_observer</code> 得到一个非拥有视图，而观察者暴露了原始原生句柄。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/16.wine/" class="prev-button">&larr; Ch11.16: Wine File APIs</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/18.filesystem/" class="next-button">Ch11.18: Filesystem APIs &rarr;</a>
+      <a href="/zhcn/docs/11.io/16.wine/" class="prev-button">&larr; 第11.16章: Wine 文件 API</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/18.filesystem/" class="next-button">第11.18章: 文件系统 API &rarr;</a>
     </div>
   </main>
 </body>
