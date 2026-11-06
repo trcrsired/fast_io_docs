@@ -359,32 +359,32 @@ int main()
 	}
 	catch throws (::std::error e)
 	{
-		print("basic:  ", e, ", is_open = ", basic.is_open(), "\n");
+		print("basic: ", e, ", is_open = ", basic.is_open(), "\n");
 	}
 
 	// NO GUARANTEE: the pair no longer belongs to one file.
 	two_files dst{"demo.txt"};
 	two_files src{"demo.txt"};
 	src.close_writer();
-	println("none:   before: dst reader = ", dst.reader_handle(), ", writer = ", dst.writer_handle());
+	println("none: before: dst reader = ", dst.reader_handle(), ", writer = ", dst.writer_handle());
 	try
 	{
 		dst = src;
 	}
 	catch throws (::std::error e)
 	{
-		print("none:   ", e, "\n");
+		print("none: ", e, "\n");
 	}
-	println("none:   after:  dst reader = ", dst.reader_handle(), ", writer = ", dst.writer_handle());
+	println("none: after: dst reader = ", dst.reader_handle(), ", writer = ", dst.writer_handle());
 }
 </code></pre>
       <pre><code class="language-text">
 nothrow: swap, move and destruction cannot fail
 strong: [posix](9)Bad file number, a is still 4
-basic:  [posix](2)No such file or directory, is_open = 0
-none:   before: dst reader = 6, writer = 7
-none:   [posix](9)Bad file number
-none:   after:  dst reader = 9, writer = 7
+basic: [posix](2)No such file or directory, is_open = 0
+none: before: dst reader = 6, writer = 7
+none: [posix](9)Bad file number
+none: after: dst reader = 9, writer = 7
 </code></pre>
       <p>
         Line by line:

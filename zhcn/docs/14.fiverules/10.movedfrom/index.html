@@ -245,12 +245,12 @@ int main()
 	my_posix_file a{"demo.txt", O_RDONLY};
 	println("a = ", a.native_handle());
 	a = a; // self copy: no check needed
-	println("after a = a:        a = ", a.native_handle(), ", is_open = ", a.is_open());
+	println("after a = a: a = ", a.native_handle(), ", is_open = ", a.is_open());
 
 	my_posix_file b{"demo.txt", O_RDONLY};
 	my_posix_file *alias{&amp;b};
 	b = ::std::move(*alias); // self move through an alias: the check is needed
-	println("after self-move:    b = ", b.native_handle(), ", is_open = ", b.is_open());
+	println("after self-move: b = ", b.native_handle(), ", is_open = ", b.is_open());
 
 	my_posix_file source{"demo.txt", O_RDONLY};
 	my_posix_file moved{::std::move(source)};
@@ -275,7 +275,7 @@ int main()
 	}
 
 	source = my_posix_file{"demo.txt", O_RDONLY}; // assignment revives it
-	println("after reviving:     source = ", source.native_handle(), ", is_open = ", source.is_open());
+	println("after reviving: source = ", source.native_handle(), ", is_open = ", source.is_open());
 
 	{
 		sloppy_file x{"demo.txt", O_RDONLY};
@@ -290,12 +290,12 @@ int main()
 </code></pre>
       <pre><code class="language-text">
 a = 3
-after a = a:        a = 4, is_open = 1
-after self-move:    b = 3, is_open = 1
+after a = a: a = 4, is_open = 1
+after self-move: b = 3, is_open = 1
 moved = 5, source = -1, source.is_open() = 0
 reading a moved-from file: [posix](9)Bad file number
 copying a moved-from file: [posix](9)Bad file number
-after reviving:     source = 6, is_open = 1
+after reviving: source = 6, is_open = 1
 sloppy x = 7
 sloppy y = 7, x still says 7
 after y died, the descriptor is closed and x still thinks it owns it

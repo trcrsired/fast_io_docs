@@ -202,35 +202,35 @@ int main()
 	{
 		my_posix_file f{"demo.txt", O_RDONLY};
 		raw = f.native_handle();
-		println("inside the block:  fd ", raw, ", valid = ", ::fcntl(raw, F_GETFD) != -1);
+		println("inside the block: fd ", raw, ", valid = ", ::fcntl(raw, F_GETFD) != -1);
 	}
-	println("after the block:   fd ", raw, ", valid = ", ::fcntl(raw, F_GETFD) != -1);
+	println("after the block: fd ", raw, ", valid = ", ::fcntl(raw, F_GETFD) != -1);
 
 	try
 	{
 		my_posix_file f{"demo.txt", O_RDONLY};
 		raw = f.native_handle();
-		println("inside the try:    fd ", raw, ", valid = ", ::fcntl(raw, F_GETFD) != -1);
+		println("inside the try: fd ", raw, ", valid = ", ::fcntl(raw, F_GETFD) != -1);
 		throw throws ::std::errc::invalid_argument;
 	}
 	catch throws (::std::error e)
 	{
 		print("caught: ", e, "\n");
-		println("in the handler:    fd ", raw, ", valid = ", ::fcntl(raw, F_GETFD) != -1);
+		println("in the handler: fd ", raw, ", valid = ", ::fcntl(raw, F_GETFD) != -1);
 	}
 
 	my_posix_file g{"demo.txt", O_RDONLY};
 	g.reset();
-	println("after reset():     is_open = ", g.is_open());
+	println("after reset(): is_open = ", g.is_open());
 }
 </code></pre>
       <pre><code class="language-text">
-inside the block:  fd 3, valid = 1
-after the block:   fd 3, valid = 0
-inside the try:    fd 3, valid = 1
+inside the block: fd 3, valid = 1
+after the block: fd 3, valid = 0
+inside the try: fd 3, valid = 1
 caught: [posix](22)Invalid argument
-in the handler:    fd 3, valid = 0
-after reset():     is_open = 0
+in the handler: fd 3, valid = 0
+after reset(): is_open = 0
 </code></pre>
       <p>Three things are visible in that output.</p>
       <ul>

@@ -3,23 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>第3.16章: Herbceptions - 使用 fast_io 学习 C++ 教程</title>
+  <title>第3.16章: 赫布异常（Herbceptions） - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>第3.16章: Herbceptions</h1>
+    <h1>第3.16章: 赫布异常（Herbceptions）</h1>
     <p class="lang-switch"><a href="/docs/03.statements/16.herbceptions/">English</a></p>
 
     <section>
       <h2>概述</h2>
       <p>
         在之前的每一页中，我们都默默地假定没有任何操作会失败。从这里开始，这种沉默结束了：
-        <strong>fast_io 中的每一个错误都是 herbception</strong>，而
-        herbceptions 是本教程中唯一的错误报告机制。
+        <strong>fast_io 中的每一个错误都是赫布异常（herbception）</strong>，而
+        赫布异常是本教程中唯一的错误报告机制。
       </p>
+      <div class="note">
+        <strong>译名说明：</strong>herbception 是 Herb Sutter 提出的错误处理机制，
+        本教程译作<strong>赫布异常</strong>。代码标识符
+        （如 <code>struct raw_herbception</code>）、编译器选项
+        （<code>-fherbceptions</code>、<code>-lherbceptions</code>）以及编译器输出的
+        英文诊断信息，一律保留英文原名，不做翻译。
+      </div>
       <p>
         你只需要学两条语句：
       </p>
@@ -34,9 +41,9 @@
     </section>
 
     <section>
-      <h2>1. 什么是 Herbception</h2>
+      <h2>1. 什么是赫布异常</h2>
       <p>
-        herbception 是一个<strong>双字的错误值</strong>：
+        赫布异常是一个<strong>双字的错误值</strong>：
       </p>
       <pre><code class="language-cpp">
 struct raw_herbception
@@ -57,7 +64,7 @@ struct raw_herbception
         <li>没有 <code>std::exception</code> 基类，没有 <code>what()</code>，没有 RTTI</li>
       </ul>
       <p>
-        <strong>Herbceptions 在两条路径上都非常非常廉价。</strong>用这种方式报告错误的函数，
+        <strong>赫布异常在两条路径上都非常非常廉价。</strong>用这种方式报告错误的函数，
         生成的代码与返回错误码的函数相同，而失败路径只是返回两个字的普通返回。
         永远不要为了“速度”而选择“返回错误码再检查”的风格，
         也永远不要因为“抛异常听起来很贵”而不去报告失败。
@@ -67,12 +74,12 @@ struct raw_herbception
     <section>
       <h2>2. 构建：<code>-fherbceptions -lherbceptions</code></h2>
       <p>
-        Herbceptions 是一项编译器特性，而不是库的小把戏，所以你需要一个实现了它的编译器。
+        赫布异常是一项编译器特性，而不是库的小把戏，所以你需要一个实现了它的编译器。
         只有<strong>我们的</strong> GCC 与 LLVM 构建可以：
       </p>
       <ul>
-        <li><strong>GCC</strong> —— 我们的 herbceptions GCC（<code>g++</code> 17+）。</li>
-        <li><strong>Clang</strong> —— 我们的 herbceptions LLVM（<code>clang++</code> 24+）。</li>
+        <li><strong>GCC</strong> —— 我们的赫布异常版 GCC（<code>g++</code> 17+）。</li>
+        <li><strong>Clang</strong> —— 我们的赫布异常版 LLVM（<code>clang++</code> 24+）。</li>
         <li>
           <strong>不支持 MSVC</strong>：<code>cl.exe</code> 没有
           <code>-fherbceptions</code>，因此本教程不用它构建。Windows
@@ -128,7 +135,7 @@ x86_64-w64-mingw32-g++ -std=c++26 -O3 -s -fherbceptions \
 throw throws <em>expression</em>;
 </code></pre>
       <p>
-        <code>throws</code> 是标记，表示“这个错误从 herbception 通道离开”。
+        <code>throws</code> 是标记，表示“这个错误从赫布异常通道离开”。
         该表达式是某个带有错误域的类型的值 —— 实践中就是第 7 节列出的
         标准错误枚举之一。
       </p>
@@ -251,7 +258,7 @@ error: 'catch throws' requires the caught type to be 'std::error' ('std::errc' g
           跳过失败的操作继续执行时，用它。
         </li>
         <li>
-          <strong><code>catch (...)</code> 不会捕获 herbceptions</strong>，而且在本教程中
+          <strong><code>catch (...)</code> 不会捕获赫布异常</strong>，而且在本教程中
           被禁止：失败只能由 <code>catch throws</code> 块来处理。
         </li>
         <li>
@@ -331,24 +338,24 @@ int main()
 	}
 	catch throws (::std::error e)
 	{
-		println("domain is http:  ", e.is_code_of&lt;::std::http_errc&gt;());
+		println("domain is http: ", e.is_code_of&lt;::std::http_errc&gt;());
 		println("domain is posix: ", e.is_code_of&lt;::std::errc&gt;());
-		println("== not_found:    ", e == ::std::http_errc::not_found);
-		println("== errc ENOENT:  ", e == ::std::errc::no_such_file_or_directory);
-		println("equivalent:      ", e.equivalent(::std::errc::no_such_file_or_directory));
-		println("to_errc:         ", static_cast&lt;::std::int_least32_t&gt;(e.to_errc()));
-		println("code:            ", e.code());
+		println("== not_found: ", e == ::std::http_errc::not_found);
+		println("== errc ENOENT: ", e == ::std::errc::no_such_file_or_directory);
+		println("equivalent: ", e.equivalent(::std::errc::no_such_file_or_directory));
+		println("to_errc: ", static_cast&lt;::std::int_least32_t&gt;(e.to_errc()));
+		println("code: ", e.code());
 	}
 }
 </code></pre>
       <pre><code class="language-text">
-domain is http:  1
+domain is http: 1
 domain is posix: 0
-== not_found:    1
-== errc ENOENT:  0
-equivalent:      1
-to_errc:         2
-code:            404
+== not_found: 1
+== errc ENOENT: 0
+equivalent: 1
+to_errc: 2
+code: 404
 </code></pre>
       <p>
         把 <code>==</code> 与 <code>equivalent</code> 放在一起看。该错误是
@@ -379,21 +386,21 @@ int main()
 	catch throws (::std::error e)
 	{
 		perrln(e);                                          // the whole line, to stderr
-		perr("inside a line:  ", e, "\n");
-		perr("domain name:    ", ::fast_io::mnp::name(e), "\n");
-		perr("code + text:    ", ::fast_io::mnp::message(e), "\n");
-		perr("as posix name:  ", ::fast_io::mnp::posix_equivalent_name(e), "\n");
-		perr("as posix text:  ", ::fast_io::mnp::posix_equivalent_message(e), "\n");
+		perr("inside a line: ", e, "\n");
+		perr("domain name: ", ::fast_io::mnp::name(e), "\n");
+		perr("code + text: ", ::fast_io::mnp::message(e), "\n");
+		perr("as posix name: ", ::fast_io::mnp::posix_equivalent_name(e), "\n");
+		perr("as posix text: ", ::fast_io::mnp::posix_equivalent_message(e), "\n");
 	}
 }
 </code></pre>
       <pre><code class="language-text">
 [posix](28)No space left on device
-inside a line:  [posix](28)No space left on device
-domain name:    posix
-code + text:    (28)No space left on device
-as posix name:  posix
-as posix text:  [posix](28)No space left on device
+inside a line: [posix](28)No space left on device
+domain name: posix
+code + text: (28)No space left on device
+as posix name: posix
+as posix text: [posix](28)No space left on device
 </code></pre>
       <ul>
         <li><code>perrln(e)</code> —— 完整内容，单独一行，写到 stderr。</li>
@@ -497,7 +504,7 @@ as posix text:  [posix](28)No space left on device
             <td><code>[itanium]</code> / <code>[msvc]</code></td>
             <td>被装箱的旧式 EH 对象的身份</td>
             <td>认出它然后继续：当仍在用旧式 C++ 异常的代码
-              跨越 herbception 边界时，到达的就是它。</td>
+              跨越赫布异常边界时，到达的就是它。</td>
           </tr>
         </tbody>
       </table>
@@ -522,7 +529,7 @@ throw throws ::std::http_errc::not_found;
     <section>
       <h2>8. 无处可逃：<code>main</code> 就是终点</h2>
       <p>
-        抵达程序顶层的 herbception 没有接手的人，因此进程会<strong>陷入陷阱（trap）</strong>。
+        抵达程序顶层的赫布异常没有接手的人，因此进程会<strong>陷入陷阱（trap）</strong>。
         在 x86-64 上，检测到这种情况的指令会触发 <code>SIGILL</code>，
         你得到的是核心转储，而不是一条消息：
       </p>
@@ -652,7 +659,7 @@ you typed: 42
       <h2>要点</h2>
       <ul>
         <li>
-          <strong>fast_io 中的所有错误都是 herbceptions。</strong>本教程中没有需要检查的
+          <strong>fast_io 中的所有错误都是赫布异常。</strong>本教程中没有需要检查的
           错误码 API，也没有旧式 C++ 异常处理。
         </li>
         <li>
@@ -680,11 +687,11 @@ you typed: 42
           <code>tls_alert</code> 以及各 Windows 域时，就用它们。
         </li>
         <li>
-          herbception 是返回寄存器中紧挨条件标志的两个字，因此它在两条路径上都很廉价。
+          赫布异常是返回寄存器中紧挨条件标志的两个字，因此它在两条路径上都很廉价。
           不要围绕它的开销来做设计。
         </li>
         <li>
-          未被捕获的 herbception 会触发陷阱，而 <code>main</code> 不能是
+          未被捕获的赫布异常会触发陷阱，而 <code>main</code> 不能是
           <code>throws</code> —— 所以由 <code>main</code> 捕获、报告，并返回
           退出状态。
         </li>

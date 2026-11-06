@@ -53,13 +53,13 @@ int main() {
     <section>
       <h2>两个必需的选项：<code>-fherbceptions -lherbceptions</code></h2>
       <p>
-        fast_io 把<strong>每一个</strong>错误都报告为 <strong>herbception</strong>，
-        而 herbceptions 是一项编译器特性。所以仅靠 include 目录是不够的：你还需要
-        herbceptions 运行时，以及一个实现了该语言特性的编译器。
+        fast_io 把<strong>每一个</strong>错误都报告为 <strong>赫布异常</strong>，
+        而赫布异常是一项编译器特性。所以仅靠 include 目录是不够的：你还需要
+        赫布异常运行时，以及一个实现了该语言特性的编译器。
       </p>
       <ul>
         <li>
-          <code>-fherbceptions</code> —— 打开 herbceptions。凡是包含 fast_io 的
+          <code>-fherbceptions</code> —— 打开赫布异常。凡是包含 fast_io 的
           翻译单元都必须传入它。
         </li>
         <li>
@@ -67,13 +67,13 @@ int main() {
         </li>
       </ul>
       <p>
-        只有<strong>我们的</strong> GCC 和 LLVM 构建支持 herbceptions。原版编译器
+        只有<strong>我们的</strong> GCC 和 LLVM 构建支持赫布异常。原版编译器
         和 <strong>MSVC 则不支持</strong>——没有办法用 <code>cl.exe</code> 编译 fast_io。
         完整解释以及每一条错误报告规则见
-        <a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章: Herbceptions</a>。
+        <a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章: 赫布异常</a>。
       </p>
       <p>
-        不需要别的东西：herbceptions 的头文件与库都是你所安装工具链的一部分，
+        不需要别的东西：赫布异常的头文件与库都是你所安装工具链的一部分，
         所以 <code>-lherbceptions</code> 就是全部额外的添加。假设 fast_io 被克隆到
         <code>$HOME/libraries/fast_io</code>：
       </p>
@@ -96,7 +96,7 @@ clang++ --config=$HOME/cfgs/x86_64-windows-msvc.cfg \
 </code></pre>
 
       <p>
-        herbceptions 运行时位于 sysroot 中：
+        赫布异常运行时位于 sysroot 中：
         链接时是 <code>lib/&lt;triple&gt;/herbceptions.lib</code>，
         运行时是 <code>bin/&lt;triple&gt;/herbceptions.dll</code>（Wine 通过
         <code>WINEPATH</code> 找到它）。我们的 MinGW g++ 用自己的导入库
@@ -123,7 +123,7 @@ wine $HOME/softwares/win-ldd/x86_64-windows-msvc/win-ldd.exe ./hello.exe
 
       <div class="note">
         <strong>关于这些选项的说明：</strong>MSVC sysroot 已经自带 Windows
-        的 herbceptions 运行时（链接用 <code>herbceptions.lib</code>，
+        的赫布异常运行时（链接用 <code>herbceptions.lib</code>，
         运行时用 <code>herbceptions.dll</code>），所以 <code>--sysroot</code> 就能找到它，
         永远不需要写 <code>-L</code>。GCC/GNU 目标的构建还会额外传入 <code>-s</code>
         来剥离二进制文件。
@@ -133,7 +133,7 @@ wine $HOME/softwares/win-ldd/x86_64-windows-msvc/win-ldd.exe ./hello.exe
     <section>
       <h2>用 GCC 编译</h2>
       <p>
-        GCC 的工作方式相同，前提是使用我们带 herbceptions 的 GCC 构建：
+        GCC 的工作方式相同，前提是使用我们带赫布异常的 GCC 构建：
       </p>
 
       <pre><code>
@@ -150,7 +150,7 @@ g++ -o hello hello.cpp \
       <h2>不支持 MSVC（cl.exe）</h2>
       <p>
         对 fast_io 而言，MSVC <strong>不是受支持的编译器</strong>。它没有
-        <code>-fherbceptions</code>，而 fast_io 通过 herbception 通道报告每一个错误，
+        <code>-fherbceptions</code>，而 fast_io 通过赫布异常通道报告每一个错误，
         因此本教程的错误契约无法用它表达。请使用我们的 GCC 或
         LLVM 分支。
       </p>
@@ -243,7 +243,7 @@ clang++ --config=$HOME/cfgs/x86_64-linux-gnu-libcxx.cfg \
       <h3>用 GCC 编译 fast_io 模块</h3>
 
       <p>
-        GCC 的模块支持仍是实验性的，而且我们带 herbceptions 的 GCC 构建
+        GCC 的模块支持仍是实验性的，而且我们带赫布异常的 GCC 构建
         在某些 fast_io 模块单元上已知会崩溃（<code>ICE</code>）——请用 Clang 编译
         这组模块，或者用 GCC 时改用头文件接口。
       </p>
@@ -264,8 +264,8 @@ g++ -std=c++26 -fmodules -fherbceptions -O3 -s -fuse-ld=lld hello.cpp \
       <h3>MSVC 无法编译该模块</h3>
 
       <p>
-        MSVC 不是 fast_io 支持的编译器：它没有 herbceptions，而库中的每个错误
-        都被报告为 herbception。我们的 GCC 和 LLVM 分支是本教程唯一支持的编译器。
+        MSVC 不是 fast_io 支持的编译器：它没有赫布异常，而库中的每个错误
+        都被报告为赫布异常。我们的 GCC 和 LLVM 分支是本教程唯一支持的编译器。
         Windows 二进制文件是用我们面向 MSVC ABI 的 Clang（或我们的 MinGW GCC）构建的——
         产出的可执行文件是普通的 Windows 二进制文件，只不过不是由
         <code>cl.exe</code> 生成的而已。

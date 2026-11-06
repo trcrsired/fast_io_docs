@@ -240,21 +240,21 @@ int main()
 	println("after a = move(b): a = ", a.native_handle(), ", b = ", b.native_handle(), ", b.is_open() = ", b.is_open());
 	my_posix_file *alias{&amp;a};
 	a = ::std::move(*alias); // self-move through an alias
-	println("after self-move:   a = ", a.native_handle(), ", a.is_open() = ", a.is_open());
+	println("after self-move: a = ", a.native_handle(), ", a.is_open() = ", a.is_open());
 
 	naive_file n{"demo.txt", O_RDONLY};
 	println("n = ", n.native_handle());
 	naive_file *nalias{&amp;n};
 	n = ::std::move(*nalias); // same, the naive way
-	println("after self-move:   n = ", n.native_handle(), ", n.is_open() = ", n.is_open());
+	println("after self-move: n = ", n.native_handle(), ", n.is_open() = ", n.is_open());
 }
 </code></pre>
       <pre><code class="language-text">
 a = 3, b = 4
 after a = move(b): a = 4, b = -1, b.is_open() = 0
-after self-move:   a = 4, a.is_open() = 1
+after self-move: a = 4, a.is_open() = 1
 n = 3
-after self-move:   n = -1, n.is_open() = 0
+after self-move: n = -1, n.is_open() = 0
 </code></pre>
       <ul>
         <li>

@@ -3,27 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>第7.7章: 编译期的 Herbceptions - 使用 fast_io 学习 C++ 教程</title>
+  <title>第7.7章: 编译期的赫布异常- 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>第7.7章: 编译期的 Herbceptions</h1>
+    <h1>第7.7章: 编译期的赫布异常</h1>
     <p class="lang-switch"><a href="/docs/07.compiletimeprogramming/07.herbceptions/">English</a></p>
 
     <div class="warning">
       <strong>重要。</strong>请先阅读 <a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>
       （语句）与 <a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>（每个函数上的
-      规范）。本页假定你已掌握这两者，并展示 herbceptions 在
+      规范）。本页假定你已掌握这两者，并展示赫布异常在
       <code>constexpr</code> 与 <code>consteval</code> 代码中的含义。
     </div>
 
     <section>
       <h2>概述</h2>
       <p>
-        Herbceptions 是本教程中唯一的错误机制，因此它们在编译期代码中同样工作
+        赫布异常是本教程中唯一的错误机制，因此它们在编译期代码中同样工作
         也就不足为奇了。这里多了一条规则，而正是这条规则让本页有价值：
       </p>
       <ul>
@@ -32,7 +32,7 @@
           被声明为 <code>throws</code>。
         </li>
         <li>
-          在常量求值内部，herbception 的行为就像一个流向调用者的错误值
+          在常量求值内部，赫布异常的行为就像一个流向调用者的错误值
           —— <code>try { } catch throws (::std::error e) { }</code> 可以捕获它，
           程序继续求值。
         </li>
@@ -43,7 +43,7 @@
         </li>
       </ul>
       <p>
-        最后一点正是本页存在的理由：借助 herbceptions，你可以用程序运行时所用的
+        最后一点正是本页存在的理由：借助赫布异常，你可以用程序运行时所用的
         同一批函数，<strong>在构建期</strong>校验常量、表和算法，
         并在检查失败时得到编译错误。
       </p>
@@ -142,9 +142,9 @@ static_assert(compile_time_div(9, 0) == -1);
     </section>
 
     <section>
-      <h2>3. 未捕获的 Herbception 就是编译错误</h2>
+      <h2>3. 未捕获的赫布异常就是编译错误</h2>
       <p>
-        当 herbception 逃出常量表达式时，编译器就停下。没有
+        当赫布异常逃出常量表达式时，编译器就停下。没有
         运行时可供陷入陷阱，于是<em>构建</em>失败，诊断信息会指出抛出
         位置：
       </p>
@@ -253,7 +253,7 @@ int main()
         <li><code>noexcept(expression)</code> —— 你在 <em>第6.16章</em>中见过的标准工具：
           “这次调用是否不可能失败？”</li>
         <li>
-          herbception traits <code>::std::is_herbceptions_throws_*</code> —— 更细粒度的
+          赫布异常 traits <code>::std::is_herbceptions_throws_*</code> —— 更细粒度的
           工具，用来区分“是否可以构造/调用”与
           “是否可以<em>通过 throws 通道</em>构造/调用”。
         </li>
@@ -294,7 +294,7 @@ static_assert(!::std::is_herbceptions_throws_invocable_v&lt;decltype(pure), int&
       <h2>6. 这一切为何能成立</h2>
       <p>
         常量求值没有栈展开、没有堆、没有异常对象——而
-        herbceptions 也不需要这些。错误就是一个
+        赫布异常也不需要这些。错误就是一个
         <code>{domain, code}</code> 对，因此求值器只需要携带两个整数和一个
         “失败”位；域查找（<code>::std::error_domain&lt;T&gt;::domain()</code>）在常量求值期间
         被拦截，这正是被抛出的值能成为常量表达式、而不是仅限运行时对象的原因。
@@ -318,7 +318,7 @@ static_assert(!::std::is_herbceptions_throws_invocable_v&lt;decltype(pure), int&
           可用，因此 constexpr 包装函数可以从编译期失败中恢复。
         </li>
         <li>
-          常量表达式中未捕获的 herbception 会使构建失败，并报告
+          常量表达式中未捕获的赫布异常会使构建失败，并报告
           <code>herbception thrown during constant evaluation was not caught</code>
           —— 用它来校验常量。
         </li>
@@ -332,7 +332,7 @@ static_assert(!::std::is_herbceptions_throws_invocable_v&lt;decltype(pure), int&
           泛型代码在生成调用之前就能询问某次调用可能如何失败。
         </li>
         <li>
-          这一切之所以可能，是因为 herbception 只是两个机器字，没有
+          这一切之所以可能，是因为赫布异常只是两个机器字，没有
           展开、没有分配，也没有异常对象。
         </li>
       </ul>
