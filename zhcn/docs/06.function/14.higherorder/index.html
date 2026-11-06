@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.14章: 高阶函数 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>第6.14章: 高阶函数</h1>
+
+    <!-- ========================= -->
+    <!-- INTRODUCTION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>概述</h2>
+
+      <p>
+        <strong>高阶函数</strong>就是接受另一个函数作为参数，或者返回一个
+        函数的函数。你已经见过它的构件：函数指针与无捕获的 lambda。
+      </p>
+
+      <p>
+        在本章中，你将学到：
+      </p>
+
+      <ul>
+        <li>如何把函数传给其他函数</li>
+        <li>如何从函数返回函数</li>
+        <li>如何构建简单的分派系统</li>
+        <li>如何使用无捕获 lambda 作为回调</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. PASSING FUNCTIONS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. 把函数传给其他函数</h2>
+
+      <p>
+        函数指针形参让你能把行为传入一个函数。
+      </p>
+
+<pre><code class="language-cpp">
+int operate(int a, int b, int (*op)(int, int))
+{
+    return op(a, b);
+}
+
+int add(int a, int b) { return a + b; }
+int mul(int a, int b) { return a * b; }
+
+println(operate(3, 4, add)); // 7
+println(operate(3, 4, mul)); // 12
+</code></pre>
+
+      <p>
+        这是高阶函数最简单的形式。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. USING CAPTURELESS LAMBDAS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 使用无捕获 lambda 作为回调</h2>
+
+      <p>
+        没有捕获的 lambda 可以用在任何期望函数指针的地方。
+      </p>
+
+<pre><code class="language-cpp">
+println(operate(3, 4, [](int a, int b) { return a - b; }));
+</code></pre>
+
+      <p>
+        这对快速的一次性操作很有用。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. RETURNING FUNCTIONS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 从函数返回函数</h2>
+
+      <p>
+        函数可以返回函数指针。这让你能在运行时选择行为。
+      </p>
+
+<pre><code class="language-cpp">
+int add(int a, int b) { return a + b; }
+int sub(int a, int b) { return a - b; }
+
+int (*select_op(char c))(int, int)
+{
+    if(c == '+') return add;
+    return sub;
+}
+
+auto op = select_op('+');
+println(op(10, 3)); // 13
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. SIMPLE DISPATCH TABLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 简单的分派表</h2>
+
+      <p>
+        你可以把多个函数存入一个数组，并在运行时选择其中一个。
+      </p>
+
+<pre><code class="language-cpp">
+int add(int a, int b) { return a + b; }
+int mul(int a, int b) { return a * b; }
+int sub(int a, int b) { return a - b; }
+
+int (*ops[3])(int, int){add, mul, sub};
+
+println(ops[0](3, 4)); // add
+println(ops[1](3, 4)); // mul
+println(ops[2](3, 4)); // sub
+</code></pre>
+
+      <p>
+        这是解释器、状态机和命令分派器的基础。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. CALLBACKS WITH PARAMETERS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. 带参数的回调</h2>
+
+      <p>
+        回调就是传给另一个函数、以便稍后执行的函数。
+      </p>
+
+<pre><code class="language-cpp">
+void repeat(int n, void (*f)())
+{
+    for(int i{}; i != n; ++i)
+        f();
+}
+
+repeat(3, [] { println("tick"); });
+</code></pre>
+
+      <p>
+        这会打印三次 <code>tick</code>。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+
+      <ul>
+        <li>高阶函数接受函数或返回函数。</li>
+        <li>函数指针让你能把行为传入函数。</li>
+        <li>无捕获 lambda 可以用作函数指针。</li>
+        <li>返回函数指针可在运行时选择行为。</li>
+        <li>分派表可实现简单的解释器与状态机。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/13.lambda/" class="prev-button">← 第6.13章: Lambda</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/15.bestpractices/" class="next-button">第6.15章: 最佳实践 →</a>
+    </div>
+
+  </main>
+</body>
+</html>

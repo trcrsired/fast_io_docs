@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.13章: Lambda - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>第6.13章: Lambda</h1>
+
+    <!-- ========================= -->
+    <!-- INTRODUCTION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>概述</h2>
+
+      <p>
+        <strong>lambda</strong> 是一种直接在代码中书写小函数的简短方式。
+        当你需要为一个一次性用途（例如回调或小计算）快速写一个函数时，
+        lambda 非常有用。
+      </p>
+
+      <p>
+        在本章中，你将学到：
+      </p>
+
+      <ul>
+        <li>如何编写 lambda</li>
+        <li>如何调用 lambda</li>
+        <li>捕获如何工作</li>
+        <li>如何使用 lambda 作为回调</li>
+        <li>如何编写递归 lambda</li>
+        <li>为什么看起来相同的 lambda 仍然会生成各自独立的代码</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. BASIC LAMBDA SYNTAX -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. lambda 的基本语法</h2>
+
+      <p>
+        最简单的 lambda 看起来像这样：
+      </p>
+
+<pre><code class="language-cpp">
+auto f = [] {
+    ::fast_io::io::println("Hello from a lambda!");
+};
+
+f(); // call it like a normal function
+</code></pre>
+
+      <p>
+        <code>[]</code> 部分被称为<strong>捕获列表</strong>。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. LAMBDAS WITH PARAMETERS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 带参数的 lambda</h2>
+
+      <p>
+        lambda 可以像普通函数一样接受参数。
+      </p>
+
+<pre><code class="language-cpp">
+auto add = [](int a, int b) {
+    return a + b;
+};
+
+::fast_io::io::println(add(3, 4)); // prints 7
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. CAPTURES -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 捕获</h2>
+
+      <p>
+        lambda 可以使用外围作用域的变量。要做到这一点，你必须在
+        捕获列表中列出它们。
+      </p>
+
+      <h3>3.1 按值捕获</h3>
+
+<pre><code class="language-cpp">
+int x = 10;
+
+auto f = [x] {
+    ::fast_io::io::println(x);
+};
+
+f(); // prints 10
+</code></pre>
+
+      <p>
+        该 lambda 存储了 <code>x</code> 自己的副本。
+      </p>
+
+      <h3>3.2 按引用捕获</h3>
+
+<pre><code class="language-cpp">
+int x = 10;
+
+auto f = [&x] {
+    x += 1;
+};
+
+f();
+::fast_io::io::println(x); // prints 11
+</code></pre>
+
+      <p>
+        该 lambda 修改的是原变量。
+      </p>
+
+      <h3>3.3 捕获一切</h3>
+
+<pre><code class="language-cpp">
+int a = 1;
+int b = 2;
+
+auto f = [=] { return a + b; }; // capture all used variables by value
+auto g = [&] { a += b; };       // capture all used variables by reference
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. LAMBDAS AND FUNCTION POINTERS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. lambda 与函数指针</h2>
+
+      <p>
+        <strong>没有捕获</strong>的 lambda 可以用在任何期望函数指针的地方。
+      </p>
+
+<pre><code class="language-cpp">
+int operate(int a, int b, int (*op)(int, int))
+{
+    return op(a, b);
+}
+
+auto add = [](int a, int b) { return a + b; };
+
+::fast_io::io::println(operate(3, 4, add)); // OK: no captures
+</code></pre>
+
+      <p>
+        <strong>带捕获</strong>的 lambda 不能用作函数指针。
+      </p>
+
+<pre><code class="language-cpp">
+int x = 10;
+auto f = [x](int y) { return x + y; };
+
+operate(3, 4, f); // ERROR: f has captures
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. USING LAMBDAS INLINE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. 就地使用 lambda</h2>
+
+      <p>
+        你不必把 lambda 存入变量，可以立刻使用它。
+      </p>
+
+<pre><code class="language-cpp">
+::fast_io::io::println(
+    [](int a, int b) { return a * b; }(3, 4)
+); // prints 12
+</code></pre>
+
+      <p>
+        这对快速的一次性操作很有用。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 6. LAMBDAS AS CALLBACKS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>6. 把 lambda 用作回调</h2>
+
+      <p>
+        lambda 常被用作回调。例如：
+      </p>
+
+<pre><code class="language-cpp">
+void repeat(int n, void (*f)())
+{
+    for(int i{}; i != n; ++i)
+        f();
+}
+
+repeat(3, [] { ::fast_io::io::println("tick"); });
+</code></pre>
+
+      <p>
+        这会打印三次 <code>tick</code>。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 7. RECURSIVE LAMBDAS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>7. 编写递归 lambda</h2>
+
+      <p>
+        在 C++23 之前，lambda 只能通过一个变量来引用自身（因此必须给它一个名字，才能在函数体里引用它）。
+        从 C++23 起，lambda 可以用显式的 "this" 参数引用自身，于是你可以把递归 lambda 作为参数传递，或者立刻调用它。
+      </p>
+
+      <h3>示例：阶乘</h3>
+
+<pre><code class="language-cpp">
+auto fact = [](this auto& self, int n) {
+    if(n &lt; 0)
+        ::fast_io::fast_terminate();
+    if(n == 0)
+        return 1;
+    return n * self(n - 1); // calls itself
+};
+
+::fast_io::io::println(fact(5)); // prints 120
+</code></pre>
+
+      <h3>示例：倒计时</h3>
+
+<pre><code class="language-cpp">
+auto countdown = [](this auto& self, int n) {
+    if(n &lt; 0)
+        return;
+    ::fast_io::io::println(n);
+    self(n - 1);
+};
+
+countdown(5);
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 8. IDENTICAL LAMBDAS ARE STILL DIFFERENT -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>8. 看起来相同的 lambda 仍然各不相同</h2>
+
+      <p>
+        即便两个 lambda 看起来完全一样，编译器也会把每个 lambda
+        表达式视为独立的函数。例如：
+      </p>
+
+<pre><code class="language-cpp">
+auto f1 = [] { return 1; };
+auto f2 = [] { return 1; };
+auto f3 = [] { return 1; };
+</code></pre>
+
+      <p>
+        这三个 lambda 看起来完全相同，但它们是三个不同的函数。
+        编译器会为每一个生成独立的代码。
+      </p>
+
+      <p>
+        如果你在经常调用的函数里写很多 lambda，这可能会
+        增大程序体积。为避免不必要的代码膨胀：
+      </p>
+
+      <ul>
+        <li>复用同一个 lambda，而不是创建许多相同的 lambda</li>
+        <li>当逻辑简单且重复时，改用普通函数</li>
+        <li>除非必要，避免在热点循环内写 lambda</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+
+      <ul>
+        <li>lambda 是书写小函数的一种简短方式。</li>
+        <li>lambda 可以接受参数并返回值。</li>
+        <li>捕获让 lambda 可以使用外围变量。</li>
+        <li>无捕获的 lambda 可以用作函数指针。</li>
+        <li>递归 lambda 使用显式的 "this" 参数进行自引用。</li>
+        <li>看起来相同的 lambda 仍会生成各自的代码。</li>
+        <li>lambda 非常适合回调与一次性操作。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/12.functionpointers/" class="prev-button">← 第6.12章: 函数指针</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/14.higherorder/" class="next-button">第6.14章: 高阶函数 →</a>
+    </div>
+
+  </main>
+</body>
+</html>

@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.16章: noexcept 还是 throws - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第6.16章: 每个函数不是 <code>noexcept</code> 就是 <code>throws</code></h1>
+
+    <div class="warning">
+      <strong>重要 —— 请与第3.16章一起阅读。</strong>
+      在本教程中，函数绝不会没有错误契约。你写的每个函数
+      —— 自由函数、成员函数、构造函数、lambda、虚函数覆盖
+      —— 都要么声明为 <code>noexcept</code>（不可能失败），要么声明为 <code>throws</code>
+      （可以向调用者报告错误）。整个语言中唯一的例外是
+      <code>int main()</code>，它没有可以报告的调用者。
+    </div>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        在 <em>第3.16章</em>中，你学会了用 <code>throw throws</code> 报告错误，并用
+        <code>catch throws</code> 处理错误。这两条语句都只在被标记过的函数内部
+        才合法，而本章讲的就是那个标记：<strong>异常规范</strong>，
+        在 herbceptions 中它是一个取两种值的契约。
+      </p>
+      <pre><code class="language-cpp">
+int  add(int a, int b) noexcept;   // cannot fail
+int  div(int a, int b) throws;     // can fail: caller must handle or propagate
+</code></pre>
+      <p>
+        没有第三种选择，也没有“我没考虑过”这种选择。编译器不会让函数
+        以泄漏失败的方式保持未指定状态：调用一个 <code>throws</code> 函数，
+        只有当调用者要么处理它、要么自己也是 <code>throws</code> 时才被允许。
+      </p>
+    </section>
+
+    <section>
+      <h2>1. 为什么函数必须表态</h2>
+      <p>
+        想想调用者。它对每次调用都有两个问题：
+      </p>
+      <ul>
+        <li><strong>这次调用会失败吗？</strong>如果会，我必须处理或向上传播。</li>
+        <li><strong>我能把它放在不能失败的上下文里吗？</strong>例如析构函数、线程入口点、类信号的<strong></strong>回调，或者我已经承诺为 <code>noexcept</code> 的函数内部。</li>
+      </ul>
+      <p>
+        函数声明在编译期同时回答了这两个问题。整个设计就是如此：
+        错误契约是<em>类型</em>的一部分，因此编译器可以在没有任何文档、
+        也没有任何运行时开销的情况下验证整张调用图。
+      </p>
+      <ul>
+        <li>
+          <code>noexcept</code> —— “我不可能失败。”如果你在里面写 <code>throw throws</code>，
+          或者在没有处理的情况下调用 <code>throws</code> 函数，程序
+          就无法编译。
+        </li>
+        <li>
+          <code>throws</code> —— “我可能失败，错误会回到你那里。”
+        </li>
+      </ul>
+      <div class="note">
+        <strong>注意：</strong>在旧式 C++ 异常下，函数允许省略规范并
+        “<code>throw</code> 任何东西”。正是这种自由让旧式异常无法分析：
+        调用图里你下面的任何函数都可能失败，因此每个函数都必须
+        按“可能失败”来编写。Herbceptions 移除了这种自由，也移除了
+        这个问题。
+      </div>
+    </section>
+
+    <section>
+      <h2>2. <code>noexcept</code>：我不可能失败</h2>
+      <p>
+        <code>noexcept</code> 函数承诺它没有任何要报告的东西。这个承诺由编译器
+        检查：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int square(int x) noexcept
+{
+    return x * x;
+}
+
+int bad(int x) noexcept
+{
+    throw throws ::std::errc::invalid_argument;   // ERROR: noexcept cannot report
+}
+
+int main()
+{
+    println(square(7));
+}
+</code></pre>
+      <p>
+        编译器会说：
+      </p>
+      <pre><code>
+error: 'throw throws' is only allowed inside a function declared 'throws' or 'return_failure{...}'
+</code></pre>
+      <p>
+        未处理的调用也会导致同样的情况：
+      </p>
+      <pre><code class="language-cpp">
+::std::uint_least64_t parse_port(int raw) throws;   // can fail
+
+void forward_port(int raw) noexcept
+{
+    println(parse_port(raw));   // ERROR: forward_port promised it cannot fail
+}
+</code></pre>
+      <pre><code>
+error: call to 'throws' function in a non-'throws' function must be handled by an
+enclosing 'try { } catch throws' block, or mark the calling function as 'throws' so
+herbceptions can propagate
+</code></pre>
+      <p>
+        凡是需要保证不会失败的代码片段，<code>noexcept</code> 函数都无处不在：
+        比较运算符、大小查询、位技巧、校验辅助函数、
+        析构函数体，以及 API 无法传递错误的任何回调。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>throws</code>：我可能失败，而你会知道</h2>
+      <p>
+        <code>throws</code> 函数通过 <code>throw throws</code> 报告错误，错误会以
+        <code>::std::error</code> 的形式交给调用者（该值的每个成员函数见 <em>第3.16章</em>）。
+        调用点没有任何变化：没有
+        <code>out</code> 参数，没有错误码返回，也没有需要检查的 <code>errno</code>。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+::std::uint_least64_t parse_port(int raw) throws
+{
+    if (raw &lt;= 0 || raw &gt; 65535)
+    {
+        throw throws ::std::errc::value_too_large;
+    }
+    return static_cast&lt;::std::uint_least64_t&gt;(raw);
+}
+
+void print_port(int raw) throws          // propagates: no handler here
+{
+    println("port: ", parse_port(raw));
+}
+
+int main()
+{
+    try
+    {
+        print_port(8080);
+        print_port(99999);              // fails here
+    }
+    catch throws (::std::error e)
+    {
+        perrln(e);
+        return 1;
+    }
+}
+</code></pre>
+      <p>
+        输出：
+      </p>
+      <pre><code>
+port: 8080
+[posix](75)Value too large for defined data type
+</code></pre>
+      <p>
+        注意<em>没有</em>发生的事情：<code>parse_port</code> 没有返回
+        哨兵值，<code>print_port</code> 没有去检查哨兵值，<code>main</code> 也没有
+        在每次调用之后检查错误码。失败从检测它的地方直接传到了
+        决定报告它的地方。
+      </p>
+      <p>
+        凡是与外部世界打交道的事情——打开文件、分配内存、读取、写入、
+        解析、建立连接——<code>throws</code> 函数都是合适的默认选择。
+        这就是 <code>fast_io</code> 把它们全部标记为 <code>throws</code> 的原因。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 在 <code>noexcept</code> 函数内部处理</h2>
+      <p>
+        <code>noexcept</code> 函数仍然可以<em>调用</em>可能失败的代码——它只是
+        必须自己把失败吸收掉。有两种诚实的做法：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int read_count(int n) throws
+{
+    if (n &lt; 0)
+    {
+        throw throws ::std::errc::invalid_argument;
+    }
+    return n * 2;
+}
+
+// 1. recover: turn the failure into a value the caller understands
+int read_count_or_zero(int n) noexcept
+{
+    try
+    {
+        return read_count(n);
+    }
+    catch throws (::std::error)
+    {
+        return 0;
+    }
+}
+
+// 2. ignore: the failure genuinely cannot be acted on here
+void try_log(int n) noexcept
+{
+    try
+    {
+        println("count: ", read_count(n));
+    }
+    catch throws (::std::error)
+    {
+    }
+}
+
+int main()
+{
+    println(read_count_or_zero(-1), " ", read_count_or_zero(21));
+    try_log(-5);                        // logs nothing, does not crash
+}
+</code></pre>
+      <p>
+        第二种形式——<em>无名处理程序</em>
+        <code>catch throws (::std::error) { }</code>——是吞掉 herbception 唯一被
+        认可的方式，而且只在报告不可能或无意义的地方才是正确的。
+        绝不要为了“继续跑”而在一个本可以报告失败的函数里吞掉错误。
+      </p>
+      <div class="warning">
+        <strong>不要吞掉你看不见的东西。</strong>如果处理程序体要打印错误
+        （<code>perrln(e)</code>），那么处理程序本身就可能失败——打印是 I/O
+        ——所以外层函数就不能是 <code>noexcept</code>。负责报告的处理程序
+        属于 <code>throws</code> 函数（或 <code>main</code>），这就是上面
+        的例子使用空形式的原因。
+      </div>
+    </section>
+
+    <section>
+      <h2>5. 构造函数与析构函数</h2>
+      <p>
+        构造函数遵循同样的规则：如果构造可能失败，该构造函数就是
+        <code>throws</code>。拥有操作系统资源的类型是典型案例——
+        打开文件确实可能失败，因此对象不能以半打开的状态存在：
+      </p>
+      <pre><code class="language-cpp">
+struct resource
+{
+    int handle;
+
+    resource(int raw) throws                      // construction may fail
+    {
+        if (raw &lt; 0)
+        {
+            throw throws ::std::errc::bad_file_descriptor;
+        }
+        handle = raw;
+    }
+
+    ~resource()                                   // implicitly noexcept
+    {
+    }
+};
+</code></pre>
+      <p>
+        析构函数<strong>隐式就是 <code>noexcept</code></strong>——你愿意的话可以
+        显式写出（<code>~resource() noexcept</code>），但不能选择退出。
+        这是刻意的：析构函数运行时程序已经在离开某个作用域，
+        没有可以报告的对象。因此析构函数不得调用未处理的
+        <code>throws</code> 函数：
+      </p>
+      <pre><code class="language-cpp">
+struct writer
+{
+    ~writer()
+    {
+        println("bye");      // ERROR: destructors cannot report failures
+    }
+};
+</code></pre>
+      <p>
+        当某个清理步骤可能失败、且这个失败很重要时，请在对象销毁<em>之前</em>、
+        在 <code>throws</code> 函数里完成它：显式调用 <code>flush()</code> / <code>close()</code>
+        并在那里检查。让析构函数做尽力而为的清理没问题；
+        依赖析构函数做错误检测则不行。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 规范是类型的一部分</h2>
+      <p>
+        因为编译器必须能对它进行推理，所以规范像形参类型一样，
+        是函数类型的一部分。实践中你会遇到四个后果：
+      </p>
+
+      <h3>不能凭它重载</h3>
+      <pre><code class="language-cpp">
+int f(int a) noexcept;
+int f(int a) throws;      // ERROR
+</code></pre>
+      <pre><code>
+error: exception specification in declaration does not match previous declaration
+</code></pre>
+
+      <h3>函数指针会携带它</h3>
+      <pre><code class="language-cpp">
+int pure(int a) noexcept { return a + 1; }
+int risky(int a) throws  { return a + 1; }
+
+int (*p1)(int) noexcept = pure;      // ok
+int (*p2)(int) throws   = risky;     // ok
+int (*p3)(int) throws   = pure;      // ERROR: different types
+</code></pre>
+      <pre><code>
+error: cannot initialize a variable of type 'int (*)(int) throws' with an lvalue of
+type 'int (int) noexcept': different exception specifications
+</code></pre>
+      <p>
+        两个方向都没有隐式转换：期望 <code>throws</code> 函数的调用者
+        不能悄悄得到一份它无法依赖其契约的指针，反之亦然。
+      </p>
+
+      <h3>虚函数覆盖必须匹配</h3>
+      <pre><code class="language-cpp">
+struct base
+{
+    virtual void f() noexcept {}
+};
+
+struct derived : base
+{
+    void f() throws override {}      // ERROR
+};
+</code></pre>
+      <pre><code>
+error: overriding function has a different herbceptions ('throws'/'return_failure{...}')
+specifier than the base version, which changes the calling convention
+</code></pre>
+
+      <h3>lambda 与成员函数也要带规范</h3>
+      <pre><code class="language-cpp">
+struct point
+{
+    int x, y;
+
+    int sum() const noexcept { return x + y; }
+};
+
+int main()
+{
+    auto pure_lambda  = []() noexcept { return 1; };
+    auto risky_lambda = []() throws   { return 2; };
+    point p{1, 2};
+    ::fast_io::println(pure_lambda(), risky_lambda(), p.sum(), "\n");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>7. 条件规范（用于模板）</h2>
+      <p>
+        在模板内部，你并不能总是事先给出答案：你的函数是否可能失败
+        取决于对 <code>T</code> 的操作。两种形式都接受一个
+        <code>bool</code> 常量表达式，而 <code>noexcept(expression)</code> 回答
+        “该表达式的调用是否不可能失败？”：
+      </p>
+      <pre><code class="language-cpp">
+int pure(int a) noexcept { return a + 1; }
+int risky(int a) throws  { return a; }
+
+// 'noexcept(...)' is itself a compile-time bool
+int cond1(int a) noexcept(noexcept(pure(a)))       { return pure(a); }
+int cond2(int a) throws(!noexcept(risky(a)))       { return risky(a); }
+</code></pre>
+      <p>
+        阅读 <code>fast_io</code> 自己的头文件时，你会经常用到
+        <code>noexcept(expression)</code>：那里每一个操作都带着由它所执行的操作
+        推导出的条件规范，因此
+        对真实文件而言 <code>println</code> 是 <code>throws</code>，而对
+        不可能失败的 sink 则保持 <code>noexcept</code>。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+// ask the library, do not guess
+static_assert(!noexcept(println(1)));                                // I/O can fail
+static_assert(!noexcept(scan(::fast_io::c_stdin(),
+                             ::std::declval&lt;int&amp;&gt;())));             // input can fail
+static_assert(!noexcept(::fast_io::to&lt;::std::uint_least64_t&gt;("12"))); // parsing can fail
+static_assert(noexcept(::fast_io::cstr_len("abc")));                 // pure computation
+</code></pre>
+    </section>
+
+    <section>
+      <h2>8. <code>main</code> 是唯一的例外</h2>
+      <p>
+        <code>main</code> 没有调用者，因此没有可以报告的对象。所以语言
+        禁止在它上面写规范：
+      </p>
+      <pre><code class="language-cpp">
+int main() throws { }    // ERROR
+</code></pre>
+      <pre><code>
+error: 'main' cannot be declared with a herbceptions ('throws'/'return_failure{...}')
+exception specification; 'main' has no caller able to consume an error result, and
+uncaught errors in 'main' trap instead
+</code></pre>
+      <p>
+        所以 <code>main</code> 就是错误链的终点：它在 <code>try</code> 块内调用
+        <code>throws</code> 函数，打印出了什么问题，并返回退出
+        码。这正是你在 <em>第2.14章</em>中已经见过的形态：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    try
+    {
+        ::fast_io::println("work\n");
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
+}
+</code></pre>
+      <div class="note">
+        <strong>推论：</strong>实践中 <code>main</code> 也可以把某次调用留作未处理
+        （编译器把 <code>main</code> 视为能够传播），但那样一旦失败就会
+        在没有消息的情况下触发陷阱。请在 <code>main</code> 里始终捕获；
+        一个没有诊断信息就陷入陷阱的进程，等于一份你得自己写的
+        缺陷报告。
+      </div>
+    </section>
+
+    <section>
+      <h2>9. 一张表总结这条规则</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>情形</th>
+            <th>应当声明什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>纯计算：算术、比较、访问器、位技巧</td>
+            <td><code>noexcept</code></td>
+          </tr>
+          <tr>
+            <td>任何可能接触资源的事情：文件、套接字、分配、解析、I/O</td>
+            <td><code>throws</code></td>
+          </tr>
+          <tr>
+            <td>把失败继续向上报告的辅助函数</td>
+            <td><code>throws</code>（在处理程序中用 <code>throw throws;</code>）</td>
+          </tr>
+          <tr>
+            <td>不能失败、但会调用可能失败代码的函数</td>
+            <td><code>noexcept</code> + 局部处理程序（恢复，或空形式）</td>
+          </tr>
+          <tr>
+            <td>析构函数</td>
+            <td>
+              隐式 <code>noexcept</code>；当失败很重要时，在 <code>throws</code>
+              函数里显式做 <code>flush()</code>/<code>close()</code>
+            </td>
+          </tr>
+          <tr>
+            <td>获取资源的构造函数</td>
+            <td><code>throws</code></td>
+          </tr>
+          <tr>
+            <td>泛型代码</td>
+            <td><code>noexcept(...)</code>/<code>throws(...)</code> 条件规范</td>
+          </tr>
+          <tr>
+            <td><code>int main()</code></td>
+            <td>无规范；捕获并报告</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>
+          <strong>除 <code>int main</code> 之外的每个函数，要么是
+          <code>noexcept</code>，要么是 <code>throws</code>。</strong>不要留下任何未指定。
+        </li>
+        <li>
+          <code>noexcept</code> 表示“不可能失败”，且编译器会强制执行：内部不能有
+          <code>throw throws</code>，也不能有未处理的、对 <code>throws</code>
+          函数的调用。
+        </li>
+        <li>
+          <code>throws</code> 表示“可能失败”；调用者用
+          <code>catch throws</code> 处理它，或者自己也是 <code>throws</code> 并向
+          上传播。
+        </li>
+        <li>
+          必须调用可能失败代码的 <code>noexcept</code> 函数要在本地处理它：
+          用一个值恢复，或者在无事可做时使用空处理程序
+          <code>catch throws (::std::error) { }</code>。
+        </li>
+        <li>
+          析构函数隐式是 <code>noexcept</code>；获取资源的构造函数是
+          <code>throws</code>。
+        </li>
+        <li>
+          规范是函数类型的一部分：不能凭它重载，
+          它会随函数指针一起传递，虚函数覆盖必须精确匹配它，
+          lambda 与成员函数也携带它。
+        </li>
+        <li>
+          用 <code>noexcept(expression)</code> 向编译器（以及库）询问
+          某次调用是否可能失败；<code>fast_io</code> 把所有 I/O 都声明为
+          <code>throws</code>。
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/15.bestpractices/" class="prev-button">&larr; 第6.15章: 最佳实践</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/07.compiletimeprogramming/" class="next-button">第7章: 编译期编程 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.11章: 递归函数 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>第6.11章: 递归函数</h1>
+
+    <!-- ========================= -->
+    <!-- INTRODUCTION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>概述</h2>
+
+      <p>
+        <strong>递归函数</strong>是调用自身的函数。
+        递归是表达那些可以拆解为同形式更小子问题的自然方式。
+      </p>
+
+      <p>
+        在本章中，你将学到：
+      </p>
+
+      <ul>
+        <li>什么是递归</li>
+        <li>如何编写正确的递归函数</li>
+        <li>基准情形（base case）的重要性</li>
+        <li>递归如何使用调用栈</li>
+        <li>为什么尾递归在 C++ 中不保证被优化</li>
+        <li>何时适合用递归，何时用迭代更好</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. WHAT IS RECURSION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. 什么是递归？</h2>
+
+      <p>
+        递归函数通过解决同一问题的更小版本来解决该问题。每个递归函数都必须有：
+      </p>
+
+      <ul>
+        <li><strong>基准情形</strong> —— 何时停止</li>
+        <li><strong>递归情形</strong> —— 如何缩小问题</li>
+      </ul>
+
+      <p>
+        没有基准情形，递归永远不会结束，程序最终会因栈耗尽而崩溃。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. SIMPLE EXAMPLE: FACTORIAL -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 示例：阶乘</h2>
+
+      <p>
+        阶乘函数在数学上定义为：
+      </p>
+
+      <pre><code>
+n! = n × (n - 1)!  
+0! = 1
+      </code></pre>
+
+      <p>
+        这个定义天生就是递归的。
+      </p>
+
+<pre><code class="language-cpp">
+int factorial(int n)
+{
+    if(n < 0)
+        ::fast_io::fast_terminate(); // factorial is undefined for negatives
+
+    if(n == 0)
+        return 1;                    // base case
+
+    return n * factorial(n - 1);     // recursive case
+}
+</code></pre>
+
+      <p>
+        每次调用都会缩小问题，直到抵达基准情形。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. CALL STACK BEHAVIOR -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 递归如何使用调用栈</h2>
+
+      <p>
+        每次函数调用都会创建一个新的<strong>栈帧</strong>，其中包含：
+      </p>
+
+      <ul>
+        <li>形参</li>
+        <li>局部变量</li>
+        <li>返回地址</li>
+      </ul>
+
+      <p>
+        递归函数每次递归调用都会创建一个栈帧。例如：
+      </p>
+
+<pre><code>
+factorial(4)
+ ├─ factorial(3)
+ │   ├─ factorial(2)
+ │   │   ├─ factorial(1)
+ │   │   │   └─ factorial(0)
+</code></pre>
+
+      <p>
+        当基准情形返回时，栈按相反顺序展开。
+      </p>
+
+      <p>
+        如果递归太深，程序会因栈溢出而崩溃。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. TAIL RECURSION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 尾递归</h2>
+
+      <p>
+        <strong>尾递归</strong>函数是指递归调用是函数中最后一步操作的函数。
+      </p>
+
+<pre><code class="language-cpp">
+int sum_tail(int n, int acc)
+{
+    if(n == 0)
+        return acc;          // base case
+
+    return sum_tail(n - 1, acc + n); // tail call
+}
+</code></pre>
+
+      <p>
+        在某些语言中，尾递归会被优化成循环。然而：
+      </p>
+
+      <p><strong>C++ 并不保证尾调用优化。</strong></p>
+
+      <p>
+        编译器可能优化尾递归，但你不能依赖它。如果你需要保证栈用量的常量性，
+        请改写成显式循环。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. WHEN TO USE RECURSION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. 何时适合使用递归</h2>
+
+      <p>
+        递归在以下情况很合适：
+      </p>
+
+      <ul>
+        <li>问题本身就是递归的（树、图、分治）</li>
+        <li>递归结构与数学定义相符</li>
+        <li>深度很小且可预测</li>
+      </ul>
+
+      <p>
+        递归在以下情况不合适：
+      </p>
+
+      <ul>
+        <li>深度可能很大或没有上界</li>
+        <li>栈用量是关注点</li>
+        <li>迭代更简单、更清晰</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 6. MORE EXAMPLES -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>6. 更多示例</h2>
+
+      <h3>6.1 斐波那契（低效的递归版本）</h3>
+
+<pre><code class="language-cpp">
+int fib(int n)
+{
+    if(n &lt; 0)
+        ::fast_io::fast_terminate();
+
+    if(n &lt;= 1)
+        return n;
+
+    return fib(n - 1) + fib(n - 2);
+}
+</code></pre>
+
+      <p>
+        这个版本极其缓慢，因为它会反复重算相同的值。
+        迭代版或记忆化版本更好。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+
+      <ul>
+        <li>递归函数调用自身来解决更小的子问题。</li>
+        <li>每个递归函数都需要基准情形与递归情形。</li>
+        <li>递归使用调用栈；深递归有栈溢出的风险。</li>
+        <li>C++ 不保证尾调用优化。</li>
+        <li>当递归与问题结构相符时使用它；当迭代更简单或更安全时使用迭代。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/10.fastioviews/" class="prev-button">← 第6.10章: fast_io 视图</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/12.functionpointers/" class="next-button">第6.12章: 函数指针 →</a>
+    </div>
+
+  </main>
+</body>
+</html>

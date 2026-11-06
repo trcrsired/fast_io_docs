@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.15章: 最佳实践 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>第6.15章: 函数的最佳实践</h1>
+
+    <section>
+      <h2>1. 保持函数短小且专注</h2>
+
+      <p>
+        一个函数应当把一件事做好。如果函数变得太大，或者试图做太多事情，
+        就把它拆成更小的函数。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 优先使用清晰的名字</h2>
+
+      <p>
+        函数名应当描述这个函数做什么。除非缩写被普遍理解，
+        否则避免使用缩写。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 避免不必要的 lambda</h2>
+
+      <p>
+        lambda 很方便，但创建许多相同的 lambda 会增大代码体积。
+        当逻辑简单时，优先复用同一个 lambda，或者写成普通函数。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 回调使用无捕获 lambda</h2>
+
+      <p>
+        无捕获的 lambda 可以用作函数指针。如果你需要捕获，
+        请考虑普通函数或另一种设计是否更清晰。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 避免深递归</h2>
+
+      <p>
+        递归使用调用栈。深递归可能导致栈溢出。
+        当深度很大或不可预测时，优先使用循环。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 用 fast_io 视图类型取代裸指针</h2>
+
+      <p>
+        相比裸指针或 C 风格数组，<code>::fast_io::span</code>、<code>::fast_io::string_view</code>、
+        <code>::fast_io::cstring_view</code> 与
+        <code>::fast_io::index_span</code> 提供更安全、更清晰的函数
+        参数。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 避免不必要的复制</h2>
+
+      <p>
+        尽可能按引用传递大型对象。除非你确实需要一份独立副本，
+        否则避免复制。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 保持函数签名简单</h2>
+
+      <p>
+        优先使用少量参数。如果函数需要很多参数，
+        请考虑把相关的值归为一组，或者重新思考设计。
+      </p>
+    </section>
+
+    <section>
+      <h2>9. 用提前返回提升清晰度</h2>
+
+      <p>
+        提前处理特殊情况可以让代码更易读。
+      </p>
+
+<pre><code class="language-cpp">
+int divide(int a, int b)
+{
+    if(b == 0)
+        ::fast_io::fast_terminate();
+    return a / b;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>10. 记录假设</h2>
+
+      <p>
+        如果函数有某种假设（例如“指针不得为空”），请清楚地记录它。
+        这能防止误用，并让你的代码更易维护。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+
+      <ul>
+        <li>编写小而专注的函数。</li>
+        <li>使用清晰的名字与简单的签名。</li>
+        <li>优先使用 fast_io 视图类型而不是裸指针。</li>
+        <li>谨慎使用 lambda，以避免代码膨胀。</li>
+        <li>只在合适的时候使用递归。</li>
+        <li>回调使用函数指针与无捕获 lambda。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/14.higherorder/" class="prev-button">← 第6.14章: 高阶函数</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/16.noexceptthrows/" class="next-button">第6.16章: noexcept 还是 throws →</a>
+    </div>
+
+  </main>
+</body>
+</html>

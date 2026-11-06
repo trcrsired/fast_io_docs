@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.12章: 函数指针 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>第6.12章: 函数指针</h1>
+
+    <!-- ========================= -->
+    <!-- INTRODUCTION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>概述</h2>
+
+      <p>
+        <strong>函数指针</strong>是指向函数而不是数据的指针。
+        函数指针让你能够：
+      </p>
+
+      <ul>
+        <li>间接调用函数</li>
+        <li>把函数传给其他函数</li>
+        <li>把函数存入数组或表</li>
+        <li>在运行时选择行为</li>
+        <li>与 C API 交互</li>
+      </ul>
+
+      <p>
+        在本章中，你将学到函数指针如何工作、如何声明它们、如何调用它们，
+        以及如何使用 <code>::fast_io::funcvw()</code> 操纵器打印它们的地址。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. FUNCTION TYPES -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. 函数类型</h2>
+
+      <p>
+        函数根据其参数列表和返回类型而具有一个类型。
+      </p>
+
+<pre><code class="language-cpp">
+int add(int a, int b);
+</code></pre>
+
+      <p>
+        <code>add</code> 的类型是：
+      </p>
+
+<pre><code>
+int(int, int)
+</code></pre>
+
+      <p>
+        这表示：“一个接受两个 <code>int</code> 并返回 <code>int</code> 的函数。”
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. FUNCTIONS DECAY TO POINTERS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 函数会退化为指针</h2>
+
+      <p>
+        正如数组会退化为指针一样，函数名也会退化为指向该函数的
+        指针。
+      </p>
+
+<pre><code class="language-cpp">
+int add(int a, int b)
+{
+    return a + b;
+}
+
+int (*p)(int, int) = add; // function pointer
+</code></pre>
+
+      <p>
+        <code>p</code> 的类型是“指向接受两个 int 并返回 int 的函数的
+        指针”。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. CALLING THROUGH A FUNCTION POINTER -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 通过函数指针调用</h2>
+
+      <p>
+        你可以像调用普通函数一样调用函数指针。
+      </p>
+
+<pre><code class="language-cpp">
+int result = p(3, 4);   // calls add(3, 4)
+</code></pre>
+
+      <p>
+        也可以写成：
+      </p>
+
+<pre><code class="language-cpp">
+int result = (*p)(3, 4); // equivalent
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. PASSING FUNCTION POINTERS TO FUNCTIONS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 把函数指针传给函数</h2>
+
+      <p>
+        函数指针可以用作参数类型。
+      </p>
+
+<pre><code class="language-cpp">
+int operate(int a, int b, int (*op)(int, int))
+{
+    return op(a, b);
+}
+</code></pre>
+
+      <p>
+        用法：
+      </p>
+
+<pre><code class="language-cpp">
+int add(int a, int b) { return a + b; }
+int mul(int a, int b) { return a * b; }
+
+::fast_io::io::println(operate(3, 4, add)); // 7
+::fast_io::io::println(operate(3, 4, mul)); // 12
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. USING TYPEDEFS OR USING ALIASES -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. 用 <code>using</code> 别名提升清晰度</h2>
+
+      <p>
+        函数指针的语法很冗长。你可以用 <code>using</code> 别名来简化它。
+      </p>
+
+<pre><code class="language-cpp">
+using binary_op = int(*)(int, int);
+
+int operate(int a, int b, binary_op op)
+{
+    return op(a, b);
+}
+</code></pre>
+
+      <p>
+        这让代码更易读、更易维护。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 6. RETURNING FUNCTION POINTERS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>6. 返回函数指针</h2>
+
+      <p>
+        函数可以返回函数指针。
+      </p>
+
+<pre><code class="language-cpp">
+binary_op choose(bool multiply)
+{
+    if(multiply)
+        return mul;
+    return add;
+}
+</code></pre>
+
+      <p>
+        用法：
+      </p>
+
+<pre><code class="language-cpp">
+auto f = choose(true);
+::fast_io::io::println(f(3, 4)); // 12
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 7. ARRAYS OF FUNCTION POINTERS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>7. 函数指针数组</h2>
+
+      <p>
+        你可以把多个函数存入一个数组。
+      </p>
+
+<pre><code class="language-cpp">
+binary_op ops[2]{add, mul};
+
+::fast_io::io::println(ops[0](3, 4)); // add
+::fast_io::io::println(ops[1](3, 4)); // mul
+</code></pre>
+
+      <p>
+        这对跳转表、解释器和分派系统很有用。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 8. PRINTING FUNCTION ADDRESSES WITH fast_io::funcvw -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>8. 用 <code>::fast_io::funcvw()</code> 打印函数地址</h2>
+
+      <p>
+        <code>fast_io</code> 库提供了一个名为 <code>funcvw()</code> 的特殊操纵器，
+        用来打印函数或函数指针的地址。这在调试、教学，
+        以及验证两个函数指针是否指向同一函数时极其有用。
+      </p>
+
+      <h3>示例：打印函数的地址</h3>
+
+<pre><code class="language-cpp">
+int add(int a, int b) { return a + b; }
+
+println(funcvw(add));
+</code></pre>
+
+      <p>
+        这会打印 <code>add</code> 函数的地址。
+      </p>
+
+      <h3>示例：打印函数指针的地址</h3>
+
+<pre><code class="language-cpp">
+int (*p)(int, int) = add;
+
+println(funcvw(p));
+</code></pre>
+
+      <p>
+        这会打印 <code>p</code> 中存储的地址。它应当与为 <code>add</code>
+        打印的地址相同。
+      </p>
+
+      <p>
+        <code>funcvw()</code> 适用于：
+      </p>
+
+      <ul>
+        <li>函数名（会退化为指针）</li>
+        <li>函数指针变量</li>
+        <li>函数指针数组</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 9. WHY FUNCTION POINTERS MATTER -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>9. 函数指针为何重要</h2>
+
+      <p>
+        函数指针在以下领域不可或缺：
+      </p>
+
+      <ul>
+        <li>底层 C 与 C++ API</li>
+        <li>基于回调的库</li>
+        <li>信号处理程序</li>
+        <li>插件系统</li>
+        <li>解释器与虚拟机</li>
+        <li>性能关键代码中的跳转表</li>
+      </ul>
+
+      <p>
+        它们也是更高级特性的基础，例如：
+      </p>
+
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+
+      <ul>
+        <li>函数有类型，函数名会退化为指针。</li>
+        <li>函数指针允许间接调用函数。</li>
+        <li>你可以把函数指针传给函数，也可以返回它。</li>
+        <li><code>using</code> 别名让函数指针语法变得可控。</li>
+        <li><code>::fast_io::funcvw()</code> 打印函数地址，用于调试。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/11.recursion/" class="prev-button">← 第6.11章: 递归函数</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/13.lambda/" class="next-button">第6.13章: Lambda →</a>
+    </div>
+
+  </main>
+</body>
+</html>

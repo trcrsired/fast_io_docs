@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.9章: C 风格数组参数 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第6.9章: C 风格数组参数</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        在 C++ 中，数组的行为与大多数其他类型不同。当你把数组传给函数时，
+        数组会<strong>退化</strong>为指向其首元素的指针。这意味着除非你显式
+        传入大小，函数无法知道数组有多大。
+      </p>
+
+      <p>
+        在本章中，你将学到：
+      </p>
+
+      <ul>
+        <li>数组如何退化为指针</li>
+        <li>为什么 <code>int const arr[]</code> 与 <code>int const* arr</code> 完全相同</li>
+        <li>为什么应当避免参数中具有误导性的 <code>[]</code> 语法</li>
+        <li>如何正确声明接收数组的函数</li>
+        <li>为什么数组大小信息会丢失</li>
+        <li>多维数组如何工作</li>
+        <li>指针算术与数组索引的关系</li>
+        <li>为什么 C 风格数组参数不安全</li>
+        <li>为什么 <code>::fast_io::array</code> 与 <code>::fast_io::vector</code> 是更安全的替代品</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. ARRAYS DECAY TO POINTERS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. 数组退化为指针</h2>
+
+      <p>
+        当你把数组传给函数时，它会自动转换（退化）为指向其首元素的
+        指针。
+      </p>
+
+<pre><code class="language-cpp">
+void print_first(int const* p)
+{
+    ::fast_io::io::println("first element = ", *p);
+}
+
+int main()
+{
+    int arr[3]{10, 20, 30};
+    print_first(arr);  // arr decays to int*
+}
+</code></pre>
+
+      <p>
+        在 <code>print_first</code> 内部，函数完全不知道原始数组
+        有多大。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. DO NOT LET [] FOOL YOU -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 不要让 <code>[]</code> 骗了你</h2>
+
+      <p>
+        在函数参数列表中，<code>int arr[]</code> 或
+        <code>int const arr[]</code> 这种语法<strong>并不</strong>表示“传入了一个数组”。
+        它只是写指针的另一种方式。
+      </p>
+
+      <p>
+        下面三个声明<strong>100% 完全相同</strong>：
+      </p>
+
+<pre><code class="language-cpp">
+void f(int const arr[]);
+void f(int const arr[10]);
+void f(int const* arr);
+</code></pre>
+
+      <p>
+        三者都表示：
+      </p>
+
+      <blockquote>
+        <strong>“f 接受一个指向 const int 的指针。”</strong>
+      </blockquote>
+
+      <p>
+        函数参数列表中的方括号既不保留数组大小，也不改变类型。
+        它们的存在只是为了可读性。
+      </p>
+
+      <p>
+        在本教程中，我们在真实代码里会<strong>避免</strong>使用具有误导性的
+        <code>arr[]</code> 语法，但在讲解陷阱时仍会展示它——因为你在实际
+        代码中会见到它。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. ARRAY SIZE IS LOST -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 数组大小会丢失</h2>
+
+      <p>
+        由于数组退化为指针，函数无法知道数组大小。
+      </p>
+
+      <p>
+        这个例子故意使用 <code>int const arr[]</code> 来演示
+        这个陷阱：
+      </p>
+
+<pre><code class="language-cpp">
+void print_size(int const arr[])
+{
+    ::fast_io::io::println(sizeof(arr));
+    // prints sizeof(int*) — NOT the size of the array!
+}
+</code></pre>
+
+      <p>
+        这就是真实代码中不应使用 <code>arr[]</code> 的原因。
+      </p>
+
+      <p>
+        你必须显式传入大小：
+      </p>
+
+<pre><code class="language-cpp">
+void print_all(int const* arr, std::size_t n)
+{
+    for(std::size_t i{}; i != n; ++i)
+        ::fast_io::io::println(arr[i]);
+}
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. MULTIDIMENSIONAL ARRAYS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 多维数组</h2>
+
+      <p>
+        只有第一维会退化。其余维度必须是已知的。
+      </p>
+
+<pre><code class="language-cpp">
+void print_matrix(int const (*arr)[4], std::size_t rows)
+{
+    for(std::size_t r{}; r != rows; ++r)
+        for(std::size_t c{}; c != 4; ++c)
+            ::fast_io::io::print(arr[r][c], ' ');
+}
+</code></pre>
+
+      <p>
+        这是合法的，因为编译器知道每一行的大小。
+      </p>
+
+      <p>
+        但下面这种写法非法：
+      </p>
+
+<pre><code class="language-cpp">
+void bad(int const arr[][]);  // ❌ error — second dimension unknown
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. POINTER ARITHMETIC -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. 指针算术</h2>
+
+      <p>
+        在函数内部，数组索引不过就是指针算术：
+      </p>
+
+<pre><code class="language-cpp">
+void demo(int const* p)
+{
+    ::fast_io::io::println(p[2]);   // same as *(p + 2)
+}
+</code></pre>
+
+      <p>
+        这就是 C 风格数组参数既强大又危险的原因。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 6. CONST CORRECTNESS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>6. const 正确性</h2>
+
+      <p>
+        如果函数不应修改数组，请使用 <code>int const*</code>。
+      </p>
+
+<pre><code class="language-cpp">
+void print_all(int const* arr, std::size_t n);
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 7. WHY C-STYLE ARRAY PARAMETERS ARE UNSAFE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>7. 为什么 C 风格数组参数不安全</h2>
+
+      <p>
+        C 风格数组参数有几个问题：
+      </p>
+
+      <ul>
+        <li>大小丢失了</li>
+        <li>没有边界检查</li>
+        <li>没有所有权信息</li>
+        <li>容易意外溢出</li>
+        <li>容易弄错指针类型</li>
+      </ul>
+
+      <p>
+        由于这些原因，现代 C++ 代码尽可能避免裸数组参数。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 8. USE FAST_IO CONTAINERS INSTEAD -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>8. 优先使用 <code>::fast_io::array</code> 与 <code>::fast_io::vector</code></h2>
+
+      <p>
+        <code>fast_io</code> 库提供了更安全、更简洁的容器，可以轻松地
+        传入或返回函数。
+      </p>
+
+      <h3>固定大小数组</h3>
+
+<pre><code class="language-cpp">
+void process(::fast_io::array&lt;int, 4&gt; arr)
+{
+    for(auto e : arr)
+        ::fast_io::io::println(e);
+}
+</code></pre>
+
+      <h3>动态大小数组</h3>
+
+<pre><code class="language-cpp">
+void process(::fast_io::vector&lt;int&gt; v)
+{
+    for(auto e : v)
+        ::fast_io::io::println(e);
+}
+</code></pre>
+
+      <h3>返回 vector</h3>
+
+<pre><code class="language-cpp">
+::fast_io::vector&lt;::std::size_t&gt; make_sequence(std::size_t n)
+{
+    ::fast_io::vector&lt;::std::size_t&gt; v;
+
+    for(std::size_t i{}; i != n; ++i)
+        v.push_back(i);
+
+    return v;  // efficient: NRVO + move semantics
+}
+</code></pre>
+
+      <h3>按 const 引用传递 vector</h3>
+
+<pre><code class="language-cpp">
+void process(::fast_io::vector&lt;int&gt; const& v)
+{
+    for(auto e : v)
+        ::fast_io::io::println(e);
+}
+</code></pre>
+
+      <p>
+        这些容器：
+      </p>
+
+      <ul>
+        <li>自带大小信息</li>
+        <li>易于按值或按引用传递</li>
+        <li>避免指针退化</li>
+        <li>避免标准库容器造成的 ODR 问题</li>
+        <li>是仅头文件的，并且在各翻译单元之间保持一致</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 9. COST OF PASSING BY VALUE VS REFERENCE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>9. 按值传递与按引用传递的开销</h2>
+
+      <p>
+        理解参数传递的开销有助于你写出高效的代码。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>按值传递</th>
+            <th>按引用传递</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>int const arr[]</code> / <code>int const* arr</code></td>
+            <td>廉价（复制指针）</td>
+            <td>廉价（复制引用）</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::vector&lt;T&gt;</code></td>
+            <td>廉价（三指针结构体）</td>
+            <td>最廉价</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::array&lt;T, N&gt;</code></td>
+            <td>复制全部 N 个元素</td>
+            <td>廉价</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        <code>::fast_io::vector</code> 被设计为传递开销很低。它的行为
+        就像一个包含三个指针（begin、end、capacity）的小结构体。
+      </p>
+
+      <p>
+        <code>::fast_io::array</code> 是固定大小的，所以按值传递会复制
+        所有元素。按引用传递可避免这笔开销。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+
+      <ul>
+        <li>数组传给函数时会退化为指针。</li>
+        <li><code>int const arr[]</code> 与 <code>int const* arr</code> 完全相同。</li>
+        <li>数组大小信息会丢失；你必须显式传入它。</li>
+        <li>多维数组中只有第一维会退化。</li>
+        <li>数组索引就是指针算术。</li>
+        <li>C 风格数组参数不安全，且容易出错。</li>
+        <li><code>::fast_io::array</code> 与 <code>::fast_io::vector</code> 是更安全、更简洁的替代品。</li>
+        <li>按值传递 <code>::fast_io::vector</code> 很廉价；按引用传递最廉价。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/08.inline/" class="prev-button">← 第6.8章: inline 函数</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/10.fastioviews/" class="next-button">第6.10章: fast_io 视图 →</a>
+    </div>
+  </main>
+</body>
+</html>

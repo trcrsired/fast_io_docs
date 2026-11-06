@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.10章: fast_io 视图</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>第6.10章: fast_io 视图</h1>
+
+    <!-- ========================= -->
+    <!-- INTRODUCTION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>本章为何存在</h2>
+
+      <p>
+        在上一章中，你了解到 C 风格数组参数以及
+        指针加长度组合容易出错：
+      </p>
+
+      <ul>
+        <li>数组传给函数时大小会丢失</li>
+        <li>指针加长度的组合很容易配错</li>
+        <li>没有边界检查</li>
+        <li>所有权不清晰</li>
+        <li>鼓励不安全的模式</li>
+      </ul>
+
+      <p>
+        现代 C++ 用<strong>视图类型</strong>解决了这个问题：轻量的、
+        不拥有内存的对象，它们引用已有内存而不复制它。
+      </p>
+
+      <p>
+        C++ 标准库提供了 <code>std::span</code> 与
+        <code>std::string_view</code>，但在 Windows x86-64 上，
+        <code>std::span</code> 受到调用约定限制：
+      </p>
+
+      <ul>
+        <li>Windows x86-64 ABI 会通过内存传递所有 16 字节对象</li>
+        <li><code>std::span</code> 是 16 字节（指针 + 大小）</li>
+        <li>因此它无法通过寄存器传递</li>
+        <li>这引入了不必要的内存流量</li>
+      </ul>
+
+      <p>
+        这一 ABI 行为由本教程的作者发现，并向微软报告。
+        在 ABI 修复之前，<code>std::span</code> 在 Windows x86-64 上
+        不如简单的 <code>(ptr, n)</code> 组合高效。
+      </p>
+
+      <h3>wincall 提案</h3>
+
+      <p>
+        为了解决这些长期存在的 ABI 低效问题，作者提出了一种
+        名为 <strong>wincall</strong> 的新调用约定，专为
+        Intel APX 下的 x86-64 Windows 设计。相关文档见：
+      </p>
+
+      <p>
+        <a href="https://developercommunity.visualstudio.com/t/I-present-a-novel-calling-convention-nam/10433601">
+          微软开发者社区：wincall 提案
+        </a>
+      </p>
+
+      <p>
+        以及此处的讨论：
+      </p>
+
+      <p>
+        <a href="https://gcc.gnu.org/pipermail/gcc-help/2023-August/142801.html">
+          GCC 邮件列表讨论
+        </a>
+      </p>
+
+      <p>
+        wincall 的动机包括：
+      </p>
+
+      <ul>
+        <li>当前的 Windows ABI 通过寄存器传递的参数太少</li>
+        <li>16 字节对象（如 <code>std::span</code>）被迫放到栈上</li>
+        <li>Herbception（P0709）需要两个寄存器加进位标志来表示 <code>std::error</code></li>
+        <li>Intel APX 把寄存器文件从 16 个扩展到 32 个</li>
+        <li>空对象不应占用寄存器槽位</li>
+        <li>Windows 已经使用调用者保存寄存器，使扩展变得可行</li>
+      </ul>
+
+      <p>
+        wincall 的目标是：
+      </p>
+
+      <ul>
+        <li>使用更多寄存器来传递参数</li>
+        <li>避免惩罚小的聚合体</li>
+        <li>保持与 Itanium C++ ABI 的兼容性</li>
+        <li>在 DLL 边界上与 stdcall 和 fastcall 共存</li>
+        <li>支持高效地返回小型用户定义类型</li>
+      </ul>
+
+      <p>
+        本章并不依赖 wincall，但理解 ABI 限制有助于解释为什么
+        <code>std::span</code> 今天在 Windows 上效率不高。
+      </p>
+
+      <h3>fast_io 的定位</h3>
+
+      <p>
+        <code>fast_io</code> 库<strong>并不</strong>“修复”Windows
+        ABI。相反：
+      </p>
+
+      <ul>
+        <li>fast_io <strong>不是 ABI 稳定的</strong></li>
+        <li>因此它可以挑选能避开 16 字节代价的布局</li>
+        <li>它提供更安全的语义（边界检查、显式构造）</li>
+        <li>它避免了裸指针和指针加长度组合的陷阱</li>
+      </ul>
+
+      <p>
+        在本章中，你将学到如何使用以下 fast_io 视图类型：
+      </p>
+
+      <ul>
+        <li><code>::fast_io::span&lt;T&gt;</code></li>
+        <li><code>::fast_io::string_view</code></li>
+        <li><code>::fast_io::cstring_view</code></li>
+        <li><code>::fast_io::index_span&lt;T, N&gt;</code></li>
+      </ul>
+
+      <p>
+        这些类型比裸指针更安全，并避开了影响 <code>std::span</code> 的
+        Windows ABI 低效问题。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. fast_io::span -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. <code>::fast_io::span&lt;T&gt;</code></h2>
+
+      <p>
+        <code>::fast_io::span&lt;T&gt;</code> 是对 <code>T</code> 连续序列的轻量、
+        不拥有内存的视图。它存储：
+      </p>
+
+      <ul>
+        <li>一个指针</li>
+        <li>一个长度</li>
+      </ul>
+
+      <p>
+        与 <code>std::span</code> 不同，它有意在大小上避开
+        Windows x86-64 的 16 字节代价。由于 fast_io 不是 ABI 稳定的，它可以
+        选择一种在所有主流平台上都能高效通过寄存器传递的表示。
+      </p>
+
+      <h3>示例：传递 span</h3>
+
+<pre><code class="language-cpp">
+void process(::fast_io::span&lt;int const&gt; s)
+{
+    for(auto e : s)
+        ::fast_io::io::println(e);
+}
+</code></pre>
+
+      <h3>示例：从 vector 创建 span</h3>
+
+<pre><code class="language-cpp">
+::fast_io::vector<int> v{1,2,3,4};
+process(::fast_io::span<int const>{v});
+</code></pre>
+
+      <h3>示例：从裸数组创建 span</h3>
+
+<pre><code class="language-cpp">
+int arr[4]{1,2,3,4};
+process(::fast_io::span<int const>{arr});
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. fast_io::string_view -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. <code>::fast_io::string_view</code></h2>
+
+      <p>
+        <code>::fast_io::string_view</code> 类似 <code>std::string_view</code>，
+        但被设计为在所有主流平台上（包括 Windows x86-64）对 ABI 友好。
+        它：
+      </p>
+
+      <ul>
+        <li>不做分配</li>
+        <li>不拥有内存</li>
+        <li>能高效地传给函数</li>
+        <li>可与 <code>fast_io</code> 打印集成</li>
+      </ul>
+
+      <h3>示例</h3>
+
+<pre><code class="language-cpp">
+void greet(::fast_io::string_view name)
+{
+    ::fast_io::io::println("Hello, ", name);
+}
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. fast_io::cstring_view -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. <code>::fast_io::cstring_view</code></h2>
+
+      <p>
+        <code>::fast_io::cstring_view</code> 是对以空字符结尾的 C 字符串的
+        视图。它只存储一个指针，在需要时再计算长度。
+      </p>
+
+      <p>
+        它非常适合与 C API 或遗留代码交互。
+      </p>
+
+      <h3>示例</h3>
+
+<pre><code class="language-cpp">
+void debug(::fast_io::cstring_view s)
+{
+    ::fast_io::io::println("debug: ", s);
+}
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. fast_io::index_span -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. <code>::fast_io::index_span&lt;T, N&gt;</code></h2>
+
+      <p>
+        <code>::fast_io::index_span&lt;T, N&gt;</code> 是对恰好 <code>N</code> 个元素的
+        固定大小视图。它：
+      </p>
+
+      <ul>
+        <li>只存储一个指针</li>
+        <li>索引时执行边界检查</li>
+        <li>无需复制即可用于切片</li>
+      </ul>
+
+      <h3>示例</h3>
+
+<pre><code class="language-cpp">
+void print_slice(::fast_io::index_span&lt;std::size_t, 5&gt; idx)
+{
+    for(std::size_t i{}, n{idx.size()}; i != n; ++i)
+        ::fast_io::io::println(idx[i]);
+}
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. Performance comparison -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. 性能对比</h2>
+
+      <p>
+        <code>std::span</code> 与 <code>::fast_io::span</code> 的关键区别
+        在于它们在不同 ABI 下的行为。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>大小</th>
+            <th>寄存器传递（SysV）</th>
+            <th>寄存器传递（Win64）</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>T*</code></td>
+            <td>8 字节</td>
+            <td>是</td>
+            <td>是</td>
+            <td>基线指针语义</td>
+          </tr>
+          <tr>
+            <td><code>(T*, std::size_t)</code></td>
+            <td>16 字节</td>
+            <td>是</td>
+            <td><strong>否</strong></td>
+            <td>在 Win64 上通过内存传递</td>
+          </tr>
+          <tr>
+            <td><code>std::span&lt;T&gt;</code></td>
+            <td>16 字节</td>
+            <td>是</td>
+            <td><strong>否</strong></td>
+            <td>与 (ptr, n) 相同的代价</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::span&lt;T&gt;</code></td>
+            <td>8 字节</td>
+            <td>是</td>
+            <td>是</td>
+            <td>避开 Win64 的内存传递代价</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        <code>::fast_io::span</code> 有意在大小上模仿裸指针，在 ABI 层面
+        确保在所有主流平台上都能高效通过寄存器传递。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 6. When to use each type -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>6. 何时使用哪种类型</h2>
+
+      <ul>
+        <li>
+          对数组或 vector 的非拥有视图，使用
+          <strong><code>::fast_io::span&lt;T&gt;</code></strong>。
+        </li>
+        <li>
+          对 UTF-8 字符串切片，使用 <strong><code>::fast_io::string_view</code></strong>。
+        </li>
+        <li>
+          与 C API 交互时，使用 <strong><code>::fast_io::cstring_view</code></strong>。
+        </li>
+        <li>
+          对固定大小切片与索引区间，使用
+          <strong><code>::fast_io::index_span&lt;T, N&gt;</code></strong>。
+        </li>
+        <li>
+          避免 <strong>C 风格数组参数</strong>与
+          <strong>指针加长度组合</strong>。
+        </li>
+        <li>
+          在 Windows x86-64 上，性能关键的代码请避免
+          <strong>std::span</strong>。
+        </li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+
+      <ul>
+        <li>fast_io 视图类型为裸指针提供了更安全的替代品。</li>
+        <li>它们避开了影响 <code>std::span</code> 的 Windows x86-64 ABI 代价。</li>
+        <li>它们与 <code>fast_io</code> 容器及打印自然地集成。</li>
+        <li>它们应当取代 C 风格数组参数以及指针加长度组合。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/09.carrayparameters/" class="prev-button">← 第6.9章: C 风格数组参数</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/11.recursion/" class="next-button">第6.11章: 递归函数 →</a>
+    </div>
+
+  </main>
+</body>
+</html>
