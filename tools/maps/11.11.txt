@@ -1,0 +1,96 @@
+1|第11.11章: C 风格 I/O - 使用 fast_io 学习 C++ 教程
+2|第11.11章: C 风格 I/O
+3|概述
+4|C 围绕 <code>FILE*</code> 提供了一整套 I/O 设施，以及 <code>fopen</code>、<code>fclose</code>、<code>printf</code>、<code>scanf</code>、<code>fprintf</code> 和 <code>fscanf</code> 这些函数。它们是 C 与 C++ 生态中最古老、使用最广的 I/O 原语。
+5|<code>fast_io</code> 包装了 C 的 <code>FILE*</code> 接口，让你能在保持 RAII 语义、类型安全和性能的同时使用 <code>print</code>/<code>println</code>/<code>scan</code>。
+6|错误处理的问题
+7|C stdio 最大的问题之一是<strong>大多数函数都可能失败</strong>，而正确的错误处理要求你检查<em>大多数</em>调用的返回值：
+8|这极其容易出错。大多数 C 程序不检查 <code>fprintf</code> 的错误，甚至连 <code>printf</code> 自己都不检查。<code>printf</code> 也可能失败（例如管道断开、磁盘满、I/O 错误），但几乎没有人检查它的返回值。
+9|<code>fast_io</code> 让错误处理变得显式。函数默认在出错时抛出异常，或者返回你无法不小心忽略的错误码。这使写出有 bug 的 I/O 代码难得多。
+10|标准 C I/O：<code>&lt;cstdio&gt;</code>
+11|在讨论 <code>fast_io</code> 如何包装 C I/O 之前，先回顾标准 C I/O API 本身。所有 C I/O 函数都声明在 <code>&lt;cstdio&gt;</code>（C 中是 <code>&lt;stdio.h&gt;</code>）中。核心抽象是 <code>FILE*</code>，一个不透明指针，指向表示已打开文件、管道或设备的流。
+12|打开与关闭文件
+13|模式串控制文件如何打开：
+14|<code>"r"</code> &mdash; 读（文件必须存在）
+15|<code>"w"</code> &mdash; 写（创建或截断）
+16|<code>"a"</code> &mdash; 追加（创建或追加）
+17|<code>"r+"</code> &mdash; 读写（文件必须存在）
+18|<code>"w+"</code> &mdash; 读写（创建或截断）
+19|<code>"a+"</code> &mdash; 读取并追加（创建或追加）
+20|加 <code>"b"</code> 表示二进制模式：<code>"rb"</code>、<code>"wb"</code> 等。
+21|格式化输出：<code>printf</code>、<code>fprintf</code>
+22|常见格式说明符：
+23|<code>%d</code> 或 <code>%i</code> &mdash; 有符号整数
+24|<code>%u</code> &mdash; 无符号整数
+25|<code>%x</code>、<code>%X</code> &mdash; 十六进制（小写/大写）
+26|<code>%o</code> &mdash; 八进制
+27|<code>%f</code> &mdash; 浮点（十进制记法）
+28|<code>%e</code>、<code>%E</code> &mdash; 浮点（科学计数法）
+29|<code>%g</code>、<code>%G</code> &mdash; 浮点（最短表示）
+30|<code>%s</code> &mdash; 字符串
+31|<code>%c</code> &mdash; 字符
+32|<code>%p</code> &mdash; 指针
+33|<code>%%</code> &mdash; 字面的 <code>%</code>
+34|格式化输入：<code>scanf</code>、<code>fscanf</code>
+35|<strong>警告：</strong><code>scanf</code> 家族极其危险，应当避免使用。问题包括：
+36|<code>%s</code> 导致缓冲区溢出（改用 <code>fgets</code>）
+37|格式串漏洞（CWE-134：使用外部可控的格式串）：若格式串由用户控制，攻击者可以读写任意内存
+38|错误处理困难（检查返回值很复杂）
+39|空白字符处理令人困惑且易错
+40|数值输入没有边界检查
+41|请改用 <code>::fast_io::io::scan</code>，它类型安全、显式处理错误，并且免疫这些问题。
+42|printf 格式说明符的复杂度
+43|<code>printf</code> 家族有一套极其复杂的格式说明符语法。摘自 <a href="https://en.cppreference.com/c/io/fprintf" target="_blank">cppreference</a>，格式说明符包括：
+44|<strong>类型说明符：</strong><code>%d</code>、<code>%i</code>、<code>%u</code>、<code>%x</code>、<code>%X</code>、<code>%o</code>、<code>%f</code>、<code>%F</code>、<code>%e</code>、<code>%E</code>、<code>%g</code>、<code>%G</code>、<code>%a</code>、<code>%A</code>、<code>%s</code>、<code>%c</code>、<code>%p</code>、<code>%n</code>
+45|<strong>长度修饰符：</strong><code>h</code>、<code>hh</code>、<code>l</code>、<code>ll</code>、<code>j</code>、<code>z</code>、<code>t</code>、<code>L</code>
+46|<strong>标志：</strong><code>-</code>、<code>+</code>、<code> </code>、<code>#</code>、<code>0</code>
+47|<strong>宽度与精度：</strong><code>%10d</code>、<code>%.2f</code>、<code>%10.2f</code>、<code>%*d</code>
+48|像 <code>%#0+10.5lld</code> 这样的组合是合法的，但几乎不可能记住。这种复杂度让 <code>printf</code> 极易出错：
+49|类型说明符与实参类型不符（例如对 <code>long</code> 用 <code>%d</code>）
+50|长度修饰符写错（例如 <code>long</code> 漏了 <code>l</code>）
+51|忘记为浮点指定精度
+52|混淆相近的说明符（<code>%x</code> 与 <code>%X</code>、<code>%f</code> 与 <code>%e</code>）
+53|大多数程序员无法正确记住所有这些规则。这就是格式串 bug 和 I/O 缓冲区溢出成为最常见安全漏洞的原因之一。几乎所有命令行 I/O 缓冲区漏洞都来自 <code>stdio</code> 的误用。
+54|<code>fast_io</code> 彻底消除了这种复杂度。没有需要记住的格式串。库会根据实参类型自动确定正确的格式化方式，从而不可能出现类型与格式说明符不匹配。
+55|字符与行 I/O
+56|二进制 I/O
+57|标准流
+58|C 提供三个预定义的流：
+59|<code>stdin</code> &mdash; 标准输入（通常是键盘）
+61|<code>stderr</code> &mdash; 标准错误（通常是终端，不带缓冲）
+62|在 <code>fast_io</code> 中使用 C 文件
+63|<code>fast_io</code> 为 <code>FILE*</code> 提供 RAII 包装，这样你就能在 C 文件上使用 <code>print</code>/<code>println</code>/<code>scan</code>，同时确保资源管理正确。
+64|<code>::fast_io::c_file</code>：RAII 包装
+65|<code>::fast_io::c_file</code> 包装一个 <code>FILE*</code>，并在对象离开作用域时自动关闭它。这可以防止资源泄漏。
+66|mode 参数与 <code>fopen</code> 的用法相同：
+67|<code>::fast_io::open_mode::in</code> &mdash; 读
+68|<code>::fast_io::open_mode::out</code> &mdash; 写（创建或截断）
+69|<code>::fast_io::open_mode::append</code> &mdash; 追加
+70|用 <code>|</code> 组合：<code>::fast_io::open_mode::in | ::fast_io::open_mode::out</code>
+71|加 <code>::fast_io::open_mode::binary</code> 表示二进制模式
+72|从 C 文件读取
+73|<code>::fast_io::c_io_observer</code>：非拥有视图
+74|有时你的 <code>FILE*</code> 来自别处（例如作为参数传入），而你想在不接管所有权的情况下使用 <code>fast_io</code> 的 API。这时用 <code>::fast_io::c_io_observer</code>：
+75|观察者离开作用域时<strong>不会</strong>关闭文件 &mdash; 那是原所有者的责任。
+76|访问底层的 <code>FILE*</code>
+77|你可以通过 <code>.fp</code> 成员访问底层的 <code>FILE*</code>：
+78|线程安全：<code>_unlocked</code> 变体
+79|C 的 <code>FILE*</code> 操作默认是线程安全的 &mdash; 每次操作都会获取内部的锁。但这可能很慢。<code>fast_io</code> 提供跳过内部锁的 <code>_unlocked</code> 变体：
+80|在下列情况下使用 <code>c_file_unlocked</code>：
+81|你处于单线程环境
+82|你用 <code>::fast_io::native_mutex</code> 手动同步
+83|你需要最大性能，并且理解其线程含义
+84|与 C 库互操作
+85|许多 C 库要求 <code>FILE*</code> 参数。你可以把 <code>c_file</code> 或 <code>c_io_observer</code> 底层的 <code>FILE*</code> 传进去：
+86|附录
+87|完整的 C I/O 函数参考见<a href="01.creference/">第11.11.1章: 完整的 C I/O 函数参考</a>。
+88|要点
+89|C stdio 要求你检查<strong>大多数</strong>函数调用的错误（不过 <code>fclose</code> 的失败通常无法恢复）。大多数代码忽略了这些错误，导致数据被悄悄丢失。
+90|<code>::fast_io::c_file</code> 用 RAII 包装 <code>FILE*</code> &mdash; 文件会被自动关闭。
+91|<code>::fast_io::c_io_observer</code> 是对已有 <code>FILE*</code> 的非拥有视图。
+92|<code>_unlocked</code> 变体跳过内部加锁。需要时用 <code>::fast_io::native_mutex</code> 手动同步它们。
+93|格式串<strong>只</strong>应包含格式说明符（<code>%s</code>、<code>%d</code> 等），不要包含别的东西。绝不要把字面文本、换行或其他字符放进格式串。把所有字面内容放进实参：用 <code>printf("%s", "text\n")</code>，而不是 <code>printf("text\n")</code> 或 <code>printf("%s\n", "text")</code>。更好的做法是：纯字符串用 <code>fputs</code>，类型安全输出用 <code>::fast_io::io::print</code>。绝不要把用户可控的字符串当作格式串（CWE-134：使用外部可控的格式串）。
+94|把指针传给 <code>scanf</code>/<code>fscanf</code>/<code>sscanf</code> 时，始终用 <code>::std::addressof()</code> 而不是 <code>&amp;</code>。即使类型重载了 <code>operator&amp;</code>，这样也能正确工作。
+95|<code>printf</code> 的格式说明符极其复杂，几乎不可能正确记住（见 <a href="https://en.cppreference.com/c/io/fprintf" target="_blank">cppreference</a>）。这种复杂度导致源源不断的 bug 与安全漏洞。
+96|优先使用 <code>::fast_io::io::print</code>/<code>println</code>/<code>scan</code> 而不是 C 函数 &mdash; 它们类型安全、更快、显式处理错误，并且免疫格式串攻击。
+97|<a href="/docs/11.io/10.socket/" class="prev-button">&larr; 第11.10章: socket</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/12.iostream/" class="next-button">第11.12章: C++ iostream &rarr;</a>

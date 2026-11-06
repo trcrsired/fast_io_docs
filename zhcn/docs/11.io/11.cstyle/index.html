@@ -3,35 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.11: C-Style I/O - C++ Tutorial with fast_io</title>
+  <title>第11.11章: C 风格 I/O - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.11: C-Style I/O</h1>
+    <h1>第11.11章: C 风格 I/O</h1>
     <p class="lang-switch"><a href="/docs/11.io/11.cstyle/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        C provides a set of I/O facilities built around <code>FILE*</code>, along with functions such
-        as <code>fopen</code>, <code>fclose</code>, <code>printf</code>, <code>scanf</code>,
-        <code>fprintf</code>, and <code>fscanf</code>. These are the oldest and most widely used
-        I/O primitives in the C and C++ ecosystems.
+        C 围绕 <code>FILE*</code> 提供了一整套 I/O 设施，以及 <code>fopen</code>、<code>fclose</code>、<code>printf</code>、<code>scanf</code>、<code>fprintf</code> 和 <code>fscanf</code> 这些函数。它们是 C 与 C++ 生态中最古老、使用最广的 I/O 原语。
       </p>
       <p>
-        <code>fast_io</code> wraps the C <code>FILE*</code> interface so that you can use it with
-        <code>print</code>/<code>println</code>/<code>scan</code> while keeping RAII semantics, type
-        safety, and performance.
+        <code>fast_io</code> 包装了 C 的 <code>FILE*</code> 接口，让你能在保持 RAII 语义、类型安全和性能的同时使用 <code>print</code>/<code>println</code>/<code>scan</code>。
       </p>
 
-      <h3>The Problem with Error Handling</h3>
+      <h3>错误处理的问题</h3>
       <p>
-        One of the biggest issues with C stdio is that <strong>most functions can fail</strong>,
-        and proper error handling requires checking the return value of <em>most</em> calls:
+        C stdio 最大的问题之一是<strong>大多数函数都可能失败</strong>，而正确的错误处理要求你检查<em>大多数</em>调用的返回值：
       </p>
 <pre><code class="language-c">
 #include &lt;stdio.h&gt;
@@ -56,27 +49,20 @@ int main() {
 }
 </code></pre>
       <p>
-        This is extremely error-prone. Most C programs don&rsquo;t check errors from
-        <code>fprintf</code> or even <code>printf</code> itself. Even <code>printf</code> can fail
-        (e.g., broken pipe, disk full, I/O error), but almost no one checks its return value.
+        这极其容易出错。大多数 C 程序不检查 <code>fprintf</code> 的错误，甚至连 <code>printf</code> 自己都不检查。<code>printf</code> 也可能失败（例如管道断开、磁盘满、I/O 错误），但几乎没有人检查它的返回值。
       </p>
       <p>
-        <code>fast_io</code> makes error handling explicit. Functions throw exceptions on error by
-        default, or return error codes that you can&rsquo;t accidentally ignore. This makes it much
-        harder to write buggy I/O code.
+        <code>fast_io</code> 让错误处理变得显式。函数默认在出错时抛出异常，或者返回你无法不小心忽略的错误码。这使写出有 bug 的 I/O 代码难得多。
       </p>
     </section>
 
     <section>
-      <h2>Standard C I/O: <code>&lt;cstdio&gt;</code></h2>
+      <h2>标准 C I/O：<code>&lt;cstdio&gt;</code></h2>
       <p>
-        Before discussing how <code>fast_io</code> wraps C I/O, let&rsquo;s review the standard C
-        I/O API itself. All C I/O functions are declared in <code>&lt;cstdio&gt;</code> (or
-        <code>&lt;stdio.h&gt;</code> in C). The core abstraction is <code>FILE*</code>, an opaque
-        pointer to a stream that represents an open file, pipe, or device.
+        在讨论 <code>fast_io</code> 如何包装 C I/O 之前，先回顾标准 C I/O API 本身。所有 C I/O 函数都声明在 <code>&lt;cstdio&gt;</code>（C 中是 <code>&lt;stdio.h&gt;</code>）中。核心抽象是 <code>FILE*</code>，一个不透明指针，指向表示已打开文件、管道或设备的流。
       </p>
 
-      <h3>Opening and Closing Files</h3>
+      <h3>打开与关闭文件</h3>
 <pre><code class="language-cpp">
 #include &lt;cstdio&gt;
 
@@ -94,19 +80,19 @@ int main() {
 }
 </code></pre>
       <p>
-        The mode string controls how the file is opened:
+        模式串控制文件如何打开：
       </p>
       <ul>
-        <li><code>"r"</code> &mdash; read (file must exist)</li>
-        <li><code>"w"</code> &mdash; write (creates or truncates)</li>
-        <li><code>"a"</code> &mdash; append (creates or appends)</li>
-        <li><code>"r+"</code> &mdash; read and write (file must exist)</li>
-        <li><code>"w+"</code> &mdash; read and write (creates or truncates)</li>
-        <li><code>"a+"</code> &mdash; read and append (creates or appends)</li>
-        <li>Add <code>"b"</code> for binary mode: <code>"rb"</code>, <code>"wb"</code>, etc.</li>
+        <li><code>"r"</code> &mdash; 读（文件必须存在）</li>
+        <li><code>"w"</code> &mdash; 写（创建或截断）</li>
+        <li><code>"a"</code> &mdash; 追加（创建或追加）</li>
+        <li><code>"r+"</code> &mdash; 读写（文件必须存在）</li>
+        <li><code>"w+"</code> &mdash; 读写（创建或截断）</li>
+        <li><code>"a+"</code> &mdash; 读取并追加（创建或追加）</li>
+        <li>加 <code>"b"</code> 表示二进制模式：<code>"rb"</code>、<code>"wb"</code> 等。</li>
       </ul>
 
-      <h3>Formatted Output: <code>printf</code>, <code>fprintf</code></h3>
+      <h3>格式化输出：<code>printf</code>、<code>fprintf</code></h3>
 <pre><code class="language-cpp">
 #include &lt;cstdio&gt;
 
@@ -129,23 +115,23 @@ int main() {
 }
 </code></pre>
       <p>
-        Common format specifiers:
+        常见格式说明符：
       </p>
       <ul>
-        <li><code>%d</code> or <code>%i</code> &mdash; signed integer</li>
-        <li><code>%u</code> &mdash; unsigned integer</li>
-        <li><code>%x</code>, <code>%X</code> &mdash; hexadecimal (lowercase/uppercase)</li>
-        <li><code>%o</code> &mdash; octal</li>
-        <li><code>%f</code> &mdash; floating-point (decimal notation)</li>
-        <li><code>%e</code>, <code>%E</code> &mdash; floating-point (scientific notation)</li>
-        <li><code>%g</code>, <code>%G</code> &mdash; floating-point (shortest representation)</li>
-        <li><code>%s</code> &mdash; string</li>
-        <li><code>%c</code> &mdash; character</li>
-        <li><code>%p</code> &mdash; pointer</li>
-        <li><code>%%</code> &mdash; literal <code>%</code></li>
+        <li><code>%d</code> 或 <code>%i</code> &mdash; 有符号整数</li>
+        <li><code>%u</code> &mdash; 无符号整数</li>
+        <li><code>%x</code>、<code>%X</code> &mdash; 十六进制（小写/大写）</li>
+        <li><code>%o</code> &mdash; 八进制</li>
+        <li><code>%f</code> &mdash; 浮点（十进制记法）</li>
+        <li><code>%e</code>、<code>%E</code> &mdash; 浮点（科学计数法）</li>
+        <li><code>%g</code>、<code>%G</code> &mdash; 浮点（最短表示）</li>
+        <li><code>%s</code> &mdash; 字符串</li>
+        <li><code>%c</code> &mdash; 字符</li>
+        <li><code>%p</code> &mdash; 指针</li>
+        <li><code>%%</code> &mdash; 字面的 <code>%</code></li>
       </ul>
 
-      <h3>Formatted Input: <code>scanf</code>, <code>fscanf</code></h3>
+      <h3>格式化输入：<code>scanf</code>、<code>fscanf</code></h3>
 <pre><code class="language-cpp">
 #include &lt;cstdio&gt;
 #include &lt;memory&gt;
@@ -169,58 +155,48 @@ int main() {
 }
 </code></pre>
       <p>
-        <strong>Warning:</strong> The <code>scanf</code> family is extremely dangerous and should be
-        avoided. Problems include:
+        <strong>警告：</strong><code>scanf</code> 家族极其危险，应当避免使用。问题包括：
       </p>
       <ul>
-        <li>Buffer overflows with <code>%s</code> (use <code>fgets</code> instead)</li>
+        <li><code>%s</code> 导致缓冲区溢出（改用 <code>fgets</code>）</li>
         <li>
-          Format string vulnerabilities (CWE-134: Use of Externally-Controlled Format String)
-          if format is user-controlled &mdash; attackers can read/write arbitrary memory
+          格式串漏洞（CWE-134：使用外部可控的格式串）：若格式串由用户控制，攻击者可以读写任意内存
         </li>
-        <li>Difficult error handling (checking return values is complex)</li>
-        <li>Whitespace handling is confusing and error-prone</li>
-        <li>No bounds checking on numeric input</li>
+        <li>错误处理困难（检查返回值很复杂）</li>
+        <li>空白字符处理令人困惑且易错</li>
+        <li>数值输入没有边界检查</li>
       </ul>
       <p>
-        Use <code>::fast_io::io::scan</code> instead, which is type-safe, handles errors explicitly,
-        and immune to these issues.
+        请改用 <code>::fast_io::io::scan</code>，它类型安全、显式处理错误，并且免疫这些问题。
       </p>
 
-      <h3>The Complexity of printf Format Specifiers</h3>
+      <h3>printf 格式说明符的复杂度</h3>
       <p>
-        The <code>printf</code> family has an extremely complex format specifier syntax. From
-        <a href="https://en.cppreference.com/c/io/fprintf" target="_blank">cppreference</a>,
-        format specifiers include:
+        <code>printf</code> 家族有一套极其复杂的格式说明符语法。摘自 <a href="https://en.cppreference.com/c/io/fprintf" target="_blank">cppreference</a>，格式说明符包括：
       </p>
       <ul>
-        <li><strong>Type specifiers:</strong> <code>%d</code>, <code>%i</code>, <code>%u</code>, <code>%x</code>, <code>%X</code>, <code>%o</code>, <code>%f</code>, <code>%F</code>, <code>%e</code>, <code>%E</code>, <code>%g</code>, <code>%G</code>, <code>%a</code>, <code>%A</code>, <code>%s</code>, <code>%c</code>, <code>%p</code>, <code>%n</code></li>
-        <li><strong>Length modifiers:</strong> <code>h</code>, <code>hh</code>, <code>l</code>, <code>ll</code>, <code>j</code>, <code>z</code>, <code>t</code>, <code>L</code></li>
-        <li><strong>Flags:</strong> <code>-</code>, <code>+</code>, <code> </code>, <code>#</code>, <code>0</code></li>
-        <li><strong>Width and precision:</strong> <code>%10d</code>, <code>%.2f</code>, <code>%10.2f</code>, <code>%*d</code></li>
+        <li><strong>类型说明符：</strong><code>%d</code>、<code>%i</code>、<code>%u</code>、<code>%x</code>、<code>%X</code>、<code>%o</code>、<code>%f</code>、<code>%F</code>、<code>%e</code>、<code>%E</code>、<code>%g</code>、<code>%G</code>、<code>%a</code>、<code>%A</code>、<code>%s</code>、<code>%c</code>、<code>%p</code>、<code>%n</code></li>
+        <li><strong>长度修饰符：</strong><code>h</code>、<code>hh</code>、<code>l</code>、<code>ll</code>、<code>j</code>、<code>z</code>、<code>t</code>、<code>L</code></li>
+        <li><strong>标志：</strong><code>-</code>、<code>+</code>、<code> </code>、<code>#</code>、<code>0</code></li>
+        <li><strong>宽度与精度：</strong><code>%10d</code>、<code>%.2f</code>、<code>%10.2f</code>、<code>%*d</code></li>
       </ul>
       <p>
-        Combinations like <code>%#0+10.5lld</code> are valid but nearly impossible to remember.
-        This complexity makes <code>printf</code> extremely error-prone:
+        像 <code>%#0+10.5lld</code> 这样的组合是合法的，但几乎不可能记住。这种复杂度让 <code>printf</code> 极易出错：
       </p>
       <ul>
-        <li>Wrong type specifier for the argument type (e.g., <code>%d</code> for <code>long</code>)</li>
-        <li>Wrong length modifier (e.g., missing <code>l</code> for <code>long</code>)</li>
-        <li>Forgetting precision for floating-point</li>
-        <li>Mixing up similar specifiers (<code>%x</code> vs <code>%X</code>, <code>%f</code> vs <code>%e</code>)</li>
+        <li>类型说明符与实参类型不符（例如对 <code>long</code> 用 <code>%d</code>）</li>
+        <li>长度修饰符写错（例如 <code>long</code> 漏了 <code>l</code>）</li>
+        <li>忘记为浮点指定精度</li>
+        <li>混淆相近的说明符（<code>%x</code> 与 <code>%X</code>、<code>%f</code> 与 <code>%e</code>）</li>
       </ul>
       <p>
-        Most programmers cannot remember all these rules correctly. This is why format string bugs
-        and I/O buffer overflows are among the most common security vulnerabilities. Nearly all
-        command-line I/O buffer exploits come from <code>stdio</code> misuse.
+        大多数程序员无法正确记住所有这些规则。这就是格式串 bug 和 I/O 缓冲区溢出成为最常见安全漏洞的原因之一。几乎所有命令行 I/O 缓冲区漏洞都来自 <code>stdio</code> 的误用。
       </p>
       <p>
-        <code>fast_io</code> eliminates this complexity entirely. There are no format strings to
-        remember. The library automatically determines the correct formatting based on the argument
-        type, making it impossible to mismatch types and format specifiers.
+        <code>fast_io</code> 彻底消除了这种复杂度。没有需要记住的格式串。库会根据实参类型自动确定正确的格式化方式，从而不可能出现类型与格式说明符不匹配。
       </p>
 
-      <h3>Character and Line I/O</h3>
+      <h3>字符与行 I/O</h3>
 <pre><code class="language-cpp">
 #include &lt;cstdio&gt;
 
@@ -244,7 +220,7 @@ int main() {
 }
 </code></pre>
 
-      <h3>Binary I/O</h3>
+      <h3>二进制 I/O</h3>
 <pre><code class="language-cpp">
 #include &lt;cstdio&gt;
 
@@ -263,14 +239,14 @@ int main() {
 }
 </code></pre>
 
-      <h3>Standard Streams</h3>
+      <h3>标准流</h3>
       <p>
-        C provides three predefined streams:
+        C 提供三个预定义的流：
       </p>
       <ul>
-        <li><code>stdin</code> &mdash; standard input (usually keyboard)</li>
+        <li><code>stdin</code> &mdash; 标准输入（通常是键盘）</li>
         <li><code>stdout</code> &mdash; standard output (usually terminal)</li>
-        <li><code>stderr</code> &mdash; standard error (usually terminal, unbuffered)</li>
+        <li><code>stderr</code> &mdash; 标准错误（通常是终端，不带缓冲）</li>
       </ul>
 <pre><code class="language-cpp">
 #include &lt;cstdio&gt;
@@ -286,17 +262,14 @@ int main() {
     </section>
 
     <section>
-      <h2>Using C Files with <code>fast_io</code></h2>
+      <h2>在 <code>fast_io</code> 中使用 C 文件</h2>
       <p>
-        <code>fast_io</code> provides RAII wrappers for <code>FILE*</code> so you can use
-        <code>print</code>/<code>println</code>/<code>scan</code> with C files while ensuring
-        proper resource management.
+        <code>fast_io</code> 为 <code>FILE*</code> 提供 RAII 包装，这样你就能在 C 文件上使用 <code>print</code>/<code>println</code>/<code>scan</code>，同时确保资源管理正确。
       </p>
 
-      <h3><code>::fast_io::c_file</code>: RAII Wrapper</h3>
+      <h3><code>::fast_io::c_file</code>：RAII 包装</h3>
       <p>
-        <code>::fast_io::c_file</code> wraps a <code>FILE*</code> and automatically closes it
-        when the object goes out of scope. This prevents resource leaks.
+        <code>::fast_io::c_file</code> 包装一个 <code>FILE*</code>，并在对象离开作用域时自动关闭它。这可以防止资源泄漏。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -316,17 +289,17 @@ int main() {
 }
 </code></pre>
       <p>
-        The mode parameter works the same as <code>fopen</code>:
+        mode 参数与 <code>fopen</code> 的用法相同：
       </p>
       <ul>
-        <li><code>::fast_io::open_mode::in</code> &mdash; read</li>
-        <li><code>::fast_io::open_mode::out</code> &mdash; write (creates or truncates)</li>
-        <li><code>::fast_io::open_mode::append</code> &mdash; append</li>
-        <li>Combine with <code>|</code>: <code>::fast_io::open_mode::in | ::fast_io::open_mode::out</code></li>
-        <li>Add <code>::fast_io::open_mode::binary</code> for binary mode</li>
+        <li><code>::fast_io::open_mode::in</code> &mdash; 读</li>
+        <li><code>::fast_io::open_mode::out</code> &mdash; 写（创建或截断）</li>
+        <li><code>::fast_io::open_mode::append</code> &mdash; 追加</li>
+        <li>用 <code>|</code> 组合：<code>::fast_io::open_mode::in | ::fast_io::open_mode::out</code></li>
+        <li>加 <code>::fast_io::open_mode::binary</code> 表示二进制模式</li>
       </ul>
 
-      <h3>Reading from C Files</h3>
+      <h3>从 C 文件读取</h3>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
@@ -352,11 +325,9 @@ int main() {
 }
 </code></pre>
 
-      <h3><code>::fast_io::c_io_observer</code>: Non-Owning View</h3>
+      <h3><code>::fast_io::c_io_observer</code>：非拥有视图</h3>
       <p>
-        Sometimes you have a <code>FILE*</code> from another source (e.g., passed as a parameter)
-        and you want to use <code>fast_io</code>'s API without taking ownership. Use
-        <code>::fast_io::c_io_observer</code> for this:
+        有时你的 <code>FILE*</code> 来自别处（例如作为参数传入），而你想在不接管所有权的情况下使用 <code>fast_io</code> 的 API。这时用 <code>::fast_io::c_io_observer</code>：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -380,13 +351,12 @@ int main() {
 }
 </code></pre>
       <p>
-        The observer does <strong>not</strong> close the file when it goes out of scope &mdash;
-        the original owner is responsible for that.
+        观察者离开作用域时<strong>不会</strong>关闭文件 &mdash; 那是原所有者的责任。
       </p>
 
-      <h3>Accessing the Underlying <code>FILE*</code></h3>
+      <h3>访问底层的 <code>FILE*</code></h3>
       <p>
-        You can access the underlying <code>FILE*</code> via the <code>.fp</code> member:
+        你可以通过 <code>.fp</code> 成员访问底层的 <code>FILE*</code>：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -406,11 +376,9 @@ int main() {
 }
 </code></pre>
 
-      <h3>Thread Safety: <code>_unlocked</code> Variants</h3>
+      <h3>线程安全：<code>_unlocked</code> 变体</h3>
       <p>
-        C's <code>FILE*</code> operations are thread-safe by default &mdash; each operation acquires
-        an internal lock. However, this can be slow. <code>fast_io</code> provides
-        <code>_unlocked</code> variants that skip the internal locking:
+        C 的 <code>FILE*</code> 操作默认是线程安全的 &mdash; 每次操作都会获取内部的锁。但这可能很慢。<code>fast_io</code> 提供跳过内部锁的 <code>_unlocked</code> 变体：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -432,18 +400,17 @@ int main() {
 }
 </code></pre>
       <p>
-        Use <code>c_file_unlocked</code> when:
+        在下列情况下使用 <code>c_file_unlocked</code>：
       </p>
       <ul>
-        <li>You're in a single-threaded context</li>
-        <li>You're synchronizing manually with <code>::fast_io::native_mutex</code></li>
-        <li>You need maximum performance and understand the threading implications</li>
+        <li>你处于单线程环境</li>
+        <li>你用 <code>::fast_io::native_mutex</code> 手动同步</li>
+        <li>你需要最大性能，并且理解其线程含义</li>
       </ul>
 
-      <h3>Interoperability with C Libraries</h3>
+      <h3>与 C 库互操作</h3>
       <p>
-        Many C libraries expect <code>FILE*</code> parameters. You can pass the underlying
-        <code>FILE*</code> from <code>c_file</code> or <code>c_io_observer</code>:
+        许多 C 库要求 <code>FILE*</code> 参数。你可以把 <code>c_file</code> 或 <code>c_io_observer</code> 底层的 <code>FILE*</code> 传进去：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -471,66 +438,45 @@ int main() {
     </section>
 
     <section>
-      <h2>Appendix</h2>
+      <h2>附录</h2>
       <p>
-        For the complete C I/O function reference, see
-        <a href="01.creference/">Ch11.11.1: Complete C I/O Function Reference</a>.
+        完整的 C I/O 函数参考见<a href="01.creference/">第11.11.1章: 完整的 C I/O 函数参考</a>。
       </p>
     </section>
 
     <section>
-      <h2>Key Takeaways</h2>
+      <h2>要点</h2>
       <ul>
         <li>
-          C stdio requires checking errors on <strong>most</strong> function calls (though
-          <code>fclose</code> failure is typically not recoverable). Most code ignores these
-          errors, leading to silent data loss.
+          C stdio 要求你检查<strong>大多数</strong>函数调用的错误（不过 <code>fclose</code> 的失败通常无法恢复）。大多数代码忽略了这些错误，导致数据被悄悄丢失。
         </li>
         <li>
-          <code>::fast_io::c_file</code> wraps <code>FILE*</code> with RAII &mdash; the file is
-          closed automatically.
+          <code>::fast_io::c_file</code> 用 RAII 包装 <code>FILE*</code> &mdash; 文件会被自动关闭。
         </li>
         <li>
-          <code>::fast_io::c_io_observer</code> is a non-owning view over an existing
-          <code>FILE*</code>.
+          <code>::fast_io::c_io_observer</code> 是对已有 <code>FILE*</code> 的非拥有视图。
         </li>
         <li>
-          The <code>_unlocked</code> variants skip internal locking. Use <code>::fast_io::native_mutex</code>
-          to synchronize them manually when needed.
+          <code>_unlocked</code> 变体跳过内部加锁。需要时用 <code>::fast_io::native_mutex</code> 手动同步它们。
         </li>
         <li>
-          Format strings should <strong>only</strong> contain format specifiers (<code>%s</code>,
-          <code>%d</code>, etc.), nothing else. Never include literal text, newlines, or other
-          characters in the format string. Put all literal content in the arguments instead:
-          <code>printf("%s", "text\n")</code>, not <code>printf("text\n")</code> or
-          <code>printf("%s\n", "text")</code>. Or better, use <code>fputs</code> for plain strings
-          or <code>::fast_io::io::print</code> for type-safe output. Never pass user-controlled strings
-          as format strings (CWE-134: Use of Externally-Controlled Format String).
+          格式串<strong>只</strong>应包含格式说明符（<code>%s</code>、<code>%d</code> 等），不要包含别的东西。绝不要把字面文本、换行或其他字符放进格式串。把所有字面内容放进实参：用 <code>printf("%s", "text\n")</code>，而不是 <code>printf("text\n")</code> 或 <code>printf("%s\n", "text")</code>。更好的做法是：纯字符串用 <code>fputs</code>，类型安全输出用 <code>::fast_io::io::print</code>。绝不要把用户可控的字符串当作格式串（CWE-134：使用外部可控的格式串）。
         </li>
         <li>
-          Always use <code>::std::addressof()</code> instead of <code>&amp;</code> when passing
-          pointers to <code>scanf</code>/<code>fscanf</code>/<code>sscanf</code>. This works
-          correctly even if the type has overloaded <code>operator&amp;</code>.
+          把指针传给 <code>scanf</code>/<code>fscanf</code>/<code>sscanf</code> 时，始终用 <code>::std::addressof()</code> 而不是 <code>&amp;</code>。即使类型重载了 <code>operator&amp;</code>，这样也能正确工作。
         </li>
         <li>
-          <code>printf</code> format specifiers are extremely complex and nearly impossible to
-          remember correctly (see
-          <a href="https://en.cppreference.com/c/io/fprintf" target="_blank">cppreference</a>).
-          This complexity leads to constant bugs and security vulnerabilities.
+          <code>printf</code> 的格式说明符极其复杂，几乎不可能正确记住（见 <a href="https://en.cppreference.com/c/io/fprintf" target="_blank">cppreference</a>）。这种复杂度导致源源不断的 bug 与安全漏洞。
         </li>
         <li>
-          Prefer <code>::fast_io::io::print</code>/<code>println</code>/<code>scan</code> over the C
-          functions &mdash; they are type-safe, faster, handle errors explicitly, and immune to
-          format string attacks.
+          优先使用 <code>::fast_io::io::print</code>/<code>println</code>/<code>scan</code> 而不是 C 函数 &mdash; 它们类型安全、更快、显式处理错误，并且免疫格式串攻击。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/10.socket/" class="prev-button">&larr; Ch11.10: Sockets</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/12.iostream/" class="next-button">Ch11.12: C++ iostream &rarr;</a>
+      <a href="/zhcn/docs/11.io/10.socket/" class="prev-button">&larr; 第11.10章: socket</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/12.iostream/" class="next-button">第11.12章: C++ iostream &rarr;</a>
     </div>
   </main>
 </body>
