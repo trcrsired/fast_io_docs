@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.4章: 返回值 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第6.4章: 返回值</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        函数可以使用 <code>return</code> 语句产出一个值并把它交还给
+        调用者。理解返回值如何工作，对于编写有意义的函数至关重要。
+      </p>
+
+      <p>在本章中，你将学到：</p>
+
+      <ul>
+        <li><code>return</code> 如何工作</li>
+        <li>如何返回内建类型</li>
+        <li>如何返回对象</li>
+        <li>提前返回如何工作</li>
+        <li>为什么返回引用有时很有用</li>
+        <li>为什么返回局部变量的引用永远是错误的</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. BASIC RETURN -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. 基本返回</h2>
+      <p>
+        返回类型不是 void 的函数必须返回一个值。
+      </p>
+
+<pre><code class="language-cpp">
+int add(int a, int b)
+{
+    return a + b;
+}
+</code></pre>
+
+      <p>
+        <code>return</code> 之后的表达式成为该函数调用的值。
+      </p>
+
+<pre><code class="language-cpp">
+int x = add(3, 4);   // x == 7
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. RETURNING OBJECTS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 返回对象</h2>
+      <p>
+        函数可以像返回整数一样返回对象。
+      </p>
+
+<pre><code class="language-cpp">
+::fast_io::string greet()
+{
+    return ::fast_io::string("Hello from fast_io!");
+}
+
+int main()
+{
+    ::fast_io::string s = greet();
+    ::fast_io::io::println(s);
+}
+</code></pre>
+
+      <p>
+        现代 C++ 会执行返回值优化（RVO），所以返回对象的效率很高。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. EARLY RETURN -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 提前返回</h2>
+      <p>
+        函数可以包含多个 <code>return</code> 语句。
+        第一个被执行的语句会立即结束函数。
+      </p>
+
+<pre><code class="language-cpp">
+int classify(int x)
+{
+    if(x &lt; 0)
+        return -1;
+
+    if(x == 0)
+        return 0;
+
+    return 1;
+}
+</code></pre>
+
+      <p>
+        提前返回通常比深层嵌套的 <code>if</code> 语句更清晰。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. RETURNING REFERENCES -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 返回引用</h2>
+      <p>
+        函数可以返回引用。
+        这让调用者能够访问或修改原对象。
+      </p>
+
+<pre><code class="language-cpp">
+int &amp; max_ref(int &amp; a, int &amp; b)
+{
+    return (a &gt; b) ? a : b;
+}
+
+int main()
+{
+    int x{10};
+    int y{20};
+
+    int &amp; r = max_ref(x, y);
+    r = 100;   // modifies y
+
+    // x == 10, y == 100
+}
+</code></pre>
+
+      <p>
+        返回引用很强大，但必须谨慎使用。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. NEVER RETURN REFERENCES TO LOCALS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. 永远不要返回局部变量的引用</h2>
+      <p>
+        局部变量在函数结束时被销毁。
+        返回对它的引用会产生悬垂引用。
+      </p>
+
+<pre><code class="language-cpp">
+int &amp; bad()
+{
+    int x{42};
+    return x;   // ❌ ERROR — x is destroyed when the function ends
+}
+</code></pre>
+
+      <p>
+        使用这样的引用是未定义行为。
+      </p>
+
+      <p>
+        如果你需要返回一个值，请按值返回：
+      </p>
+
+<pre><code class="language-cpp">
+int good()
+{
+    int x{42};
+    return x;   // ✔ OK — returns a copy
+}
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 6. RETURNING CONST REFERENCES -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>6. 返回 <code>T const &amp;</code></h2>
+      <p>
+        返回 <strong>const 引用</strong>在以下情况很有用：
+      </p>
+
+      <ul>
+        <li>对象很大</li>
+        <li>对象比函数调用活得更久</li>
+        <li>你想避免复制</li>
+      </ul>
+
+<pre><code class="language-cpp">
+::fast_io::string const &amp; get_global()
+{
+    static ::fast_io::string g("Hello");
+    return g;   // ✔ OK — static objects live for the entire program
+}
+</code></pre>
+
+      <p>
+        返回静态对象的引用是安全的，因为它永远不会离开作用域。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>return</code> 结束函数并产出一个值。</li>
+        <li>函数可以返回内建类型或对象。</li>
+        <li>提前返回可提升清晰度。</li>
+        <li>返回引用允许修改原对象。</li>
+        <li>永远不要返回局部变量的引用。</li>
+        <li>返回 <code>T const &amp;</code> 对大型、长寿的对象很有用。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/03.arguments/" class="prev-button">← 第6.3章: 传递实参</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/05.defaultargs/" class="next-button">第6.5章: 默认实参 →</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.2章: 声明与定义 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第6.2章: 声明与定义</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        在 C++ 中，每个函数在使用之前必须先被<strong>声明</strong>。
+        函数也可以单独<strong>定义</strong>。理解声明与定义之间的区别，
+        对于把代码组织到多个文件中至关重要；即使在小型程序里，
+        它也有助于理清编译器是如何阅读你的代码的。
+      </p>
+
+      <p>在本章中，你将学到：</p>
+
+      <ul>
+        <li>什么是函数声明</li>
+        <li>什么是函数定义</li>
+        <li>为什么需要声明</li>
+        <li>声明如何让函数在定义之前就能被调用</li>
+        <li>为什么声明通常放在头文件中</li>
+        <li>为什么 <code>int x();</code> 是函数声明，而不是变量</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. 函数定义</h2>
+      <p>
+        <strong>定义</strong>提供函数的完整函数体。
+      </p>
+
+<pre><code class="language-cpp">
+int add(int a, int b)
+{
+    return a + b;
+}
+</code></pre>
+
+      <p>
+        这既<em>声明</em>了该函数，也<em>定义</em>了该函数。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 函数声明</h2>
+      <p>
+        <strong>声明</strong>告诉编译器某个函数存在，
+        但不提供函数体。
+      </p>
+
+<pre><code class="language-cpp">
+int add(int a, int b);   // declaration
+</code></pre>
+
+      <p>
+        声明以分号结尾，没有函数体。
+      </p>
+
+      <p>
+        之后，再定义该函数：
+      </p>
+
+<pre><code class="language-cpp">
+int add(int a, int b)    // definition
+{
+    return a + b;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. 为什么需要声明</h2>
+      <p>
+        编译器自上而下地读你的程序。
+        如果你在编译器看到某个函数之前就调用它，你必须先提供
+        一个声明。
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int add(int a, int b);   // declaration
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+    println(add(3, 4));  // OK
+}
+
+int add(int a, int b)    // definition
+{
+    return a + b;
+}
+</code></pre>
+
+      <p>
+        没有该声明，<code>main</code> 内的调用就会报错。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 声明通常放在头文件中</h2>
+      <p>
+        在真实项目中，声明被放在<strong>头文件</strong>（<code>.h</code> 或 <code>.hpp</code>）中，
+        而定义放在<strong>源文件</strong>（<code>.cpp</code>）中。
+      </p>
+
+<pre><code class="language-text">
+math.hpp:
+-----------
+int add(int a, int b);
+
+math.cpp:
+-----------
+int add(int a, int b)
+{
+    return a + b;
+}
+</code></pre>
+
+      <p>
+        这让多个源文件通过包含该头文件来使用同一个函数。
+      </p>
+    </section>
+
+    <section>
+      <h3>4.1 一个常见错误：<code>int x();</code> 是函数声明</h3>
+      <p>
+        在 C++ 中，<code>int x();</code> 这种语法<strong>不会</strong>
+        创建变量。它声明了一个名为 <code>x</code> 的<strong>函数</strong>，
+        该函数不接受参数并返回 <code>int</code>。
+      </p>
+
+<pre><code class="language-cpp">
+int main()
+{
+    int x();                 // ❌ NOT a variable — this declares a function
+    ::fast_io::string str(); // ❌ also a function declaration
+}
+</code></pre>
+
+      <p>
+        这条规则适用于<strong>任何</strong>类型，包括用户定义类型和
+        <code>::fast_io::string</code>。
+      </p>
+
+      <h4>定义变量的正确方式</h4>
+
+      <p><strong>对于内建类型：</strong></p>
+
+<pre><code class="language-cpp">
+int x{};   // ✔ value-initialized variable
+</code></pre>
+
+      <p><strong>对于 <code>::fast_io::string</code>：</strong></p>
+
+<pre><code class="language-cpp">
+::fast_io::string str;   // ✔ default-constructed string
+</code></pre>
+
+      <p>
+        在现代 C++ 中，内建类型优先使用 <code>{}</code> 初始化，以避免
+        与函数声明混淆。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 小结</h2>
+      <ul>
+        <li><strong>声明</strong>引入函数的名字、参数与返回类型。</li>
+        <li><strong>定义</strong>提供函数体。</li>
+        <li>定义同时也算作声明。</li>
+        <li>调用函数之前需要有声明。</li>
+        <li>声明通常放在头文件里；定义放在源文件里。</li>
+        <li><code>int x();</code> 声明的是函数，不是变量。</li>
+        <li>内建变量初始化请使用 <code>{}</code>。</li>
+        <li>创建字符串变量请使用 <code>::fast_io::string str;</code>。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/01.whatisfunction/" class="prev-button">← 第6.1章: 什么是函数？</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/03.arguments/" class="next-button">第6.3章: 传递实参 →</a>
+    </div>
+  </main>
+</body>
+</html>

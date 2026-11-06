@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.5章: 默认实参 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第6.5章: 默认实参</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        C++ 允许函数形参带有<strong>默认值</strong>。
+        当调用者省略某个实参时，就使用该默认值。
+      </p>
+
+      <p>在本章中，你将学到：</p>
+
+      <ul>
+        <li>如何定义默认实参</li>
+        <li>为什么默认值应放在声明里，而不是定义里</li>
+        <li>带默认值的形参在顺序上的规则</li>
+        <li>默认实参如何与重载交互</li>
+        <li>默认实参在何时求值</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. BASIC DEFAULT ARGUMENTS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. 基本默认实参</h2>
+      <p>
+        默认实参在参数列表中用 <code>= value</code> 指定。
+      </p>
+
+<pre><code class="language-cpp">
+void scale(int x, int factor = 2)
+{
+    ::fast_io::io::println(x * factor);
+}
+
+int main()
+{
+    scale(10);     // uses default factor = 2
+    scale(10, 5);  // uses factor = 5
+}
+</code></pre>
+
+      <p>
+        默认实参最适合配合<strong>内建类型</strong>使用，因为它们既廉价
+        又无歧义。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. DEFAULTS BELONG IN DECLARATIONS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 默认实参应当放在声明中</h2>
+      <p>
+        默认实参应当出现在<strong>函数声明</strong>中，
+        而不是定义中。
+        这样可避免重复定义问题，并让头文件自给自足。
+      </p>
+
+<pre><code class="language-cpp">
+// header (math.hpp)
+int power(int base, int exp = 2);
+
+// source file (math.cpp)
+int power(int base, int exp)
+{
+    int result{1};
+    for(int i{}; i &lt; exp; ++i)
+        result *= base;
+    return result;
+}
+</code></pre>
+
+      <p>
+        如果你在两个地方都写默认值，编译器会拒绝这段代码。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. ORDERING RULES -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 默认实参的顺序规则</h2>
+      <p>
+        一旦某个形参有了默认值，它右边的所有形参也必须
+        有默认值。
+      </p>
+
+<pre><code class="language-cpp">
+void f(int x = 0, int y = 0);   // ✔ OK
+void g(int x = 0, int y);       // ❌ error — y has no default
+</code></pre>
+
+      <p>
+        这条规则确保调用不会产生歧义。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. INTERACTION WITH OVERLOADING -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 与函数重载的交互</h2>
+      <p>
+        默认实参和重载可能以出人意料的方式相互作用。
+      </p>
+
+<pre><code class="language-cpp">
+void h(int x, int y = 0);
+void h(int x);
+</code></pre>
+
+      <p>
+        像 <code>h(5)</code> 这样的调用会有歧义：
+      </p>
+
+      <ul>
+        <li>第二个重载直接匹配</li>
+        <li>第一个重载使用默认值也能匹配</li>
+      </ul>
+
+      <p>
+        除非设计非常清晰，否则请避免混用重载与默认实参。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. DEFAULT ARGUMENT EVALUATION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. 默认实参何时求值</h2>
+      <p>
+        默认实参在<strong>调用点</strong>求值，而不是在
+        函数定义处。
+      </p>
+
+<pre><code class="language-cpp">
+int next_id()
+{
+    static int counter{};
+    return ++counter;
+}
+
+void assign_id(int id = next_id());
+
+int main()
+{
+    assign_id();  // id = 1
+    assign_id();  // id = 2
+}
+</code></pre>
+
+      <p>
+        每次调用都会重新对默认表达式求值。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>当调用者省略形参时，默认实参提供后备值。</li>
+        <li>默认值应放在声明中，而不是定义中。</li>
+        <li>一旦某个形参有默认值，它右边的所有形参也必须有默认值。</li>
+        <li>默认实参在调用点求值。</li>
+        <li>混用重载与默认实参可能导致歧义。</li>
+        <li>默认值请使用内建类型；避免使用沉重的用户定义类型。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/04.return/" class="prev-button">← 第6.4章: 返回值</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/06.overload/" class="next-button">第6.6章: 函数重载 →</a>
+    </div>
+  </main>
+</body>
+</html>

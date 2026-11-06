@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.1章: 什么是函数？ - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第6.1章: 什么是函数？</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        函数是执行特定任务的可复用代码块。
+        你在前面的章节中已经用过许多函数：
+        <code>main</code>、<code>::fast_io::io::println</code>、
+        <code>::fast_io::io::scan</code>，以及容器的构造函数。
+      </p>
+
+      <p>
+        函数让你能够：
+      </p>
+
+      <ul>
+        <li>把代码组织成有意义的单元</li>
+        <li>避免重复相同的逻辑</li>
+        <li>给操作起名字</li>
+        <li>把程序<em>做什么</em>与<em>怎么做</em>分开</li>
+      </ul>
+
+      <p>
+        在本章中，你将学到函数的基本结构、如何调用函数，
+        以及返回值如何工作。
+      </p>
+    </section>
+
+    <section>
+      <h2>1. 函数的基本语法</h2>
+      <p>
+        一个函数由四部分组成：
+      </p>
+
+      <ul>
+        <li><strong>返回类型</strong></li>
+        <li><strong>名字</strong></li>
+        <li><strong>参数列表</strong></li>
+        <li>用花括号括起来的<strong>函数体</strong></li>
+      </ul>
+
+<pre><code class="language-cpp">
+int add(int a, int b)
+{
+    return a + b;
+}
+</code></pre>
+
+      <p>
+        这个函数接受两个整数并返回它们的和。
+      </p>
+
+      <h3>调用函数</h3>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int add(int a, int b)
+{
+    return a + b;
+}
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    int result = add(10, 20);
+    println("Result = ", result);
+}
+</code></pre>
+
+      <p>
+        表达式 <code>add(10, 20)</code> 调用该函数并产出一个值。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. <code>void</code> 返回类型</h2>
+      <p>
+        不返回值的函数使用 <code>void</code> 类型。
+      </p>
+
+<pre><code class="language-cpp">
+void greet()
+{
+    using namespace ::fast_io::iomnp;
+
+    print("Hello!\n");
+}
+</code></pre>
+
+      <p>
+        <code>void</code> 函数也以同样的方式调用：
+      </p>
+
+<pre><code class="language-cpp">
+greet();
+</code></pre>
+
+      <p>
+        因为它不返回任何东西，你不能写：
+      </p>
+
+<pre><code class="language-cpp">
+// int x = greet();   // ❌ error — greet() returns void
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. 形参与实参</h2>
+      <p>
+        函数定义中括号内的变量称为<strong>形参</strong>（parameter）。
+        当你调用函数时，传入的值称为<strong>实参</strong>（argument）。
+      </p>
+
+<pre><code class="language-cpp">
+int square(int x)
+{
+    return x * x;
+}
+
+int y = square(5);   // 5 is the argument
+</code></pre>
+
+      <p>
+        形参在函数内部的行为就像局部变量。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. return 语句</h2>
+      <p>
+        函数使用 <code>return</code> 语句返回值。
+      </p>
+
+<pre><code class="language-cpp">
+double half(double x)
+{
+    return x / 2.0;
+}
+</code></pre>
+
+      <p>
+        <code>return</code> 语句会立即结束函数。
+      </p>
+
+<pre><code class="language-cpp">
+int test(int x)
+{
+    if(x &lt; 0)
+        return -1;   // function ends here
+
+    return x * 2;    // otherwise return this
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. 为什么函数重要</h2>
+      <p>
+        函数是 C++ 中一切更高层抽象的基础。
+        它们让程序：
+      </p>
+
+      <ul>
+        <li>更易读</li>
+        <li>更易测试</li>
+        <li>更易维护</li>
+        <li>重复更少</li>
+      </ul>
+
+      <p>
+        后续章节会展示函数如何与引用、对象、
+        模板和 lambda 交互。现在，目标只是理解如何
+        定义并调用它们。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>函数把代码组织成一个可复用的单元。</li>
+        <li>函数有返回类型、名字、参数以及函数体。</li>
+        <li><code>void</code> 表示“不返回任何东西”。</li>
+        <li>形参是函数内部的局部变量。</li>
+        <li>实参是调用函数时传入的值。</li>
+        <li><code>return</code> 结束函数并产出一个值。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/" class="prev-button">← 第6章: 函数</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/02.declarationdefinition/" class="next-button">第6.2章: 声明与定义 →</a>
+    </div>
+  </main>
+</body>
+</html>

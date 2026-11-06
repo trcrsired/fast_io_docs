@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.3章: 传递实参 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第6.3章: 传递实参</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        当你调用函数时，你把<strong>实参</strong>传给它的<strong>形参</strong>。
+        C++ 提供了多种传递实参的方式，各有不同的行为与
+        性能特征。
+      </p>
+
+      <p>在本章中，你将学到：</p>
+
+      <ul>
+        <li>按值传递</li>
+        <li>按引用传递（<code>&amp;</code>）</li>
+        <li>按 const 引用传递（<code>T const &amp;</code>）</li>
+        <li>为什么某些函数没有引用就无法工作</li>
+        <li><code>::std::ranges::swap</code> 与 <code>::std::ranges::iter_swap</code> 如何工作</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. PASS BY VALUE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. 按值传递</h2>
+      <p>
+        当你<strong>按值</strong>传递实参时，函数收到的是该实参自身的
+        <strong>副本</strong>。
+      </p>
+
+<pre><code class="language-cpp">
+void increment(int x)
+{
+    ++x;   // modifies the copy
+}
+
+int main()
+{
+    int a{5};
+    increment(a);
+    // a is still 5
+}
+</code></pre>
+
+      <p>
+        按值传递简单且安全，但复制大对象可能很昂贵。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. PASS BY REFERENCE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 按引用传递（<code>&amp;</code>）</h2>
+      <p>
+        当你<strong>按引用</strong>传递实参时，函数收到的是原对象的
+        别名。不会发生复制。
+      </p>
+
+<pre><code class="language-cpp">
+void increment(int &amp; x)
+{
+    ++x;   // modifies the original
+}
+
+int main()
+{
+    int a{5};
+    increment(a);
+    // a is now 6
+}
+</code></pre>
+
+      <p>
+        按引用传递允许函数修改调用者的变量。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. PASS BY CONST REFERENCE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 按 const 引用传递（<code>T const &amp;</code>）</h2>
+      <p>
+        当你按 <strong>const 引用</strong>传递实参时，函数收到的是
+        原对象的引用，但不能修改它。
+      </p>
+
+<pre><code class="language-cpp">
+void print_twice(::fast_io::string const &amp; s)
+{
+    ::fast_io::io::println(s);
+    ::fast_io::io::println(s);
+}
+</code></pre>
+
+      <p>
+        这对大型对象非常理想，例如：
+      </p>
+
+      <ul>
+        <li><code>::fast_io::string</code></li>
+        <li><code>::fast_io::vector&lt;T&gt;</code></li>
+        <li>结构体与类</li>
+      </ul>
+
+      <p>
+        它能避免复制，同时保证函数无法改动数据。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. WHY PASS-BY-VALUE CANNOT MODIFY CALLER -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 为什么按值传递无法修改调用者（swap 示例）</h2>
+      <p>
+        一个经典例子是 <code>swap</code> 函数。如果你用
+        按值传递来写它，它<strong>不会</strong>工作。
+      </p>
+
+<pre><code class="language-cpp">
+void bad_swap(int a, int b)
+{
+    int temp{a};
+    a = b;
+    b = temp;
+}
+
+int main()
+{
+    int x{10};
+    int y{20};
+
+    bad_swap(x, y);
+    // x is still 10, y is still 20
+}
+</code></pre>
+
+      <p>
+        这失败是因为 <code>a</code> 与 <code>b</code> 都是<strong>副本</strong>。
+      </p>
+
+      <h3>用引用正确实现 swap</h3>
+
+<pre><code class="language-cpp">
+void good_swap(int &amp; a, int &amp; b)
+{
+    int temp{a};
+    a = b;
+    b = temp;
+}
+
+int main()
+{
+    int x{10};
+    int y{20};
+
+    good_swap(x, y);
+    // x is now 20, y is now 10
+}
+</code></pre>
+
+      <p>
+        这里 <code>a</code> 与 <code>b</code> 引用的是原始变量。
+      </p>
+
+      <h3>使用 ::std::ranges::swap（对象的首选）</h3>
+
+<pre><code class="language-cpp">
+#include &lt;concepts&gt;  // defines ::std::ranges::swap
+
+int main()
+{
+    int x{10};
+    int y{20};
+
+    ::std::ranges::swap(x, y);
+
+    // x is now 20, y is now 10
+}
+</code></pre>
+
+      <p>
+        <code>::std::ranges::swap</code> 是现代、标准的对象交换方式。
+      </p>
+
+      <h3>使用指针与 ::std::ranges::iter_swap</h3>
+      <p>
+        当你手上有指针或迭代器时，请使用 <code>::std::ranges::iter_swap</code>。
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;iterator&gt;  // defines ::std::ranges::iter_swap
+
+int main()
+{
+    int x{10};
+    int y{20};
+
+    int * px{::std::addressof(x)};
+    int * py{::std::addressof(y)};
+
+    ::std::ranges::iter_swap(px, py);  // swaps *px and *py
+
+    // x is now 20, y is now 10
+}
+</code></pre>
+
+      <p>
+        <code>::std::ranges::iter_swap</code> 交换迭代器或指针所指向的值。
+      </p>
+
+      <h3>这些函数在哪里定义</h3>
+
+<pre><code class="language-cpp">
+#include &lt;concepts&gt;  // ::std::ranges::swap
+#include &lt;iterator&gt;  // ::std::ranges::iter_swap
+</code></pre>
+
+      <p>
+        这些头文件提供了支撑 <code>ranges</code> 版 swap 的概念与迭代器
+        工具。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. WHEN TO USE WHICH -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. 何时使用哪种方式</h2>
+
+      <h3>在以下情况使用按值传递：</h3>
+      <ul>
+        <li>形参很小（例如 <code>int</code>、<code>double</code>）</li>
+        <li>你本来就需要一个局部副本</li>
+      </ul>
+
+      <h3>在以下情况使用按引用传递：</h3>
+      <ul>
+        <li>函数必须修改调用者的变量</li>
+      </ul>
+
+      <h3>在以下情况使用按 const 引用传递：</h3>
+      <ul>
+        <li>对象很大</li>
+        <li>你不想复制它</li>
+        <li>函数不应当修改它</li>
+      </ul>
+
+      <p>
+        这三种形式覆盖了现代 C++ 中几乎所有的函数形参用法。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>按值传递会复制实参。</li>
+        <li>按引用传递允许修改原对象。</li>
+        <li>按 const 引用传递避免复制，同时防止修改。</li>
+        <li>对字符串、vector 这类大型对象使用 <code>T const &amp;</code>。</li>
+        <li>对 <code>int</code>、<code>double</code> 这类小类型，按值传递即可。</li>
+        <li>用按值传递写的 swap 无法工作。</li>
+        <li>对象的交换使用 <code>::std::ranges::swap</code>。</li>
+        <li>指针与迭代器的交换使用 <code>::std::ranges::iter_swap</code>。</li>
+        <li><code>::std::ranges::swap</code> 定义在 <code>&lt;concepts&gt;</code> 中。</li>
+        <li><code>::std::ranges::iter_swap</code> 定义在 <code>&lt;iterator&gt;</code> 中。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/02.declarationdefinition/" class="prev-button">← 第6.2章: 声明与定义</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/04.return/" class="next-button">第6.4章: 返回值 →</a>
+    </div>
+  </main>
+</body>
+</html>

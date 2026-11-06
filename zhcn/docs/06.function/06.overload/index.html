@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.6章: 函数重载 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第6.6章: 函数重载</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        C++ 允许同名函数有多个，只要它们的<strong>参数列表不同</strong>。
+        这一特性称为<strong>函数重载</strong>。
+      </p>
+
+      <p>在本章中，你将学到：</p>
+
+      <ul>
+        <li>什么是函数重载</li>
+        <li>重载决议如何工作</li>
+        <li>什么算作不同的参数列表</li>
+        <li>为什么仅凭返回类型无法重载函数</li>
+        <li>引用与 <code>const</code> 如何影响重载选择</li>
+        <li>有歧义的重载如何产生</li>
+        <li>重载如何与默认实参交互</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. BASIC OVERLOADING -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. 基本的函数重载</h2>
+      <p>
+        两个或多个函数只要形参类型不同，就可以同名。
+      </p>
+
+<pre><code class="language-cpp">
+void print(int x)
+{
+    ::fast_io::io::println("int: ", x);
+}
+
+void print(double d)
+{
+    ::fast_io::io::println("double: ", d);
+}
+
+int main()
+{
+    print(42);     // calls print(int)
+    print(3.14);   // calls print(double)
+}
+</code></pre>
+
+      <p>
+        编译器根据实参类型选择正确的函数。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. WHAT COUNTS AS DIFFERENT -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 什么算作不同的参数列表？</h2>
+      <p>
+        重载必须在<strong>形参类型</strong>或<strong>形参个数</strong>上有所不同。
+      </p>
+
+<pre><code class="language-cpp">
+void f(int);
+void f(double);       // OK — different type
+void f(int, int);     // OK — different number of parameters
+</code></pre>
+
+      <p>
+        这些全都是合法的重载。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. RETURN TYPE DOES NOT OVERLOAD -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 返回类型<em>不</em>参与重载</h2>
+      <p>
+        只有<strong>参数列表</strong>决定两个函数是否为不同的重载。
+        在重载决议中，<strong>返回类型被完全忽略</strong>。
+      </p>
+
+<pre><code class="language-cpp">
+int g();
+double g();   // ❌ error — return type alone does not create a new overload
+</code></pre>
+
+      <p>
+        编译器必须在知道返回类型<strong>之前</strong>就选定重载。
+      </p>
+
+<pre><code class="language-cpp">
+auto x = g();   // which g() should this call?
+</code></pre>
+
+      <p>
+        由于返回类型无法消除调用的歧义，这组重载是非法的。
+        <strong>只有形参可以不同。</strong>
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. CONST AND REFERENCES -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 用引用与 const 重载</h2>
+      <p>
+        引用与 <code>const</code> 限定符会影响重载决议。
+      </p>
+
+<pre><code class="language-cpp">
+void h(int &amp; x)
+{
+    ::fast_io::io::print("non-const reference\n");
+}
+
+void h(int const &amp; x)
+{
+    ::fast_io::io::print("const reference\n");
+}
+</code></pre>
+
+      <p>
+        用 const 值调用 <code>h</code> 会选中 const 重载：
+      </p>
+
+<pre><code class="language-cpp">
+int main()
+{
+    int a{10};
+    int const b{20};
+
+    h(a);  // calls h(int &amp;)
+    h(b);  // calls h(int const &amp;)
+}
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. AMBIGUOUS CALLS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. 有歧义的调用</h2>
+      <p>
+        有时编译器无法判断哪个重载更好。
+      </p>
+
+<pre><code class="language-cpp">
+void k(long);
+void k(double);
+
+int main()
+{
+    k(0);   // ❌ ambiguous — 0 can convert to long or double
+}
+</code></pre>
+
+      <p>
+        当两个重载同样合适时，调用就有歧义。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 6. OVERLOADING WITH DEFAULT ARGUMENTS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>6. 与默认实参结合的重载</h2>
+      <p>
+        默认实参与重载可能相互作用，有时会造成歧义。
+      </p>
+
+<pre><code class="language-cpp">
+void m(int x, int y = 0);
+void m(int x);
+</code></pre>
+
+      <p>
+        像 <code>m(5)</code> 这样的调用有歧义：
+      </p>
+
+      <ul>
+        <li>第二个重载作为 <code>m(int)</code> 直接匹配</li>
+        <li>第一个重载用 <code>y</code> 的默认值也能作为 <code>m(int, int)</code> 匹配</li>
+      </ul>
+
+      <p>
+        编译器无法偏向其中任何一个，因此该调用无法通过编译。
+      </p>
+
+      <p>
+        设计重载时，请确保调用不会以这种方式匹配多个重载。
+        很多情况下，你应当二选一：
+      </p>
+
+      <ul>
+        <li>使用带默认实参的单个函数，或者</li>
+        <li>使用一组清晰的重载，且在重叠的签名上不带默认值</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>函数重载允许同名函数有多个。</li>
+        <li>重载必须在形参类型或形参个数上不同。</li>
+        <li><strong>仅凭返回类型无法重载函数。</strong></li>
+        <li><code>const</code> 与引用会影响重载决议。</li>
+        <li>有歧义的调用会导致编译错误。</li>
+        <li>如果签名重叠，默认实参可能让重载产生歧义。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/05.defaultargs/" class="prev-button">← 第6.5章: 默认实参</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/07.translationunits/" class="next-button">第6.7章: 翻译单元 →</a>
+    </div>
+  </main>
+</body>
+</html>

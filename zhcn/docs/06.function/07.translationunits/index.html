@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.7章: 翻译单元 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第6.7章: 翻译单元</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        C++ 程序常被拆分到多个文件中。每个文件被单独编译成一个<strong>翻译单元</strong>，
+        然后由链接器把所有翻译单元合并成最终的可执行文件。
+      </p>
+
+      <p>
+        现代 C++ 还引入了<strong>模块</strong>，它是被编译的翻译单元，
+        可以取代许多头文件的使用场景。
+      </p>
+
+      <p>在本章中，你将学到：</p>
+
+      <ul>
+        <li>什么是翻译单元</li>
+        <li>声明与定义如何组织</li>
+        <li>分离编译如何工作</li>
+        <li>C++ 模块与翻译单元的关系</li>
+        <li>如何编写并编译一个简单的模块</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. WHAT IS A TRANSLATION UNIT -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. 什么是翻译单元？</h2>
+      <p>
+        <strong>翻译单元</strong>是对单个 <code>.cpp</code> 文件应用预处理器
+        （<code>#include</code>、<code>#define</code> 等）后得到的结果，
+        也就是编译器真正去编译的那一个大文件。
+      </p>
+
+<pre><code class="language-text">
+main.cpp        → translation unit A
+math.cpp        → translation unit B
+io.cpp          → translation unit C
+</code></pre>
+
+      <p>
+        每个翻译单元被独立编译成一个目标文件：
+      </p>
+
+<pre><code class="language-text">
+main.cpp  → main.o
+math.cpp  → math.o
+io.cpp    → io.o
+</code></pre>
+
+      <p>
+        然后链接器把所有目标文件合并成一个可执行文件。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. DECLARATIONS VS DEFINITIONS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 声明 vs. 定义</h2>
+      <p>
+        处理多个翻译单元时，把<strong>声明</strong>与<strong>定义</strong>分开
+        至关重要。
+      </p>
+
+      <ul>
+        <li><strong>声明</strong>告诉编译器某个东西存在。</li>
+        <li><strong>定义</strong>提供完整函数体，或分配存储空间。</li>
+      </ul>
+
+      <p>
+        声明放在<strong>头文件</strong>（<code>.hpp</code>）中。
+        定义放在<strong>源文件</strong>（<code>.cpp</code>）中。
+      </p>
+
+<pre><code class="language-cpp">
+// math.hpp (declaration)
+int square(int x);
+</code></pre>
+
+<pre><code class="language-cpp">
+// math.cpp (definition)
+int square(int x)
+{
+    return x * x;
+}
+</code></pre>
+
+<pre><code class="language-cpp">
+// main.cpp
+#include "math.hpp"
+
+int main()
+{
+    ::fast_io::io::println(square(5));
+}
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. COMPILING MULTIPLE FILES -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 编译多个文件</h2>
+      <p>
+        你可以在一条命令中编译并链接多个翻译单元：
+      </p>
+
+<pre><code class="language-bash">
+clang++ -std=c++23 main.cpp math.cpp -o program
+</code></pre>
+
+      <p>或者用 <code>g++</code>：</p>
+
+<pre><code class="language-bash">
+g++ -std=c++23 main.cpp math.cpp -o program
+</code></pre>
+
+      <p>
+        也可以分别编译每个翻译单元，之后再链接：
+      </p>
+
+<pre><code class="language-bash">
+clang++ -std=c++23 -c main.cpp   # produces main.o
+clang++ -std=c++23 -c math.cpp   # produces math.o
+clang++ main.o math.o -o program
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. MODULES AS TRANSLATION UNITS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 模块作为翻译单元</h2>
+      <p>
+        C++ 模块接口文件（<code>.cppm</code>）同样是一个翻译单元。
+        模块不使用 <code>#include</code> 复制文本，而是用
+        <strong>export</strong> 与 <strong>import</strong> 共享已编译的
+        声明。
+      </p>
+
+<pre><code class="language-text">
+math.cppm  → translation unit (module interface)
+main.cpp   → translation unit (imports the module)
+</code></pre>
+
+      <p>
+        编译器从模块接口生成 <strong>PCM</strong>（预编译模块），
+        其他翻译单元再导入它。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. WRITING AND COMPILING A MODULE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. 编写并编译一个简单模块</h2>
+
+      <p>
+        模块接口声明一个模块，并导出你希望其他翻译单元
+        使用的函数或类型。
+      </p>
+
+<pre><code class="language-cpp">
+// math.cppm — module interface
+export module math;
+
+export int square(int x)
+{
+    return x * x;
+}
+</code></pre>
+
+      <p>
+        另一个翻译单元可以导入该模块：
+      </p>
+
+<pre><code class="language-cpp">
+// main.cpp
+import math;
+import fast_io;
+
+int main()
+{
+    ::fast_io::io::println(square(7));
+}
+</code></pre>
+
+      <h3>用 Clang 编译模块</h3>
+
+      <h4>第 1 步 —— 编译模块接口</h4>
+
+<pre><code class="language-bash">
+clang++ -std=c++26 --precompile math.cppm -o math.pcm
+</code></pre>
+
+      <h4>第 2 步 —— 编译你的程序并导入 PCM</h4>
+
+<pre><code class="language-bash">
+clang++ -std=c++26 -fmodule-file=math=math.pcm -c main.cpp -o main.o
+</code></pre>
+
+      <h4>第 3 步 —— 链接最终可执行文件</h4>
+
+<pre><code class="language-bash">
+clang++ main.o -o program
+</code></pre>
+
+      <h3>可选：编译 fast_io 模块</h3>
+
+<pre><code class="language-bash">
+clang++ -std=c++26 --precompile \
+  $HOME/libraries/fast_io/share/fast_io/fast_io.cppm \
+  -I$HOME/libraries/fast_io/include \
+  -o fast_io.pcm
+</code></pre>
+
+<pre><code class="language-bash">
+clang++ -std=c++26 \
+  -fmodule-file=math=math.pcm \
+  -fmodule-file=fast_io=fast_io.pcm \
+  -c main.cpp -o main.o
+</code></pre>
+
+<pre><code class="language-bash">
+clang++ main.o -o program
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>每个 <code>.cpp</code> 文件都变成一个独立的翻译单元。</li>
+        <li>模块接口文件（<code>.cppm</code>）也是翻译单元。</li>
+        <li>编译器独立编译每个翻译单元。</li>
+        <li>链接器把目标文件合并成最终可执行文件。</li>
+        <li>模块用已编译的接口取代文本式包含。</li>
+        <li>Clang 用 PCM（<code>.pcm</code>）表示已编译的模块。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/06.overload/" class="prev-button">← 第6.6章: 函数重载</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/08.inline/" class="next-button">第6.8章: inline 函数 →</a>
+    </div>
+  </main>
+</body>
+</html>

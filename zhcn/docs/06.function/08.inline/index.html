@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第6.8章: inline 函数 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第6.8章: inline 函数</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        在上一章中，你了解到每个 <code>.cpp</code> 文件都变成一个独立的翻译单元，
+        并且每个非 inline 的函数定义必须恰好出现在<strong>一个</strong>翻译单元中。
+        否则链接器会报告重复定义错误。
+      </p>
+
+      <p>
+        但许多函数<em>必须</em>定义在头文件中：
+      </p>
+
+      <ul>
+        <li>模板函数</li>
+        <li>小型工具函数</li>
+        <li>仅头文件库</li>
+        <li>模块接口内部的函数</li>
+      </ul>
+
+      <p>
+        <code>inline</code> 关键字解决了这个问题：它允许函数定义出现在多个
+        翻译单元中，而不违反单一定义规则（ODR）。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. WHAT INLINE REALLY MEANS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. <code>inline</code> 的真正含义</h2>
+
+      <p>
+        <code>inline</code> 关键字<strong>并不</strong>表示“优化这个函数”
+        或“把函数体内联到调用点”。
+      </p>
+
+      <p>
+        相反，<code>inline</code> 表示：
+      </p>
+
+      <blockquote>
+        <strong>这个函数可以出现在多个翻译单元中，链接器必须把所有完全相同的定义
+        视为同一个。</strong>
+      </blockquote>
+
+      <p>
+        换言之，<code>inline</code> 关乎<strong>ODR 安全性</strong>，
+        而不是性能。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. WHY INLINE IS NEEDED -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 为什么需要 <code>inline</code></h2>
+
+      <p>
+        假设你把函数定义放在头文件中：
+      </p>
+
+<pre><code class="language-cpp">
+// util.hpp
+int add(int a, int b)
+{
+    return a + b;
+}
+</code></pre>
+
+      <p>
+        并把它包含进两个翻译单元：
+      </p>
+
+<pre><code class="language-cpp">
+// a.cpp
+#include "util.hpp"
+
+// b.cpp
+#include "util.hpp"
+</code></pre>
+
+      <p>
+        链接器会看到两份 <code>add</code> 的定义并报错。
+      </p>
+
+      <p>
+        要解决这个问题，把函数标记为 <code>inline</code>：
+      </p>
+
+<pre><code class="language-cpp">
+// util.hpp
+inline int add(int a, int b)
+{
+    return a + b;
+}
+</code></pre>
+
+      <p>
+        现在所有翻译单元都可以包含该定义，而链接器会把它们视为同一个。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. WHAT THE LINKER ACTUALLY DOES -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 链接器对 inline 函数实际做了什么</h2>
+
+      <p>
+        链接器<strong>不会合并</strong> inline 函数定义。
+        它做的是：
+      </p>
+
+      <ol>
+        <li>保留一个定义</li>
+        <li><strong>丢弃</strong>所有其他完全相同的定义</li>
+      </ol>
+
+      <p>
+        这就是为什么不一致的 inline 定义会导致
+        <strong>IFNDR（非法、无需诊断）</strong>。如果两个
+        翻译单元含有不同的 inline 定义，链接器会
+        任意丢弃一些并保留一个。
+      </p>
+
+      <p>
+        所有 inline 定义必须<strong>逐位完全相同</strong>。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. ODR VIOLATION EXAMPLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 示例：ODR 违规</h2>
+
+      <p>
+        下面是一个因违反单一定义规则而导致 IFNDR 的简单例子：
+      </p>
+
+<pre><code class="language-cpp">
+// a.cpp
+inline int f()
+{
+    return 1;
+}
+</code></pre>
+
+<pre><code class="language-cpp">
+// b.cpp
+inline int f()
+{
+    return 2;
+}
+</code></pre>
+
+      <p>
+        两个翻译单元都能成功编译。但在链接时：
+      </p>
+
+      <ul>
+        <li>链接器保留一个定义</li>
+        <li>链接器丢弃另一个</li>
+        <li>保留哪一个是未指定的</li>
+      </ul>
+
+      <p>
+        程序可能返回 <code>1</code>，也可能返回 <code>2</code>，取决于
+        链接器、构建选项，甚至目标文件的顺序。
+      </p>
+
+      <p>
+        这是真实的 ODR 违规，结果为 IFNDR。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. INLINE AND SYMBOL GENERATION (WITH ASSEMBLY EXAMPLE) -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. inline 与符号生成（附汇编示例）</h2>
+
+      <p>
+        inline 函数的一个关键性质是：如果该函数从未被 ODR 使用，
+        编译器可以选择<strong>不</strong>生成可调用的符号。
+      </p>
+
+      <p>
+        考虑下面这段代码：
+      </p>
+
+<pre><code class="language-cpp">
+int square(int num) {
+    return num * num;
+}
+
+inline int inlinesquare(int num) {
+    return num * num;
+}
+</code></pre>
+
+      <p>
+        开启优化编译时，编译器会为
+        <code>square</code> 生成真实的符号：
+      </p>
+
+<pre><code class="language-text">
+"square(int)":
+        imul    edi, edi
+        mov     eax, edi
+        ret
+</code></pre>
+
+      <p>
+        但对于 <code>inlinesquare</code>，除非它真的被使用，
+        <strong>不会生成任何符号</strong>。
+      </p>
+
+      <p>
+        这体现了核心规则：
+      </p>
+
+      <blockquote>
+        <strong>除非被使用，inline 函数可能完全不会生成任何汇编代码。</strong>
+      </blockquote>
+
+      <p>
+        这是正常且符合预期的行为。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 6. INLINE AND LTO -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>6. inline 与链接时优化（LTO）</h2>
+
+      <p>
+        使用 <code>-flto</code> 时，编译器能一次看到所有翻译单元。
+        这使它能够：
+      </p>
+
+      <ul>
+        <li>跨翻译单元内联函数</li>
+        <li>彻底消除未使用的 inline 函数</li>
+        <li>避免为 inline 函数生成符号</li>
+        <li>检测出更多 ODR 违规</li>
+      </ul>
+
+      <p>
+        LTO 不会改变 <code>inline</code> 的含义，但它让符号生成
+        更可预测。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 7. REAL-WORLD ODR VIOLATION: LIBSTDC++ -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>7. 真实世界的 ODR 违规：libstdc++ 加固</h2>
+
+      <p>
+        ODR 违规不只是理论问题。当链接同一个库用不同配置选项
+        编译出的<strong>两个版本</strong>时，真实程序里就会出现这种问题。
+      </p>
+
+      <p>
+        一个常见例子是 GCC 的 <code>libstdc++</code> 在使用以下选项编译时：
+      </p>
+
+<pre><code class="language-bash">
+-D_GLIBCXX_ASSERTIONS
+</code></pre>
+
+      <p>
+        该选项为 <code>std::vector</code>、<code>std::string</code> 和 <code>std::array</code>
+        这类标准库容器启用边界检查。
+      </p>
+
+      <p>
+        如果你的程序链接了：
+      </p>
+
+      <ul>
+        <li>一个用 <code>-D_GLIBCXX_ASSERTIONS</code> 编译的目标文件</li>
+        <li>另一个<strong>不带</strong>该选项编译的目标文件</li>
+      </ul>
+
+      <p>
+        那么 <code>&lt;vector&gt;</code>、<code>&lt;string&gt;</code> 及其他头文件内部的
+        inline 定义<strong>就不是完全相同的</strong>。
+      </p>
+
+      <p>
+        链接器会：
+      </p>
+
+      <ul>
+        <li>保留一个版本的 inline 容器函数</li>
+        <li><strong>丢弃</strong>另一个版本</li>
+        <li>产出一个二进制文件，其中一些容器操作是加固的，另一些不是</li>
+      </ul>
+
+      <p>
+        这是隐蔽的 ODR 违规，会导致 IFNDR。在实践中，带边界检查的版本
+        常常被丢弃，于是即使你本意是启用加固，最终得到的却是
+        非检查版本。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 8. WHY FAST_IO CONTAINERS AVOID THIS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>8. 为什么 fast_io 容器避免了这个问题</h2>
+
+      <p>
+        <code>fast_io</code> 库完全避开了这一整类 ODR 问题：
+      </p>
+
+      <ul>
+        <li>它的容器是仅头文件的</li>
+        <li>它们的 inline 定义稳定且一致</li>
+        <li>它们不依赖 <code>_GLIBCXX_ASSERTIONS</code> 这类全局配置宏</li>
+        <li>它们不会混用加固与非加固构建</li>
+      </ul>
+
+      <p>
+        由于 <code>fast_io</code> 容器不依赖单独编译的标准库内部隐藏的 inline 定义，
+        在混用不同构建配置时，它们不会受到困扰 <code>std::vector</code> 及其他标准容器
+        的那类 ODR 违规影响。
+      </p>
+
+      <p>
+        为了安全、一致性与可预测的行为，在性能关键或安全敏感的代码中，
+        建议优先使用 <strong>fast_io 容器</strong>，而不是标准库容器。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 9. STORAGE-CLASS AND LINKAGE RULES -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>9. 每个函数都必须有存储类或链接性说明符</h2>
+
+      <p>
+        现代 C++ 风格遵循一条简单规则：
+      </p>
+
+      <blockquote>
+        <strong>每个函数都必须用 <code>extern</code>、<code>inline</code>、
+        <code>static</code> 声明，或者放在匿名命名空间中。</strong>
+      </blockquote>
+
+      <p>
+        这决定了：
+      </p>
+
+      <ul>
+        <li>链接性</li>
+        <li>可见性</li>
+        <li>ODR 行为</li>
+        <li>是否允许多个定义</li>
+        <li>编译器是否必须生成符号</li>
+      </ul>
+
+      <p>
+        你将在本教程后面学到更多存储类规则，包括：
+      </p>
+
+      <ul>
+        <li>每个虚函数都必须声明为 <code>virtual</code>、<code>override</code> 或 <code>final</code></li>
+        <li>每个函数都应声明为 <code>noexcept</code> 或 <code>throws</code></li>
+        <li>如果函数可以是 <code>constexpr</code>，就应当声明为 <code>constexpr</code></li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 10. INLINE AND TEMPLATES -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>10. inline 与模板</h2>
+
+      <p>
+        模板函数隐式就是 <strong>inline</strong>。
+      </p>
+
+<pre><code class="language-cpp">
+template &lt;typename T&gt;
+T twice(T x)
+{
+    return x + x;
+}
+</code></pre>
+
+      <p>
+        这就是模板可以定义在头文件中而不造成
+        重复定义错误的原因。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 11. INLINE AND MODULES -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>11. inline 与模块</h2>
+
+      <p>
+        模块接口单元（<code>.cppm</code>）的行为像已编译的头文件。
+        定义在模块接口中的函数在跨翻译单元时自动 ODR 安全。
+      </p>
+
+      <p>
+        你<strong>不需要</strong>在模块接口中写 <code>inline</code>：
+      </p>
+
+<pre><code class="language-cpp">
+// math.cppm
+export module math;
+
+export int square(int x)
+{
+    return x * x;   // implicitly ODR-safe
+}
+</code></pre>
+
+      <p>
+        模块系统确保该定义只生成一次。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 12. INLINE DOES NOT FORCE INLINING -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>12. <code>inline</code> <em>不</em>强制内联</h2>
+
+      <p>
+        无论是否有关键字 <code>inline</code>，编译器都可以自行决定内联
+        或不内联某个函数。
+      </p>
+
+      <p>
+        现代编译器根据优化启发式来决定内联，而不是根据
+        是否存在 <code>inline</code>。
+      </p>
+
+      <p>
+        这个关键字的存在是为了<strong>链接性与 ODR</strong>，而不是性能。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>inline</code> 允许函数定义出现在多个翻译单元中。</li>
+        <li>链接器会<strong>丢弃</strong>重复的 inline 定义，而不是合并它们。</li>
+        <li>不一致的 inline 定义会导致 IFNDR。</li>
+        <li>除非被 ODR 使用，inline 函数可能不生成符号。</li>
+        <li><code>-flto</code> 允许全局内联与符号消除。</li>
+        <li>混用加固与非加固的 <code>libstdc++</code> 构建会造成真实的 ODR 违规。</li>
+        <li><strong>fast_io 容器</strong>完全避免了这些问题。</li>
+        <li>每个函数都应有存储类或链接性说明符。</li>
+        <li>模板隐式就是 inline。</li>
+        <li>模块接口中的函数自动 ODR 安全。</li>
+        <li><code>inline</code> 并不强制编译器内联函数体。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/06.function/07.translationunits/" class="prev-button">← 第6.7章: 翻译单元</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/09.carrayparameters/" class="next-button">第6.9章: C 风格数组参数 →</a>
+    </div>
+  </main>
+</body>
+</html>
