@@ -338,24 +338,24 @@ int main()
 	}
 	catch throws (::std::error e)
 	{
-		println("domain is http: ", e.is_code_of&lt;::std::http_errc&gt;());
+		println("domain is http:  ", e.is_code_of&lt;::std::http_errc&gt;());
 		println("domain is posix: ", e.is_code_of&lt;::std::errc&gt;());
-		println("== not_found: ", e == ::std::http_errc::not_found);
-		println("== errc ENOENT: ", e == ::std::errc::no_such_file_or_directory);
-		println("equivalent: ", e.equivalent(::std::errc::no_such_file_or_directory));
-		println("to_errc: ", static_cast&lt;::std::int_least32_t&gt;(e.to_errc()));
-		println("code: ", e.code());
+		println("== not_found:    ", e == ::std::http_errc::not_found);
+		println("== errc ENOENT:  ", e == ::std::errc::no_such_file_or_directory);
+		println("equivalent:      ", e.equivalent(::std::errc::no_such_file_or_directory));
+		println("to_errc:         ", static_cast&lt;::std::int_least32_t&gt;(e.to_errc()));
+		println("code:            ", e.code());
 	}
 }
 </code></pre>
       <pre><code class="language-text">
-domain is http: 1
+domain is http:  1
 domain is posix: 0
-== not_found: 1
-== errc ENOENT: 0
-equivalent: 1
-to_errc: 2
-code: 404
+== not_found:    1
+== errc ENOENT:  0
+equivalent:      1
+to_errc:         2
+code:            404
 </code></pre>
       <p>
         把 <code>==</code> 与 <code>equivalent</code> 放在一起看。该错误是
@@ -386,21 +386,21 @@ int main()
 	catch throws (::std::error e)
 	{
 		perrln(e);                                          // the whole line, to stderr
-		perr("inside a line: ", e, "\n");
-		perr("domain name: ", ::fast_io::mnp::name(e), "\n");
-		perr("code + text: ", ::fast_io::mnp::message(e), "\n");
-		perr("as posix name: ", ::fast_io::mnp::posix_equivalent_name(e), "\n");
-		perr("as posix text: ", ::fast_io::mnp::posix_equivalent_message(e), "\n");
+		perr("inside a line:  ", e, "\n");
+		perr("domain name:    ", ::fast_io::mnp::name(e), "\n");
+		perr("code + text:    ", ::fast_io::mnp::message(e), "\n");
+		perr("as posix name:  ", ::fast_io::mnp::posix_equivalent_name(e), "\n");
+		perr("as posix text:  ", ::fast_io::mnp::posix_equivalent_message(e), "\n");
 	}
 }
 </code></pre>
       <pre><code class="language-text">
 [posix](28)No space left on device
-inside a line: [posix](28)No space left on device
-domain name: posix
-code + text: (28)No space left on device
-as posix name: posix
-as posix text: [posix](28)No space left on device
+inside a line:  [posix](28)No space left on device
+domain name:    posix
+code + text:    (28)No space left on device
+as posix name:  posix
+as posix text:  [posix](28)No space left on device
 </code></pre>
       <ul>
         <li><code>perrln(e)</code> —— 完整内容，单独一行，写到 stderr。</li>
