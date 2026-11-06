@@ -21,6 +21,11 @@ for f in sys.argv[1:]:
         problems.append('translation banner still present')
     if 'lang-switch' not in zh:
         problems.append('no language switcher')
+    # every nav button must stay inside the Chinese site: the main button goes
+    # to /zhcn/, never to the English landing page.
+    for href in re.findall(r'<a href="([^"]*)" class="main-button"', zh):
+        if href != '/zhcn/':
+            problems.append('main-button -> %s' % href)
     if problems:
         print('FAIL', zh_path, problems); bad += 1
 print('checked %d pages, %d problems' % (len(sys.argv) - 1, bad))
