@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5.6章: 指针算术 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第5.6章: 指针算术</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        指针算术是指对指针加上或减去一个整数。
+        这让指针按<strong>元素</strong>个数（而不是字节数）向前或向后移动。
+        只有当指针指向<strong>同一个 C 风格数组</strong>的元素时，
+        指针算术才有意义。
+      </p>
+
+      <p>在本章中，你将学到：</p>
+
+      <ul>
+        <li>指针算术如何工作</li>
+        <li>为什么指针算术按元素而非字节移动</li>
+        <li>指针相减如何工作</li>
+        <li>什么是 <code>::std::ptrdiff_t</code></li>
+        <li>为什么指针算术只在同一个数组内有效</li>
+        <li>为什么越界算术是未定义行为</li>
+        <li>为什么未定义行为<em>并不</em>保证会崩溃</li>
+        <li>指针就是 C 风格数组的迭代器</li>
+        <li><code>::std::ranges::begin(a)</code> 与 <code>::std::ranges::end(a)</code> 如何工作</li>
+        <li>哪些指针算术是<strong>不</strong>允许的</li>
+        <li>为什么同样的规则也适用于 <code>::fast_io::array</code>、<code>::fast_io::vector</code> 和 <code>::fast_io::string</code> 的连续迭代器</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. MOVES BY ELEMENTS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. 指针算术按元素而非字节移动</h2>
+      <p>
+        当给指针加 <code>1</code> 时，它移动到该类型的下一个元素。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+
+int *p = ::std::addressof(a[0]);
+int *q = p + 1;   // moves to a[1]
+</code></pre>
+
+<pre><code class="language-text">
+Example addresses:
+
+a[0] at 1000
+a[1] at 1004
+a[2] at 1008
+
+p = 1000
+p + 1 = 1004   ← moved by sizeof(int)
+</code></pre>
+
+      <p>
+        指针算术会自动乘以 <code>sizeof(T)</code>。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. SUBTRACTING POINTERS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 指针相减</h2>
+      <p>
+        两个指向<strong>同一数组</strong>元素的指针相减，得到它们之间的
+        元素个数。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+
+int *p = ::std::addressof(a[0]);
+int *q = ::std::addressof(a[2]);
+
+::std::ptrdiff_t diff = q - p;   // diff == 2
+</code></pre>
+
+      <p>
+        结果以<strong>元素</strong>为单位，而不是字节。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2.1 PTRDIFF_T -->
+    <!-- ========================= -->
+
+    <section>
+      <h3>2.1 ::std::ptrdiff_t —— 指针差的类型</h3>
+      <p>
+        当你把两个指针相减时，结果存储在一个名为
+        <code>::std::ptrdiff_t</code> 的类型中。这是 C++
+        标准专门为表示两个指针之间距离而定义的有符号整数类型。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+
+int *p = ::std::addressof(a[0]);
+int *q = ::std::addressof(a[2]);
+
+::std::ptrdiff_t diff = q - p;   // diff == 2
+</code></pre>
+
+      <p>
+        <code>::std::ptrdiff_t</code> 始终是<strong>有符号</strong>类型，因为
+        指针差可以为负。
+      </p>
+
+      <h4>fast_io 的保证</h4>
+      <p>
+        <code>fast_io</code> 中所有连续容器 —— 包括
+        <code>::fast_io::vector</code>、<code>::fast_io::array</code> 和
+        <code>::fast_io::string</code> —— 都保证：
+      </p>
+
+      <ul>
+        <li>它们的迭代器差类型是 <code>::std::ptrdiff_t</code></li>
+        <li>它们的 <code>.size()</code> 返回 <code>::std::size_t</code></li>
+      </ul>
+
+      <p>
+        这与 C++ 标准库一致，可避免有符号/无符号不匹配带来的隐蔽缺陷。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. VALID RANGE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 指针算术只在同一数组内有效</h2>
+      <p>
+        指针算术只在指针指向以下位置时有效：
+      </p>
+
+      <ul>
+        <li>数组的某个元素，或</li>
+        <li>最后一个元素之后的<em>一个位置</em></li>
+      </ul>
+
+      <p>
+        其他任何情况都是<strong>未定义行为</strong>。
+      </p>
+
+<pre><code class="language-cpp">
+int x{5};
+int *p = ::std::addressof(x);
+
+// p + 1;   // undefined behavior — not part of an array
+</code></pre>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. ONE PAST END -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 尾后指针</h2>
+      <p>
+        C++ 允许指针指向数组最后一个元素之后的<em>一个位置</em>。
+        但你绝不可以解引用它。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+
+int *first = ::std::addressof(a[0]);
+int *end   = first + 3;   // one past the end (valid)
+</code></pre>
+
+<pre><code class="language-cpp">
+// *end;   // undefined behavior — cannot dereference
+</code></pre>
+
+      <p>
+        这个指针存在的唯一目的，是让你能比较它或向后移动。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. UB -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. 解引用越界指针是未定义行为</h2>
+      <p>
+        产生越界指针的指针算术是未定义行为。
+        解引用这样的指针同样是未定义行为。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+
+int *p = ::std::addressof(a[0]);
+
+int *bad = p + 10;   // undefined behavior — out of bounds
+// *bad;             // undefined behavior
+</code></pre>
+
+      <p>未定义行为意味着：</p>
+
+      <ul>
+        <li>程序可能崩溃</li>
+        <li>也可能破坏内存</li>
+        <li>也可能悄悄产生错误结果</li>
+        <li>也可能看起来一切正常</li>
+      </ul>
+
+      <p>你不能依赖任何特定结果。</p>
+
+      <h3>WebAssembly 说明</h3>
+      <p>
+        在未启用内存标记的 WebAssembly 上，越界的指针算术通常
+        <strong>不会</strong>触发陷阱，使缺陷更难被发现。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 6. UB DOES NOT CRASH -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>6. 未定义行为并不保证会崩溃</h2>
+      <p>
+        许多初学者以为非法的指针算术会立刻崩溃。
+        这是<strong>错的</strong>。
+      </p>
+
+      <p>编译器可能假定：</p>
+
+      <ul>
+        <li>指针总是指向有效对象</li>
+        <li>指针算术始终保持在数组边界之内</li>
+      </ul>
+
+      <p>
+        这可能导致编译器以令调试极其困难的方式移除检查或重排代码。
+      </p>
+
+      <p>未定义行为之所以危险，恰恰因为它不可预测。</p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 7. POINTERS ARE ITERATORS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>7. 指针就是 C 风格数组的迭代器</h2>
+      <p>
+        在现代 C++ 中，指针被视为<strong>最高层次的迭代器</strong>。
+        它们满足所有迭代器要求，并被用作 C 风格数组的迭代器。
+      </p>
+
+      <p>对数组 <code>a</code> 而言，迭代器就是：</p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+
+int *first = ::std::addressof(a[0]);
+int *last  = first + 3;   // one past the end
+</code></pre>
+
+      <p>
+        这些指针的行为与 C++ ranges 库中的迭代器完全一致。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 8. RANGES BEGIN/END -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>8. 使用 ::std::ranges::begin(a) 与 ::std::ranges::end(a)</h2>
+      <p>
+        现代 C++ 提供了一种统一的方式获取数组的迭代器：
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;ranges&gt;
+
+int a[3]{10, 20, 30};
+
+int *first = ::std::ranges::begin(a);
+int *last  = ::std::ranges::end(a);
+</code></pre>
+
+      <p>这些函数返回：</p>
+
+      <ul>
+        <li><code>::std::addressof(a[0])</code>（对 <code>begin(a)</code>）</li>
+        <li><code>::std::addressof(a[0]) + 3</code>（对 <code>end(a)</code>）</li>
+      </ul>
+
+      <p>这是为 C 风格数组获取迭代器的首选现代方式。</p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 9. INVALID POINTER ARITHMETIC -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>9. 非法的指针算术</h2>
+      <p>
+        C++ 只允许对指针做非常有限的几种算术运算。
+        超出这些规则的任何操作，要么是编译期错误，要么是未定义行为。
+      </p>
+
+      <h3>9.1 允许的操作</h3>
+      <ul>
+        <li><code>ptr + n</code></li>
+        <li><code>ptr - n</code></li>
+        <li><code>++ptr</code>、<code>--ptr</code></li>
+        <li><code>ptr += n</code>、<code>ptr -= n</code></li>
+        <li><code>ptr2 - ptr1</code>（以元素计的距离）</li>
+      </ul>
+
+      <h3>9.2 禁止的操作</h3>
+      <ul>
+        <li><code>ptr + ptr</code></li>
+        <li><code>ptr * n</code></li>
+        <li><code>ptr / n</code></li>
+        <li><code>ptr % n</code></li>
+        <li><code>ptr1 * ptr2</code></li>
+        <li><code>ptr1 / ptr2</code></li>
+        <li><code>(ptr1 + ptr2) / 2</code></li>
+      </ul>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+int *p = a;
+int *q = a + 2;
+
+// p + q;        // ❌ illegal
+// p * 2;        // ❌ illegal
+// p / 2;        // ❌ illegal
+// (p + q) / 2;  // ❌ illegal
+
+int *mid = p + (q - p) / 2;   // ✔ correct
+</code></pre>
+
+      <p>
+        这能成立，是因为 <code>q - p</code> 是元素个数，而不是指针。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 10. ITERATOR ARITHMETIC -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>10. 迭代器算术遵循同样的规则</h2>
+      <p>
+        对指针算术的这些限制同样适用于
+        <code>::fast_io::array</code>、<code>::fast_io::vector</code> 和
+        <code>::fast_io::string</code> 的迭代器。这三种容器都提供
+        <strong>连续迭代器</strong>，也就是说它们的迭代器行为与裸指针完全一致。
+      </p>
+
+      <p>允许的操作：</p>
+
+      <ul>
+        <li><code>it + n</code></li>
+        <li><code>it - n</code></li>
+        <li><code>++it</code>、<code>--it</code></li>
+        <li><code>it2 - it1</code></li>
+      </ul>
+
+      <p>禁止的操作：</p>
+
+      <ul>
+        <li><code>it + it</code></li>
+        <li><code>it * n</code></li>
+        <li><code>it / n</code></li>
+        <li><code>(it1 + it2) / 2</code></li>
+      </ul>
+
+<pre><code class="language-cpp">
+::fast_io::vector&lt;int&gt; v{10, 20, 30, 40};
+
+auto it1 = v.begin();
+auto it2 = v.begin() + 3;
+
+// it1 + it2;        // ❌ illegal
+// it1 * 2;          // ❌ illegal
+// (it1 + it2) / 2;  // ❌ illegal
+
+auto mid = it1 + (it2 - it1) / 2;   // ✔ correct
+</code></pre>
+
+      <p>
+        这能成立，是因为 <code>it2 - it1</code> 是元素个数。
+      </p>
+
+      <h3>为什么如此</h3>
+      <p>
+        C++ 标准要求连续迭代器在算术运算方面的行为与指针完全一致。
+        由于 <code>::fast_io::array</code>、<code>::fast_io::vector</code> 和
+        <code>::fast_io::string</code> 都连续存储元素，它们的迭代器遵循与裸指针相同的规则。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- KEY TAKEAWAYS -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>指针算术按<strong>元素</strong>移动，而不是字节。</li>
+        <li>指针相减的结果是 <code>::std::ptrdiff_t</code>。</li>
+        <li>fast_io 容器用 <code>::std::ptrdiff_t</code> 表示迭代器差，用 <code>::std::size_t</code> 表示大小。</li>
+        <li>指针算术只在同一数组内有效。</li>
+        <li>你可以构造尾后指针，但绝不可解引用它。</li>
+        <li>越界的指针算术是未定义行为。</li>
+        <li>未定义行为并不保证会崩溃。</li>
+        <li>指针就是 C 风格数组的迭代器。</li>
+        <li>获取数组迭代器请使用 <code>::std::ranges::begin(a)</code> 与 <code>::std::ranges::end(a)</code>。</li>
+        <li>像 <code>ptr + ptr</code>、<code>ptr * n</code>、<code>(ptr1 + ptr2) / 2</code> 这类操作是非法的。</li>
+        <li><code>array</code>、<code>vector</code> 和 <code>string</code> 的连续迭代器遵循与指针相同的规则。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/05.pointerscarray/05.cstylearray/" class="prev-button">← 第5.5章: C 风格数组</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/05.pointerscarray/07.carraydecay/" class="next-button">第5.7章: C 风格数组退化 →</a>
+    </div>
+  </main>
+</body>
+</html>

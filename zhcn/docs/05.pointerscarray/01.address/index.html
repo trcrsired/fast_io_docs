@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5.1章: 内存与地址 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第5.1章: 内存与地址</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        在讨论指针之前，我们需要一个关于内存的简单心智模型。
+        在本章中，“内存”只是一段很长的字节序列，每个字节
+        都有一个编号，称为它的<strong>地址</strong>。
+      </p>
+
+      <p>
+        你可以把内存想象成一条有着一排房子的街道：
+      </p>
+
+<pre><code class="language-text">
+Address:   1000   1001   1002   1003   1004   1005   1006   1007
+Memory:   [ ?? ] [ ?? ] [ ?? ] [ ?? ] [ ?? ] [ ?? ] [ ?? ] [ ?? ]
+           ↑
+          a byte at address 1000
+</code></pre>
+
+      <p>
+        你程序中的每个对象（整数、double、容器等）
+        都位于这条“街道”上的某处，并占用一个或多个字节。
+      </p>
+    </section>
+
+    <section>
+      <h2>对象与它们的内存</h2>
+      <p>
+        当你创建一个变量时，编译器会在内存中为它预留空间。
+        变量的<em>值</em>存储在这块空间里，而它的<em>地址</em>
+        就是它所用第一个字节的编号。
+      </p>
+
+      <h3>示例：一个简单的整数</h3>
+
+<pre><code class="language-cpp">
+int x{42};
+</code></pre>
+
+      <p>
+        假设 <code>x</code> 使用从地址 2000 开始的 4 个字节：
+      </p>
+
+<pre><code class="language-text">
+Address:   1996   1997   1998   1999   2000   2001   2002   2003   2004   2005
+Memory:    ....   ....   ....   ....  [ 42 ][ 42 ][ 42 ][ 42 ]   ....   ....
+                                        ↑
+                                      x starts here
+</code></pre>
+
+      <p>
+        你不需要真实的数字；这只是一个模型。
+        关键在于：<strong>每个对象都占用一些字节，而这些字节都有一个地址</strong>。
+      </p>
+    </section>
+
+    <section>
+      <h2>容器同样位于内存中</h2>
+      <p>
+        在第4章中，你接触了 <code>::fast_io::string</code>、
+        <code>::fast_io::vector</code> 和 <code>::fast_io::array</code>。
+        它们也是对象，因此同样占用内存空间。
+      </p>
+
+      <h3>示例：::fast_io::array</h3>
+
+<pre><code class="language-cpp">
+::fast_io::array<int, 4> a{10, 20, 30, 40};
+</code></pre>
+
+      <p>
+        你可以这样想象它：
+      </p>
+
+<pre><code class="language-text">
+Address:   3000   3004   3008   3012
+Memory:   [ 10 ] [ 20 ] [ 30 ] [ 40 ]
+           ↑
+         a[0] starts here
+</code></pre>
+
+      <p>
+        元素在内存中一个接一个地存放。实际的地址
+        由编译器和系统决定，但它们构成一个连续的块。
+      </p>
+    </section>
+
+    <section>
+      <h2>string 与 vector：对象加上元素</h2>
+      <p>
+        <code>::fast_io::string</code> 和 <code>::fast_io::vector</code> 要更复杂一些。
+        它们是<em>管理</em>着一块独立内存的对象，元素就存放在那块内存里。
+      </p>
+
+      <h3>示例：::fast_io::string</h3>
+
+<pre><code class="language-cpp">
+::fast_io::string s{"Hello"};
+</code></pre>
+
+      <p>
+        你可以这样描绘它：
+      </p>
+
+<pre><code class="language-text">
+           (object s)                     (characters managed by s)
+Address:   4000   4008   4016            5000   5001   5002   5003   5004
+Memory:   [ ... s header ... ]          [ 'H' ][ 'e' ][ 'l' ][ 'l' ][ 'o' ]
+           ↑                              ↑
+         s lives here              first character lives here
+</code></pre>
+
+      <p>
+        “头部”的细节暂时不重要。关键思想是：
+        <strong>string 对象有自己的地址，而它所管理的字符
+        也有各自的地址</strong>。
+      </p>
+
+      <h3>示例：::fast_io::vector</h3>
+
+<pre><code class="language-cpp">
+::fast_io::vector<int> v{1, 2, 3};
+</code></pre>
+
+<pre><code class="language-text">
+           (object v)                     (elements managed by v)
+Address:   6000   6008   6016            7000   7004   7008
+Memory:   [ ... v header ... ]          [  1  ][  2  ][  3  ]
+           ↑                              ↑
+         v lives here             v[0] lives here
+</code></pre>
+
+      <p>
+        同样，重点在于容器对象与它所管理的元素
+        都占用内存中的某处空间。
+      </p>
+    </section>
+
+    <section>
+      <h2>为什么我们关心地址</h2>
+      <p>
+        在第5章余下的部分，我们将使用<strong>指针</strong>。
+        指针就是存储地址的变量，例如一个 <code>int</code> 的地址，
+        或者 <code>::fast_io::vector</code> 或 <code>::fast_io::array</code> 中
+        第一个元素的地址。
+      </p>
+
+      <p>
+        这个关于内存与地址的简单模型将帮助你理解：
+      </p>
+
+      <ul>
+        <li>如何询问一个对象“住在哪里”</li>
+        <li>如何顺着一个地址去访问某个对象</li>
+        <li><code>data()</code> 之类的容器函数与内存有何关系</li>
+      </ul>
+
+      <p>
+        在下一章（第5.2章）中，我们将正式介绍指针，
+        并看看它们如何存储和使用这些地址。
+      </p>
+    </section>
+
+    <section>
+    <h2>要点</h2>
+    <ul>
+        <li>内存是一段很长的字节序列，每个字节都有一个地址。</li>
+        <li>你程序中的每个对象都在内存中占用若干字节。</li>
+        <li>对象的地址就是它第一个字节的编号。</li>
+        <li><code>::fast_io::array</code> 把元素直接连续存放在对象内部。</li>
+        <li><code>::fast_io::vector</code> 和 <code>::fast_io::string</code> 除了自身的对象存储之外，还有一块独立的内存用于存放元素。</li>
+        <li>容器对象与它所管理的元素都位于内存中的某处。</li>
+        <li>本章的内存模型为你理解指针（它存储这些地址）做好了准备。</li>
+    </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/05.pointerscarray/" class="prev-button">← 第5章: 指针与 C 风格数组</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/05.pointerscarray/02.pointerbasics/" class="next-button">第5.2章: 指针基础 →</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5.4章: nullptr - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第5.4章: nullptr</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        指针必须始终存储以下二者之一：
+      </p>
+
+      <ul>
+        <li>某个有效对象的地址，或者</li>
+        <li><strong>nullptr</strong>，表示“没有地址”。</li>
+      </ul>
+
+      <p>
+        在本章中，你将学到：
+      </p>
+
+      <ul>
+        <li><code>nullptr</code> 的含义</li>
+        <li>为什么 <code>nullptr</code> 比旧式的空指针常量更安全</li>
+        <li>如何用 <code>nullptr</code> 初始化指针</li>
+        <li>为什么解引用 <code>nullptr</code> 是未定义行为</li>
+        <li>为什么未定义行为<em>并不</em>保证会崩溃</li>
+        <li>sanitizer 如何帮助检测空指针解引用</li>
+        <li><code>fast_io</code> 如何打印 <code>nullptr</code> 与 <code>nullptr_t</code></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. 什么是 nullptr？</h2>
+      <p>
+        <code>nullptr</code> 是一个特殊值，含义是：
+      </p>
+
+      <p><strong>“这个指针不指向任何对象。”</strong></p>
+
+<pre><code class="language-cpp">
+int *p = nullptr;   // p points to nothing
+</code></pre>
+
+      <p>
+        这是表示空指针或未初始化指针的正确方式。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 为什么需要 nullptr</h2>
+      <p>
+        在 C++11 之前，程序员用 <code>0</code> 或 <code>NULL</code> 表示空指针。
+        这些做法有问题：
+      </p>
+
+      <ul>
+        <li><code>0</code> 是整数，不是指针</li>
+        <li><code>NULL</code> 常常被定义为 <code>0</code></li>
+        <li>重载决议可能选错函数</li>
+      </ul>
+
+      <p>
+        <code>nullptr</code> 修复了所有这些问题。它有自己的类型：
+      </p>
+
+<pre><code class="language-cpp">
+std::nullptr_t
+</code></pre>
+
+      <p>
+        并且它只会转换为指针类型。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 始终用 nullptr 初始化指针</h2>
+      <p>
+        未初始化的指针含有一个不可预测的地址。
+        使用它是<strong>未定义行为</strong>。
+      </p>
+
+<pre><code class="language-cpp">
+// Bad: uninitialized pointer
+int *p;
+
+// Good: always initialize
+int *q = nullptr;
+</code></pre>
+
+      <p>
+        之后，当你有了真实的对象，就赋上它的地址：
+      </p>
+
+<pre><code class="language-cpp">
+#include <memory>
+
+int value{42};
+int *p = ::std::addressof(value);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. nullptr 没有地址</h2>
+      <p>
+        空指针不指向任何内存位置。
+      </p>
+
+<pre><code class="language-text">
+p:
+Address:   4000
+Memory:   [ null ]   ← p stores “no address”
+</code></pre>
+
+      <p>
+        指针本身位于内存中的某处，但它的<em>值</em>是“没有地址”。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 打印 nullptr</h2>
+      <p>
+        在 <code>fast_io</code> 中，直接打印 <code>nullptr_t</code> 值会输出
+        字符串 <code>"nullptr"</code>。
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+
+std::nullptr_t np = nullptr;
+println(np);     // prints: nullptr
+</code></pre>
+
+      <p>
+        如果你想要空指针的<em>数值</em>表示，请使用
+        <code>pointervw</code>：
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+using namespace ::fast_io::iomnp;
+
+println(pointervw(nullptr));
+</code></pre>
+
+      <p>
+        这会打印指针宽度的完整数值地址，零扩展到平台的
+        指针大小。例如在 64 位系统上：
+      </p>
+
+<pre><code class="language-text">
+0x0000000000000000
+</code></pre>
+
+      <p>
+        这能确保所有指针（包括空指针）的格式化一致。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 不能解引用 nullptr</h2>
+      <p>
+        空指针不指向任何对象。
+        <strong>你不能解引用 nullptr。</strong>
+      </p>
+
+<pre><code class="language-cpp">
+int *p = nullptr;
+
+// *p = 10;   // undefined behavior — never do this
+</code></pre>
+
+      <p>
+        解引用 <code>nullptr</code> <strong>永远是未定义行为</strong>。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 未定义行为并不保证会崩溃</h2>
+      <p>
+        许多初学者以为解引用 <code>nullptr</code> 一定会崩溃。
+        这是<strong>错的</strong>。
+      </p>
+
+      <p>
+        未定义行为的含义是：
+      </p>
+
+      <ul>
+        <li>程序可能崩溃</li>
+        <li>也可能破坏内存</li>
+        <li>也可能像什么都没发生一样继续运行</li>
+        <li>或者编译器可能基于错误的假设把代码优化掉</li>
+      </ul>
+
+      <h3>编译器可能假定指针永不为空</h3>
+      <p>
+        现代编译器会积极优化代码。
+        它们可能假定某个指针永不为空，从而移除检查或重排代码。
+      </p>
+
+      <h3>未启用内存标记的 WebAssembly 不会陷入陷阱</h3>
+      <p>
+        在 WebAssembly 上，如果没有启用内存标记，解引用 <code>nullptr</code>
+        通常<strong>不会</strong>触发陷阱。
+        虚拟机无法高效检测空指针解引用，因此程序可能带着被破坏的状态
+        继续运行。
+      </p>
+
+      <p>
+        这就是解引用 <code>nullptr</code> 极其危险的原因。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. nullptr 在比较中</h2>
+      <p>
+        你可以检查一个指针是否为空：
+      </p>
+
+<pre><code class="language-cpp">
+int *p = nullptr;
+
+if (p == nullptr)
+{
+    // p does not point to anything
+}
+</code></pre>
+
+      <p>
+        这常用于解引用之前：
+      </p>
+
+<pre><code class="language-cpp">
+if (p != nullptr)
+{
+    int x = *p;   // safe
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>9. nullptr 与指向指针的指针</h2>
+      <p>
+        指向指针的指针类型也可以为空。
+      </p>
+
+<pre><code class="language-cpp">
+int **pp = nullptr;
+
+// **pp;   // undefined behavior — pp does not point to a pointer
+</code></pre>
+    </section>
+
+    <section>
+      <h2>10. 使用 sanitizer 检测空指针解引用</h2>
+      <p>
+        现代编译器提供了在运行时检测空指针解引用的工具。
+      </p>
+
+      <h3>AddressSanitizer</h3>
+<pre><code class="language-text">
+-fsanitize=address
+</code></pre>
+
+      <p>
+        可检测：
+      </p>
+
+      <ul>
+        <li>空指针解引用</li>
+        <li>释放后使用</li>
+        <li>越界访问</li>
+      </ul>
+
+      <h3>内存标记（WebAssembly）</h3>
+<pre><code class="language-text">
+-fsanitize=memtag
+</code></pre>
+
+      <p>
+        可检测：
+      </p>
+
+      <ul>
+        <li>悬垂指针解引用</li>
+        <li>非法内存访问</li>
+      </ul>
+
+      <p>
+        这些工具让指针缺陷更容易被发现和修复。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>nullptr</code> 表示“这个指针不指向任何对象”。</li>
+        <li>如果指针暂时没有目标，始终用 <code>nullptr</code> 初始化它。</li>
+        <li><strong>你不能解引用 nullptr。</strong></li>
+        <li><strong>解引用 nullptr 是未定义行为。</strong></li>
+        <li><strong>未定义行为并不保证会崩溃。</strong></li>
+        <li>编译器可能假定指针永不为空。</li>
+        <li>未启用内存标记的 WebAssembly 在空指针解引用时不会触发陷阱。</li>
+        <li><code>fast_io</code> 把 <code>nullptr</code> 打印为字符串 <code>"nullptr"</code>。</li>
+        <li><code>pointervw(nullptr)</code> 打印指针宽度的完整数值地址。</li>
+        <li>使用 <code>-fsanitize=address</code> 或 <code>-fsanitize=memtag</code> 检测空指针解引用。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/05.pointerscarray/03.dereference/" class="prev-button">← 第5.3章: 解引用</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/05.pointerscarray/05.cstylearray/" class="next-button">第5.5章: C 风格数组 →</a>
+    </div>
+  </main>
+</body>
+</html>

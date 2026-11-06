@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5.5章: C 风格数组 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第5.5章: C 风格数组</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        C 风格数组是一个固定大小的元素序列，存储在一整块<strong>连续</strong>的内存中。
+        数组是指针算术、数组退化以及 C 风格字符串的基础，因此
+        理解它们在内存中的行为至关重要。
+      </p>
+
+      <p>
+        在本章中，你将学到：
+      </p>
+
+      <ul>
+        <li>如何声明和初始化 C 风格数组</li>
+        <li>数组在内存中如何布局</li>
+        <li>如何安全地访问元素</li>
+        <li>为什么越界访问是未定义行为</li>
+        <li>为什么 <code>::fast_io::array</code> 与 <code>::fast_io::vector</code> 是更安全的选择</li>
+        <li>为什么数组与指针相关但并不相同</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. 声明 C 风格数组</h2>
+      <p>
+        C 风格数组通过指定元素类型与元素个数来声明：
+      </p>
+
+<pre><code class="language-cpp">
+int a[3];     // array of 3 ints
+char b[10];   // array of 10 chars
+double c[4];  // array of 4 doubles
+</code></pre>
+
+      <p>
+        大小必须在编译期已知，并且必须<strong>大于 0</strong>。
+      </p>
+
+<pre><code class="language-cpp">
+// int a[0];   // error: C-style arrays cannot have size 0
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. 初始化数组</h2>
+      <p>
+        你可以用花括号初始化来初始化数组：
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+</code></pre>
+
+      <p>
+        如果你提供的元素较少，其余元素会被零初始化：
+      </p>
+
+<pre><code class="language-cpp">
+int a[5]{1, 2};   // becomes {1, 2, 0, 0, 0}
+</code></pre>
+
+      <p>
+        如果省略大小，编译器会自行推导：
+      </p>
+
+<pre><code class="language-cpp">
+int a[]{10, 20, 30};   // size is 3
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. 数组在内存中是连续的</h2>
+      <p>
+        数组的所有元素在内存中彼此相邻存放。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+</code></pre>
+
+<pre><code class="language-text">
+Example memory layout (addresses vary):
+
+Address:   1000   1004   1008
+Memory:   [ 10 ] [ 20 ] [ 30 ]
+             ↑      ↑      ↑
+            a[0]  a[1]   a[2]
+</code></pre>
+
+      <p>
+        正是这种连续性让指针算术成为可能（详见第5.6章）。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 访问数组元素</h2>
+      <p>
+        使用 <code>[]</code> 运算符访问元素：
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+
+int x = a[0];   // 10
+int y = a[2];   // 30
+
+a[1] = 99;      // a becomes {10, 99, 30}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. 越界访问是未定义行为</h2>
+      <p>
+        C 风格数组<strong>不</strong>做边界检查。
+        访问数组之外的位置是<strong>未定义行为</strong>。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+
+// a[3];    // undefined behavior — out of bounds
+// a[-1];   // undefined behavior
+</code></pre>
+
+      <p>
+        未定义行为意味着：
+      </p>
+
+      <ul>
+        <li>程序可能崩溃</li>
+        <li>也可能破坏内存</li>
+        <li>也可能悄悄产生错误结果</li>
+        <li>也可能看起来一切正常</li>
+      </ul>
+
+      <p>
+        你不能依赖任何特定结果。
+      </p>
+
+      <h3>WebAssembly 说明</h3>
+      <p>
+        在未启用内存标记的 WebAssembly 上，越界数组访问通常
+        <strong>不会</strong>触发陷阱，使缺陷更难被发现。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. fast_io::array 与 C 风格数组</h2>
+      <p>
+        <code>::fast_io::array</code> 是 C 风格数组更安全、更灵活的替代品。
+      </p>
+
+      <ul>
+        <li>它对 <code>[]</code> 访问执行<strong>边界检查</strong>。</li>
+        <li>它<strong>允许零大小数组</strong>，而 C 风格数组不允许。</li>
+      </ul>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/array.h&gt;
+
+::fast_io::array&lt;int, 0&gt; empty;   // valid: zero-sized array
+</code></pre>
+
+      <p>
+        常规元素访问是带检查的：
+      </p>
+
+<pre><code class="language-cpp">
+::fast_io::array&lt;int, 3&gt; arr{10, 20, 30};
+
+int x = arr[1];   // safe: bounds checked
+</code></pre>
+
+      <p>
+        如果你有意需要非检查访问（用于性能关键的代码），
+        <code>::fast_io::array</code> 提供了：
+      </p>
+
+<pre><code class="language-cpp">
+int x = arr.index_unchecked(1);   // no bounds checking
+</code></pre>
+
+      <p>
+        对大多数代码，请优先使用带边界检查的 <code>arr[i]</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 作为默认容器的 fast_io::vector</h2>
+      <p>
+        对大多数动态元素序列，请优先使用 <code>::fast_io::vector</code>。
+        它自己管理大小与容量，并且同样支持带边界检查的访问。
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io_dsal/vector.h&gt;
+
+::fast_io::vector&lt;int&gt; vec;
+vec.push_back(10);
+vec.push_back(20);
+
+int x = vec[0];   // bounds checked
+</code></pre>
+
+      <p>
+        当你为性能关键的代码需要非检查访问时，
+        <code>::fast_io::vector</code> 也提供了：
+      </p>
+
+<pre><code class="language-cpp">
+int x = vec.index_unchecked(0);   // no bounds checking
+</code></pre>
+
+      <p>
+        对大多数代码，请优先使用带边界检查的 <code>vec[i]</code>，仅在仔细审查过的
+        热点路径中使用 <code>index_unchecked()</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 数组与指针相关但并不相同</h2>
+      <p>
+        数组与指针关系密切，但它们<strong>并不</strong>相同。
+      </p>
+
+      <p>
+        数组：
+      </p>
+
+      <ul>
+        <li>是一块固定的内存</li>
+        <li>在编译期就知道自己的大小</li>
+        <li>不能被重新赋值</li>
+      </ul>
+
+      <p>
+        指针：
+      </p>
+
+      <ul>
+        <li>存储一个地址</li>
+        <li>可以指向不同的对象</li>
+        <li>不知道它所指向数组的大小</li>
+      </ul>
+
+      <p>
+        我们将在<strong>第5.7章：数组退化</strong>中详细探讨数组与指针的关系。
+      </p>
+    </section>
+
+    <section>
+      <h2>9. 获取数组元素的地址</h2>
+      <p>
+        你可以用 <code>::std::addressof</code> 获取任何元素的地址：
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;memory&gt;
+
+int a[3]{10, 20, 30};
+
+int *p0 = ::std::addressof(a[0]);
+int *p1 = ::std::addressof(a[1]);
+int *p2 = ::std::addressof(a[2]);
+</code></pre>
+
+<pre><code class="language-text">
+Addresses (example):
+
+p0 = 1000
+p1 = 1004
+p2 = 1008
+</code></pre>
+
+      <p>
+        正是这种布局让指针算术有意义（下一章）。
+      </p>
+    </section>
+
+    <section>
+      <h2>10. 数组不能被拷贝或赋值</h2>
+      <p>
+        C 风格数组不能用 <code>=</code> 拷贝或赋值。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{1, 2, 3};
+int b[3];
+
+// b = a;   // error: arrays cannot be assigned
+</code></pre>
+
+      <p>
+        拷贝数组需要手工逐元素拷贝，或者使用 <code>memcpy</code>
+        （详见第5.14章）。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>C 风格数组是一块固定大小、连续的内存。</li>
+        <li>C 风格数组不能大小为 0。</li>
+        <li>数组元素用 <code>[]</code> 访问。</li>
+        <li><strong>越界访问是未定义行为。</strong></li>
+        <li><strong>未定义行为并不保证会崩溃。</strong></li>
+        <li><code>::fast_io::array</code> 对 <code>[]</code> 执行边界检查，并支持零大小数组。</li>
+        <li>需要时可用 <code>arr.index_unchecked()</code> 与 <code>vec.index_unchecked()</code> 获得非检查访问。</li>
+        <li><strong>优先把 <code>::fast_io::vector</code> 作为你的默认容器。</strong></li>
+        <li><strong>优先使用 <code>::fast_io::array</code> 而不是 C 风格数组。</strong></li>
+        <li>数组与指针相关但并不相同。</li>
+        <li>本章为指针算术（第5.6章）与数组退化（第5.7章）做准备。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/05.pointerscarray/04.nullptr/" class="prev-button">← 第5.4章: nullptr</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/05.pointerscarray/06.pointerarithmetic/" class="next-button">第5.6章: 指针算术 →</a>
+    </div>
+  </main>
+</body>
+</html>

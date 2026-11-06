@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5.2章: 指针基础 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第5.2章: 指针基础</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        指针是存储<strong>地址</strong>的变量。它存的不是像 <code>42</code> 这样的值，
+        而是某个对象在内存中的<em>位置</em>。
+      </p>
+
+      <p>
+        在本章中，我们只介绍指针的语法：
+      </p>
+
+      <ul>
+        <li>如何声明指针（包括指向指针的指针）</li>
+        <li>如何使用 <code>::std::addressof</code> 获取地址</li>
+        <li>如何把该地址存入指针</li>
+        <li>为什么指针必须始终初始化</li>
+        <li>如何用 <code>pointervw</code> 打印指针</li>
+        <li>如何用简单的伪图来可视化指针</li>
+      </ul>
+
+      <p>
+        我们只使用 <code>::std::size_t</code>、<code>int</code>、
+        <code>char</code> 和 <code>double</code> 这类简单类型。容器将在后面第5.12章中讲解。
+      </p>
+    </section>
+
+    <section>
+      <h2>1. 包含 &lt;memory&gt; 以使用 ::std::addressof</h2>
+      <p>
+        要获取对象的地址，我们使用 <code>::std::addressof</code>。
+        它定义在 <code>&lt;memory&gt;</code> 头文件中。
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;memory&gt;   // for ::std::addressof
+</code></pre>
+
+      <p>
+        我们使用 <code>::std::addressof</code> 而不是 <code>&amp;</code>，因为：
+      </p>
+
+      <ul>
+        <li>它总是返回对象的真实地址</li>
+        <li>即使某个类型重载了 <code>operator&amp;</code>，它也能正确工作</li>
+        <li>它是推荐的现代 C++ 做法</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>2. 什么是指针？</h2>
+      <p>
+        内存中的每个对象都有一个地址。指针就是存储这种地址的变量。
+      </p>
+
+<pre><code class="language-text">
+Address:   2000   2001   2002   2003
+Memory:   [  7  ][  7  ][  7  ][  7  ]
+            ↑
+           x lives here
+</code></pre>
+
+<pre><code class="language-cpp">
+#include &lt;memory&gt;
+
+::std::size_t x{7};
+::std::size_t *p = ::std::addressof(x);   // p stores the address of x
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. 声明指针</h2>
+      <p>
+        指针类型写作 <code>T*</code>，表示“指向 T 的指针”。
+        在本教程中，我们更倾向于把 <code>*</code> 写在变量名旁边：
+      </p>
+
+<pre><code class="language-cpp">
+int *ip;
+char *cp;
+::std::size_t *sp;
+double *dp;
+</code></pre>
+
+      <h3>始终初始化指针</h3>
+      <p>
+        <strong>你必须始终初始化指针。</strong>
+        未初始化的指针含有一个不可预测的地址，使用它是未定义行为。
+      </p>
+
+<pre><code class="language-cpp">
+int *p = nullptr;              // safe: p points to nothing
+char *q = nullptr;             // safe
+::std::size_t *r = nullptr;    // safe
+</code></pre>
+
+      <p>
+        之后，当你有了真实的对象，就可以把它的地址赋给它：
+      </p>
+
+<pre><code class="language-cpp">
+int value{42};
+int *p = ::std::addressof(value);
+</code></pre>
+
+      <h3>一个常见的初学者陷阱</h3>
+      <p>
+        这个声明具有误导性：
+      </p>
+
+<pre><code class="language-cpp">
+int* p, q;   // q is NOT a pointer
+</code></pre>
+
+      <p>
+        只有 <code>p</code> 是指针。<code>q</code> 是一个普通的 <code>int</code>。
+      </p>
+
+      <p>
+        把 <code>*</code> 写在变量名旁边能让含义更清楚：
+      </p>
+
+<pre><code class="language-cpp">
+int *p, q;   // p is a pointer, q is an int
+</code></pre>
+
+      <p>
+        更好的做法是每行只声明一个指针，并且始终初始化它：
+      </p>
+
+<pre><code class="language-cpp">
+int *p = nullptr;
+int *q = nullptr;
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. 指向指针的指针</h2>
+      <p>
+        指针也可以存储另一个指针的地址。
+        这被称为<strong>指向指针的指针</strong>。
+      </p>
+
+<pre><code class="language-cpp">
+int value{42};
+int *p = ::std::addressof(value);   // p points to value
+int **pp = ::std::addressof(p);     // pp points to p
+</code></pre>
+
+<pre><code class="language-text">
+value:
+Address:   3000
+Memory:   [ 42 ]
+
+p:
+Address:   4000
+Memory:   [ 3000 ]   ← p stores address of value
+
+pp:
+Address:   5000
+Memory:   [ 4000 ]   ← pp stores address of p
+</code></pre>
+
+      <p>
+        你可以继续增加 <code>*</code> 的层数，但指向指针的指针是最常见的形式。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. nullptr</h2>
+      <p>
+        指针也可以存储“没有地址”。
+        这写作 <code>nullptr</code>。
+      </p>
+
+<pre><code class="language-cpp">
+int *p = nullptr;   // p does not point to anything
+int **pp = nullptr; // pp also does not point to anything
+</code></pre>
+
+      <p>
+        我们会在第5.4章中更深入地探讨 <code>nullptr</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 打印指针</h2>
+      <p>
+        指针存储一个地址，有时你想打印这个地址，以查看某个东西在内存中的位置。
+        在 <code>fast_io</code> 中，打印指针的推荐方式是使用
+        <code>pointervw</code> 操纵器。
+      </p>
+
+      <p>
+        要使用它，请引入命名空间：
+      </p>
+
+<pre><code class="language-cpp">
+using namespace ::fast_io::iomnp;
+</code></pre>
+
+      <p>
+        然后你就可以这样打印一个指针：
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;memory&gt;
+#include &lt;fast_io.h&gt;
+using namespace ::fast_io::iomnp;
+
+int value{42};
+int *p = ::std::addressof(value);
+
+println(pointervw(p));
+</code></pre>
+
+      <p>
+        这会以可读且一致的格式打印 <code>p</code> 中存储的地址。
+        具体数字取决于你的系统，但概念上它看起来像：
+      </p>
+
+<pre><code class="language-text">
+0x0000000000007d30
+</code></pre>
+
+      <p>
+        你可以用这种方式打印任何指针，包括指向指针的指针：
+      </p>
+
+<pre><code class="language-cpp">
+int **pp = ::std::addressof(p);
+println(pointervw(pp));
+</code></pre>
+
+      <p>
+        打印指针有助于理解内存是如何布局的，以及指针之间如何相互关联。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>指针存储地址，而不是值。</li>
+        <li><code>T*</code> 表示“指向 T 的指针”。</li>
+        <li>写 <code>int *p;</code> 而不是 <code>int* p;</code>，以避免混淆。</li>
+        <li>用 <code>::std::addressof</code>（来自 &lt;memory&gt;）获取地址。</li>
+        <li><strong>始终初始化指针</strong>（需要时用 <code>nullptr</code>）。</li>
+        <li>指针本身也是变量，也有自己的地址。</li>
+        <li>你可以使用 <code>int **pp</code> 这样的指向指针的指针类型。</li>
+        <li>用 <code>::fast_io::iomnp</code> 中的 <code>pointervw</code> 打印指针值。</li>
+        <li>本章只关注语法；容器将在后面的第5.12章中讲解。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/05.pointerscarray/01.address/" class="prev-button">← 第5.1章: 内存与地址</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/05.pointerscarray/03.dereference/" class="next-button">第5.3章: 解引用 →</a>
+    </div>
+  </main>
+</body>
+</html>
