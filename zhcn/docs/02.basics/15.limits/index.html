@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.15章: limits - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.15章: limits</h1>
+
+    <section>
+      <h2>什么是 limits？</h2>
+      <p>
+        C++ 中每个数值类型都有一个它能表示的取值范围。
+        例如 <code>int</code> 的最小值与最大值依平台而定。
+        头文件 <code>&lt;limits&gt;</code> 提供了模板 <code>std::numeric_limits&lt;T&gt;</code>，
+        让你可以在编译期查询这些属性。
+      </p>
+      <p>
+        完整细节请见权威参考：
+        <a href="https://en.cppreference.com/w/cpp/types/numeric_limits.html" target="_blank" rel="noopener">
+          cppreference：std::numeric_limits
+        </a>
+      </p>
+    </section>
+
+    <section>
+      <h2>sizeof(T) 与 numeric_limits&lt;T&gt;</h2>
+      <p>
+        我们已经知道 <code>sizeof(T)</code> 告诉我们一个类型占多少字节。
+        但 <code>std::numeric_limits&lt;T&gt;</code> 更进一步：它告诉我们该类型能表示多少位精度。
+      </p>
+      <ul>
+        <li><code>std::numeric_limits&lt;T&gt;::digits</code> —— 精度的二进制位数。</li>
+        <li><code>std::numeric_limits&lt;T&gt;::digits10</code> —— 可以无变化表示的十进制位数。</li>
+        <li><code>std::numeric_limits&lt;T&gt;::max_digits10</code> —— 唯一表示所有值所需的最大十进制位数。</li>
+      </ul>
+      <pre><code class="language-cpp">
+#include &lt;limits&gt;
+#include &lt;cstddef&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+    println("sizeof(double) = ", sizeof(double), " bytes\n"
+        "digits (binary) = ", ::std::numeric_limits&lt;double&gt;::digits, "\n"
+        "digits10 (decimal) = ", ::std::numeric_limits&lt;double&gt;::digits10, "\n"
+        "max_digits10 (decimal) = ", ::std::numeric_limits&lt;double&gt;::max_digits10);
+}
+</code></pre>
+      <p>
+        例如，<code>double</code> 通常是 8 字节（64 位）。
+        但其中只有 53 位用于精度（<code>digits</code>），
+        这大约对应 15–17 位十进制数字（<code>digits10</code> 与 <code>max_digits10</code>）。
+      </p>
+    </section>
+
+    <section>
+      <h2>基本的范围示例</h2>
+      <pre><code class="language-cpp">
+#include &lt;limits&gt;
+#include &lt;cstddef&gt;
+#include &lt;fast_io.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+    println("::std::size_t max = ", ::std::numeric_limits&lt;::std::size_t&gt;::max(), "\n"
+        "::std::size_t min = ", ::std::numeric_limits&lt;::std::size_t&gt;::min());
+}
+</code></pre>
+      <p>
+        <code>std::numeric_limits&lt;T&gt;::max()</code> 给出类型 <code>T</code> 能表示的最大值。
+        <code>std::numeric_limits&lt;T&gt;::min()</code> 给出能表示的最小值。
+        对 <code>::std::size_t</code> 这类无符号类型，<code>min()</code> 始终是 0。
+      </p>
+    </section>
+
+    <section>
+      <h2>其他有用的属性</h2>
+      <ul>
+        <li><code>std::numeric_limits&lt;T&gt;::lowest()</code> —— 最低的有限值（用于浮点类型）。</li>
+        <li><code>std::numeric_limits&lt;T&gt;::epsilon()</code> —— 1 与下一个可表示值之间的差（用于浮点类型）。</li>
+        <li><code>std::numeric_limits&lt;T&gt;::infinity()</code> —— 若支持，表示正无穷。</li>
+        <li><code>std::numeric_limits&lt;T&gt;::is_signed</code> —— 说明该类型是否有符号。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>为什么上限很重要</h2>
+      <p>
+        了解一个类型的范围有助于防止溢出与下溢错误。
+        例如，对 <code>std::numeric_limits&lt;int&gt;::max()</code> 加 1 会导致溢出。
+        对浮点类型而言，理解 <code>digits</code>、<code>digits10</code> 和 <code>epsilon</code>
+        对于数值稳定性与精度至关重要。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>sizeof(T)</code> 给出一个类型占用的字节数。</li>
+        <li><code>std::numeric_limits&lt;T&gt;::digits</code> 给出精度的二进制位数。</li>
+        <li><code>digits10</code> 与 <code>max_digits10</code> 描述十进制精度。</li>
+        <li><code>max()</code> 与 <code>min()</code> 给出类型的取值范围。</li>
+        <li>浮点类型还提供 <code>lowest</code>、<code>epsilon</code> 和 <code>infinity</code> 等额外属性。</li>
+        <li>理解上限有助于避免溢出、下溢与精度错误。</li>
+        <li>完整细节见
+          <a href="https://en.cppreference.com/w/cpp/types/numeric_limits.html" target="_blank" rel="noopener">
+            cppreference：std::numeric_limits
+          </a>。
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/14.a+b/" class="prev-button">← 第2.14章: A + B</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/16.enumclass/" class="next-button">第2.16章: enum class →</a>
+    </div>
+  </main>
+</body>
+</html>

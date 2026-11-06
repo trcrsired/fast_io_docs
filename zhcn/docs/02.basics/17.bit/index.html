@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.17章: 位运算与 &lt;bit&gt; 头文件</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.17章: 位运算与 &lt;bit&gt; 头文件</h1>
+
+    <section>
+      <h2>位（bit）详解</h2>
+      <p>
+        位是二进制数字：要么是 0，要么是 1。在无符号整数中，每个位位置代表 2 的某个幂。
+      </p>
+      <pre><code>
+Bit position:   7   6   5   4   3   2   1   0
+Power of two: 128  64  32  16   8   4   2   1
+Binary value:   0   1   0   0   1   0   1   1
+Decimal sum = 64 + 8 + 2 + 1 = 75
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>不要把位运算与逻辑运算混淆</h2>
+      <p>
+        位运算符（<code>&amp;</code>、<code>|</code>、<code>^</code>、<code>~</code>）作用于整数的各个位。
+        逻辑运算符（<code>&amp;&amp;</code>、<code>||</code>、<code>!</code>）作用于布尔值，并返回 <code>true</code>/<code>false</code>。
+        例如，<code>a &amp; b</code> 按位组合；<code>a &amp;&amp; b</code> 检查两者是否都非零。
+      </p>
+    </section>
+
+    <section>
+      <h2>运算汇总表</h2>
+      <p>下表展示每个运算符的作用与示例结果（二进制输出使用 <code>fast_io::bin&lt;true,true&gt;</code>）。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>运算符</th>
+            <th>含义</th>
+            <th>示例（输入）</th>
+            <th>十进制结果</th>
+            <th>二进制结果</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>&amp;</td>
+            <td>按位与</td>
+            <td>a = 10 (0b00001010), b = 12 (0b00001100)</td>
+            <td>8</td>
+            <td>0b00001000</td>
+          </tr>
+          <tr>
+            <td>|</td>
+            <td>按位或</td>
+            <td>a = 10 (0b00001010), b = 12 (0b00001100)</td>
+            <td>14</td>
+            <td>0b00001110</td>
+          </tr>
+          <tr>
+            <td>^</td>
+            <td>按位异或</td>
+            <td>a = 10 (0b00001010), b = 12 (0b00001100)</td>
+            <td>6</td>
+            <td>0b00000110</td>
+          </tr>
+          <tr>
+            <td>~</td>
+            <td>按位取反</td>
+            <td>a = 10 (0b00001010)</td>
+            <td>依平台宽度而定</td>
+            <td>翻转所有位（例如 32 位时为 0b11111111111111111111111111110101）</td>
+          </tr>
+          <tr>
+            <td>&lt;&lt;</td>
+            <td>左移</td>
+            <td>a = 10 (0b00001010)，移 1 位</td>
+            <td>20</td>
+            <td>0b00010100</td>
+          </tr>
+          <tr>
+            <td>&gt;&gt;</td>
+            <td>右移</td>
+            <td>b = 12 (0b00001100)，移 2 位</td>
+            <td>3</td>
+            <td>0b00000011</td>
+          </tr>
+          <tr>
+            <td>&amp;&amp;</td>
+            <td>逻辑与</td>
+            <td>a = 2, b = 4</td>
+            <td>1（true）</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>||</td>
+            <td>逻辑或</td>
+            <td>a = 2, b = 4</td>
+            <td>1（true）</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>带二进制输出的位运算</h2>
+      <p>
+        使用 <code>fast_io::bin&lt;true,true&gt;</code> 可以带 <code>0b</code> 前缀和零填充地打印一个值的二进制形式。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    unsigned a{0b1010u}; // 10, 0b00001010
+    unsigned b{0b1100u}; // 12, 0b00001100
+
+    println("a = ", a, " ", bin&lt;true,true&gt;(a)); 
+    // a = 10 0b00001010
+
+    println("b = ", b, " ", bin&lt;true,true&gt;(b)); 
+    // b = 12 0b00001100
+
+    auto andv{a & b};
+    println("a & b = ", andv, " ", bin&lt;true,true&gt;(andv)); 
+    // a & b = 8 0b00001000
+
+    auto orv{a | b};
+    println("a | b = ", orv, " ", bin&lt;true,true&gt;(orv)); 
+    // a | b = 14 0b00001110
+
+    auto xorv{a ^ b};
+    println("a ^ b = ", xorv, " ", bin&lt;true,true&gt;(xorv)); 
+    // a ^ b = 6 0b00000110
+
+    auto notv{~a};
+    println("~a = ", notv, " ", bin&lt;true,true&gt;(notv)); 
+    // ~a = (platform-dependent). For 32-bit unsigned: 4294967285 0b11111111111111111111111111110101
+
+    auto lshift{a &lt;&lt; 1};
+    println("a &lt;&lt; 1 = ", lshift, " ", bin&lt;true,true&gt;(lshift)); 
+    // a &lt;&lt; 1 = 20 0b00010100
+
+    auto rshift{b &gt;&gt; 2};
+    println("b &gt;&gt; 2 = ", rshift, " ", bin&lt;true,true&gt;(rshift)); 
+    // b &gt;&gt; 2 = 3 0b00000011
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>移位直观图（ASCII 图）</h2>
+      <pre><code>
+Start:             0 b 0 0 0 0 1 0 1 0   (= 10)
+Left shift by 1 →  0 b 0 0 0 1 0 1 0 0   (= 20)
+
+Start:             0 b 0 0 0 0 1 1 0 0   (= 12)
+Right shift by 2 → 0 b 0 0 0 0 0 0 1 1   (= 3)
+      </code></pre>
+      <p>
+        左移把位往左移（右侧补 0）；右移把位往右移（无符号类型左侧补 0）。
+      </p>
+    </section>
+
+    <section>
+      <h2>&lt;bit&gt; 头文件工具</h2>
+      <p>
+        &lt;bit&gt; 头文件提供了分析与变换位模式的工具。
+        参见 cppreference：<a href="https://en.cppreference.com/w/cpp/header/bit.html" target="_blank">cppreference：&lt;bit&gt; 头文件</a>。
+      </p>
+      <ul>
+        <li><strong>::std::popcount(x)：</strong>被置为 1 的位数。</li>
+        <li><strong>::std::countl_zero(x)：</strong>前导零的个数（依宽度而定）。</li>
+        <li><strong>::std::countr_zero(x)：</strong>尾部零的个数。</li>
+        <li><strong>::std::rotl(x, s)：</strong>循环左移 s 位。</li>
+        <li><strong>::std::rotr(x, s)：</strong>循环右移 s 位。</li>
+        <li><strong>::std::bit_width(x)：</strong>表示 x 所需的位数。</li>
+      </ul>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;bit&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    unsigned x{0b101100u}; // 44, 0b00101100
+
+    println("x = ", x, " ", bin&lt;true,true&gt;(x)); 
+    // x = 44 0b00101100
+
+    println("popcount = ", ::std::popcount(x)); 
+    // popcount = 3
+
+    println("countl_zero = ", ::std::countl_zero(x)); 
+    // countl_zero = (depends on width; e.g., 26 for 32-bit unsigned)
+
+    println("countr_zero = ", ::std::countr_zero(x)); 
+    // countr_zero = 2
+
+    auto rotl2{::std::rotl(x,2)};
+    println("rotl(x,2) = ", rotl2, " ", bin&lt;true,true&gt;(rotl2)); 
+    // rotl(x,2) = 176 0b10110000
+
+    auto rotr2{::std::rotr(x,2)};
+    println("rotr(x,2) = ", rotr2, " ", bin&lt;true,true&gt;(rotr2)); 
+    // rotr(x,2) = 11 0b00001011
+
+    println("bit_width = ", ::std::bit_width(x)); 
+    // bit_width = 6 (needs 6 bits to represent 44)
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong>二进制洞察：</strong>用 <code>fast_io::bin&lt;true,true&gt;</code> 打印，即可看到各位的变化。</li>
+        <li><strong>位运算 vs 逻辑运算：</strong>不要把 <code>&amp;</code>/<code>|</code> 与 <code>&amp;&amp;</code>/<code>||</code> 混淆。</li>
+        <li><strong>运算符：</strong>AND、OR、XOR、NOT、移位都在操作位模式；对无符号类型，移位会补入零。</li>
+        <li><strong>工具：</strong>用 &lt;bit&gt; 中的函数来计数、旋转移位，以及测量位宽。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/16.enumclass/" class="prev-button">← 第2.16章: enum class</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/18.endian/" class="next-button">第2.18章: endian →</a>
+    </div>
+  </main>
+</body>
+</html>

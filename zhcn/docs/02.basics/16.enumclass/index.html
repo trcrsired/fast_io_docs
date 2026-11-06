@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.16章: enum class - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.16章: <code>enum class</code></h1>
+
+    <section>
+      <h2>什么是 enum class</h2>
+      <p>
+        <code>enum class</code>（有作用域枚举）定义了一组有名字的常量，
+        它们是强类型的，并且带有作用域。
+        枚举值不会泄漏到外围作用域，也不会隐式转换为整数或其他枚举类型。
+      </p>
+      <pre><code class="language-cpp">
+enum class Color { Red, Green, Blue };
+
+// Declaration and comparison without leaking names
+Color c{Color::Red};
+bool is_red{c == Color::Red};
+</code></pre>
+    </section>
+
+    <section>
+      <h2>指定底层类型</h2>
+      <p>
+        你可以指定底层的存储类型。若省略，则默认为 <code>int</code>。
+      </p>
+      <pre><code class="language-cpp">
+enum class Status : unsigned char { Ok, Warning, Error };
+
+// Declaration using the underlying storage
+Status s{Status::Error};
+</code></pre>
+    </section>
+
+    <section>
+      <h2>与底层整数类型之间的转换</h2>
+      <p>
+        <code>enum class</code> 不会隐式转换为整数。请使用显式转换：
+      </p>
+      <ul>
+        <li><strong>::std::to_underlying(value)：</strong>返回底层整数值。需要包含 <code>&lt;utility&gt;</code> 头文件。</li>
+        <li><strong>static_cast&lt;::std::underlying_type_t&lt;T&gt;&gt;(value)：</strong>转换为该枚举的底层类型。需要包含 <code>&lt;type_traits&gt;</code> 头文件。</li>
+      </ul>
+      <pre><code class="language-cpp">
+#include &lt;utility&gt;      // ::std::to_underlying
+#include &lt;type_traits&gt;  // ::std::underlying_type_t
+
+enum class ErrorCode { None, Minor, Major };
+
+// To integer
+auto v1{::std::to_underlying(ErrorCode::Major)};
+auto v2{static_cast&lt;::std::underlying_type_t&lt;ErrorCode&gt;&gt;(ErrorCode::Major)};
+
+// Back to enum
+ErrorCode e1{static_cast&lt;ErrorCode&gt;(v1)};
+ErrorCode e2{static_cast&lt;ErrorCode&gt;(v2)};
+
+bool ok1{e1 == ErrorCode::Major};
+bool ok2{e2 == ErrorCode::Major};
+</code></pre>
+      <p>
+        这些整数值可用于算术、位运算、存储或互操作。当你需要语义上的清晰时，再转换回枚举类型。
+      </p>
+    </section>
+
+    <section>
+      <h2>用 using enum 把枚举值引入作用域</h2>
+      <p>
+        通过 <code>using enum</code>，你可以把某个枚举的所有值引入当前作用域，从而无需限定即可使用它们。
+      </p>
+      <pre><code class="language-cpp">
+enum class Color { Red, Green, Blue };
+
+Color a{Color::Green};
+
+// Bring all Color values into scope
+using enum Color;
+
+Color b{Blue};         // No need to write Color::Blue
+bool is_green{a == Green};
+</code></pre>
+      <p>
+        请注意可读性。<code>using enum</code> 减少了冗长，但同时也隐藏了枚举名。
+        只在它明显提升清晰度的地方使用（例如局部作用域或简短的类 switch 逻辑）。
+      </p>
+    </section>
+
+    <section>
+      <h2>枚举的算术与位运算</h2>
+      <p>
+        进行算术与位运算时，请把枚举值转换为它们的底层整数类型。
+        显式地定义标志或掩码，然后用整数进行计算。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;utility&gt;
+
+enum class Permission : unsigned {
+  Read    = 1u,
+  Write   = 2u,
+  Execute = 4u
+};
+
+using enum Permission; // bring Read, Write, Execute into scope
+
+// Build a mask from enum values via underlying integers
+unsigned mask{::std::to_underlying(Read) | ::std::to_underlying(Write)};
+
+// Test a flag
+bool has_write{(mask & ::std::to_underlying(Write)) != 0u};
+
+// Add a flag
+mask |= ::std::to_underlying(Execute);
+
+// Remove a flag
+mask &= ~::std::to_underlying(Read);
+
+// Store and restore from an integer
+Permission p_exec{static_cast&lt;Permission&gt;(::std::to_underlying(Execute))};
+bool is_exec{p_exec == Execute};
+</code></pre>
+      <p>
+        避免直接对枚举值做算术运算。始终在底层整数上操作，并在适当的地方转换回枚举。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong>有作用域且强类型：</strong><code>enum class</code> 防止名字泄漏和隐式转换。</li>
+        <li><strong>底层类型：</strong>当存储大小或 ABI 重要时，请指定它。</li>
+        <li><strong>显式整数转换：</strong>使用 <code>::std::to_underlying</code> 或 <code>static_cast&lt;::std::underlying_type_t&lt;T&gt;&gt;</code>；需要包含 <code>&lt;utility&gt;</code> 或 <code>&lt;type_traits&gt;</code>。</li>
+        <li><strong>using enum：</strong>把枚举值引入作用域以减少冗长；请谨慎使用。</li>
+        <li><strong>算术/位运算：</strong>在底层整数上操作；为清晰起见再转换回枚举。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/15.limits/" class="prev-button">← 第2.15章: limits</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/17.bit/" class="next-button">第2.17章: bit →</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.20章: std::byte - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.20章: ::std::byte</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        <code>::std::byte</code> 是表示单个字节数据的类型。
+        与 <code>char</code> 或 <code>unsigned char</code> 不同，
+        <code>::std::byte</code> <strong>不是</strong>字符类型，不能用于文本。
+        它只是一个小的、强类型的存储单元。
+      </p>
+
+      <p>在本章中，你将学到：</p>
+
+      <ul>
+        <li><code>::std::byte</code> 是什么</li>
+        <li>如何创建并使用 <code>::std::byte</code> 值</li>
+        <li>如何在 <code>::std::byte</code> 与整数之间转换</li>
+        <li><code>::std::byte</code> 为何存在</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. 什么是 ::std::byte？</h2>
+      <p>
+        <code>::std::byte</code> 是类似枚举的类型，表示单个字节。
+        它并不直接存储字符或数字，而是存储原始字节值。
+      </p>
+
+<pre><code class="language-cpp">
+::std::byte b{};
+</code></pre>
+
+      <p>
+        这创建一个值为零的 <code>::std::byte</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 初始化 ::std::byte</h2>
+      <p>
+        你可以用 <code>::std::byte{}</code> 初始化一个 <code>::std::byte</code>，
+        或者从整数转换而来。
+      </p>
+
+<pre><code class="language-cpp">
+::std::byte a{};                 // zero
+::std::byte b{static_cast&lt;unsigned char&gt;(42)};
+</code></pre>
+
+      <p>
+        <strong>注意：</strong>从整数转换时必须使用显式转换。
+        这可以防止意外误用。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 把 ::std::byte 转换为整数</h2>
+      <p>
+        要把 <code>::std::byte</code> 转回整数，请使用
+        <code>::std::to_integer</code>。
+      </p>
+
+<pre><code class="language-cpp">
+::std::byte b{static_cast&lt;unsigned char&gt;(7)};
+unsigned int x = ::std::to_integer&lt;unsigned int&gt;(b);
+</code></pre>
+
+      <p>
+        这会提取存储在该字节中的数值。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. ::std::byte 为何存在？</h2>
+      <p>
+        在 <code>::std::byte</code> 出现之前，程序员常用
+        <code>unsigned char</code> 表示原始字节。但 <code>unsigned char</code>
+        仍然是字符类型，这容易造成混淆。
+      </p>
+
+      <p>
+        <code>::std::byte</code> 通过提供这样一种类型来解决这个问题：
+      </p>
+
+      <ul>
+        <li>它明确用于原始数据</li>
+        <li>它不会被误认为字符</li>
+        <li>它的行为不像数字</li>
+        <li>它只支持位运算</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>5. ::std::byte 上的操作</h2>
+      <p>
+        <code>::std::byte</code> 支持如下位运算：
+      </p>
+
+      <ul>
+        <li><code>|</code>（按位或）</li>
+        <li><code>&amp;</code>（按位与）</li>
+        <li><code>^</code>（按位异或）</li>
+        <li><code>&lt;&lt;</code>（左移）</li>
+        <li><code>&gt;&gt;</code>（右移）</li>
+      </ul>
+
+<pre><code class="language-cpp">
+::std::byte b{static_cast&lt;unsigned char&gt;(1)};
+b = b &lt;&lt; 2;   // shift left
+</code></pre>
+
+      <p>
+        这些操作把字节当作原始位来处理，而不是当作数字。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>::std::byte</code> 是表示单个字节的类型。</li>
+        <li>它不是字符类型，也不是数字。</li>
+        <li>它与整数之间需要显式转换。</li>
+        <li>它只支持位运算。</li>
+        <li>当你想表达“这是原始数据”时，它很有用。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/19.usingtypedef/" class="prev-button">← 第2.19章: using 与 typedef</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/21.struct/" class="next-button">第2.21章: struct →</a>
+    </div>
+  </main>
+</body>
+</html>

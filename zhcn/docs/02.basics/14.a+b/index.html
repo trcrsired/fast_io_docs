@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.14章: A + B - fast_io 文档</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.14章: A + B</h1>
+
+    <section>
+      <h2>基本的输入与输出</h2>
+      <p>
+        一个读取两个整数并打印它们之和的简单程序。它同时演示了用于输入的
+        <code>scan</code> 与用于输出的 <code>println</code>：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        ::std::size_t a, b;
+        scan(a, b);
+        println(a + b);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+}
+</code></pre>
+      <p>
+        就连这么小的程序也不能保证成功，而代码本身也表明了这一点：函数体放在
+        <code>try</code> 块中，<code>catch throws</code> 处理程序会报告失败
+        并返回非零退出码。下一节你将看到原因。
+      </p>
+    </section>
+
+    <section>
+      <h2>I/O 总是可能失败</h2>
+      <p>
+        这是本教程中第一个与外部世界打交道的程序，也正是从这一刻起，失败成为可能。
+        <strong>每一个 I/O 操作都可能失败。</strong>
+        不存在“安全”的 I/O 调用，也不存在某种配置能让你假定它一定成功。
+      </p>
+      <p>
+        <strong>输入随时都会失败。</strong>它失败的方式再普通不过：
+      </p>
+      <ul>
+        <li>
+          用户输入了 <code>x</code> 而不是数字，于是 <code>scan(a, b)</code>
+          没有可解析的内容——解析错误；
+        </li>
+        <li>
+          输入在一个数字之后就结束了，于是第二次 <code>scan</code> 读到文件结束；
+        </li>
+        <li>
+          数字对 <code>::std::size_t</code> 来说太大，于是溢出；
+        </li>
+        <li>
+          底层设备返回错误——管道已关闭、连接被重置、磁盘坏扇区、
+          网络读取超时。
+        </li>
+      </ul>
+      <p>
+        运行上面的程序并喂给它垃圾数据：
+      </p>
+      <pre><code>
+$ echo "x 4" | ./aplusb
+[parse](3)Invalid format
+$ echo $?
+1
+</code></pre>
+      <p>
+        <strong>输出同样会失败。</strong>这让人吃惊，因为在
+        <code>iostream</code> 的世界里从没有人检查打印结果。但写入是对
+        操作系统（或网络对端）的请求，而请求是会被拒绝的：
+      </p>
+      <ul>
+        <li>
+          磁盘满了，缓冲的字节无法冲刷
+          （<code>[posix](28)No space left on device</code>）；
+        </li>
+        <li>
+          读取方消失了——流水线下游的进程死了，终端
+          被关闭（<code>[posix](32)Broken pipe</code>）；
+        </li>
+        <li>
+          输出流是一个未以写入方式打开的文件句柄，或者指向一个
+          已满/只读的文件系统；
+        </li>
+        <li>
+          输出流是一个套接字，而对端重置了连接
+          （<code>[posix](104)Connection reset by peer</code>）。我们稍后会接触套接字；
+          重要的是：<em>连 <code>println("Hello World")</code> 都可能失败</em>，
+          只要目的地不是本地控制台，而是网络对端、满磁盘上的文件，
+          或者一个已经退出的进程。
+        </li>
+      </ul>
+      <p>
+        所以 <code>println</code> 并不是一条“只是打印”的语句。它是一个可能失败的操作，
+        而在 <code>fast_io</code> 中，每个可能失败的操作都会在它的类型中说明这一点。
+        试试看：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+// println can fail: it may have to write to a device
+static_assert(!noexcept(println("Hello World")));
+
+// scan can fail: it may have to read and parse
+static_assert(!noexcept(scan(::fast_io::c_stdin(), ::std::declval&lt;int&amp;&gt;())));
+</code></pre>
+      <p>
+        可能失败的调用会被声明为 <code>throws</code>。如果你调用了这样的函数，就必须
+        应对失败的可能性：要么用
+        <code>try { } catch throws (::std::error e) { }</code> 处理，要么把你自己的函数也标记为
+        <code>throws</code>，让失败传播给你的调用者。没有第三种选择
+        ——编译器不允许你忽视它。
+      </p>
+      <div class="warning">
+        <strong>本教程为何不为此使用传统的 C++ 异常。</strong>
+        <code>fast_io</code> 中的错误以 <strong>herbceptions</strong> 的形式报告，它们
+        是本教程中唯一的错误机制。要构建它们，需要
+        <code>-fherbceptions -lherbceptions</code>，以及我们的某个 GCC 或 LLVM 构建（MSVC
+        不支持 herbceptions）。完整的规则——选项、
+        <code>throw throws</code> 语句、处理程序，以及每一个错误域——都在
+        <a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章: Herbceptions</a> 中。从这里开始，
+        每一个执行 I/O 的示例都会使用你在上面看到的同一种 <code>try { } catch throws</code>
+        形态。
+      </div>
+    </section>
+
+    <section>
+      <h2>什么是操纵器？</h2>
+      <p>
+        在 <code>fast_io</code> 中，<strong>操纵器</strong>（manipulator）是一个辅助对象，用来改变
+        输入或输出被解释或格式化的方式。不必依赖不安全的格式字符串，
+        操纵器把意图显式地表达在类型系统中。
+      </p>
+      <p>
+        操纵器定义在命名空间 <code>fast_io::manipulators</code> 中，为方便起见别名为
+        <code>fast_io::mnp</code>。相比传统的 <code>stdio</code> 或 <code>iostream</code>，
+        它们让输入输出更安全、更显式、更可移植。
+      </p>
+      <p>
+        例如：
+      </p>
+      <ul>
+        <li><code>hex_get(a)</code> —— 让 <code>scan</code> 以十六进制读取变量 <code>a</code>。</li>
+        <li><code>hex(a)</code> —— 以小写十六进制打印 <code>a</code>。</li>
+        <li><code>hexupper(a)</code> —— 以大写十六进制打印 <code>a</code>。</li>
+        <li><code>base_get&lt;N&gt;(a)</code> —— 以 <em>N</em> 进制读取 <code>a</code>（2 ≤ N ≤ 36）。</li>
+        <li><code>base&lt;N&gt;(a)</code> —— 以 <em>N</em> 进制打印 <code>a</code>。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>十六进制操纵器</h2>
+      <p>
+        <code>fast_io</code> 提供了以十六进制读写数字的操纵器。
+        <code>hex_get</code> 以十六进制读取输入，而 <code>hex</code> 与 <code>hexupper</code>
+        分别以小写或大写十六进制打印输出：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        ::std::size_t a, b;
+        scan(hex_get(a), hex_get(b));
+        println(hex(a + b), " ", hexupper(a + b));
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+}
+</code></pre>
+      <p>
+        两个十六进制数进，两个十六进制数出。坏输入仍然终止于处理程序，而不会造成
+        未定义行为。
+      </p>
+    </section>
+
+    <section>
+      <h2>N 进制操纵器</h2>
+      <p>
+        操纵器也支持 2 到 36 的任意进制。下面是使用 36 进制的例子：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        ::std::size_t a, b;
+        scan(base_get&lt;36&gt;(a), base_get&lt;36&gt;(b));
+        println(base&lt;36&gt;(a + b));
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>关于操纵器</h2>
+      <p>
+        <code>fast_io</code> 定义了一组丰富的<strong>操纵器</strong>来控制输入输出的格式化。
+        为方便起见，命名空间 <code>fast_io::manipulators</code> 别名为 <code>fast_io::mnp</code>。
+      </p>
+      <ul>
+        <li><code>base_get&lt;N&gt;</code> —— 以 <em>N</em> 进制读取数字（其中 2 ≤ N ≤ 36）。</li>
+        <li><code>base&lt;N&gt;</code> —— 以 <em>N</em> 进制打印数字。</li>
+        <li><code>hex</code> —— <code>base&lt;16&gt;</code> 的简写。</li>
+        <li><code>hexupper</code> —— <code>base&lt;16,true&gt;</code> 的简写，以大写打印十六进制数字。</li>
+        <li><code>left</code>、<code>right</code>、<code>internal</code>、<code>width</code>、<code>fill</code> —— 字段布局与填充。</li>
+      </ul>
+      <p>
+        这些操纵器让你可以轻松处理不同的数字进制，而无需依赖不安全的格式字符串。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>
+          A + B 是执行 I/O 的最小程序，而 I/O 总是可能失败。
+        </li>
+        <li>
+          输入会因格式错误、文件结束、溢出和设备错误而失败；输出
+          会因磁盘满、管道破裂、句柄关闭和连接重置而失败。连
+          <code>println("Hello World")</code> 都可能失败。
+        </li>
+        <li>
+          在 <code>fast_io</code> 中，每个可能失败的操作都被声明为 <code>throws</code>。
+          调用者要么用 <code>try { } catch throws (::std::error e) { }</code> 处理它，
+          要么自己也变成 <code>throws</code>。
+        </li>
+        <li>
+          Herbceptions 是本教程中唯一的错误报告机制；完整规则见
+          <a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>。
+        </li>
+        <li>
+          操纵器（<code>hex</code>、<code>base&lt;N&gt;</code>、<code>hex_get</code> 等）
+          无需格式字符串即可改变格式化方式，但它们并不能改变
+          周围那次 I/O 调用可能失败这一事实。
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/13.casting/" class="prev-button">← 第2.13章: 类型转换</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/15.limits/" class="next-button">第2.15章: limits →</a>
+    </div>
+  </main>
+</body>
+</html>

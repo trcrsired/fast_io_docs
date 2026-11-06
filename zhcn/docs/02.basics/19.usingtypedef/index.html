@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.19章: using 与 typedef - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.19章: using 与 typedef</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        C++ 允许你创建<strong>类型别名</strong>：已有类型的新名字。
+        历史上这通过 <code>typedef</code> 实现。现代 C++ 更倾向于
+        <code>using</code>，它的语法更清晰，并避免了许多可读性问题。
+      </p>
+
+      <p>在本章中，你将学到：</p>
+
+      <ul>
+        <li><code>typedef</code> 如何工作</li>
+        <li><code>using</code> 如何工作</li>
+        <li>为什么 <code>using</code> 通常更好</li>
+        <li>命名与使用类型别名的最佳实践</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. 什么是类型别名？</h2>
+      <p>
+        类型别名就是已有类型的另一个名字。它并不创建
+        新类型——它只创建一个新名字。
+      </p>
+
+<pre><code class="language-cpp">
+int x{42};
+int y{0};   // same type as x
+</code></pre>
+
+      <p>
+        当类型很长、重复出现或频繁使用时，类型别名就很有用。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. typedef —— 老办法</h2>
+      <p>
+        <code>typedef</code> 是经典的 C 风格类型别名写法。
+      </p>
+
+<pre><code class="language-cpp">
+typedef int my_int;
+
+my_int x{42};   // x is an int
+</code></pre>
+
+      <p>
+        语法是：
+      </p>
+
+<pre><code class="language-text">
+typedef existing-type new-name;
+</code></pre>
+
+      <p>
+        这样能工作，但遇到更复杂的类型时就会变得混乱。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 用 typedef 定义引用</h2>
+      <p>
+        <code>typedef</code> 也可以为引用类型起别名。
+      </p>
+
+<pre><code class="language-cpp">
+typedef int& int_ref;
+
+int value{42};
+int_ref r = value;   // r is an int&
+</code></pre>
+
+      <p>
+        别名 <code>int_ref</code> 的行为与 <code>int&</code> 完全相同。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. using —— 现代办法</h2>
+      <p>
+        现代 C++ 为类型别名引入了 <code>using</code>。它的语法更清晰：
+      </p>
+
+<pre><code class="language-text">
+using new-name = existing-type;
+</code></pre>
+
+      <p>示例：</p>
+
+<pre><code class="language-cpp">
+using my_int = int;
+
+my_int x{42};   // x is an int
+</code></pre>
+
+      <p>
+        新名字在左，已有类型在右——就像赋值一样。
+        这使 <code>using</code> 更易读。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 用 using 定义引用</h2>
+      <p>
+        用 <code>using</code> 定义引用别名也更加清晰。
+      </p>
+
+<pre><code class="language-cpp">
+using int_ref = int&;
+
+int value{42};
+int_ref r = value;   // r is an int&
+</code></pre>
+
+      <p>
+        <code>&</code> 清楚地归属于右侧的类型。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 为什么首选 using</h2>
+      <p>
+        在现代 C++ 中：
+      </p>
+
+      <ul>
+        <li><code>using</code> 具有更清晰、类似赋值的语法</li>
+        <li><code>using</code> 避免了 <code>typedef</code> 令人困惑的语法</li>
+        <li><code>using</code> 更易读、更易维护</li>
+      </ul>
+
+      <p>
+        对于新代码，你应当始终优先使用 <code>using</code> 而不是
+        <code>typedef</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 最佳实践</h2>
+      <ul>
+        <li>所有新的类型别名都使用 <code>using</code></li>
+        <li>只在阅读或维护旧代码时使用 <code>typedef</code></li>
+        <li>选择清晰、有描述性的别名</li>
+        <li>教初学者时避免把引用类型隐藏在别名里</li>
+        <li>记住别名<strong>不会</strong>创建新类型</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>类型别名只是已有类型的新名字。</li>
+        <li><code>typedef</code> 是老的 C 风格别名语法。</li>
+        <li><code>using</code> 是现代、更清晰的别名语法。</li>
+        <li>所有新代码都应优先用 <code>using</code>。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/18.endian/" class="prev-button">← 第2.18章: endian</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/20.byte/" class="next-button">第2.20章: ::std::byte →</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.13章: 类型转换 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.13章: 类型转换</h1>
+
+    <section>
+      <h2>隐式转换与类型提升</h2>
+      <p>
+        编译器在求值表达式时会自动把对象转换为共同的类型。
+        这被称为<strong>隐式转换</strong>或<strong>类型提升</strong>。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+
+::std::uint8_t a{10u};
+::std::uint8_t b{20u};
+
+auto sum{a + b}; // both promoted to int before addition
+// sum has type int, not ::std::uint8_t
+</code></pre>
+      <p>
+        小的整数类型（char、unsigned char、short、unsigned short）在做算术运算时会被提升为 int（或 unsigned int）。
+        混合类型时，编译器会提升到共同类型，以安全地完成计算。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+double pi{3.14};
+::std::size_t n{2zu};
+
+auto result{pi * n}; // n promoted to double, result is double
+</code></pre>
+    </section>
+
+    <section>
+      <h2>显式转换概览</h2>
+      <p>
+        当你需要特定的转换时，请使用显式转换。现代 C++ 为不同的意图提供了不同的运算符：
+        <code>static_cast</code>、<code>const_cast</code>、<code>reinterpret_cast</code> 以及 <code>::std::bit_cast</code>（C++20）。
+      </p>
+      <p>
+        ⚠️ 但请记住：如果能够完全避免转换，那通常是最好的选择。
+        请设计你的代码，让类型自然匹配。
+      </p>
+    </section>
+
+    <section>
+      <h2>static_cast</h2>
+      <p>
+        对于有良好定义、编译期可检查的转换（例如数值类型之间的转换），请使用 <code>static_cast</code>。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+double pi{3.14159};
+::std::size_t n{static_cast&lt;::std::size_t&gt;(pi)}; // converts double to size_t
+</code></pre>
+    </section>
+
+    <section>
+      <h2>const_cast</h2>
+      <p>
+        使用 <code>const_cast</code> 来添加或移除 <code>const</code> 限定符。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t const x{42zu};
+auto&amp; y{const_cast&lt;::std::size_t&amp;&gt;(x)}; // removes const
+</code></pre>
+      <p>
+        ⚠️ 如果 <code>x</code> 确实是 const 的，那么通过 <code>y</code> 写入就是未定义行为。
+      </p>
+    </section>
+
+    <section>
+      <h2>reinterpret_cast</h2>
+      <p>
+        <code>reinterpret_cast</code> 重新解释对象的位模式。
+        ⚠️ 它<strong>通常是错的</strong>，应当避免使用。
+      </p>
+      <p>
+        唯一常见的例外是转换到 <code>char*</code> 或 <code>unsigned char*</code> 以检查原始字节。
+        <strong>不要使用 <code>signed char*</code></strong> 来做类型双关。
+        即便使用 <code>char*</code> 或 <code>unsigned char*</code>，你也必须考虑严格别名规则。
+        参见：<a href="https://gist.github.com/shafik/848ae25ee209f698763cffee272a58f8" target="_blank" rel="noopener">
+          什么是严格别名规则，我们为什么要关心它？
+        </a>。
+        我们会在将来的指针章节中进一步讨论。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstdint&gt;
+
+::std::uint32_t u{0xDEADBEEFu};
+auto p{reinterpret_cast&lt;unsigned char const*&gt;(&u)}; // raw byte view
+</code></pre>
+      <p>
+        如果你想把一种类型当作另一种类型（例如把 <code>float64_t</code> 当作 <code>uint64_t</code>），
+        你<strong>不应</strong>使用 <code>reinterpret_cast</code>，
+        而应使用 <code>::std::bit_cast</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>::std::bit_cast</h2>
+      <p>
+        当源类型与目标类型大小相同且都是可平凡复制的时候，<code>::std::bit_cast</code> 可以安全地重新解释位。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;bit&gt;
+#include &lt;cstdint&gt;
+
+double d{3.14};
+::std::uint64_t bits{::std::bit_cast&lt;::std::uint64_t&gt;(d)}; // safely copies bit pattern
+</code></pre>
+    </section>
+
+<section>
+  <h2>dynamic_cast</h2>
+  <p>
+    <code>dynamic_cast</code> 与多态配合使用，可在基类与派生类之间安全转换。
+    在实践中它很慢、很复杂，在性能关键的代码中常被禁用。
+    Herb Sutter 已为将来提出了 <code>::std::down_cast</code>，
+    当它不跨越虚继承链或 DLL 边界时，开销会小得多。
+  </p>
+  <p>
+    目前：请避免 <code>dynamic_cast</code>。优先采用不需要它的设计。
+    你完全可以跳过本节——我们把它列在这里，只是为了说明存在 <code>dynamic_cast</code> 这么个东西。
+    等将来讲到指针与多态时，我们会认真讨论它。
+  </p>
+  <p>
+    下面是一个非常简单的例子，只为展示语法：
+  </p>
+  <pre><code class="language-cpp">
+struct Base { virtual ~Base() = default; };
+struct Derived : Base { };
+
+Derived d;
+Base* b = ::std::addressof(d);
+Derived* pd = dynamic_cast&lt;Derived*&gt;(b); // safe downcast
+
+if(pd) {
+    print("dynamic_cast succeeded\n");
+}
+</code></pre>
+  <p>
+    这能成立，是因为 <code>b</code> 实际指向一个 <code>Derived</code>。
+    如果 <code>b</code> 指向别的子类，<code>dynamic_cast</code> 会返回 <code>nullptr</code>。
+  </p>
+</section>
+
+    <section>
+      <h2>C 风格转换</h2>
+      <p>
+        C 风格转换看起来像 <code>(type)expression</code>。
+        它之所以危险，是因为它<strong>尝试得太多</strong>：
+        编译器会先尝试 <code>const_cast</code>，再尝试 <code>static_cast</code>，必要时最后尝试 <code>reinterpret_cast</code>。
+        这让人无法看清实际发生的是哪一种转换。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+double pi{3.14159};
+::std::size_t n{(::std::size_t)pi}; // C-style cast
+</code></pre>
+      <p>
+        ⚠️ 避免 C 风格转换。它们掩盖意图，并可能悄悄执行不安全的转换。
+        请始终优先使用现代的转换运算符。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>隐式转换会把小整数提升为 int，并在混合表达式中找出共同类型。</li>
+        <li>对清晰、编译期可检查的转换，使用 <code>static_cast</code>。</li>
+        <li>只有当中层对象确实非 const 时，才用 <code>const_cast</code> 改变限定符。</li>
+        <li><code>reinterpret_cast</code> 通常是错的；只在检查字节时考虑 <code>char*</code>/<code>unsigned char*</code>，并留意严格别名规则。</li>
+        <li>对安全、显式的位重新解释，使用 <code>::std::bit_cast</code>。</li>
+        <li><code>dynamic_cast</code> 确实存在，但很慢且常被禁用。上面的语法仅供了解。</li>
+        <li>避免 C 风格转换；它会尝试过多转换（const_cast → static_cast → reinterpret_cast）并掩盖意图。</li>
+        <li>如果能完全避免转换，那是最好的——请设计代码，让类型自然匹配。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/12.decltypeauto/" class="prev-button">← 第2.12章: decltype(auto)</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/14.a+b/" class="next-button">第2.14章: A + B →</a>
+    </div>
+  </main>
+</body>
+</html>
