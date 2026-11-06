@@ -3,29 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch10.9: Swiss Tables: Unordered and Resizable - C++ Tutorial with fast_io</title>
+  <title>第10.9章: Swiss 表：无序且可扩容 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch10.9: Swiss Tables: Unordered and Resizable</h1>
+    <h1>第10.9章: Swiss 表：无序且可扩容</h1>
     <p class="lang-switch"><a href="/docs/10.associativecontainers/09.swiss/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. What Makes It Different</h2>
+      <h2>1. 它有什么不同</h2>
       <p>
-        <code>str_swiss_set</code> and <code>str_swiss_map</code> are hash tables.
-        They compute a hash of the key and store the element in a slot chosen by
-        that hash, instead of keeping the keys sorted. Three consequences shape how
-        you use them:
+        <code>str_swiss_set</code> 与 <code>str_swiss_map</code> 是哈希表。它们计算键的哈希，把元素放进由该哈希选定的槽位，而不是让键保持有序。三个后果决定了你该怎么用它们：
       </p>
       <ul>
-        <li><strong>No order.</strong> Iteration order is determined by the hashes. It is reproducible for the same input, but it is not sorted and it is not insertion order. Never build logic on it.</li>
-        <li><strong>A size that is known.</strong> <code>size()</code> and <code>capacity()</code> are exact and cheap, and <code>reserve()</code> lets you size the table up front.</li>
-        <li><strong>Only key operations.</strong> <code>contains</code>, <code>find_key</code>, <code>insert_key</code>, <code>erase_key</code>. No <code>lower_bound</code>, no <code>front()</code>/<code>back()</code>: those need an order that a hash table does not have.</li>
+        <li><strong>没有顺序。</strong>遍历顺序由哈希决定。对相同输入它是可复现的，但它既不有序，也不是插入顺序。绝不要基于它构建逻辑。</li>
+        <li><strong>大小是已知的。</strong><code>size()</code> 与 <code>capacity()</code> 既精确又便宜，<code>reserve()</code> 让你能一次把表的大小定下来。</li>
+        <li><strong>只有键操作。</strong><code>contains</code>、<code>find_key</code>、<code>insert_key</code>、<code>erase_key</code>。没有 <code>lower_bound</code>，没有 <code>front()</code>/<code>back()</code>：那些都需要哈希表并不具备的顺序。</li>
       </ul>
       <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/str_swiss_set.h&gt;
@@ -55,15 +51,14 @@ contains foo: 1
   foo
 </code></pre>
       <p>
-        Note the iteration order: not sorted, and not the insertion order either.
+        注意遍历顺序：既不是有序的，也不是插入顺序。
       </p>
     </section>
 
     <section>
-      <h2>2. <code>size()</code>, <code>capacity()</code>, <code>reserve()</code></h2>
+      <h2>2. <code>size()</code>、<code>capacity()</code>、<code>reserve()</code></h2>
       <p>
-        A hash table has to know how full it is &mdash; that is how it decides to
-        grow. So the count is already there, and you get it for free:
+        哈希表必须知道自己有多满 &mdash; 它就是这样决定何时增长的。所以计数本来就在手边，你免费拿到它：
       </p>
       <pre><code class="language-cpp">
 println(s.size());       // elements currently stored
@@ -71,13 +66,10 @@ println(s.capacity());   // slots currently allocated
 println(s.is_empty());   // size() == 0
 </code></pre>
       <p>
-        <code>capacity()</code> is not the same number as <code>size()</code>: a
-        table keeps a fraction of its slots free so that probing stays short.
-        When the table fills up it grows and rehashes every key into a bigger table.
+        <code>capacity()</code> 与 <code>size()</code> 不是同一个数：表会让一部分槽位保持空闲，使探测保持简短。当表被填满时，它会增长，并把每个键重新哈希进一张更大的表。
       </p>
       <p>
-        If you know how many keys are coming, <code>reserve(n)</code> grows the table
-        once, up front, so the inserts that follow do not trigger repeated growth:
+        如果你知道要来多少个键，<code>reserve(n)</code> 可以一次在开头把表扩好，这样后续插入不会反复触发增长：
       </p>
       <pre><code class="language-cpp">
 println(s.capacity());   // 15
@@ -91,19 +83,14 @@ println(s.size());       // 3 — reserve never changes the elements
 3
 </code></pre>
       <div class="note">
-        <strong>Reserve before a bulk load.</strong> Reading a file of unknown size
-        is the case where you cannot reserve &mdash; but when you do know (a header
-        says &ldquo;1000 records&rdquo;, or you already counted the lines),
-        <code>reserve</code> turns a chain of rehash-and-copy steps into one
-        allocation.
+        <strong>批量装载之前先 reserve。</strong>读取一个大小未知的文件正是你无法 reserve 的情形 &mdash; 但当你知道大小时（文件头写着“1000 条记录”，或者你已经数过行数），<code>reserve</code> 能把一串“重新哈希并复制”的步骤变成一次分配。
       </div>
     </section>
 
     <section>
-      <h2>3. Insert and Erase</h2>
+      <h2>3. 插入与删除</h2>
       <p>
-        The insert functions return a small struct instead of a bare <code>bool</code>,
-        because a hash table knows the slot it touched and hands you the iterator:
+        插入函数返回一个小结构体而不是裸 <code>bool</code>，因为哈希表知道自己碰了哪个槽位，并把迭代器交给你：
       </p>
       <pre><code class="language-cpp">
 auto r{s.insert_key("alpha")};
@@ -114,9 +101,7 @@ auto dup{s.insert_key("alpha")};
 println(dup.inserted);    // 0 — already present, nothing changed
 </code></pre>
       <p>
-        Erasing is the same <code>erase_key</code> / <code>erase(it)</code> /
-        <code>erase(first, last)</code> family as the B-tree containers, and the
-        erase-while-iterating loop has the same shape (Ch10.6):
+        删除仍然是 B 树容器那套 <code>erase_key</code> / <code>erase(it)</code> / <code>erase(first, last)</code> 家族，边遍历边删除的循环形状也一样（第10.6章）：
       </p>
       <pre><code class="language-cpp">
 for (auto it{s.cbegin()}; it != s.cend();)
@@ -138,17 +123,14 @@ size after erase: 2
   hello
 </code></pre>
       <p>
-        Erasing from a hash table can move an element into the hole it leaves
-        behind, so any iterator or key view you kept from before the erase is gone
-        (Ch10.11).
+        从哈希表中删除可能把某个元素搬进它留下的空洞，所以你在删除之前保存的任何迭代器或键视图都已经失效（第10.11章）。
       </p>
     </section>
 
     <section>
-      <h2>4. Reading and Writing Map Values</h2>
+      <h2>4. 读写映射值</h2>
       <p>
-        A read is <code>find_key</code>; a write is an assign function. Two calls, two
-        meanings:
+        读是 <code>find_key</code>，写是赋值函数。两次调用，两种含义：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_swiss_map&lt;::std::size_t&gt; m;
@@ -158,8 +140,7 @@ println(m.find_key("a")-&gt;mapped());            // 100
 println(m.size());                             // 1
 </code></pre>
       <p>
-        To update a value in place rather than replace it, iterate with a non-const
-        map &mdash; the non-const iterator exposes a writable <code>mapped()</code>:
+        要就地更新值而不是替换它，就用非 const 的映射做遍历 &mdash; 非 const 迭代器暴露可写的 <code>mapped()</code>：
       </p>
       <pre><code class="language-cpp">
 for (auto &amp;e : m)
@@ -169,56 +150,45 @@ for (auto &amp;e : m)
 println(m.find_key("a")-&gt;mapped());   // 101
 </code></pre>
       <p>
-        <code>find_key</code> returns a <code>const_iterator</code> even on a
-        non-const map, so <code>m.find_key(k)-&gt;mapped()</code> reads but does not
-        write. That is the whole rule: lookups read, and every mutation is one of the
-        insert/assign functions or an iteration.
+        <code>find_key</code> 即使在非 const 映射上也返回 <code>const_iterator</code>，所以 <code>m.find_key(k)-&gt;mapped()</code> 只能读不能写。规则就是这些：查找只读，所有修改要么来自插入/赋值函数，要么来自遍历。
       </p>
       <p>
-        The hasher is part of the type (<code>::fast_io::native_swiss_hasher</code> by
-        default). You rarely need to name it; if you do, it is the third template
-        parameter, and <code>hash_function()</code> returns a copy of it.
+        哈希器是类型的一部分（默认是 <code>::fast_io::native_swiss_hasher</code>）。你很少需要写出它；如果要写，它是第三个模板参数，而 <code>hash_function()</code> 返回它的一份副本。
       </p>
     </section>
 
     <section>
-      <h2>5. When a Swiss Table Is the Right Choice</h2>
+      <h2>5. 什么时候 Swiss 表是正确的选择</h2>
       <p>
-        Reach for the Swiss table when the answer to every question is
-        &ldquo;this exact key&rdquo;:
+        当每个问题的答案都是“这个确切的键”时，就该用 Swiss 表：
       </p>
       <ul>
-        <li>Membership: <em>is this token in the table?</em></li>
-        <li>Value lookup: <em>what record belongs to this name?</em></li>
-        <li>Deduplication while streaming input.</li>
-        <li>Caches and indexes keyed by string.</li>
+        <li>成员判断：<em>这个 token 在表里吗？</em></li>
+        <li>值查找：<em>这个名字对应哪条记录？</em></li>
+        <li>流式输入时去重。</li>
+        <li>以字符串为键的缓存和索引。</li>
       </ul>
       <p>
-        And stay with a B-tree when the question is about <em>ranges</em> or
-        <em>order</em>: &ldquo;all keys with this prefix&rdquo;, &ldquo;the
-        smallest&rdquo;, &ldquo;the next one after this&rdquo;. A hash table cannot
-        answer any of those without scanning everything.
+        而当问题涉及<em>范围</em>或<em>顺序</em>时，就留在 B 树这边：“所有以这个前缀开头的键”、“最小的那个”、“这个之后的下一个”。哈希表不扫遍全部就无法回答其中任何一个。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li><code>str_swiss_set</code> / <code>str_swiss_map</code> are hash tables: exact-key operations only, no order.</li>
-        <li>Iteration order is arbitrary but reproducible; never depend on it.</li>
-        <li><code>size()</code>, <code>capacity()</code> and <code>is_empty()</code> are cheap; <code>reserve(n)</code> sizes the table once so a bulk insert does not rehash repeatedly.</li>
-        <li><code>insert_key</code> returns <code>{position, inserted}</code>; <code>inserted</code> tells you whether the key was new.</li>
-        <li><code>erase_key</code>, <code>erase(it)</code>, <code>erase(first, last)</code> behave as in the B-tree family.</li>
-        <li>Writes go through <code>insert_key_or_assign</code> / <code>emplace_key</code>, or through a non-const iterator; reads go through <code>find_key</code>.</li>
-        <li><code>find_key</code> gives a <code>const_iterator</code>: read-only.</li>
+        <li><code>str_swiss_set</code> / <code>str_swiss_map</code> 是哈希表：只支持精确键操作，没有顺序。</li>
+        <li>遍历顺序是任意的，但可复现；绝不要依赖它。</li>
+        <li><code>size()</code>、<code>capacity()</code> 和 <code>is_empty()</code> 都很便宜；<code>reserve(n)</code> 一次定好表大小，使批量插入不会反复重新哈希。</li>
+        <li><code>insert_key</code> 返回 <code>{position, inserted}</code>；<code>inserted</code> 告诉你这个键原本是不是新的。</li>
+        <li><code>erase_key</code>、<code>erase(it)</code>、<code>erase(first, last)</code> 的行为与 B 树家族一致。</li>
+        <li>写通过 <code>insert_key_or_assign</code> / <code>emplace_key</code> 或非 const 迭代器；读通过 <code>find_key</code>。</li>
+        <li><code>find_key</code> 给出 <code>const_iterator</code>：只读。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/10.associativecontainers/08.ranked/" class="prev-button">&larr; Ch10.8: Ranked B-trees</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/10.associativecontainers/10.choose/" class="next-button">Ch10.10: Choosing a Container &rarr;</a>
+      <a href="/zhcn/docs/10.associativecontainers/08.ranked/" class="prev-button">&larr; 第10.8章: 有序统计 B 树</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/10.associativecontainers/10.choose/" class="next-button">第10.10章: 如何选择容器 &rarr;</a>
     </div>
   </main>
 </body>

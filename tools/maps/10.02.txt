@@ -1,0 +1,52 @@
+1|第10.2章: 创建容器并插入键 - 使用 fast_io 学习 C++ 教程
+2|第10.2章: 创建容器并插入键
+3|1. 创建一个容器
+4|默认构造出来的容器是空的，除了几个空指针之外不花任何代价 &mdash; 在你插入东西之前不会发生分配：
+5|六个容器上都有 <code>is_empty()</code>。注意它是 <code>is_empty()</code>，不是 <code>empty()</code>。
+6|从一组键构造
+7|集合接受一个视图的初始化列表。因为元素类型是 <code>::fast_io::string_view</code>，所以每个键都要写成各自的花括号元素：
+8|映射接受键/值对，这里字符串字面量可以直接用，因为 pair 类型会为你构造：
+9|从任何范围构造
+10|<code>from_range</code> 接受任何带 <code>begin()</code>/<code>end()</code> 的东西：
+11|在已有容器上，<code>insert_range</code> 做同样的事：
+12|2. <code>insert_key</code> 及其返回值
+13|<code>insert_key</code> 添加一个键。已经存在的键<strong>不是</strong>错误，也不会产生重复元素。返回值告诉你发生的是哪一种情况，这就是它不返回 <code>void</code> 的原因：
+14|<strong>把这个布尔值读作“容器变大了吗？”</strong>这一条规则覆盖本章所有插入函数：<code>true</code> 表示出现了新元素，<code>false</code> 表示键本来就在。
+15|Swiss 表容器返回的是一个小的结构体，因为它们还能把元素的位置给你：
+16|忽略返回值完全可以，也很常见：<code>s.insert_key(k);</code>。它故意没有 <code>[[nodiscard]]</code> &mdash; 调用处通常并不关心“是否本来就在”。
+17|3. 往映射中插入
+18|映射除了键还需要一个值。三个函数，三种含义：
+19|调用
+20|键已存在
+21|键是新的
+22|返回
+23|<code>insert_key(k, v)</code>
+24|什么都不做，保留旧值。
+25|插入 <code>v</code>。
+26|<code>bool</code>：是否插入了？
+27|<code>insert_key_or_assign(k, v)</code>
+28|覆盖旧值。
+29|插入 <code>v</code>。
+30|<code>bool</code>：是插入（而不是赋值）吗？
+31|<code>emplace_key(k, args...)</code>
+32|什么都不做。
+33|用 <code>args</code> 就地构造值。
+34|<code>bool</code>：是否插入了？
+35|<strong>“键已存在”比较的是键的<em>字节</em></strong>，不是指针，也不是对象标识的哈希。键按精确字节比较：区分大小写、不做 Unicode 规范化、不修剪空白。如果你想要不区分大小写的键，就在插入之前和每次查找之前把字符串规范化。
+36|4. 批量插入与提示
+37|<code>insert_range</code> 插入整个范围。对 B 树家族还有 <code>insert_key_hint(hint, key)</code>：如果你已经大致知道键该放在哪里，提示能让容器从那里开始搜索，而不是从根开始。
+38|常见的特例是追加<em>按有序顺序到来</em>的键 &mdash; 例如读一个已排序的文件。把 <code>cend()</code> 作为提示就是这种情形下的快速路径：
+39|<code>insert_range</code> 内部已经使用了这个提示，所以通过 <code>insert_range</code> 从有序来源填充 B 树能自动获得同样的好处，你不需要额外写什么。提示给错了也从不是错误 &mdash; 容器只是退回普通插入。
+40|5. 复制、移动、清空
+41|六个容器都可复制、可移动。复制会深拷贝每个键（每个键各自分配内存）；移动则转移内部指针，把源容器留空：
+42|<code>clear()</code> 删除所有元素并保持对象可用；<code>clear_destroy()</code> 做同样的事，但还会释放容器自身的存储，使下一次插入从头开始。两者都是 <code>noexcept</code>。对马上要重新填充的容器，优先用 <code>clear()</code>。
+43|要点
+44|默认构造是免费的：第一次插入之前不会分配。
+45|用 <code>is_empty()</code> 判断是否为空。
+46|集合可以用 <code>string_view</code> 的初始化列表构造，映射可以用 <code>{key, value}</code> 对构造。
+47|<code>from_range</code> / <code>insert_range</code> 接受任何视图范围。
+48|<code>insert_key</code> 从不产生重复；它的 <code>bool</code> 说明容器是否变大。
+49|映射：<code>insert_key</code> 保留旧值，<code>insert_key_or_assign</code> 覆盖，<code>emplace_key</code> 就地构造。
+50|B 树容器接受 <code>insert_key_hint(cend(), key)</code>，用于按序批量填充。
+51|复制会深拷贝键；移动转移所有权；<code>clear()</code> 清空但保持对象可用。
+52|<a href="/docs/10.associativecontainers/01.overview/" class="prev-button">&larr; 第10.1章: 概览</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/10.associativecontainers/03.contains/" class="next-button">第10.3章: contains() &rarr;</a>

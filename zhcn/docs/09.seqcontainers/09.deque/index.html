@@ -3,59 +3,54 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch9.9: deque - C++ Tutorial with fast_io</title>
+  <title>第9.9章: deque - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch9.9: deque</h1>
+    <h1>第9.9章: deque</h1>
     <p class="lang-switch"><a href="/docs/09.seqcontainers/09.deque/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        A <code>::fast_io::deque&lt;T&gt;</code> (pronounced &ldquo;deck&rdquo;)
-        provides efficient insertion and removal at <strong>both ends</strong>
-        while still supporting random access via <code>operator[]</code>.
+        <code>::fast_io::deque&lt;T&gt;</code>（读作“deck”）能在<strong>两端</strong>高效地插入与删除，同时仍支持用 <code>operator[]</code> 进行随机访问。
       </p>
     </section>
 
     <section>
-      <h2>1. Internal Structure</h2>
+      <h2>1. 内部结构</h2>
       <p>
-        Unlike a vector, which stores all elements in one contiguous block, a deque
-        uses a <strong>map of blocks</strong> design:
+        vector 把所有元素存放在一个连续的块里，deque 则不同，它采用<strong>块映射</strong>设计：
       </p>
       <ul>
-        <li>Elements are stored in fixed-size <strong>blocks</strong> (chunks).</li>
-        <li>A central <strong>controller</strong> maintains an array of pointers to
-          these blocks.</li>
-        <li>Each block holds <code>block_size</code> elements (implementation-defined,
-          typically large enough to fill a cache line or page).</li>
+        <li>元素存放在大小固定的<strong>块</strong>（chunk）中。</li>
+        <li>
+          一个居中的<strong>控制器</strong>维护着一张指向这些块的指针数组。
+        </li>
+        <li>
+          每个块容纳 <code>block_size</code> 个元素（由实现定义，通常大到足以填满一个缓存行或一个页）。
+        </li>
       </ul>
 <pre><code class="language-cpp">
 // Conceptual layout of a deque:
 //
 // Controller: [ptr_to_block0] [ptr_to_block1] [ptr_to_block2] ...
 //                    |               |               |
-//               Block 0: Block 1: Block 2:
+//               Block 0:        Block 1:        Block 2:
 //             [e0][e1]..[eN]  [e0][e1]..[eN]  [e0][e1]..[eN]
 </code></pre>
       <p>
-        When the deque needs to grow at the front, it allocates a new block and
-        adds a pointer to the front of the controller. No existing elements need
-        to be moved. The same applies at the back. This is the key advantage over
-        <code>vector</code>, which must copy all elements when growing at the front.
+        当 deque 需要在前端增长时，它分配一个新块并把指针加到控制器前端，不需要搬移任何已有元素，后端同理。这正是它相对 <code>vector</code> 的关键优势——vector 在前端增长时必须复制所有元素。
       </p>
     </section>
 
     <section>
-      <h2>2. Deque-Specific Capacity</h2>
+      <h2>2. deque 特有的容量</h2>
       <p>
-        Because a deque grows at both ends, it has separate capacity for each end:
+        由于 deque 在两端增长，它的每一端都有独立的容量：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/deque.h&gt;
@@ -81,83 +76,71 @@ int main() {
     </section>
 
     <section>
-      <h2>3. When Is deque Superior to vector?</h2>
+      <h2>3. 什么时候 deque 优于 vector？</h2>
       <table>
         <thead>
           <tr>
-            <th>Scenario</th>
-            <th>Prefer</th>
-            <th>Reason</th>
+            <th>场景</th>
+            <th>选择</th>
+            <th>理由</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Most general-purpose use</td>
+            <td>最一般的使用</td>
             <td><code>vector</code></td>
-            <td>Better cache locality, simpler, faster iteration</td>
+            <td>缓存局部性更好、更简单、遍历更快</td>
           </tr>
           <tr>
-            <td>Need to grow at the front</td>
+            <td>需要在前端增长</td>
             <td><code>deque</code></td>
-            <td>vector cannot push_front; deque does it in &Theta;(1) amortized</td>
+            <td>vector 不能 push_front；deque 可以摊还 &Theta;(1) 地做到</td>
           </tr>
           <tr>
-            <td>Need a stack or queue</td>
+            <td>需要栈或队列</td>
             <td><code>deque</code></td>
-            <td>Default underlying container for <code>stack</code> and <code>queue</code></td>
+            <td><code>stack</code> 与 <code>queue</code> 的默认底层容器</td>
           </tr>
           <tr>
-            <td>Very large data sets with push_back</td>
+            <td>非常大的数据集并不断 push_back</td>
             <td><code>deque</code></td>
-            <td>vector reallocation copies all elements; deque only allocates a new block</td>
+            <td>vector 重新分配时要复制所有元素；deque 只需分配一个新块</td>
           </tr>
           <tr>
-            <td>Tight iteration performance</td>
+            <td>迭代性能要求很高</td>
             <td><code>vector</code></td>
-            <td>Contiguous memory is prefetch-friendly</td>
+            <td>连续内存对预取友好</td>
           </tr>
         </tbody>
       </table>
 
-      <h3>Why deque allocates more efficiently</h3>
+      <h3>为什么 deque 的分配更高效</h3>
       <p>
-        A <code>vector</code> grows by <strong>doubling its entire buffer</strong>:
-        when capacity is exhausted, it allocates a new buffer of 2&times; the
-        current capacity and <em>copies every existing element</em> into it. For
-        10&nbsp;million elements, the final reallocation moves ~5&nbsp;million
-        elements, the one before ~2.5&nbsp;million, and so on. The total number
-        of element moves across all reallocations is roughly equal to the final
-        size.
+        <code>vector</code> 的增长方式是<strong>把整块缓冲区翻倍</strong>：容量耗尽时，它分配一块 2&times; 当前容量的新缓冲区，并<em>复制每一个已有元素</em>。对 1000 万个元素来说，最后一次重新分配要搬移约 500 万个元素，前一次约 250 万个，依此类推。所有重新分配中元素搬移的总次数大致等于最终的大小。
       </p>
       <p>
-        A <code>deque</code> grows by <strong>allocating a new block</strong>
-        (typically 4&nbsp;KB worth of elements) and adding a pointer to the
-        controller. <strong>No existing elements are ever moved.</strong> Each
-        block is an independent, small allocation. This means:
+        <code>deque</code> 的增长方式是<strong>分配一个新块</strong>（通常相当于 4&nbsp;KB 的元素），并往控制器里加一个指针。<strong>永远不会搬移任何已有元素。</strong>每个块都是一次独立的小分配。这意味着：
       </p>
       <ul>
-        <li><strong>No copying cost</strong> &mdash; the work per insertion is
-          just one constructor call, regardless of how many elements already
-          exist.</li>
-        <li><strong>No large allocations</strong> &mdash; the allocator never
-          needs to find a single contiguous region large enough for the entire
-          dataset. Many small allocations are easier to satisfy than one huge
-          one.</li>
-        <li><strong>No memory overshoot</strong> &mdash; a <code>vector</code>
-          can use up to 2&times; the needed memory right after a reallocation
-          (size&nbsp;=&nbsp;N, capacity&nbsp;=&nbsp;2N). A <code>deque</code>
-          only allocates the blocks it actually fills.</li>
+        <li>
+          <strong>没有复制代价</strong> &mdash; 每次插入的工作量就是一次构造函数调用，与已有多少元素无关。
+        </li>
+        <li>
+          <strong>没有大块分配</strong> &mdash; 分配器永远不需要找到一块足以容纳整个数据集的连续区域。许多小分配比一次巨大分配更容易满足。
+        </li>
+        <li>
+          <strong>不会超量占用内存</strong> &mdash; <code>vector</code> 在刚重新分配之后可能占用多达所需内存的 2&times;（size&nbsp;=&nbsp;N，capacity&nbsp;=&nbsp;2N）。<code>deque</code> 只分配它真正会用到的块。
+        </li>
       </ul>
       <p>
-        The effect is visible in benchmarks. Pushing 10&nbsp;million
-        <code>::std::size_t</code> elements:
+        这种效果在基准测试中看得见。压入 1000 万个 <code>::std::size_t</code> 元素：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Container</th>
-            <th>push_back time</th>
-            <th>Total time</th>
+            <th>容器</th>
+            <th>push_back 耗时</th>
+            <th>总耗时</th>
           </tr>
         </thead>
         <tbody>
@@ -184,47 +167,28 @@ int main() {
         </tbody>
       </table>
       <p>
-        Plain <code>deque</code> (0.095&nbsp;s) is already <strong>2&times;
-        faster</strong> than <code>vector</code> without <code>reserve</code>
-        (0.187&nbsp;s), because it pays no copying cost. And <code>deque</code>
-        with pre-allocation (0.080&nbsp;s) is even faster than
-        <code>vector</code> with <code>reserve</code> (0.095&nbsp;s), because
-        the deque avoids the single large allocation that <code>reserve</code>
-        requires.
+        普通 <code>deque</code>（0.095&nbsp;s）已经比不带 <code>reserve</code> 的 <code>vector</code>（0.187&nbsp;s）<strong>快 2&times;</strong>，因为它没有复制代价。而预分配的 <code>deque</code>（0.080&nbsp;s）甚至比带 <code>reserve</code> 的 <code>vector</code>（0.095&nbsp;s）更快，因为 deque 避免了 <code>reserve</code> 所要求的那一次大分配。
       </p>
 
-      <h3>Drawbacks of deque</h3>
+      <h3>deque 的缺点</h3>
       <p>
-        Despite its allocation advantages, <code>deque</code> has two significant
-        drawbacks that make <code>vector</code> the better choice in many
-        situations:
+        尽管在分配上有优势，<code>deque</code> 有两个显著缺点，使得 <code>vector</code> 在很多场合仍是更好的选择：
       </p>
 
-      <h4>1. Not contiguous</h4>
+      <h4>1. 不连续</h4>
       <p>
-        A deque&rsquo;s elements are spread across multiple heap-allocated blocks.
-        There is <strong>no single contiguous buffer</strong> you can hand to a
-        C API, a <code>memcpy</code>, SIMD intrinsics, or a library that expects
-        a <code>T*</code> with a count. The <code>data()</code> method does not
-        exist on deque for this reason.
+        deque 的元素散布在多个堆分配的块上，<strong>没有单一连续的缓冲区</strong>可以交给 C API、<code>memcpy</code>、SIMD intrinsic，或者任何期望“<code>T*</code> 加元素个数”的库。正因如此，deque 上没有 <code>data()</code> 方法。
       </p>
       <p>
-        If you need to pass elements to an API that requires contiguous memory,
-        you must either copy them into a temporary <code>vector</code> or use
-        the segments API to process one block at a time.
+        如果你需要把元素交给要求连续内存的 API，就必须把它们复制到临时的 <code>vector</code> 里，或者使用 segments API 一块一块地处理。
       </p>
 
-      <h4>2. Large minimum footprint</h4>
+      <h4>2. 最小占用很大</h4>
       <p>
-        Each deque allocates at least one full block, even if it contains only a
-        single element. The block size is typically <strong>4&nbsp;KB</strong>
-        (4096 bytes, chosen to match a page or cache line boundary). So a deque
-        holding a single <code>::std::size_t</code> (8 bytes) still consumes
-        ~4&nbsp;KB of memory plus the controller overhead.
+        每个 deque 至少分配一个完整的块，即使它只有一个元素。块大小通常是 <strong>4&nbsp;KB</strong>（4096 字节，选择这个值是为了对齐页或缓存行边界）。所以一个只装有一个 <code>::std::size_t</code>（8 字节）的 deque，仍然要耗用约 4&nbsp;KB 内存外加控制器开销。
       </p>
       <p>
-        This makes <code>deque</code> a <strong>terrible choice as an inner
-        dimension</strong> in nested containers:
+        这使得 <code>deque</code> 成为嵌套容器中<strong>内层维度的糟糕选择</strong>：
       </p>
 <pre><code class="language-cpp">
 // BAD: 1000 inner deques, each allocating ~4 KB even if nearly empty
@@ -236,23 +200,22 @@ int main() {
 // Minimum memory: 1000 * ~24 bytes (vector overhead) = ~24 KB
 </code></pre>
       <p>
-        As a rule of thumb:
+        作为经验法则：
       </p>
       <ul>
-        <li>Use <code>deque</code> as a <strong>top-level</strong> container
-          when you need fast growth at both ends.</li>
-        <li>Use <code>vector</code> as the <strong>inner dimension</strong> in
-          nested containers (<code>vector&lt;vector&lt;T&gt;&gt;</code>,
-          <code>vector&lt;array&lt;T, N&gt;&gt;</code>, etc.) to avoid the
-          per-instance block overhead.</li>
+        <li>
+          当你需要两端快速增长时，把 <code>deque</code> 用作<strong>顶层</strong>容器。
+        </li>
+        <li>
+          在嵌套容器中把 <code>vector</code> 用作<strong>内层维度</strong>（<code>vector&lt;vector&lt;T&gt;&gt;</code>、<code>vector&lt;array&lt;T, N&gt;&gt;</code> 等），以避免每个实例的块开销。
+        </li>
       </ul>
     </section>
 
     <section>
-      <h2>4. Fast Iteration with the Segments API</h2>
+      <h2>4. 用 segments API 快速遍历</h2>
       <p>
-        The regular deque iterator checks for block boundaries on
-        <strong>every</strong> element increment:
+        常规的 deque 迭代器在<strong>每次</strong>元素自增时都要检查块边界：
       </p>
 <pre><code class="language-cpp">
 // What deque_iterator::operator++ does internally:
@@ -260,58 +223,51 @@ if (++curr_ptr == block_end) [[unlikely]]
     wrap_to_next_block(); // branch on every element
 </code></pre>
       <p>
-        This branch is usually predicted correctly (blocks hold ~500 elements for
-        8-byte types), but it prevents the compiler from auto-vectorising the
-        loop and adds latency. The <strong>segments API</strong> lets you iterate
-        block-by-block instead, eliminating the per-element check entirely.
+        这个分支通常能被正确预测（对 8 字节类型，每块约 500 个元素），但它妨碍编译器自动向量化循环，并带来延迟。<strong>segments API</strong> 让你按块遍历，从而彻底消除逐元素检查。
       </p>
 
-      <h3>Segment methods</h3>
+      <h3>segment 方法</h3>
       <table>
         <thead>
           <tr>
-            <th>Method</th>
-            <th>Returns</th>
-            <th>Description</th>
+            <th>方法</th>
+            <th>返回</th>
+            <th>说明</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>segments_count()</code></td>
             <td><code>size_type</code></td>
-            <td>Number of blocks currently in use.</td>
+            <td>当前正在使用的块数。</td>
           </tr>
           <tr>
             <td><code>nth_segment(pos)</code></td>
             <td><code>span&lt;T&gt;</code></td>
-            <td>Mutable span over the live elements in block <code>pos</code>.</td>
+            <td>覆盖第 <code>pos</code> 个块中有效元素的可变 span。</td>
           </tr>
           <tr>
             <td><code>const_nth_segment(pos)</code></td>
             <td><code>span&lt;T const&gt;</code></td>
-            <td>Const span over the live elements in block <code>pos</code>.</td>
+            <td>覆盖第 <code>pos</code> 个块中有效元素的 const span。</td>
           </tr>
           <tr>
             <td><code>size_per_segment()</code></td>
-            <td><code>size_type</code> (static)</td>
-            <td>Maximum elements per block (= <code>block_size</code>).</td>
+            <td><code>size_type</code>（静态）</td>
+            <td>每块最大元素个数（= <code>block_size</code>）。</td>
           </tr>
           <tr>
             <td><code>size_bytes_per_segment()</code></td>
-            <td><code>size_type</code> (static)</td>
-            <td>Byte capacity of a full block.</td>
+            <td><code>size_type</code>（静态）</td>
+            <td>一个完整块的字节容量。</td>
           </tr>
         </tbody>
       </table>
       <p>
-        The returned <code>span</code> has <code>.data()</code> and
-        <code>.size()</code>, so the inner loop compiles down to a plain pointer
-        walk &mdash; auto-vectorisable, <code>memcpy</code>-able, and branch-free
-        in the hot path. Only the first and last segments may be partial; middle
-        segments always contain exactly <code>block_size</code> elements.
+        返回的 <code>span</code> 带有 <code>.data()</code> 和 <code>.size()</code>，因此内层循环会编译成一次普通的指针遍历 &mdash; 可自动向量化、可用 <code>memcpy</code>、热路径上无分支。只有第一个和最后一个 segment 可能是不满的，中间的 segment 总是恰好包含 <code>block_size</code> 个元素。
       </p>
 
-      <h3>Read-only iteration</h3>
+      <h3>只读遍历</h3>
 <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/deque.h&gt;
 #include &lt;fast_io.h&gt;
@@ -336,7 +292,7 @@ int main() {
 }
 </code></pre>
 
-      <h3>Mutable iteration</h3>
+      <h3>可变遍历</h3>
 <pre><code class="language-cpp">
 // Write through segments
 for (::std::size_t i{}, segs{dq.segments_count()}; i != segs; ++i)
@@ -348,7 +304,7 @@ for (::std::size_t i{}, segs{dq.segments_count()}; i != segs; ++i)
 }
 </code></pre>
 
-      <h3>Direct pointer access for memcpy / SIMD</h3>
+      <h3>为 memcpy / SIMD 直接取指针</h3>
 <pre><code class="language-cpp">
 // Get raw pointer + count from each segment
 for (::std::size_t i{}, segs{dq.segments_count()}; i != segs; ++i)
@@ -360,88 +316,77 @@ for (::std::size_t i{}, segs{dq.segments_count()}; i != segs; ++i)
 }
 </code></pre>
 
-      <h3>When to use segments vs regular iteration</h3>
+      <h3>什么时候用 segments 而不是常规迭代</h3>
       <table>
         <thead>
           <tr>
-            <th>Pattern</th>
-            <th>Use</th>
+            <th>写法</th>
+            <th>用法</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td>Simple range-for, algorithms, <code>std::ranges</code></td>
-            <td>Regular iterator: <code>for (auto const&amp; e : dq)</code></td>
+            <td>常规迭代器：<code>for (auto const&amp; e : dq)</code></td>
           </tr>
           <tr>
             <td>Inner loop performance matters (sum, transform, SIMD)</td>
-            <td>Segments API: iterate block-by-block</td>
+            <td>segments API：按块遍历</td>
           </tr>
           <tr>
             <td>Need raw pointers for <code>memcpy</code> or C APIs</td>
-            <td>Segments API: <code>seg.data()</code> / <code>seg.size()</code></td>
+            <td>segments API：<code>seg.data()</code> / <code>seg.size()</code></td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>5. Iterator Invalidation vs Pointer/Reference Stability</h2>
+      <h2>5. 迭代器失效与指针/引用稳定性的区别</h2>
       <p>
-        A deque&rsquo;s block-map design gives it a unique invalidation
-        property that differs from <code>vector</code>:
+        deque 的块映射设计带来了一个与 <code>vector</code> 不同的独特失效性质：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Operation</th>
-            <th>Iterators</th>
-            <th>Pointers / References to elements</th>
+            <th>操作</th>
+            <th>迭代器</th>
+            <th>指向元素的指针 / 引用</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>push_back()</code> / <code>push_front()</code></td>
-            <td><strong>All invalidated.</strong> The controller may be reallocated, and iterators encode block positions.</td>
-            <td><strong>Survive</strong> (unless the element is erased). Elements are never moved when growing at the ends &mdash; only new blocks are allocated.</td>
+            <td><strong>全部失效。</strong>控制器可能被重新分配，而迭代器里编码了块的位置。</td>
+            <td><strong>仍然有效</strong>（除非该元素被删除）。在两端增长时元素从不搬移 &mdash; 只是分配新块。</td>
           </tr>
           <tr>
             <td><code>emplace_back()</code> / <code>emplace_front()</code></td>
-            <td><strong>All invalidated.</strong></td>
-            <td><strong>Survive</strong> &mdash; same reason as <code>push_*</code>.</td>
+            <td><strong>全部失效。</strong></td>
+            <td><strong>仍然有效</strong> &mdash; 原因同 <code>push_*</code>。</td>
           </tr>
           <tr>
             <td><code>pop_back()</code> / <code>pop_front()</code></td>
-            <td><strong>All invalidated.</strong></td>
-            <td>Pointers/references to the <em>removed</em> element are invalidated. All others <strong>survive</strong>.</td>
+            <td><strong>全部失效。</strong></td>
+            <td>指向<em>被删除</em>元素的指针/引用失效，其余<strong>仍然有效</strong>。</td>
           </tr>
           <tr>
             <td><code>insert_index()</code> / <code>erase_index()</code> (middle)</td>
-            <td><strong>All invalidated.</strong></td>
-            <td>Pointers/references to <em>erased</em> elements are invalidated. Others may or may not survive, depending on whether elements are shifted between blocks.</td>
+            <td><strong>全部失效。</strong></td>
+            <td>指向<em>被删除</em>元素的指针/引用失效。其余元素是否仍然有效，取决于元素是否在块之间被搬移。</td>
           </tr>
           <tr>
             <td><code>clear()</code> / <code>clear_destroy()</code></td>
-            <td><strong>All invalidated.</strong></td>
-            <td><strong>All invalidated.</strong></td>
+            <td><strong>全部失效。</strong></td>
+            <td><strong>全部失效。</strong></td>
           </tr>
         </tbody>
       </table>
       <p>
-        <strong>Why iterators are always invalidated:</strong> A deque iterator
-        internally holds a pointer into the controller (the array of block
-        pointers). When the controller grows &mdash; which can happen on any
-        insertion at the front or back &mdash; the old controller is freed and
-        a new one is allocated. Every iterator that pointed into the old
-        controller is now dangling, even though the elements themselves have
-        not moved.
+        <strong>为什么迭代器总会失效：</strong>deque 迭代器内部持有指向控制器（块指针数组）的指针。当控制器增长时 &mdash; 任何前端或后端插入都可能引发 &mdash; 旧的控制器被释放、新的被分配。所有指向旧控制器的迭代器因此悬空，尽管元素本身并没有移动。
       </p>
       <p>
-        <strong>Why pointers and references survive end insertions:</strong>
-        When a deque grows at an end, it either fills spare capacity in the
-        existing end block or allocates a brand-new block. No existing element
-        is copied or moved. So a pointer or reference obtained before the
-        insertion still points to the same memory location.
+        <strong>为什么指针与引用在尾部插入后仍然有效：</strong>当 deque 在某一端增长时，它要么填满现有端块中的剩余容量，要么分配一个全新的块。不会复制或搬移任何已有元素。因此插入之前取得的指针或引用仍然指向同一处内存。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/deque.h&gt;
@@ -463,35 +408,28 @@ int main() {
 }
 </code></pre>
       <p>
-        <strong>Contrast with <code>vector</code>:</strong> A
-        <code>vector</code> stores all elements in a single contiguous array.
-        When it grows beyond its capacity, it allocates a new array and
-        <em>moves every element</em>. This invalidates <strong>all</strong>
-        iterators, pointers, and references &mdash; there is no partial
-        stability.
+        <strong>与 <code>vector</code> 的对比：</strong><code>vector</code> 把所有元素存放在一个连续数组里。当它增长超过容量时，会分配一个新数组并<em>搬移每一个元素</em>，这会使<strong>所有</strong>迭代器、指针和引用失效 &mdash; 不存在部分稳定。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>A <code>deque</code> uses a map of fixed-size blocks, not one contiguous array.</li>
-        <li>It supports &Theta;(1) amortized insertion at both front and back, with no element copying.</li>
-        <li><code>deque</code> is not contiguous &mdash; no <code>data()</code>, no direct use with C APIs or SIMD.</li>
-        <li>Each <code>deque</code> allocates at least one ~4 KB block, even for a single element. Avoid as an inner dimension in nested containers.</li>
-        <li><code>reserve_front()</code> and <code>reserve_back()</code> control capacity independently.</li>
-        <li><code>deque</code> supports random access but with slightly worse cache locality than <code>vector</code>.</li>
-        <li>Prefer <code>vector</code> by default; use <code>deque</code> when you need front insertion.</li>
-        <li>Use the <strong>segments API</strong> (<code>segments_count()</code>, <code>nth_segment()</code>, <code>const_nth_segment()</code>) for branch-free, auto-vectorisable iteration over a deque.</li>
-        <li><code>deque</code> iterators are always invalidated on insertion, but pointers and references to existing elements survive <code>push_front()</code> / <code>push_back()</code> &mdash; unlike <code>vector</code>, which invalidates everything on reallocation.</li>
+        <li><code>deque</code> 使用由大小固定的块组成的映射，而不是一个连续数组。</li>
+        <li>它在前端和后端的插入都是摊还 &Theta;(1)，且不复制元素。</li>
+        <li><code>deque</code> 不连续 &mdash; 没有 <code>data()</code>，也不能直接用于 C API 或 SIMD。</li>
+        <li>每个 <code>deque</code> 至少分配一个约 4 KB 的块，即使只有一个元素。在嵌套容器中不要把它用作内层维度。</li>
+        <li><code>reserve_front()</code> 与 <code>reserve_back()</code> 分别控制两端的容量。</li>
+        <li><code>deque</code> 支持随机访问，但缓存局部性比 <code>vector</code> 略差。</li>
+        <li>默认优先用 <code>vector</code>；需要前端插入时用 <code>deque</code>。</li>
+        <li>对 deque 做无分支、可自动向量化的遍历时，使用 <strong>segments API</strong>（<code>segments_count()</code>、<code>nth_segment()</code>、<code>const_nth_segment()</code>）。</li>
+        <li><code>deque</code> 的迭代器在插入时总会失效，但指向已有元素的指针和引用在 <code>push_front()</code> / <code>push_back()</code> 之后仍然有效 &mdash; 这与 <code>vector</code> 不同，vector 在重新分配时会使一切失效。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/09.seqcontainers/08.vectorcapacity/" class="prev-button">&larr; Ch9.8: vector</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/09.seqcontainers/10.span/" class="next-button">Ch9.10: span &rarr;</a>
+      <a href="/zhcn/docs/09.seqcontainers/08.vectorcapacity/" class="prev-button">&larr; 第9.8章: vector</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/09.seqcontainers/10.span/" class="next-button">第9.10章: span &rarr;</a>
     </div>
   </main>
 </body>

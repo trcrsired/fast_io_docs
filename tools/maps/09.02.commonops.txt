@@ -1,0 +1,203 @@
+1|第9.2章: 通用操作 - 使用 fast_io 学习 C++ 教程
+2|第9.2章: 通用操作
+3|概述
+4|所有序列容器共享一大套通用操作。本节用完整的表格说明每项操作做什么、怎么用，以及哪些容器支持它。<strong>&#10003;</strong> 表示支持；<strong>&mdash;</strong> 表示不可用；加了注释则表示该操作存在，但语义有所不同。
+5|1. 类型别名
+6|每个容器都提供一组标准的嵌套类型别名。有了它们，你就能写出随容器的元素类型、大小类型和迭代器类别自动调整的泛型代码。
+7|类型别名
+8|说明
+9|示例
+10|vector
+11|deque
+12|list
+13|forward_list
+14|array
+15|bitvec
+16|span
+17|string_view
+19|容器中存放的元素类型。
+21|bool
+22|char_type
+24|用于大小和下标的无符号整数类型。始终是 <code>::std::size_t</code>。
+26|size_t
+27|size_t
+28|size_t
+29|size_t
+30|size_t
+31|size_t
+32|size_t
+33|size_t
+35|用于迭代器差值的带符号整数类型。始终是 <code>::std::ptrdiff_t</code>。
+46|解引用迭代器时返回的类型。对 <code>bitvec</code> 来说它是一个代理对象，而不是真正的引用。
+48|T&amp;
+49|T&amp;
+50|T&amp;
+51|T&amp;
+52|T&amp;
+53|&mdash;
+54|T&amp;
+55|ch const&amp;
+57|对元素的 const 限定引用。
+59|T const&amp;
+60|T const&amp;
+61|T const&amp;
+62|T const&amp;
+63|T const&amp;
+64|&mdash;
+65|T const&amp;
+66|ch const&amp;
+68|指向 <code>value_type</code> 的指针。对 <code>bitvec</code> 来说它是代理迭代器，不是裸指针。
+70|&mdash;
+71|ch const*
+72|迭代器类别
+73|容器所支持的迭代器概念，它决定了能使用哪些算法。
+75|连续
+76|随机访问
+77|双向
+78|向前
+79|连续
+80|&mdash;
+81|连续
+82|连续（const）
+84|容器是否支持通过 <code>rbegin()</code> / <code>rend()</code> 进行反向遍历。
+86|&mdash;
+87|&mdash;
+88|2. 容量操作
+89|这些操作用于查询或调整容器在不重新分配的情况下能容纳的元素个数。
+90|操作
+91|说明
+92|示例
+93|vector
+94|deque
+95|list
+96|forward_list
+97|array
+98|bitvec
+99|span
+100|string_view
+102|容器中没有元素时返回 <code>true</code>。
+105|返回当前存放的元素个数。
+107|&mdash;
+108|&mdash;（见注释）
+109|&#10003;（静态）
+111|返回元素占用的总字节数（<code>size() * sizeof(T)</code>）。
+114|返回容器理论上最多能容纳的元素个数。
+116|&mdash;
+118|返回在需要重新分配之前还能存放的元素个数。
+120|&mdash;
+121|&mdash;
+122|&mdash;
+123|&mdash;
+124|&mdash;
+126|请求容量至少为 <code>n</code> 个元素，不改变 <code>size()</code>。
+128|&mdash;（见 <code>reserve_back</code>）
+129|&mdash;
+130|&mdash;
+131|&mdash;
+132|&mdash;
+133|&mdash;
+135|请求释放未使用的容量以减少内存占用。可能使迭代器失效。
+137|&mdash;
+138|&mdash;
+139|&mdash;
+140|&mdash;
+141|&mdash;
+142|<strong>注意：</strong><code>list</code> 和 <code>forward_list</code> 都不提供 <code>size()</code>。统计链表中的元素需要 &Theta;(n) 的遍历，因此刻意不提供 size，以免隐藏这笔代价。如果确实需要，请使用 <code>::std::ranges::distance()</code>。
+143|<strong>deque 说明：</strong>deque 不提供 <code>reserve()</code>，而是提供 <code>reserve_back(n)</code> 和 <code>reserve_front(n)</code>，分别用于在两端独立预留容量。它还提供 <code>front_capacity()</code> 和 <code>back_capacity()</code>。
+144|3. 元素访问
+145|这些操作按下标或位置直接访问单个元素。
+146|操作
+147|说明
+148|示例
+149|vector
+150|deque
+151|list
+152|forward_list
+153|array
+154|span
+155|string_view
+157|访问下标处的元素。带边界检查：越界时调用 <code>fast_terminate()</code>。
+159|&mdash;
+160|&mdash;
+162|访问下标处的元素，不做边界检查。更快，但越界时是未定义行为。
+164|&mdash;
+165|&mdash;
+167|返回第一个元素的引用。容器为空时是未定义行为。
+170|返回最后一个元素的引用。容器为空时是未定义行为。
+172|&mdash;
+174|返回指向底层连续存储的裸指针。
+176|&mdash;
+177|&mdash;
+178|&mdash;
+180|返回第一个元素的引用，但不检查容器是否为空。
+183|返回最后一个元素的引用，但不检查容器是否为空。
+185|&mdash;
+186|4. 迭代器操作
+187|这些操作返回用于界定容器元素范围的迭代器。所有迭代器都遵循左闭约定：范围 <code>[begin(), end())</code> 包含第一个元素，但不包含末尾之后的位置。
+188|操作
+189|说明
+190|示例
+191|vector
+192|deque
+193|list
+194|forward_list
+195|array
+196|span
+197|string_view
+199|返回指向第一个元素的迭代器 / 指向最后一个元素之后位置的迭代器。
+202|返回 <em>const</em> 迭代器。通过该迭代器无法修改元素。
+205|返回反向迭代器，从最后一个元素遍历到第一个元素。
+208|返回指向第一个元素之前位置的迭代器。只有 <code>forward_list</code> 提供它，用于在头部插入。
+210|&mdash;
+211|&mdash;
+212|&mdash;
+213|&mdash;
+214|&mdash;
+215|&mdash;
+216|5. 修改器
+217|这些操作在容器中添加、删除或替换元素。
+218|操作
+219|说明
+220|示例
+221|vector
+222|deque
+223|list
+224|forward_list
+225|bitvec
+227|删除所有元素。内存<em>不会</em>被释放；容量保留下来以备复用。
+230|删除所有元素<em>并</em>释放全部内存。等价于先 <code>clear()</code> 再 <code>shrink_to_fit()</code>。
+233|在容器尾部添加 <code>val</code> 的副本。
+235|&mdash;
+237|在容器头部添加 <code>val</code> 的副本。
+239|&mdash;
+240|&mdash;
+242|删除最后一个元素。容器为空时是未定义行为。
+244|&mdash;
+246|删除第一个元素。容器为空时是未定义行为。
+248|&mdash;
+249|&mdash;
+251|在尾部就地构造元素，把 <code>args...</code> 转发给构造函数。
+253|&mdash;
+254|&mdash;
+256|在头部就地构造元素，把 <code>args...</code> 转发给构造函数。
+258|&mdash;
+259|&mdash;
+261|改变元素个数。若在增长，新元素会被值初始化；若在收缩，末尾的元素会被删除。
+263|&mdash;
+264|&mdash;
+266|替换整个内容。重载形式：<code>assign(count, val)</code> 或 <code>assign(first, last)</code>。
+268|&mdash;
+269|&mdash;
+270|&mdash;
+272|把范围 <code>[first, last)</code> 中的所有元素追加到容器尾部。
+274|&mdash;
+275|&mdash;
+277|交换两个同类型容器的内容。对大多数容器是 &Theta;(1)。
+279|要点
+280|所有容器在大小、遍历与元素访问方面共享一套通用接口。
+281|<code>list</code> 和 <code>forward_list</code> 不提供 <code>size()</code>；<code>forward_list</code> 还没有 <code>back()</code>。
+282|<code>list</code> 和 <code>forward_list</code> 不支持 <code>operator[]</code>，也不支持随机访问。
+283|只有 <code>vector</code>、<code>deque</code>、<code>array</code> 以及连续视图提供 <code>data()</code>。
+284|<code>clear()</code> 保留容量；<code>clear_destroy()</code> 释放内存。
+285|<code>deque</code> 是唯一同时具备 <code>push_front()</code> 和双端容量的容器。
+286|<a href="/docs/09.seqcontainers/01.overview/" class="prev-button">&larr; 第9.1章: 概览</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/09.seqcontainers/03.inserteraseindex/" class="next-button">第9.3章: 按下标插入/删除 &rarr;</a>

@@ -3,89 +3,66 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.8: File Loader (Memory Mapping) - C++ Tutorial with fast_io</title>
+  <title>第11.8章: 文件加载器（内存映射） - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
 </head>
 <body>
   <main>
-    <h1>Ch11.8: File Loader (Memory Mapping)</h1>
+    <h1>第11.8章: 文件加载器（内存映射）</h1>
     <p class="lang-switch"><a href="/docs/11.io/08.fileloader/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        <code>fast_io</code> provides two file loader types that load an entire file into memory
-        and expose it through a container-like interface. They are move-only, RAII-managed objects
-        that automatically release the underlying memory when they go out of scope.
+        <code>fast_io</code> 提供两种文件加载器类型，它们把整个文件装入内存，并通过类似容器的接口暴露出来。它们都是只可移动、由 RAII 管理的对象，离开作用域时会自动释放底层内存。
       </p>
       <ul>
         <li>
-          <code>::fast_io::native_file_loader</code> &mdash; uses memory mapping when available
-          (<code>mmap()</code> on POSIX, <code>CreateFileMapping</code>/<code>MapViewOfFile</code>
-          on Windows). This is a zero-copy approach: the OS maps the file directly into the
-          process's virtual address space. <strong>Important:</strong> On platforms that do not
-          support memory mapping (e.g., WASM, newlib), <code>native_file_loader</code> automatically
-          aliases to <code>allocation_file_loader</code>.
+          <code>::fast_io::native_file_loader</code> &mdash; 在可用时使用内存映射（POSIX 上的 <code>mmap()</code>，Windows 上的 <code>CreateFileMapping</code>/<code>MapViewOfFile</code>）。这是零复制的方式：操作系统把文件直接映射进进程的虚拟地址空间。<strong>重要：</strong>在不支持内存映射的平台（例如 WASM、newlib）上，<code>native_file_loader</code> 会自动别名到 <code>allocation_file_loader</code>。
         </li>
         <li>
-          <code>::fast_io::allocation_file_loader</code> &mdash; uses <code>malloc()</code> +
-          <code>read()</code> to load the entire file into heap memory. This works on all platforms,
-          including those without memory mapping support.
+          <code>::fast_io::allocation_file_loader</code> &mdash; 用 <code>malloc()</code> 加 <code>read()</code> 把整个文件读进堆内存。这在所有平台上都可用，包括不支持内存映射的平台。
         </li>
       </ul>
       <p>
-        Both loaders provide the same interface, so you can switch between them depending on
-        platform capabilities without changing the rest of your code. In most cases, you should
-        use <code>native_file_loader</code> and let it automatically choose the best implementation
-        for your platform.
+        两种加载器提供相同的接口，因此你可以根据平台能力在它们之间切换，而不必改动代码的其余部分。大多数情况下，你应该使用 <code>native_file_loader</code>，让它为你的平台自动选择最佳实现。
       </p>
     </section>
 
     <section>
-      <h2>Common Interface</h2>
+      <h2>公共接口</h2>
       <p>
-        Both <code>native_file_loader</code> and <code>allocation_file_loader</code> provide
-        a contiguous-container-like interface:
+        <code>native_file_loader</code> 与 <code>allocation_file_loader</code> 都提供类似连续容器的接口：
       </p>
       <ul>
-        <li><code>data()</code> &mdash; returns a pointer to the loaded file data.</li>
-        <li><code>size()</code> &mdash; returns the file size in bytes as <code>::std::size_t</code>.</li>
-        <li><code>begin()</code> / <code>end()</code> &mdash; random-access iterators over the file bytes.</li>
-        <li><code>operator[](i)</code> &mdash; access the byte at index <code>i</code>.</li>
-        <li><code>empty()</code> &mdash; returns <code>true</code> if the file has zero size.</li>
+        <li><code>data()</code> &mdash; 返回指向已加载文件数据的指针。</li>
+        <li><code>size()</code> &mdash; 以 <code>::std::size_t</code> 返回文件的字节大小。</li>
+        <li><code>begin()</code> / <code>end()</code> &mdash; 遍历文件字节的随机访问迭代器。</li>
+        <li><code>operator[](i)</code> &mdash; 访问下标 <code>i</code> 处的字节。</li>
+        <li><code>empty()</code> &mdash; 文件大小为零时返回 <code>true</code>。</li>
       </ul>
       <p>
-        They are also directly printable: you can pass a loader to <code>print()</code> or
-        <code>println()</code> and the file contents will be written to the output.
+        它们也可以直接打印：把加载器传给 <code>print()</code> 或 <code>println()</code>，文件内容就会被写到输出上。
       </p>
     </section>
 
     <section>
       <h2>native_file_loader</h2>
       <p>
-        <code>::fast_io::native_file_loader</code> uses the OS memory mapping facilities.
-        On POSIX systems, it calls <code>mmap()</code>; on Windows NT, it uses
-        <code>NtCreateSection</code> and <code>NtMapViewOfSection</code>. The file is not
-        read into a separate buffer &mdash; instead, the file contents are mapped directly
-        into virtual memory. Accesses to the mapped region are handled by the OS page fault
-        mechanism, giving zero-copy semantics.
+        <code>::fast_io::native_file_loader</code> 使用操作系统的内存映射设施。在 POSIX 系统上它调用 <code>mmap()</code>；在 Windows NT 上使用 <code>NtCreateSection</code> 与 <code>NtMapViewOfSection</code>。文件不会被读进另一块缓冲区 &mdash; 而是把文件内容直接映射进虚拟内存。对映射区域的访问由操作系统的缺页机制处理，从而获得零复制语义。
       </p>
       <p>
-        <strong>Important:</strong> The memory mapping uses <strong>copy-on-write (COW)</strong>
-        pages by default. This means:
+        <strong>重要：</strong>内存映射默认使用<strong>写时复制（COW）</strong>页。这意味着：
       </p>
       <ul>
-        <li>You <strong>can</strong> modify the bytes in the mapped memory.</li>
-        <li>These modifications <strong>do not</strong> change the actual file on disk.</li>
-        <li>You <strong>cannot</strong> change the size of the file through the mapping.</li>
-        <li>The modifications are local to your process's virtual memory and are lost when the loader is destroyed.</li>
+        <li>你<strong>可以</strong>修改映射内存中的字节。</li>
+        <li>这些修改<strong>不会</strong>改变磁盘上的实际文件。</li>
+        <li>你<strong>不能</strong>通过映射改变文件的大小。</li>
+        <li>这些修改只存在于你进程的虚拟内存中，加载器销毁时就会丢失。</li>
       </ul>
       <p>
-        If you need modifications to be written back to disk, you must explicitly write them
-        using file I/O operations. If you need to modify the file and write it back, use
-        <code>allocation_file_loader</code> instead (see below).
+        如果你需要把修改写回磁盘，必须显式地用文件 I/O 操作写回。如果你需要修改文件并写回，请改用 <code>allocation_file_loader</code>（见下文）。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -134,20 +111,14 @@ int main(int argc, char** argv)
 }
       </code></pre>
       <p>
-        The loader is move-only. You can transfer ownership with <code>::std::move</code>, but
-        you cannot copy it. When the loader is destroyed, the memory mapping is released
-        automatically.
+        加载器是只可移动的。你可以用 <code>::std::move</code> 转移所有权，但不能复制它。加载器销毁时，内存映射被自动释放。
       </p>
     </section>
 
     <section>
       <h2>allocation_file_loader</h2>
       <p>
-        <code>::fast_io::allocation_file_loader</code> provides the same interface, but uses
-        <code>malloc()</code> to allocate a buffer and <code>read()</code> to fill it. This
-        is used on platforms that do not support memory mapping, such as WASM (WebAssembly) or
-        environments with newlib. It is also useful when you need the file data to reside in
-        heap memory that you control.
+        <code>::fast_io::allocation_file_loader</code> 提供同样的接口，但用 <code>malloc()</code> 分配缓冲区、用 <code>read()</code> 填充它。这用于不支持内存映射的平台，例如 WASM（WebAssembly），或者使用 newlib 的环境。当你需要文件数据位于你自己掌控的堆内存中时，它也有用。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -184,60 +155,53 @@ int main(int argc, char** argv)
     </section>
 
     <section>
-      <h2>Choosing Between the Two</h2>
+      <h2>在两者之间选择</h2>
       <table>
         <thead>
           <tr>
-            <th>Feature</th>
+            <th>特性</th>
             <th><code>native_file_loader</code></th>
             <th><code>allocation_file_loader</code></th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Underlying mechanism</td>
-            <td><code>mmap()</code> / <code>MapViewOfFile</code> (or <code>malloc()</code> + <code>read()</code> on platforms without memory mapping)</td>
+            <td>底层机制</td>
+            <td><code>mmap()</code> / <code>MapViewOfFile</code>（在不支持内存映射的平台上则是 <code>malloc()</code> + <code>read()</code>）</td>
             <td><code>malloc()</code> + <code>read()</code></td>
           </tr>
           <tr>
-            <td>Copy into user buffer</td>
-            <td>No (zero-copy) on platforms with memory mapping; Yes on others</td>
-            <td>Yes</td>
+            <td>是否复制到用户缓冲区</td>
+            <td>在支持内存映射的平台上不复制（零复制）；其他平台上复制</td>
+            <td>复制</td>
           </tr>
           <tr>
-            <td>Platform support</td>
-            <td>All platforms (aliases to <code>allocation_file_loader</code> when memory mapping unavailable)</td>
-            <td>All platforms</td>
+            <td>平台支持</td>
+            <td>所有平台（无内存映射时别名到 <code>allocation_file_loader</code>）</td>
+            <td>所有平台</td>
           </tr>
           <tr>
-            <td>Works on WASM / newlib</td>
-            <td>Yes (aliases to <code>allocation_file_loader</code>)</td>
-            <td>Yes</td>
+            <td>在 WASM / newlib 上可用</td>
+            <td>可用（别名到 <code>allocation_file_loader</code>）</td>
+            <td>可用</td>
           </tr>
           <tr>
-            <td>Interface</td>
+            <td>接口</td>
             <td>data(), size(), begin(), end(), operator[]</td>
             <td>data(), size(), begin(), end(), operator[]</td>
           </tr>
           <tr>
-            <td>Move-only, RAII</td>
-            <td>Yes</td>
-            <td>Yes</td>
+            <td>只可移动、RAII</td>
+            <td>是</td>
+            <td>是</td>
           </tr>
         </tbody>
       </table>
       <p>
-        If your target platform supports memory mapping, prefer <code>native_file_loader</code>
-        for best performance. If you need maximum portability (e.g. cross-compiling to WASM),
-        use <code>allocation_file_loader</code>.
+        如果你的目标平台支持内存映射，优先用 <code>native_file_loader</code> 以获得最佳性能。如果你需要最大的可移植性（例如交叉编译到 WASM），就用 <code>allocation_file_loader</code>。
       </p>
       <p>
-        <strong>Important:</strong> If you need to load a file, massively modify its contents in memory,
-        or even recreate the entire file, use <code>allocation_file_loader</code> instead of
-        <code>native_file_loader</code>. The memory-mapped loader keeps the file open until it is destroyed,
-        which prevents you from reopening the file for writing or recreating it. <code>allocation_file_loader</code>
-        reads the entire file into heap memory and closes it immediately, allowing you to safely modify
-        the data and write it back (or write completely different content) to the same file.
+        <strong>重要：</strong>如果你需要加载文件、在内存中大量修改其内容，甚至整个重建文件，请使用 <code>allocation_file_loader</code> 而不是 <code>native_file_loader</code>。内存映射式加载器会一直保持文件打开直到自己被销毁，这使你无法重新以写方式打开该文件或重建它。<code>allocation_file_loader</code> 把整个文件读进堆内存并立即关闭它，从而使你能安全地修改数据并写回（或者写入完全不同的内容）到同一个文件。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -262,17 +226,14 @@ int main()
 }
       </code></pre>
       <p>
-        If you had used <code>native_file_loader</code> in the example above, the file would remain
-        memory-mapped and locked, causing the <code>obuf_file</code> construction to fail or the write
-        to corrupt the mapping.
+        如果在上面的例子里用了 <code>native_file_loader</code>，文件会保持内存映射并被锁定，导致 <code>obuf_file</code> 构造失败，或者写入破坏映射。
       </p>
     </section>
 
     <section>
-      <h2>Move Semantics and RAII</h2>
+      <h2>移动语义与 RAII</h2>
       <p>
-        Both loaders are move-only types. Their destructors release the underlying resource
-        (unmap the memory or free the buffer). You can transfer ownership via <code>::std::move</code>:
+        两种加载器都是只可移动类型。它们的析构函数释放底层资源（解除映射或释放缓冲区）。你可以通过 <code>::std::move</code> 转移所有权：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -306,11 +267,9 @@ int main()
     </section>
 
     <section>
-      <h2>Loading Files Relative to a Directory</h2>
+      <h2>相对于某个目录加载文件</h2>
       <p>
-        You can combine <code>::fast_io::dir_file</code> with a file loader to load files
-        relative to a directory. Use <code>drt(ent)</code> on a directory entry to get a
-        (fd, name) pair that the loader can open directly.
+        你可以把 <code>::fast_io::dir_file</code> 与文件加载器结合，相对于某个目录加载文件。对目录项调用 <code>drt(ent)</code>，得到一个加载器可以直接打开的 (fd, name) 对。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -343,66 +302,40 @@ int main()
 }
       </code></pre>
       <p>
-        This pattern is efficient because <code>drt(ent)</code> reuses the directory&rsquo;s
-        file descriptor &mdash; no extra <code>open()</code> call is needed to resolve the path.
+        这种写法很高效，因为 <code>drt(ent)</code> 复用了目录的文件描述符 &mdash; 解析路径不需要额外的 <code>open()</code> 调用。
       </p>
     </section>
 
     <section>
-      <h2>Key Takeaways</h2>
+      <h2>要点</h2>
       <ul>
         <li>
-          <strong>Prefer file loaders over random access I/O.</strong> When you need to read
-          entire files or perform many random accesses, use <code>::fast_io::native_file_loader</code>
-          (or <code>allocation_file_loader</code>) instead of seek operations. File loaders
-          are simpler, faster, and less error-prone.
+          <strong>优先用文件加载器而不是随机访问 I/O。</strong>当你需要读取整个文件或进行大量随机访问时，使用 <code>::fast_io::native_file_loader</code>（或 <code>allocation_file_loader</code>）而不是定位操作。文件加载器更简单、更快、更不易出错。
         </li>
         <li>
-          <strong>Seek is hard to use and slow.</strong> The seek operations from
-          <a href="/zhcn/docs/11.io/07.randomaccess/">Ch11.7</a> require you to track file positions
-          manually, handle partial reads/writes, and issue multiple syscalls. For most use cases,
-          loading the entire file into memory is more efficient.
+          <strong>定位操作难用而且慢。</strong><a href="/zhcn/docs/11.io/07.randomaccess/">第11.7章</a>里的定位操作要求你手动跟踪文件位置、处理不完整的读写、并发起多次系统调用。对大多数用例来说，把整个文件装入内存更高效。
         </li>
         <li>
-          <strong>Positional I/O (pwrite/pread) is also complex.</strong> While positional I/O
-          avoids changing the file position, it still requires managing offsets and buffer pointers
-          manually. File loaders give you a clean container interface with <code>operator[]</code>,
-          <code>begin()</code>/<code>end()</code>, and algorithms from the standard library.
+          <strong>按位置 I/O（pwrite/pread）同样复杂。</strong>虽然按位置 I/O 避免了改变文件位置，但它仍然需要手动管理偏移和缓冲区指针。文件加载器给你一个干净的容器接口，带 <code>operator[]</code>、<code>begin()</code>/<code>end()</code>，以及标准库的算法。
         </li>
         <li>
-          <strong>File loaders are not always possible.</strong> For streams that don&rsquo;t have
-          a fixed size (network sockets, pipes, terminals), you cannot use a file loader. In those
-          cases, fall back to buffered I/O (<code>ibuf_file</code>, <code>obuf_file</code>) or
-          unbuffered I/O (<code>native_file</code>) as appropriate.
+          <strong>文件加载器并非总是可行。</strong>对没有固定大小的流（网络 socket、管道、终端），你无法使用文件加载器。那些情况下，就按需退回带缓冲 I/O（<code>ibuf_file</code>、<code>obuf_file</code>）或不带缓冲 I/O（<code>native_file</code>）。
         </li>
         <li>
-          <strong>Use <code>native_file_loader</code> when available.</strong> It provides zero-copy
-          access via memory mapping. On platforms without memory mapping support, it automatically
-          aliases to <code>allocation_file_loader</code>. Note that the mapping uses copy-on-write
-          pages: you can modify bytes in memory, but these changes don&rsquo;t affect the file on
-          disk and are lost when the loader is destroyed.
+          <strong>在可用时使用 <code>native_file_loader</code>。</strong>它通过内存映射提供零复制访问。在不支持内存映射的平台上，它会自动别名到 <code>allocation_file_loader</code>。注意映射使用写时复制页：你可以修改内存中的字节，但这些改动不影响磁盘上的文件，并且加载器销毁时就丢失了。
         </li>
         <li>
-          <strong>Use <code>allocation_file_loader</code> for read-modify-write cycles or file recreation.</strong>
-          If you need to load a file, massively modify its contents, or recreate the file entirely,
-          use <code>allocation_file_loader</code>. The <code>native_file_loader</code> keeps the file
-          memory-mapped and locked, preventing you from writing to or recreating it.
-          <code>allocation_file_loader</code> reads the file into heap memory and closes it immediately,
-          allowing you to safely modify the data and write it back or create a completely new file.
+          <strong>读-改-写循环或重建文件时使用 <code>allocation_file_loader</code>。</strong>如果你需要加载文件、大量修改其内容，或完全重建文件，请使用 <code>allocation_file_loader</code>。<code>native_file_loader</code> 会让文件保持内存映射并被锁定，使你无法写入或重建它。<code>allocation_file_loader</code> 把文件读进堆内存并立即关闭，使你能够安全地修改数据并写回，或者创建一个全新的文件。
         </li>
         <li>
-          <strong>Combine with <code>dir_file</code> for directory-relative loading.</strong> Use
-          <code>drt(ent)</code> on directory entries to load files efficiently without extra path
-          resolution.
+          <strong>配合 <code>dir_file</code> 做相对于目录的加载。</strong>对目录项使用 <code>drt(ent)</code>，就能在没有额外路径解析的情况下高效地加载文件。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/07.randomaccess/" class="prev-button">&larr; Ch11.7: Random Access I/O</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/09.stringrelation/" class="next-button">Ch11.9: String Relation &rarr;</a>
+      <a href="/zhcn/docs/11.io/07.randomaccess/" class="prev-button">&larr; 第11.7章: 随机访问 I/O</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/09.stringrelation/" class="next-button">第11.9章: 与字符串的关系 &rarr;</a>
     </div>
   </main>
 </body>

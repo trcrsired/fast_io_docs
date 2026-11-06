@@ -3,79 +3,70 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.2: Custom Types - C++ Tutorial with fast_io</title>
+  <title>第11.2章: 自定义类型 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.2: Defining Custom Types for I/O</h1>
+    <h1>第11.2章: 为 I/O 定义自定义类型</h1>
     <p class="lang-switch"><a href="/docs/11.io/02.customtypes/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        <code>fast_io</code> uses <strong>customization points</strong> to let
-        you define how your types are printed and scanned. There are four main
-        customization points, each with different trade-offs.
+        <code>fast_io</code> 用<strong>定制点</strong>让你定义自己的类型如何被打印和扫描。主要有四个定制点，各有不同的取舍。
       </p>
     </section>
 
     <section>
-      <h2>1. Customization Points Overview</h2>
+      <h2>1. 定制点一览</h2>
       <table>
         <thead>
           <tr>
-            <th>Customization Point</th>
-            <th>Best For</th>
-            <th>Speed</th>
-            <th>Safety</th>
+            <th>定制点</th>
+            <th>最适合</th>
+            <th>速度</th>
+            <th>安全性</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>print_reserve_define</code></td>
-            <td>Fixed-size types (ints, floats, enums, small structs)</td>
-            <td>Fastest</td>
-            <td>Unsafe if size is computed wrong</td>
+            <td>大小固定的类型（整数、浮点数、枚举、小结构体）</td>
+            <td>最快</td>
+            <td>如果算错大小就不安全</td>
           </tr>
           <tr>
             <td><code>print_scatter_define</code></td>
-            <td>Types already stored as contiguous strings (string literals, enum names)</td>
-            <td>Zero-copy</td>
-            <td>Safe</td>
+            <td>已经以连续字符串形式存放的类型（字符串字面量、枚举名）</td>
+            <td>无复制</td>
+            <td>安全</td>
           </tr>
           <tr>
             <td><code>print_define</code></td>
-            <td>Complex/composite types (most flexible)</td>
-            <td>Moderate</td>
-            <td>Safe</td>
+            <td>复杂/复合类型（最灵活）</td>
+            <td>中等</td>
+            <td>安全</td>
           </tr>
           <tr>
             <td><code>scan_context_define</code></td>
-            <td>Types that span multiple buffer fills (streaming parse)</td>
-            <td>N/A (input)</td>
-            <td>Safe</td>
+            <td>表示形式会跨越多次缓冲区填充的类型（流式解析）</td>
+            <td>不适用（输入）</td>
+            <td>安全</td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>2. print_reserve_define &mdash; Fastest (but dangerous)</h2>
+      <h2>2. print_reserve_define &mdash; 最快（但危险）</h2>
       <p>
-        <code>print_reserve_define</code> writes directly into the I/O buffer.
-        It is <strong>the fastest method</strong> &mdash; even faster than
-        returning an array, because it reuses the existing I/O buffer memory
-        with zero extra allocation or copying.
+        <code>print_reserve_define</code> 直接写进 I/O 缓冲区。它是<strong>最快的方法</strong> &mdash; 甚至比返回数组还快，因为它复用已有的 I/O 缓冲区内存，没有任何额外的分配或复制。
       </p>
       <div class="warning">
-        <strong>Danger:</strong> You must compute the buffer size correctly.
-        If <code>print_reserve_size</code> returns a value that is too small,
-        you will overflow the buffer &mdash; this is undefined behaviour and
-        can corrupt memory.
+        <strong>危险：</strong>你必须正确计算缓冲区大小。如果 <code>print_reserve_size</code> 返回的值太小，你就会写越界 &mdash; 这是未定义行为，可能破坏内存。
       </div>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -143,17 +134,14 @@ int main() {
 }
 </code></pre>
       <p>
-        <strong>When to use:</strong> When your type has a fixed, small textual
-        representation and you can compute the size precisely at compile time.
+        <strong>何时使用：</strong>当你的类型有一个固定的小规模文本表示，且你能在编译期精确算出大小时。
       </p>
     </section>
 
     <section>
-      <h2>3. print_scatter_define &mdash; Zero-copy</h2>
+      <h2>3. print_scatter_define &mdash; 无复制</h2>
       <p>
-        <code>print_scatter_define</code> returns a pointer and length to
-        existing data. No copying is needed &mdash; the I/O system references
-        your data directly.
+        <code>print_scatter_define</code> 返回指向已有数据的指针和长度。不需要复制 &mdash; I/O 系统直接引用你的数据。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -167,30 +155,30 @@ print_scatter_define(::fast_io::io_reserve_type_t&lt;char_type, Color&gt;, Color
     // Use character type-specific string literals
     if constexpr (::std::same_as&lt;char_type, char&gt;) {
         switch (c) {
-            case Color::Red: return {"Red", 3};
+            case Color::Red:   return {"Red", 3};
             case Color::Green: return {"Green", 5};
-            case Color::Blue: return {"Blue", 4};
+            case Color::Blue:  return {"Blue", 4};
         }
         return {"Unknown", 7};
     } else if constexpr (::std::same_as&lt;char_type, char8_t&gt;) {
         switch (c) {
-            case Color::Red: return {u8"Red", 3};
+            case Color::Red:   return {u8"Red", 3};
             case Color::Green: return {u8"Green", 5};
-            case Color::Blue: return {u8"Blue", 4};
+            case Color::Blue:  return {u8"Blue", 4};
         }
         return {u8"Unknown", 7};
     } else if constexpr (::std::same_as&lt;char_type, char16_t&gt;) {
         switch (c) {
-            case Color::Red: return {u"Red", 3};
+            case Color::Red:   return {u"Red", 3};
             case Color::Green: return {u"Green", 5};
-            case Color::Blue: return {u"Blue", 4};
+            case Color::Blue:  return {u"Blue", 4};
         }
         return {u"Unknown", 7};
     } else if constexpr (::std::same_as&lt;char_type, char32_t&gt;) {
         switch (c) {
-            case Color::Red: return {U"Red", 3};
+            case Color::Red:   return {U"Red", 3};
             case Color::Green: return {U"Green", 5};
-            case Color::Blue: return {U"Blue", 4};
+            case Color::Blue:  return {U"Blue", 4};
         }
         return {U"Unknown", 7};
     }
@@ -202,19 +190,14 @@ int main() {
 }
 </code></pre>
       <p>
-        <strong>When to use:</strong> When your type&rsquo;s textual
-        representation is already a contiguous string in memory (string
-        literals, enum names, etc.).
+        <strong>何时使用：</strong>当你的类型的文本表示在内存中已经是一段连续字符串时（字符串字面量、枚举名等）。
       </p>
     </section>
 
     <section>
-      <h2>4. print_define &mdash; Most flexible</h2>
+      <h2>4. print_define &mdash; 最灵活</h2>
       <p>
-        <code>print_define</code> writes to an output stream using
-        <code>print_freestanding</code>. It is the most flexible but also the
-        slowest of the three print methods (still fast &mdash; just not as fast
-        as <code>print_reserve_define</code>).
+        <code>print_define</code> 用 <code>print_freestanding</code> 写到输出流上。它最灵活，但也是三种打印方法里最慢的（依然很快 &mdash; 只是不如 <code>print_reserve_define</code> 那么快）。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -239,25 +222,22 @@ int main() {
 }
 </code></pre>
       <p>
-        <strong>When to use:</strong> For complex types where the output
-        depends on runtime data, or when you are composing multiple sub-objects.
+        <strong>何时使用：</strong>用于输出依赖运行时数据的复杂类型，或者当你需要组合多个子对象时。
       </p>
     </section>
 
     <section>
-      <h2>5. scan_context_define &mdash; Multi-call scanning</h2>
+      <h2>5. scan_context_define &mdash; 多次调用的扫描</h2>
       <p>
-        <code>scan_context_define</code> is for types whose textual
-        representation may span multiple buffer fills. It uses a
-        <strong>context</strong> to track parsing state across calls.
+        <code>scan_context_define</code> 用于文本表示可能跨越多次缓冲区填充的类型。它用一个<strong>上下文</strong>在多次调用之间记录解析状态。
       </p>
       <p>
-        You must provide three functions:
+        你必须提供三个函数：
       </p>
       <ol>
-        <li><code>scan_context_type</code> &mdash; declares the context type</li>
-        <li><code>scan_context_define</code> &mdash; parses from the buffer, returns partial/ok/invalid</li>
-        <li><code>scan_context_eof_define</code> &mdash; handles end-of-input</li>
+        <li><code>scan_context_type</code> &mdash; 声明上下文类型</li>
+        <li><code>scan_context_define</code> &mdash; 从缓冲区解析，返回 partial/ok/invalid</li>
+        <li><code>scan_context_eof_define</code> &mdash; 处理输入结束</li>
       </ol>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -322,29 +302,29 @@ scan_context_eof_define(
     </section>
 
     <section>
-      <h2>6. Which One Should I Use?</h2>
+      <h2>6. 我该用哪一个？</h2>
       <table>
         <thead>
           <tr>
-            <th>Your type is...</th>
-            <th>Use...</th>
+            <th>你的类型是……</th>
+            <th>那么用……</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Fixed-size, computable at compile time (ints, small structs)</td>
-            <td><code>print_reserve_define</code> (fastest)</td>
+            <td>大小固定、编译期可计算（整数、小结构体）</td>
+            <td><code>print_reserve_define</code>（最快）</td>
           </tr>
           <tr>
-            <td>Already a contiguous string (enum names, literals)</td>
-            <td><code>print_scatter_define</code> (zero-copy)</td>
+            <td>已经是连续字符串（枚举名、字面量）</td>
+            <td><code>print_scatter_define</code>（无复制）</td>
           </tr>
           <tr>
-            <td>Complex, composed of multiple parts</td>
-            <td><code>print_define</code> (most flexible)</td>
+            <td>复杂，由多个部分组成</td>
+            <td><code>print_define</code>（最灵活）</td>
           </tr>
           <tr>
-            <td>May span multiple buffer reads (streaming parse)</td>
+            <td>可能跨越多次缓冲区读取（流式解析）</td>
             <td><code>scan_context_define</code></td>
           </tr>
         </tbody>
@@ -352,21 +332,19 @@ scan_context_eof_define(
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li><code>print_reserve_define</code> is the fastest &mdash; writes directly into the I/O buffer with zero extra allocation. But compute the size correctly or you will overflow the buffer.</li>
-        <li><code>print_scatter_define</code> returns a pointer to existing data &mdash; zero copy. Best for enum names and string-like types.</li>
-        <li><code>print_define</code> is the most flexible &mdash; writes to a stream using <code>print_freestanding</code>.</li>
-        <li><code>scan_context_define</code> handles types that span multiple buffer fills &mdash; uses a context to track parse state.</li>
-        <li>Choose the simplest method that fits your type. Use <code>print_reserve_define</code> only when you can compute the size precisely.</li>
+        <li><code>print_reserve_define</code> 最快 &mdash; 直接写进 I/O 缓冲区，没有任何额外分配。但必须正确计算大小，否则会写越界。</li>
+        <li><code>print_scatter_define</code> 返回指向已有数据的指针 &mdash; 零复制。最适合枚举名和类字符串类型。</li>
+        <li><code>print_define</code> 最灵活 &mdash; 用 <code>print_freestanding</code> 写到流上。</li>
+        <li><code>scan_context_define</code> 处理会跨越多次缓冲区填充的类型 &mdash; 用上下文记录解析状态。</li>
+        <li>选择适合你类型的最简单方法。只有在你能够精确计算大小时才用 <code>print_reserve_define</code>。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/01.fileio/" class="prev-button">&larr; Ch11.1: File I/O</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/03.manipulators/" class="next-button">Ch11.3: Manipulators &rarr;</a>
+      <a href="/zhcn/docs/11.io/01.fileio/" class="prev-button">&larr; 第11.1章: 文件 I/O</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/03.manipulators/" class="next-button">第11.3章: 操纵器 &rarr;</a>
     </div>
   </main>
 </body>

@@ -1,0 +1,28 @@
+1|第11.6章: 互斥 I/O - 使用 fast_io 学习 C++ 教程
+2|第11.6章: 互斥 I/O
+3|线程安全 I/O 概览
+4|当多个线程需要读写同一个文件时，你必须同步访问，以避免数据竞争和交错的输出。<code>fast_io</code> 提供可加锁的文件变体，它们内部含有一个互斥量，使它们上面的所有 I/O 操作都是线程安全的，而无需你自己管理外部同步。
+5|<strong>重要：</strong>这些可加锁类型只提供<strong>线程安全</strong>（单个进程内的同步），<strong>不</strong>提供<strong>进程安全</strong>（多个进程之间的同步）。如果多个进程需要写同一个文件，考虑直接使用 <code>::fast_io::native_file</code>，此时每次操作都变成一次系统调用 &mdash; 操作系统可能对某些操作提供原子性保证（例如 POSIX 上带 <code>O_APPEND</code> 的写入）。
+6|注意，如果操作系统为系统调用提供了原子性保证，那么在进程内它们也是线程安全的。然而带缓冲的输出类型会先把数据积累在用户态缓冲区里再刷新，即使单个系统调用是原子的，这也可能破坏原子性。输出的顺序也可能变得混乱，因为缓冲会把逻辑单元拆到多次刷新中。若需要真正原子的写入（既线程安全、又进程安全且顺序有保证），请使用不带缓冲的 <code>::fast_io::native_file</code>。
+7|可加锁的文件类型
+8|每种标准带缓冲文件类型都有一个对应的可加锁变体：
+9|<code>::fast_io::ibuf_file_lockable</code> — 内部带互斥量的缓冲输入文件
+10|<code>::fast_io::obuf_file_lockable</code> — 内部带互斥量的缓冲输出文件
+11|<code>::fast_io::iobuf_file_lockable</code> — 内部带互斥量的缓冲输入/输出文件
+12|这些类型的行为与它们不可加锁的对应物完全一样。默认情况下，每次调用 <code>scan</code>、<code>print</code> 或 <code>println</code> 都会在执行 I/O 之前取得内部互斥量，之后再释放它。这保证来自不同线程的操作不会交错。
+13|当你要连续执行多次操作时，为了更好的性能，可以手动锁定互斥量，取得未加锁的句柄，并用它完成所有操作。这样避免了为每一次单个操作获取和释放互斥量的开销。
+14|使用可加锁文件
+15|下面是一个多个线程安全地写入同一个输出文件的例子：
+16|在这个例子里，三个线程并发地打印到同一个 <code>obuf_file_lockable</code>。因为每次 <code>println</code> 调用都会获取内部互斥量，输出行从不交错 &mdash; 每一行都是原子地写出的。
+17|用 ::fast_io::mutex 手动加锁
+18|如果你需要把一串操作保护为单个原子单元，或者想以线程安全的方式使用不带缓冲/不可加锁的文件类型，可以直接使用 <code>::fast_io::mutex</code>。这是 <code>fast_io</code> 提供的可移植互斥量类型。
+19|<code>::fast_io::io_lock_guard</code> 在构造时锁定互斥量，在析构时释放（RAII）。这让你能把一组相关的 I/O 调用保护成一个临界区，确保它们作为一个不间断的整体出现。
+20|什么时候用可加锁文件，什么时候用手动互斥量
+21|在下列情况下使用可加锁文件类型（<code>*_lockable</code>）：
+22|每次单独的 <code>print</code>/<code>println</code>/<code>scan</code> 调用应当是原子的。
+23|你想要一个简单、可直接替换的线程安全文件，样板代码最少。
+24|在下列情况下使用 <code>::fast_io::mutex</code> 配合 <code>::fast_io::io_lock_guard</code>：
+25|你需要把多步操作序列保护成单个原子组。
+26|你在使用不可加锁的文件类型，需要外部同步。
+27|你需要把 I/O 与其他共享状态一起同步。
+28|<a href="/docs/11.io/05.buffered/" class="prev-button">&larr; 第11.5章: 带缓冲与不带缓冲的 I/O</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/07.randomaccess/" class="next-button">第11.7章: 随机访问 I/O &rarr;</a>

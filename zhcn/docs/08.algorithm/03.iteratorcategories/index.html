@@ -3,50 +3,46 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch8.3: Iterator Categories - C++ Tutorial with fast_io</title>
+  <title>第8.3章: 迭代器类别 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch8.3: Iterator Categories</h1>
+    <h1>第8.3章: 迭代器类别</h1>
     <p class="lang-switch"><a href="/docs/08.algorithm/03.iteratorcategories/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
 
       <p>
-        Iterators are the “cursors” that move through a range.  
-        A range <strong>produces</strong> iterators; an iterator <strong>represents a position</strong> inside a range.
+        迭代器就是在 range 中移动的“游标”。range <strong>产生</strong>迭代器；迭代器<strong>表示</strong> range 中的某个位置。
       </p>
 
       <p>
-        Just like ranges, iterators form a <strong>capability hierarchy</strong>.
-        Each stronger iterator category includes all capabilities of the weaker ones.
+        与 range 一样，迭代器也构成一条<strong>能力层级</strong>。每个更强的迭代器类别都包含所有更弱类别的能力。
       </p>
 
       <p>
-        In this chapter, you will learn:
+        本章将介绍：
       </p>
 
       <ul>
-        <li>the full iterator category hierarchy</li>
-        <li>the readable chain from <code>input_iterator</code> to <code>contiguous_iterator</code></li>
-        <li>the separate writable branch <code>output_iterator</code></li>
-        <li>why pointers to object types are the strongest readable iterators</li>
-        <li>why some pointers do not model any iterator category</li>
-        <li>how <code>to_address</code> defines contiguity</li>
+        <li>迭代器类别的完整层级</li>
+        <li>从 <code>input_iterator</code> 到 <code>contiguous_iterator</code> 的可读链条</li>
+        <li>独立的可写分支 <code>output_iterator</code></li>
+        <li>为什么指向对象类型的指针是最强的可读迭代器</li>
+        <li>为什么有些指针不对应任何迭代器类别</li>
+        <li><code>to_address</code> 如何定义连续性</li>
       </ul>
     </section>
 
     <section>
-      <h2>1. The full iterator hierarchy</h2>
+      <h2>1. 完整的迭代器层级</h2>
 
       <p>
-        All iterator categories refine the base concept <code>input_or_output_iterator</code>.
-        From there, the hierarchy splits into a readable chain and a separate writable branch:
+        所有迭代器类别都是对基础概念 <code>input_or_output_iterator</code> 的细化。由此，层级分成一条可读链条和一个独立的可写分支：
       </p>
 
 <pre><code>
@@ -67,33 +63,32 @@ input_or_output_iterator
     </section>
 
     <section>
-      <h2>2. Ranges and iterators: how they relate</h2>
+      <h2>2. range 与迭代器的关系</h2>
 
       <p>
-        A <strong>range</strong> is an object that produces two iterators:
+        <strong>range</strong> 是一个对象，它产生两个迭代器：
       </p>
 
       <ul>
-        <li>a begin iterator (first position)</li>
-        <li>an end iterator (one past the last position)</li>
+        <li>起始迭代器（第一个位置）</li>
+        <li>末尾迭代器（最后一个位置之后的一个位置）</li>
       </ul>
 
       <p>
-        A range does not store positions.  
-        An iterator does not store a collection.
+        range 不存储位置，迭代器不存储容器。
       </p>
 
       <p>
-        They are complementary:
+        两者是互补的：
       </p>
 
       <ul>
-        <li>A range describes <em>what</em> you can traverse.</li>
-        <li>An iterator describes <em>where</em> you are during traversal.</li>
+        <li>range 描述<em>可以遍历什么</em>。</li>
+        <li>迭代器描述遍历过程中<em>你在哪里</em>。</li>
       </ul>
 
       <p>
-        A range is defined by:
+        range 由以下内容定义：
       </p>
 
 <pre><code class="language-cpp">
@@ -102,7 +97,7 @@ auto end = end(r);
 </code></pre>
 
       <p>
-        An iterator is defined by:
+        迭代器由以下内容定义：
       </p>
 
 <pre><code class="language-cpp">
@@ -115,12 +110,11 @@ auto end = end(r);
       <h2>3. input_or_output_iterator</h2>
 
       <p>
-        This is the <strong>root</strong> of the iterator hierarchy.
-        Every iterator is either readable, writable, or both.
+        这是迭代器层级的<strong>根</strong>。每个迭代器要么可读，要么可写，要么两者兼备。
       </p>
 
       <p>
-        All other iterator categories refine this one.
+        其他所有迭代器类别都是对它的细化。
       </p>
     </section>
 
@@ -128,13 +122,13 @@ auto end = end(r);
       <h2>4. input_iterator</h2>
 
       <p>
-        The smallest readable iterator category. An input_iterator supports:
+        最小的可读迭代器类别。input_iterator 支持：
       </p>
 
       <ul>
-        <li>reading elements once</li>
-        <li>moving forward only</li>
-        <li>single‑pass traversal</li>
+        <li>只能读取元素一次</li>
+        <li>只能向前移动</li>
+        <li>单遍遍历</li>
       </ul>
     </section>
 
@@ -142,12 +136,12 @@ auto end = end(r);
       <h2>5. forward_iterator</h2>
 
       <p>
-        A forward_iterator has all capabilities of an input_iterator and additionally supports:
+        forward_iterator 具有 input_iterator 的全部能力，并额外支持：
       </p>
 
       <ul>
-        <li>multiple passes over the same elements</li>
-        <li>revisiting elements in the same order</li>
+        <li>对同一批元素进行多次遍历</li>
+        <li>按相同顺序重新访问元素</li>
       </ul>
     </section>
 
@@ -155,11 +149,11 @@ auto end = end(r);
       <h2>6. bidirectional_iterator</h2>
 
       <p>
-        A bidirectional_iterator has all capabilities of a forward_iterator and additionally supports:
+        bidirectional_iterator 具有 forward_iterator 的全部能力，并额外支持：
       </p>
 
       <ul>
-        <li>moving backward as well as forward</li>
+        <li>既能向前也能向后移动</li>
       </ul>
     </section>
 
@@ -167,12 +161,12 @@ auto end = end(r);
       <h2>7. random_access_iterator</h2>
 
       <p>
-        A random_access_iterator has all capabilities of a bidirectional_iterator and additionally supports:
+        random_access_iterator 具有 bidirectional_iterator 的全部能力，并额外支持：
       </p>
 
       <ul>
-        <li>constant‑time jumps to any position</li>
-        <li>indexing with <code>it[n]</code></li>
+        <li>常数时间跳到任意位置</li>
+        <li>用 <code>it[n]</code> 做下标访问</li>
       </ul>
     </section>
 
@@ -180,36 +174,33 @@ auto end = end(r);
       <h2>8. contiguous_iterator</h2>
 
       <p>
-        A contiguous_iterator has all capabilities of a random_access_iterator and additionally
-        guarantees that the elements it refers to occupy adjacent addresses in the program’s
-        abstract address space.
+        contiguous_iterator 具有 random_access_iterator 的全部能力，并额外保证它所指的元素在程序的抽象地址空间中占据相邻的地址。
       </p>
 
       <p>
-        When the iterator refers to a real element (not the end position), the following holds:
+        当迭代器指向真实元素（而不是末尾位置）时，下面的等式成立：
       </p>
 
 <pre><code class="language-cpp">
 ::std::to_address(it + 1) == ::std::to_address(it) + 1
 </code></pre>
 
-      <h3>Pointers as contiguous_iterators</h3>
+      <h3>指针作为 contiguous_iterator</h3>
 
       <p>
-        Pointers to <strong>object types</strong> (such as <code>int*</code> or <code>char*</code>)
-        are the canonical example of contiguous_iterators.
+        指向<strong>对象类型</strong>的指针（例如 <code>int*</code> 或 <code>char*</code>）是 contiguous_iterator 的典型例子。
       </p>
 
       <p>
-        However, not all pointers are iterators:
+        然而，并非所有指针都是迭代器：
       </p>
 
       <ul>
-        <li><code>void*</code> cannot be incremented or dereferenced as an element type</li>
-        <li>function pointers cannot be incremented or dereferenced</li>
+        <li><code>void*</code> 不能自增，也不能按元素类型解引用</li>
+        <li>函数指针不能自增，也不能解引用</li>
       </ul>
 
-      <h3>Example: ::fast_io::vector&lt;int&gt;::iterator</h3>
+      <h3>示例：::fast_io::vector&lt;int&gt;::iterator</h3>
 
 <pre><code class="language-cpp">
 void analyze_vector_iterator(::fast_io::vector&lt;int&gt;::iterator it)
@@ -236,20 +227,19 @@ void analyze_vector_iterator(::fast_io::vector&lt;int&gt;::iterator it)
     </section>
 
     <section>
-      <h2>9. output_iterator (separate branch)</h2>
+      <h2>9. output_iterator（独立分支）</h2>
 
       <p>
-        An output_iterator is the writable counterpart of an input_iterator.
-        It allows writing elements but does not require reading from the iterator.
+        output_iterator 是 input_iterator 的可写对应物。它允许写入元素，但不要求从迭代器读取。
       </p>
 
       <p>
-        It is <strong>not part of the readable hierarchy</strong>.
+        它<strong>不属于可读层级</strong>。
       </p>
     </section>
 
     <section>
-      <h2>10. Detecting iterator categories with <code>if constexpr</code></h2>
+      <h2>10. 用 <code>if constexpr</code> 探测迭代器类别</h2>
 
 <pre><code class="language-cpp">
 void analyze_iterator(int* it)
@@ -276,23 +266,21 @@ void analyze_iterator(int* it)
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
 
       <ul>
-        <li><code>input_or_output_iterator</code> is the root concept.</li>
-        <li>The readable hierarchy goes from <code>input_iterator</code> up to <code>contiguous_iterator</code>.</li>
-        <li><code>output_iterator</code> is a separate writable branch.</li>
-        <li>Pointers to object types are contiguous_iterators.</li>
-        <li><code>void*</code> and function pointers are not iterators.</li>
-        <li>Ranges produce iterators; iterators represent positions.</li>
+        <li><code>input_or_output_iterator</code> 是根概念。</li>
+        <li>可读层级从 <code>input_iterator</code> 一直上升到 <code>contiguous_iterator</code>。</li>
+        <li><code>output_iterator</code> 是一个独立的可写分支。</li>
+        <li>指向对象类型的指针是 contiguous_iterator。</li>
+        <li><code>void*</code> 和函数指针都不是迭代器。</li>
+        <li>range 产生迭代器；迭代器表示位置。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/08.algorithm/02.rangecategories/" class="prev-button">← Ch8.2: Range Categories</a>
-      <a href="/zhcn/" class="main-button">↑ 主页</a>
-      <a href="/zhcn/docs/08.algorithm/04.iteratoralgorithms/" class="next-button">Ch8.4: Algorithm Basics →</a>
+      <a href="/zhcn/docs/08.algorithm/02.rangecategories/" class="prev-button">← 第8.2章: range 类别</a> <a href="/zhcn/" class="main-button">↑ 主页</a> <a href="/zhcn/docs/08.algorithm/04.iteratoralgorithms/" class="next-button">第8.4章: 算法基础 →</a>
     </div>
 
   </main>

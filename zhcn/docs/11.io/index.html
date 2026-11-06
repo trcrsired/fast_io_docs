@@ -3,88 +3,62 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11: I/O - C++ Tutorial with fast_io</title>
+  <title>第11章: I/O - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11: I/O</h1>
+    <h1>第11章: I/O</h1>
     <p class="lang-switch"><a href="/docs/11.io/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        This chapter covers <code>fast_io</code>&rsquo;s I/O system &mdash; the
-        core of the library. We will learn how to perform file I/O, define
-        custom types for printing and scanning, use manipulators, understand
-        the operations layer, and work with every level of the OS file API.
+        本章讲 <code>fast_io</code> 的 I/O 系统 &mdash; 这是整个库的核心。我们将学习如何进行文件 I/O、如何为打印和扫描定义自定义类型、如何使用操纵器、理解操作层，并接触操作系统文件 API 的每一个层次。
       </p>
       <p>
-        <strong>Important assumption:</strong> This chapter assumes you are running in a standard
-        hosted environment with full filesystem access. If you are running in an application sandbox
-        (e.g., mobile app sandboxes, browser WASM sandbox, container restrictions) or a freestanding
-        environment (e.g., embedded systems without an OS, kernel development), many of the assumptions
-        about file I/O break down. We will discuss these special environments in future chapters.
+        <strong>重要前提：</strong>本章假设你运行在拥有完整文件系统访问权限的标准宿主环境中。如果你运行在应用沙箱里（例如移动应用沙箱、浏览器 WASM 沙箱、容器限制），或者运行在 freestanding 环境里（例如没有操作系统的嵌入式系统、内核开发），那么关于文件 I/O 的许多前提都不再成立。我们会在后续章节讨论这些特殊环境。
       </p>
     </section>
 
     <section>
-      <h2>Contents</h2>
+      <h2>目录</h2>
       <ul>
-        <li><a href="/zhcn/docs/11.io/01.fileio/">Ch11.1: File I/O</a></li>
-        <li><a href="/zhcn/docs/11.io/02.customtypes/">Ch11.2: Custom Types</a></li>
+        <li><a href="/zhcn/docs/11.io/01.fileio/">第11.1章: 文件 I/O</a></li>
+        <li><a href="/zhcn/docs/11.io/02.customtypes/">第11.2章: 自定义类型</a></li>
         <li>
-          <a href="/zhcn/docs/11.io/03.manipulators/">Ch11.3: Manipulators</a>
-          <ul>
-            <li><a href="/zhcn/docs/11.io/03.manipulators/01.manipulators/">Ch11.3.1: Manipulators Appendix</a></li>
-          </ul>
+          <a href="/zhcn/docs/11.io/03.manipulators/">第11.3章: 操纵器</a> <ul> <li><a href="/zhcn/docs/11.io/03.manipulators/01.manipulators/">第11.3.1章: 操纵器附录</a></li> </ul>
         </li>
-        <li><a href="/zhcn/docs/11.io/04.operations/">Ch11.4: I/O Operations</a></li>
-        <li><a href="/zhcn/docs/11.io/05.buffered/">Ch11.5: Buffered vs Unbuffered I/O</a></li>
-        <li><a href="/zhcn/docs/11.io/06.mutex/">Ch11.6: Mutex I/O</a></li>
-        <li><a href="/zhcn/docs/11.io/07.randomaccess/">Ch11.7: Random Access I/O</a></li>
-        <li><a href="/zhcn/docs/11.io/08.fileloader/">Ch11.8: File Loader</a></li>
-        <li><a href="/zhcn/docs/11.io/09.stringrelation/">Ch11.9: Relationship with String</a></li>
+        <li><a href="/zhcn/docs/11.io/04.operations/">第11.4章: I/O 操作</a></li>
+        <li><a href="/zhcn/docs/11.io/05.buffered/">第11.5章: 带缓冲与不带缓冲的 I/O</a></li>
+        <li><a href="/zhcn/docs/11.io/06.mutex/">第11.6章: 互斥 I/O</a></li>
+        <li><a href="/zhcn/docs/11.io/07.randomaccess/">第11.7章: 随机访问 I/O</a></li>
+        <li><a href="/zhcn/docs/11.io/08.fileloader/">第11.8章: 文件加载器</a></li>
+        <li><a href="/zhcn/docs/11.io/09.stringrelation/">第11.9章: 与字符串的关系</a></li>
         <li>
-          <a href="/zhcn/docs/11.io/10.socket/">Ch11.10: Socket Files</a>
-          <ul>
-            <li><a href="/zhcn/docs/11.io/10.socket/01.networkbasics/">Ch11.10.1: Network Basics</a></li>
-            <li><a href="/zhcn/docs/11.io/10.socket/02.dns/">Ch11.10.2: DNS</a></li>
-            <li><a href="/zhcn/docs/11.io/10.socket/03.modernprotocols/">Ch11.10.3: Modern Network Protocols</a></li>
-            <li><a href="/zhcn/docs/11.io/10.socket/04.protocolsupport/">Ch11.10.4: Protocol Support in fast_io</a></li>
-          </ul>
+          <a href="/zhcn/docs/11.io/10.socket/">第11.10章: socket 文件</a> <ul> <li><a href="/zhcn/docs/11.io/10.socket/01.networkbasics/">第11.10.1章: 网络基础</a></li> <li><a href="/zhcn/docs/11.io/10.socket/02.dns/">第11.10.2章: DNS</a></li> <li><a href="/zhcn/docs/11.io/10.socket/03.modernprotocols/">第11.10.3章: 现代网络协议</a></li> <li><a href="/zhcn/docs/11.io/10.socket/04.protocolsupport/">第11.10.4章: fast_io 中的协议支持</a></li> </ul>
         </li>
         <li>
-          <a href="/zhcn/docs/11.io/11.cstyle/">Ch11.11: C-Style I/O</a>
-          <ul>
-            <li><a href="/zhcn/docs/11.io/11.cstyle/01.creference/">Ch11.11.1: C I/O Function Reference</a></li>
-          </ul>
+          <a href="/zhcn/docs/11.io/11.cstyle/">第11.11章: C 风格 I/O</a> <ul> <li><a href="/zhcn/docs/11.io/11.cstyle/01.creference/">第11.11.1章: C I/O 函数参考</a></li> </ul>
         </li>
         <li>
-          <a href="/zhcn/docs/11.io/12.iostream/">Ch11.12: C++ iostream</a>
-          <ul>
-            <li><a href="/zhcn/docs/11.io/12.iostream/01.cppreference/">Ch11.12.1: C++ I/O Reference</a></li>
-            <li><a href="/zhcn/docs/11.io/12.iostream/02.iomanip/">Ch11.12.2: &lt;iomanip&gt; Reference</a></li>
-          </ul>
+          <a href="/zhcn/docs/11.io/12.iostream/">第11.12章: C++ iostream</a> <ul> <li><a href="/zhcn/docs/11.io/12.iostream/01.cppreference/">第11.12.1章: C++ I/O 参考</a></li> <li><a href="/zhcn/docs/11.io/12.iostream/02.iomanip/">第11.12.2章: &lt;iomanip&gt; 参考</a></li> </ul>
         </li>
-        <li><a href="/zhcn/docs/11.io/13.posix/">Ch11.13: POSIX File APIs</a></li>
-        <li><a href="/zhcn/docs/11.io/14.win32/">Ch11.14: Win32 File APIs</a></li>
-        <li><a href="/zhcn/docs/11.io/15.nt/">Ch11.15: NT File APIs</a></li>
-        <li><a href="/zhcn/docs/11.io/16.wine/">Ch11.16: Wine File APIs</a></li>
-        <li><a href="/zhcn/docs/11.io/17.layers/">Ch11.17: Relationship Between File Layers</a></li>
-        <li><a href="/zhcn/docs/11.io/18.filesystem/">Ch11.18: Filesystem APIs</a></li>
-        <li><a href="/zhcn/docs/11.io/19.temp/">Ch11.19: Temporary Files</a></li>
+        <li><a href="/zhcn/docs/11.io/13.posix/">第11.13章: POSIX 文件 API</a></li>
+        <li><a href="/zhcn/docs/11.io/14.win32/">第11.14章: Win32 文件 API</a></li>
+        <li><a href="/zhcn/docs/11.io/15.nt/">第11.15章: NT 文件 API</a></li>
+        <li><a href="/zhcn/docs/11.io/16.wine/">第11.16章: Wine 文件 API</a></li>
+        <li><a href="/zhcn/docs/11.io/17.layers/">第11.17章: 文件各层之间的关系</a></li>
+        <li><a href="/zhcn/docs/11.io/18.filesystem/">第11.18章: 文件系统 API</a></li>
+        <li><a href="/zhcn/docs/11.io/19.temp/">第11.19章: 临时文件</a></li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/10.associativecontainers/11.typespecs/" class="prev-button">&larr; Ch10.11: Types and Specs</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/01.fileio/" class="next-button">Ch11.1: File I/O &rarr;</a>
+      <a href="/zhcn/docs/10.associativecontainers/11.typespecs/" class="prev-button">&larr; 第10.11章: 类型与规格</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/01.fileio/" class="next-button">第11.1章: 文件 I/O &rarr;</a>
     </div>
   </main>
 </body>

@@ -1,0 +1,64 @@
+1|第8.3章: 迭代器类别 - 使用 fast_io 学习 C++ 教程
+2|第8.3章: 迭代器类别
+3|概述
+4|迭代器就是在 range 中移动的“游标”。range <strong>产生</strong>迭代器；迭代器<strong>表示</strong> range 中的某个位置。
+5|与 range 一样，迭代器也构成一条<strong>能力层级</strong>。每个更强的迭代器类别都包含所有更弱类别的能力。
+6|本章将介绍：
+7|迭代器类别的完整层级
+8|从 <code>input_iterator</code> 到 <code>contiguous_iterator</code> 的可读链条
+9|独立的可写分支 <code>output_iterator</code>
+10|为什么指向对象类型的指针是最强的可读迭代器
+11|为什么有些指针不对应任何迭代器类别
+12|<code>to_address</code> 如何定义连续性
+13|1. 完整的迭代器层级
+14|所有迭代器类别都是对基础概念 <code>input_or_output_iterator</code> 的细化。由此，层级分成一条可读链条和一个独立的可写分支：
+15|2. range 与迭代器的关系
+16|<strong>range</strong> 是一个对象，它产生两个迭代器：
+17|起始迭代器（第一个位置）
+18|末尾迭代器（最后一个位置之后的一个位置）
+19|range 不存储位置，迭代器不存储容器。
+20|两者是互补的：
+21|range 描述<em>可以遍历什么</em>。
+22|迭代器描述遍历过程中<em>你在哪里</em>。
+23|range 由以下内容定义：
+24|迭代器由以下内容定义：
+25|3. input_or_output_iterator
+26|这是迭代器层级的<strong>根</strong>。每个迭代器要么可读，要么可写，要么两者兼备。
+27|其他所有迭代器类别都是对它的细化。
+28|4. input_iterator
+29|最小的可读迭代器类别。input_iterator 支持：
+30|只能读取元素一次
+31|只能向前移动
+32|单遍遍历
+33|5. forward_iterator
+34|forward_iterator 具有 input_iterator 的全部能力，并额外支持：
+35|对同一批元素进行多次遍历
+36|按相同顺序重新访问元素
+37|6. bidirectional_iterator
+38|bidirectional_iterator 具有 forward_iterator 的全部能力，并额外支持：
+39|既能向前也能向后移动
+40|7. random_access_iterator
+41|random_access_iterator 具有 bidirectional_iterator 的全部能力，并额外支持：
+42|常数时间跳到任意位置
+43|用 <code>it[n]</code> 做下标访问
+44|8. contiguous_iterator
+45|contiguous_iterator 具有 random_access_iterator 的全部能力，并额外保证它所指的元素在程序的抽象地址空间中占据相邻的地址。
+46|当迭代器指向真实元素（而不是末尾位置）时，下面的等式成立：
+47|指针作为 contiguous_iterator
+48|指向<strong>对象类型</strong>的指针（例如 <code>int*</code> 或 <code>char*</code>）是 contiguous_iterator 的典型例子。
+49|然而，并非所有指针都是迭代器：
+50|<code>void*</code> 不能自增，也不能按元素类型解引用
+51|函数指针不能自增，也不能解引用
+52|示例：::fast_io::vector&lt;int&gt;::iterator
+53|9. output_iterator（独立分支）
+54|output_iterator 是 input_iterator 的可写对应物。它允许写入元素，但不要求从迭代器读取。
+55|它<strong>不属于可读层级</strong>。
+56|10. 用 <code>if constexpr</code> 探测迭代器类别
+57|要点
+58|<code>input_or_output_iterator</code> 是根概念。
+59|可读层级从 <code>input_iterator</code> 一直上升到 <code>contiguous_iterator</code>。
+60|<code>output_iterator</code> 是一个独立的可写分支。
+61|指向对象类型的指针是 contiguous_iterator。
+62|<code>void*</code> 和函数指针都不是迭代器。
+63|range 产生迭代器；迭代器表示位置。
+64|<a href="/docs/08.algorithm/02.rangecategories/" class="prev-button">← 第8.2章: range 类别</a> <a href="/" class="main-button">↑ 主页</a> <a href="/docs/08.algorithm/04.iteratoralgorithms/" class="next-button">第8.4章: 算法基础 →</a>

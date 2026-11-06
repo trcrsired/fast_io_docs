@@ -1,0 +1,39 @@
+1|第11.12章: C++ iostream - 使用 fast_io 学习 C++ 教程
+2|第11.12章: C++ iostream
+3|概述
+4|C++ 的标准 I/O 库提供 <code>std::fstream</code>、<code>std::ifstream</code> 和 <code>std::ofstream</code>。这些流类建立在 <code>std::basic_filebuf</code> 之上，那是 C++ 运行时的带缓冲文件抽象。
+5|<code>fast_io</code> 提供包装，让你能把 <code>std::basic_filebuf</code> 接入 <code>fast_io</code> 的 I/O 系统，从而对它们使用 <code>print</code>、<code>println</code> 和 <code>scan</code>。
+6|标准 C++ I/O：<code>&lt;iostream&gt;</code>、<code>&lt;fstream&gt;</code>、<code>&lt;sstream&gt;</code>
+7|在讨论 <code>fast_io</code> 如何包装 C++ I/O 之前，先回顾一下标准 C++ I/O 库。C++ 为 I/O 提供三个主要头文件：
+8|<code>&lt;iostream&gt;</code> &mdash; 标准流（<code>std::cin</code>、<code>std::cout</code>、<code>std::cerr</code>、<code>std::clog</code>）
+9|<code>&lt;fstream&gt;</code> &mdash; 文件流（<code>std::ifstream</code>、<code>std::ofstream</code>、<code>std::fstream</code>）
+10|<code>&lt;sstream&gt;</code> &mdash; 字符串流（<code>std::istringstream</code>、<code>std::ostringstream</code>、<code>std::stringstream</code>）
+11|标准流
+12|C++ 提供四个预定义流：
+13|<code>std::cin</code> &mdash; 标准输入（通常是键盘）
+14|<code>std::cout</code> &mdash; 标准输出（通常是终端）
+15|<code>std::cerr</code> &mdash; 标准错误（不带缓冲，通常是终端）
+16|<code>std::clog</code> &mdash; 标准错误（带缓冲，通常是终端）
+17|文件流
+18|常见的文件打开模式：
+19|<code>std::ios::in</code> &mdash; 以读方式打开
+20|<code>std::ios::out</code> &mdash; 以写方式打开
+21|<code>std::ios::app</code> &mdash; 追加到末尾
+22|<code>std::ios::ate</code> &mdash; 打开后定位到末尾
+23|<code>std::ios::trunc</code> &mdash; 文件存在时截断
+24|<code>std::ios::binary</code> &mdash; 二进制模式（不做文本转换）
+25|字符串流
+26|流的操纵器
+27|附录
+28|完整的 C++ iostream 与 iomanip 参考见：
+29|<a href="01.cppreference/">第11.12.1章: 完整的 C++ I/O 参考</a>
+30|<a href="02.iomanip/">第11.12.2章: 完整的 &lt;iomanip&gt; 参考</a>
+31|要点
+32|<code>::fast_io::filebuf_file</code> 以 RAII 语义拥有一个 <code>std::basic_filebuf*</code>。
+33|<code>::fast_io::filebuf_io_observer</code> 是对已有 <code>std::basic_filebuf*</code> 的非拥有视图，非常适合包裹 <code>fstream</code> 的 <code>rdbuf()</code>。
+34|只存在窄字符（<code>filebuf_file</code>）和宽字符（<code>wfilebuf_file</code>）两个变体，因为 C++ 标准库没有为其他字符类型提供 <code>basic_filebuf</code>。
+35|<strong>socket 就是文件。</strong>在 POSIX 系统上，你可以把 socket 包进 <code>filebuf_file</code>，用 <code>fstream</code> 读写它。C++ 人为地把文件与 socket 分开（例如 Boost.Asio 与 fstream 的对立）违背了 POSIX 的哲学。
+36|<strong>C++ iostream 有根本性的设计缺陷：</strong>指针混淆（带来安全问题）、非线程安全、非异常安全、会破坏流状态的有状态操纵器、依赖 locale 的输出，以及糟糕的性能。<code>fast_io</code> 把这些全部修正了。
+37|<strong>fast_io 的操纵器是无状态的。</strong>与会改变流状态的 <code>std::hex</code> 不同，<code>::fast_io::mnp::hex(value)</code> 只作用于那个值。没有状态需要恢复，也就没有相应的 bug。
+38|<strong>在 fstream 的实现内部改用 fast_io。</strong>如果你需要与 <code>fstream</code> 保持兼容，就在内部使用 <code>::fast_io::filebuf_io_observer</code>。性能代价极小，而你能得到 <code>fast_io</code> 高效系统调用层的好处。
+39|<a href="/docs/11.io/11.cstyle/" class="prev-button">&larr; 第11.11章: C 风格 I/O</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/13.posix/" class="next-button">第11.13章: POSIX &rarr;</a>

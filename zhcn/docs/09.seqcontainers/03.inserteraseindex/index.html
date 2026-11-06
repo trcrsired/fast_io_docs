@@ -3,24 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch9.3: Insert and Erase by Index - C++ Tutorial with fast_io</title>
+  <title>第9.3章: 按下标插入与删除 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch9.3: Insert and Erase by Index</h1>
+    <h1>第9.3章: 按下标插入与删除</h1>
     <p class="lang-switch"><a href="/docs/09.seqcontainers/03.inserteraseindex/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        <code>fast_io</code> containers provide <code>insert_index</code> and
-        <code>erase_index</code> operations. These are <strong>bounds-checked</strong>
-        alternatives to iterator-based insertion and erasure. If the index is out
-        of range, they call <code>fast_terminate()</code>.
+        <code>fast_io</code> 容器提供 <code>insert_index</code> 和 <code>erase_index</code> 操作。它们是基于迭代器的插入与删除的<strong>带边界检查</strong>替代品。若下标越界，它们会调用 <code>fast_terminate()</code>。
       </p>
     </section>
 
@@ -43,14 +39,14 @@ int main() {
 }
 </code></pre>
 
-      <p>Available on:</p>
+      <p>可用于：</p>
       <table>
         <thead>
           <tr>
-            <th>Container</th>
-            <th>Single element</th>
-            <th>Multiple copies</th>
-            <th>Range</th>
+            <th>容器</th>
+            <th>单个元素</th>
+            <th>多个副本</th>
+            <th>范围</th>
           </tr>
         </thead>
         <tbody>
@@ -94,13 +90,13 @@ int main() {
 }
 </code></pre>
 
-      <p>Available on:</p>
+      <p>可用于：</p>
       <table>
         <thead>
           <tr>
-            <th>Container</th>
-            <th>Single element</th>
-            <th>Range [first, last)</th>
+            <th>容器</th>
+            <th>单个元素</th>
+            <th>范围 [first, last)</th>
           </tr>
         </thead>
         <tbody>
@@ -122,48 +118,33 @@ int main() {
         </tbody>
       </table>
       <p>
-        <strong>Note:</strong> <code>first</code> and <code>last</code> are
-        <em>indices</em>, not counts. The range <code>[first, last)</code> means
-        the left index is inclusive and the right index is exclusive. For
-        example, <code>erase_index(1zu, 3zu)</code> removes the elements at
-        index&nbsp;1 and index&nbsp;2 (not 3 elements starting at index&nbsp;1).
+        <strong>注意：</strong><code>first</code> 和 <code>last</code> 是<em>下标</em>，不是个数。范围 <code>[first, last)</code> 表示左下标包含、右下标不包含。例如 <code>erase_index(1zu, 3zu)</code> 删除的是下标&nbsp;1 和下标&nbsp;2 的元素（而不是从下标&nbsp;1 开始的 3 个元素）。
       </p>
 
       <p>
-        <strong>Preference:</strong> Prefer <code>insert_index</code> /
-        <code>erase_index</code> over iterator-based operations. They are simpler
-        to use, harder to misuse, and provide bounds checking for free.
+        <strong>建议：</strong>优先使用 <code>insert_index</code> / <code>erase_index</code>，而不是基于迭代器的操作。它们更好用、更不易误用，而且免费提供边界检查。
       </p>
 
       <p>
-        <strong>Iterator invalidation:</strong> Like their iterator-based
-        counterparts, <code>insert_index</code> and <code>erase_index</code>
-        invalidate iterators. For <code>vector</code> and <code>bitvec</code>,
-        any insertion or erasure invalidates <strong>all</strong> iterators,
-        pointers, and references. For <code>deque</code>, iterators are always
-        invalidated, but pointers and references to non-erased elements
-        <strong>survive</strong> <code>push_front()</code> and
-        <code>push_back()</code> &mdash; see Ch9.9 for details.
+        <strong>迭代器失效：</strong>与基于迭代器的对应操作一样，<code>insert_index</code> 和 <code>erase_index</code> 会使迭代器失效。对 <code>vector</code> 和 <code>bitvec</code> 来说，任何插入或删除都会使<strong>所有</strong>迭代器、指针和引用失效。对 <code>deque</code> 来说，迭代器总会失效，但指向未被删除元素的指针和引用在 <code>push_front()</code> 与 <code>push_back()</code> 之后<strong>仍然有效</strong>&mdash;&mdash;详见第9.9章。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li><code>insert_index(idx, val)</code> inserts at a position with bounds checking.</li>
-        <li><code>erase_index(idx)</code> removes one element; <code>erase_index(first, last)</code> removes a range.</li>
-        <li>Available on <code>vector</code>, <code>deque</code>, and <code>bitvec</code>.</li>
-        <li>Out-of-range indices call <code>fast_terminate()</code>.</li>
-        <li>Prefer <code>_index</code> operations over iterator-based insert/erase for safety.</li>
-        <li><code>insert_index</code> and <code>erase_index</code> invalidate iterators. For <code>deque</code>, pointers and references to non-erased elements survive end insertions.</li>
+        <li><code>insert_index(idx, val)</code> 在指定位置插入，并做边界检查。</li>
+        <li><code>erase_index(idx)</code> 删除一个元素；<code>erase_index(first, last)</code> 删除一个范围。</li>
+        <li>可用于 <code>vector</code>、<code>deque</code> 和 <code>bitvec</code>。</li>
+        <li>下标越界时会调用 <code>fast_terminate()</code>。</li>
+        <li>为了安全，优先使用 <code>_index</code> 系列操作而不是基于迭代器的插入/删除。</li>
+        <li><code>insert_index</code> 和 <code>erase_index</code> 会使迭代器失效。对 <code>deque</code> 来说，指向未被删除元素的指针和引用在尾部插入后仍然有效。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/09.seqcontainers/02.commonops/" class="prev-button">&larr; Ch9.2: Common Operations</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/09.seqcontainers/04.iterators/" class="next-button">Ch9.4: Iterators &rarr;</a>
+      <a href="/zhcn/docs/09.seqcontainers/02.commonops/" class="prev-button">&larr; 第9.2章: 通用操作</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/09.seqcontainers/04.iterators/" class="next-button">第9.4章: 迭代器 &rarr;</a>
     </div>
   </main>
 </body>

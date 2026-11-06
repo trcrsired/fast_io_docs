@@ -3,44 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch8.6: Typical Algorithms - C++ Tutorial</title>
+  <title>第8.6章: 典型算法 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch8.6: Typical Algorithms</h1>
+    <h1>第8.6章: 典型算法</h1>
     <p class="lang-switch"><a href="/docs/08.algorithm/06.typical/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
 
       <p>
-        The ranges library provides many algorithms for everyday tasks:
-        searching, counting, transforming, and removing elements. This chapter
-        introduces the ones you will use most often.
+        ranges 库提供了大量用于日常任务的算法：查找、计数、变换和删除元素。本章介绍其中最常用的那些。
       </p>
 
       <p>
-        You will learn:
+        你将学到：
       </p>
 
       <ul>
-        <li>how to find elements</li>
-        <li>how to count elements</li>
-        <li>how to transform elements</li>
-        <li>how to remove elements</li>
-        <li>how projections interact with these algorithms</li>
+        <li>如何查找元素</li>
+        <li>如何统计元素</li>
+        <li>如何变换元素</li>
+        <li>如何删除元素</li>
+        <li>投影如何与这些算法配合</li>
       </ul>
     </section>
 
     <section>
-      <h2>1. Finding elements</h2>
+      <h2>1. 查找元素</h2>
 
       <p>
-        <code>std::ranges::find</code> searches for a specific value.
+        <code>std::ranges::find</code> 用来查找特定的值。
       </p>
 
 <pre><code class="language-cpp">
@@ -54,15 +51,15 @@ if (it != v.end()) {
 </code></pre>
 
       <p>
-        If the value is not found, the iterator equals <code>v.end()</code>.
+        如果没有找到该值，返回的迭代器等于 <code>v.end()</code>。
       </p>
     </section>
 
     <section>
-      <h2>2. Finding with a condition</h2>
+      <h2>2. 按条件查找</h2>
 
       <p>
-        <code>find_if</code> searches using a predicate:
+        <code>find_if</code> 用一个谓词进行查找：
       </p>
 
 <pre><code class="language-cpp">
@@ -72,15 +69,15 @@ auto it = ::std::ranges::find_if(v, [](int x) {
 </code></pre>
 
       <p>
-        The predicate receives each element and returns <code>true</code> for a match.
+        谓词接收每个元素，命中时返回 <code>true</code>。
       </p>
     </section>
 
     <section>
-      <h2>3. Counting elements</h2>
+      <h2>3. 统计元素</h2>
 
       <p>
-        <code>count</code> counts exact matches:
+        <code>count</code> 统计完全相等的元素个数：
       </p>
 
 <pre><code class="language-cpp">
@@ -89,7 +86,7 @@ print("count of 1 = ", c, "\n");
 </code></pre>
 
       <p>
-        <code>count_if</code> counts by condition:
+        <code>count_if</code> 按条件统计：
       </p>
 
 <pre><code class="language-cpp">
@@ -100,11 +97,10 @@ auto evens = ::std::ranges::count_if(v, [](int x) {
     </section>
 
     <section>
-      <h2>4. Transforming elements</h2>
+      <h2>4. 变换元素</h2>
 
       <p>
-        <code>transform</code> applies a function to each element and writes the
-        result to an output range.
+        <code>transform</code> 对每个元素应用一个函数，并把结果写到输出 range 中。
       </p>
 
 <pre><code class="language-cpp">
@@ -116,17 +112,15 @@ auto evens = ::std::ranges::count_if(v, [](int x) {
 </code></pre>
 
       <p>
-        The input is unchanged; the output contains the transformed values.
+        输入保持不变，输出中包含变换后的值。
       </p>
     </section>
 
     <section>
-      <h2>5. Removing elements</h2>
+      <h2>5. 删除元素</h2>
 
       <p>
-        <code>remove</code> and <code>remove_if</code> do not erase elements.
-        They move the “kept” elements to the front and return an iterator to the
-        new logical end.
+        <code>remove</code> 和 <code>remove_if</code> 并不真正删除元素。它们把“保留下来”的元素前移，并返回指向新的逻辑末尾的迭代器。
       </p>
 
 <pre><code class="language-cpp">
@@ -134,7 +128,7 @@ auto new_end = ::std::ranges::remove(v, 1).begin();
 </code></pre>
 
       <p>
-        To actually erase elements, call <code>erase</code> on the container:
+        要真正删掉元素，需要在容器上调用 <code>erase</code>：
       </p>
 
 <pre><code class="language-cpp">
@@ -142,16 +136,15 @@ v.erase(new_end, v.end());
 </code></pre>
 
       <p>
-        This pattern is known as the “erase–remove idiom.”
+        这种写法被称为“erase–remove 惯用法”。
       </p>
     </section>
 
     <section>
-      <h2>6. Using projections with typical algorithms</h2>
+      <h2>6. 在典型算法中使用投影</h2>
 
       <p>
-        Many algorithms accept a projection.  
-        Suppose we have:
+        很多算法都接受投影。假设我们有：
       </p>
 
 <pre><code class="language-cpp">
@@ -168,7 +161,7 @@ struct Item {
 </code></pre>
 
       <p>
-        We can count how many items have an even <code>key</code>:
+        我们可以统计有多少个元素的 <code>key</code> 是偶数：
       </p>
 
 <pre><code class="language-cpp">
@@ -178,7 +171,7 @@ auto c = ::std::ranges::count_if(items, [](Item const& x) {
 </code></pre>
 
       <p>
-        Or use a projection directly:
+        也可以直接使用投影：
       </p>
 
 <pre><code class="language-cpp">
@@ -188,18 +181,15 @@ auto c = ::std::ranges::count_if(items, [](int k) {
 </code></pre>
 
       <p>
-        The projection <code>&Item::key</code> extracts the <code>key</code> member
-        before the predicate sees it.
+        投影 <code>&amp;Item::key</code> 在谓词看到元素之前先取出 <code>key</code> 成员。
       </p>
     </section>
 
     <section>
-      <h2>7. Where to learn more</h2>
+      <h2>7. 到哪里继续学习</h2>
 
       <p>
-        This chapter introduced the most commonly used algorithms.  
-        The C++ standard library contains many more, and you can browse the
-        complete list at:
+        本章介绍了最常用的一批算法。C++ 标准库里还有更多算法，完整列表可以在下面这个地址浏览：
       </p>
 
       <p>
@@ -210,23 +200,21 @@ auto c = ::std::ranges::count_if(items, [](int k) {
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
 
       <ul>
-        <li><code>find</code> and <code>find_if</code> search for elements.</li>
-        <li><code>count</code> and <code>count_if</code> count elements.</li>
-        <li><code>transform</code> applies a function to each element.</li>
-        <li><code>remove</code> and <code>remove_if</code> require the erase–remove idiom.</li>
-        <li>Many algorithms accept projections, including <code>&Item::key</code>.</li>
-        <li>cppreference provides the full list of algorithms.</li>
+        <li><code>find</code> 与 <code>find_if</code> 用于查找元素。</li>
+        <li><code>count</code> 与 <code>count_if</code> 用于统计元素。</li>
+        <li><code>transform</code> 对每个元素应用一个函数。</li>
+        <li><code>remove</code> 与 <code>remove_if</code> 需要配合 erase–remove 惯用法。</li>
+        <li>许多算法都接受投影，包括 <code>&amp;Item::key</code>。</li>
+        <li>cppreference 提供了完整的算法列表。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/08.algorithm/05.projections/" class="prev-button">← Ch8.5: Projections</a>
-      <a href="/zhcn/" class="main-button">↑ 主页</a>
-      <a href="/zhcn/docs/08.algorithm/07.numeric/" class="next-button">Ch8.7: numeric →</a>
+      <a href="/zhcn/docs/08.algorithm/05.projections/" class="prev-button">← 第8.5章: 投影</a> <a href="/zhcn/" class="main-button">↑ 主页</a> <a href="/zhcn/docs/08.algorithm/07.numeric/" class="next-button">第8.7章: numeric →</a>
     </div>
 
   </main>

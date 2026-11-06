@@ -3,72 +3,48 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.10: Socket Files - C++ Tutorial with fast_io</title>
+  <title>第11.10章: socket 文件 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.10: Socket Files</h1>
+    <h1>第11.10章: socket 文件</h1>
     <p class="lang-switch"><a href="/docs/11.io/10.socket/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        <code>fast_io</code> treats sockets as files. Once you have a socket file
-        object, you use the familiar <code>print</code>, <code>println</code>, and
-        <code>scan</code> APIs to send and receive data &mdash; no separate socket
-        library needed. This section covers the two main socket types and the free
-        functions that create them.
+        <code>fast_io</code> 把 socket 当作文件。一旦你有了 socket 文件对象，就用熟悉的 <code>print</code>、<code>println</code> 和 <code>scan</code> API 收发数据 &mdash; 不需要单独的 socket 库。本节介绍两个主要的 socket 类型，以及创建它们的自由函数。
       </p>
     </section>
 
     <section>
       <h2>::fast_io::native_socket_file</h2>
       <p>
-        <code>::fast_io::native_socket_file</code> is a thin wrapper around the
-        platform's raw socket handle:
+        <code>::fast_io::native_socket_file</code> 是平台原始 socket 句柄之上的一层薄包装：
       </p>
       <ul>
         <li>
-          <strong>POSIX</strong> (Linux, macOS, FreeBSD, &hellip;): a regular file
-          descriptor. On POSIX systems, sockets <em>are</em> file descriptors, so
-          this is just an <code>int</code> wrapper. <strong>Important:</strong> On
-          POSIX systems (including Cygwin and MSYS2),
-          <code>::fast_io::native_socket_file</code> is actually the same type as
-          <code>::fast_io::native_file</code>. This is because POSIX treats sockets
-          as file descriptors, so there is no distinction between a "socket file" and
-          a "regular file" at the type level.
+          <strong>POSIX</strong>（Linux、macOS、FreeBSD 等）：就是普通的文件描述符。在 POSIX 系统上 socket <em>就是</em>文件描述符，所以它只是一个 <code>int</code> 包装。<strong>重要：</strong>在 POSIX 系统上（包括 Cygwin 与 MSYS2），<code>::fast_io::native_socket_file</code> 实际上与 <code>::fast_io::native_file</code> 是同一个类型。这是因为 POSIX 把 socket 当作文件描述符，在类型层面并不区分“socket 文件”和“普通文件”。
         </li>
         <li>
-          <strong>Windows</strong>: a <code>SOCKET</code> handle wrapper. Windows
-          sockets are not file descriptors, so this type carries the native
-          <code>SOCKET</code> value instead. Only on native Windows (Win32) does
-          <code>native_socket_file</code> differ from <code>native_file</code>.
+          <strong>Windows</strong>：<code>SOCKET</code> 句柄包装。Windows 的 socket 不是文件描述符，所以这个类型携带的是原生 <code>SOCKET</code> 值。只有在原生 Windows（Win32）上，<code>native_socket_file</code> 才与 <code>native_file</code> 不同。
         </li>
       </ul>
       <p>
-        <code>native_socket_file</code> gives you unbuffered, raw access. For
-        typical TCP I/O you will want the buffered variant below.
+        <code>native_socket_file</code> 给你不带缓冲的原始访问。对典型的 TCP I/O，你会想要下面那个带缓冲的变体。
       </p>
     </section>
 
     <section>
       <h2>::fast_io::iobuf_socket_file</h2>
       <p>
-        <code>::fast_io::iobuf_socket_file</code> wraps a
-        <code>native_socket_file</code> in a <code>basic_iobuf</code>, adding
-        user-space buffering. This is the <strong>standard type for TCP
-        I/O</strong>.
+        <code>::fast_io::iobuf_socket_file</code> 把一个 <code>native_socket_file</code> 包进 <code>basic_iobuf</code>，加上用户态缓冲。这是 <strong>TCP I/O 的标准类型</strong>。
       </p>
       <p>
-        <strong>Important:</strong> On non-Windows platforms (including POSIX, Cygwin, and MSYS2),
-        <code>::fast_io::iobuf_socket_file</code> is actually the same type as
-        <code>::fast_io::iobuf_file</code>. This mirrors the relationship between
-        <code>native_socket_file</code> and <code>native_file</code> &mdash; on POSIX systems,
-        sockets are just file descriptors, so there is no type-level distinction.
+        <strong>重要：</strong>在非 Windows 平台上（包括 POSIX、Cygwin 和 MSYS2），<code>::fast_io::iobuf_socket_file</code> 实际上与 <code>::fast_io::iobuf_file</code> 是同一个类型。这与 <code>native_socket_file</code> 和 <code>native_file</code> 的关系一致 &mdash; 在 POSIX 系统上 socket 就是文件描述符，因此类型层面没有区别。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -98,29 +74,23 @@ int main() {
 }
 </code></pre>
       <p>
-        Because the socket is buffered, many small <code>print</code> calls are
-        coalesced into fewer system calls, just like with
-        <code>iobuf_file</code>.
+        由于 socket 是带缓冲的，许多小的 <code>print</code> 调用会被合并成更少的系统调用，与 <code>iobuf_file</code> 完全一样。
       </p>
     </section>
 
     <section>
       <h2>::fast_io::u8http_header_buffer</h2>
       <p>
-        <code>::fast_io::u8http_header_buffer</code> is a specialised buffer for
-        parsing HTTP response (or request) headers. It is <strong>scannable</strong>
-        via <code>scan_context_define</code>, so you can feed it directly into the
-        normal <code>scan</code> pipeline:
+        <code>::fast_io::u8http_header_buffer</code> 是专门用于解析 HTTP 响应（或请求）头的缓冲区。它可以被 <code>scan_context_define</code> <strong>扫描</strong>，所以你可以直接把它喂进普通的 <code>scan</code> 流水线：
       </p>
       <ul>
-        <li><code>header_length</code> &mdash; total number of bytes consumed by the header.</li>
-        <li><code>request()</code> &mdash; the request method (for request headers).</li>
-        <li><code>code()</code> &mdash; the HTTP status code (for response headers).</li>
-        <li><code>reason()</code> &mdash; the reason phrase (e.g. <code>"OK"</code>, <code>"Not Found"</code>).</li>
+        <li><code>header_length</code> &mdash; 头部消耗的总字节数。</li>
+        <li><code>request()</code> &mdash; 请求方法（用于请求头）。</li>
+        <li><code>code()</code> &mdash; HTTP 状态码（用于响应头）。</li>
+        <li><code>reason()</code> &mdash; 原因短语（例如 <code>"OK"</code>、<code>"Not Found"</code>）。</li>
       </ul>
       <p>
-        The default internal buffer size is <strong>4096 bytes</strong>, which is
-        enough for the vast majority of real-world HTTP headers.
+        默认内部缓冲区大小是 <strong>4096 字节</strong>，足以应付现实世界中绝大多数 HTTP 头。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -144,8 +114,8 @@ int main() {
     scan(sock, hdr);
 
     println("Status code: ", hdr.code());
-    println("Reason: ", hdr.reason());
-    println("Header len: ", hdr.header_length);
+    println("Reason:      ", hdr.reason());
+    println("Header len:  ", hdr.header_length);
 
     // The socket is now positioned at the start of the body.
     // Continue reading the body with normal scan / print calls.
@@ -154,51 +124,46 @@ int main() {
     </section>
 
     <section>
-      <h2>Free Functions for Sockets</h2>
+      <h2>socket 相关的自由函数</h2>
       <p>
-        The following free functions create and configure socket connections. They
-        return handles that can be used to construct
-        <code>native_socket_file</code> or <code>iobuf_socket_file</code> objects.
+        下面这些自由函数用于创建和配置 socket 连接。它们返回的句柄可用于构造 <code>native_socket_file</code> 或 <code>iobuf_socket_file</code> 对象。
       </p>
       <table>
         <thead>
           <tr>
-            <th>Function</th>
-            <th>Description</th>
+            <th>函数</th>
+            <th>说明</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>tcp_connect(host, port)</code></td>
             <td>
-              Open a TCP connection to <code>host:port</code>. Returns a
-              <code>native_socket_file</code>.
+              打开到 <code>host:port</code> 的 TCP 连接，返回 <code>native_socket_file</code>。
             </td>
           </tr>
           <tr>
             <td><code>tcp_listen(port)</code></td>
             <td>
-              Create a TCP listening socket on the given <code>port</code>.
+              在给定 <code>port</code> 上创建 TCP 监听 socket。
             </td>
           </tr>
           <tr>
             <td><code>posix_bind(address)</code></td>
             <td>
-              Bind a POSIX socket to the specified address.
+              把 POSIX socket 绑定到指定地址。
             </td>
           </tr>
           <tr>
             <td><code>posix_listen(sockfd, backlog)</code></td>
             <td>
-              Mark a bound POSIX socket as listening, with the given
-              <code>backlog</code> queue size.
+              把已绑定的 POSIX socket 标记为监听状态，<code>backlog</code> 为队列长度。
             </td>
           </tr>
           <tr>
             <td><code>posix_accept(sockfd)</code></td>
             <td>
-              Accept an incoming connection on a listening POSIX socket. Returns a
-              new <code>native_socket_file</code> for the accepted connection.
+              在监听中的 POSIX socket 上接受一个到来的连接，为被接受的连接返回一个新的 <code>native_socket_file</code>。
             </td>
           </tr>
         </tbody>
@@ -206,10 +171,9 @@ int main() {
     </section>
 
     <section>
-      <h2>TCP Server Example</h2>
+      <h2>TCP 服务器示例</h2>
       <p>
-        Putting it all together, here is a minimal TCP server that listens on
-        port 8080, accepts one connection, sends a greeting, and closes:
+        把这些串起来，下面是一个最小的 TCP 服务器：监听 8080 端口，接受一个连接，发送一句问候，然后关闭：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -237,22 +201,14 @@ int main() {
     <section>
       <h2>::fast_io::net_service</h2>
       <p>
-        On Windows, the networking subsystem must be initialized before any socket operations
-        can be performed. This is done by calling <code>WSAStartup()</code> at program start
-        and <code>WSACleanup()</code> at program exit. <code>::fast_io::net_service</code> is
-        a RAII wrapper that handles this automatically:
+        在 Windows 上，任何 socket 操作之前都必须先初始化网络子系统。这通过在程序开始时调用 <code>WSAStartup()</code>、在退出时调用 <code>WSACleanup()</code> 完成。<code>::fast_io::net_service</code> 是一个自动处理这件事的 RAII 包装：
       </p>
       <ul>
         <li>
-          <strong>Windows (Win32)</strong>: Constructs by calling <code>WSAStartup()</code> and
-          destructs by calling <code>WSACleanup()</code>. Create one instance at the beginning
-          of <code>main()</code> to ensure the networking subsystem is initialized for the
-          lifetime of your program.
+          <strong>Windows（Win32）</strong>：构造时调用 <code>WSAStartup()</code>，析构时调用 <code>WSACleanup()</code>。在 <code>main()</code> 开头创建一个实例，以保证网络子系统在你的程序整个生命周期内都已初始化。
         </li>
         <li>
-          <strong>POSIX and other systems</strong>: <code>::fast_io::net_service</code> is a
-          no-op type with no constructor or destructor overhead. You can still create an
-          instance for portability, but it does nothing.
+          <strong>POSIX 及其他系统</strong>：<code>::fast_io::net_service</code> 是一个空操作类型，构造和析构都没有开销。为了可移植性你仍可以创建实例，但它什么也不做。
         </li>
       </ul>
 <pre><code class="language-cpp">
@@ -281,26 +237,17 @@ int main() {
 }
 </code></pre>
       <p>
-        Always create a <code>::fast_io::net_service</code> object at the start of <code>main()</code>
-        if your program uses sockets. This ensures portability across platforms &mdash; on Windows it
-        initializes the networking subsystem, and on POSIX it is a harmless no-op.
+        如果你的程序使用 socket，请总是在 <code>main()</code> 开头创建一个 <code>::fast_io::net_service</code> 对象。这保证了跨平台可移植性 &mdash; 在 Windows 上它初始化网络子系统，在 POSIX 上它只是无害的空操作。
       </p>
     </section>
 
     <section>
-      <h2>DNS Resolution</h2>
+      <h2>DNS 解析</h2>
       <p>
-        When you need to connect to a host by name (rather than by IP address), you must first
-        resolve the hostname to an IP address. <code>fast_io</code> provides
-        <code>::fast_io::native_dns_file</code> for this purpose. It wraps the OS&rsquo;s DNS
-        resolution facilities (<code>getaddrinfo()</code> on POSIX, <code>GetAddrInfoW()</code> on
-        Windows NT).
+        当你需要按名字（而不是 IP 地址）连接主机时，必须先解析主机名到 IP 地址。<code>fast_io</code> 为此提供 <code>::fast_io::native_dns_file</code>。它包装操作系统的 DNS 解析设施（POSIX 上的 <code>getaddrinfo()</code>，Windows NT 上的 <code>GetAddrInfoW()</code>）。
       </p>
       <p>
-        <code>native_dns_file</code> is iterable &mdash; it may resolve to multiple IP addresses
-        (both IPv4 and IPv6). You can iterate over all of them, or use the first result with
-        <code>::fast_io::to_ip()</code> to get an IP address with a port number, ready for
-        <code>tcp_connect()</code>.
+        <code>native_dns_file</code> 可迭代 &mdash; 它可能解析出多个 IP 地址（IPv4 与 IPv6 都有）。你可以遍历全部，或者用 <code>::fast_io::to_ip()</code> 取第一个结果，得到一个带端口号、可直接交给 <code>tcp_connect()</code> 的 IP 地址。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -325,77 +272,58 @@ int main() {
 }
 </code></pre>
       <p>
-        The key functions are:
+        关键函数有：
       </p>
       <ul>
-        <li><code>::fast_io::native_dns_file(hostname)</code> &mdash; resolve a hostname to IP addresses</li>
-        <li><code>::fast_io::to_ip(dns_entry, port)</code> &mdash; convert a DNS entry to an IP address with port</li>
-        <li><code>::fast_io::to_ip_address(dns_entry)</code> &mdash; convert a DNS entry to just an IP address (no port)</li>
+        <li><code>::fast_io::native_dns_file(hostname)</code> &mdash; 把主机名解析为 IP 地址</li>
+        <li><code>::fast_io::to_ip(dns_entry, port)</code> &mdash; 把一条 DNS 记录转换为带端口的 IP 地址</li>
+        <li><code>::fast_io::to_ip_address(dns_entry)</code> &mdash; 把一条 DNS 记录转换为纯 IP 地址（不带端口）</li>
       </ul>
     </section>
 
     <section>
-      <h2>Appendices</h2>
+      <h2>附录</h2>
       <p>
-        The following appendices provide additional reference material:
+        下列附录提供额外的参考资料：
       </p>
       <ul>
-        <li><a href="01.networkbasics/">Ch11.10.1: Network Basics</a> &mdash; OSI model, IP addresses, common ports</li>
-        <li><a href="02.dns/">Ch11.10.2: DNS</a> &mdash; DNS records, DoH, DoT</li>
-        <li><a href="03.modernprotocols/">Ch11.10.3: Modern Network Protocols</a> &mdash; HTTP/1.1/2/3, QUIC, WebSocket</li>
-        <li><a href="04.protocolsupport/">Ch11.10.4: Protocol Support in fast_io</a> &mdash; TCP, UDP, Unix sockets, etc.</li>
+        <li><a href="01.networkbasics/">第11.10.1章: 网络基础</a> &mdash; OSI 模型、IP 地址、常用端口</li>
+        <li><a href="02.dns/">第11.10.2章: DNS</a> &mdash; DNS 记录、DoH、DoT</li>
+        <li><a href="03.modernprotocols/">第11.10.3章: 现代网络协议</a> &mdash; HTTP/1.1/2/3、QUIC、WebSocket</li>
+        <li><a href="04.protocolsupport/">第11.10.4章: fast_io 中的协议支持</a> &mdash; TCP、UDP、Unix socket 等</li>
       </ul>
     </section>
 
     <section>
-      <h2>Key Takeaways</h2>
+      <h2>要点</h2>
       <ul>
         <li>
-          <code>::fast_io::native_socket_file</code> wraps the raw socket handle
-          &mdash; a file descriptor on POSIX, a <code>SOCKET</code> on Windows.
-          On non-Windows platforms (including Cygwin/MSYS2), it is the same type as
-          <code>::fast_io::native_file</code>.
+          <code>::fast_io::native_socket_file</code> 包装原始 socket 句柄 &mdash; POSIX 上是文件描述符，Windows 上是 <code>SOCKET</code>。在非 Windows 平台（包括 Cygwin/MSYS2）上，它与 <code>::fast_io::native_file</code> 是同一个类型。
         </li>
         <li>
-          <code>::fast_io::iobuf_socket_file</code> adds user-space buffering and
-          is the standard type for TCP I/O. On non-Windows platforms, it is the same type as
-          <code>::fast_io::iobuf_file</code>.
+          <code>::fast_io::iobuf_socket_file</code> 加上用户态缓冲，是 TCP I/O 的标准类型。在非 Windows 平台上，它与 <code>::fast_io::iobuf_file</code> 是同一个类型。
         </li>
         <li>
-          Use <code>::fast_io::native_dns_file</code> to resolve hostnames to IP addresses.
-          Combine with <code>::fast_io::to_ip(dns, port)</code> and <code>tcp_connect()</code>
-          to connect by hostname.
+          用 <code>::fast_io::native_dns_file</code> 把主机名解析为 IP 地址。配合 <code>::fast_io::to_ip(dns, port)</code> 与 <code>tcp_connect()</code> 即可按主机名连接。
         </li>
         <li>
-          <code>::fast_io::u8http_header_buffer</code> parses HTTP headers via
-          <code>scan</code>. It exposes <code>header_length</code>,
-          <code>request()</code>, <code>code()</code>, and <code>reason()</code>.
-          Default buffer size is 4096 bytes.
+          <code>::fast_io::u8http_header_buffer</code> 通过 <code>scan</code> 解析 HTTP 头。它暴露 <code>header_length</code>、<code>request()</code>、<code>code()</code> 和 <code>reason()</code>。默认缓冲区大小为 4096 字节。
         </li>
         <li>
-          Free functions: <code>tcp_connect()</code>, <code>tcp_listen()</code>,
-          <code>posix_bind()</code>, <code>posix_listen()</code>,
-          <code>posix_accept()</code>.
+          自由函数有：<code>tcp_connect()</code>、<code>tcp_listen()</code>、<code>posix_bind()</code>、<code>posix_listen()</code>、<code>posix_accept()</code>。
         </li>
         <li>
-          <code>::fast_io::net_service</code> is a RAII type that initializes the Windows
-          networking subsystem (<code>WSAStartup</code>/<code>WSACleanup</code>). On POSIX
-          systems it is a no-op. Always create one at the start of <code>main()</code> for
-          portability.
+          <code>::fast_io::net_service</code> 是初始化 Windows 网络子系统（<code>WSAStartup</code>/<code>WSACleanup</code>）的 RAII 类型。在 POSIX 系统上它是空操作。为了可移植性，总是在 <code>main()</code> 开头创建一个。
         </li>
         <li>
-          Sockets are files in <code>fast_io</code> &mdash; the same
-          <code>print</code>, <code>scan</code>, and customisation points you
-          already know work for sockets too.
+          在 <code>fast_io</code> 中 socket 就是文件 &mdash; 你已经熟悉的 <code>print</code>、<code>scan</code> 和定制点同样适用于 socket。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/09.stringrelation/" class="prev-button">&larr; Ch11.9: Relationship with String</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/11.cstyle/" class="next-button">Ch11.11: C-Style I/O &rarr;</a>
+      <a href="/zhcn/docs/11.io/09.stringrelation/" class="prev-button">&larr; 第11.9章: 与字符串的关系</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/11.cstyle/" class="next-button">第11.11章: C 风格 I/O &rarr;</a>
     </div>
   </main>
 </body>

@@ -1,0 +1,76 @@
+1|第9.7章: list - 使用 fast_io 学习 C++ 教程
+2|第9.7章: list
+3|概述
+4|<code>::fast_io::list</code> 提供若干直接操作链表结构、不复制元素的操作。它们比 vector 上的等价操作更高效，因为只需调整指针。
+5|1. 特有操作表
+6|操作
+7|说明
+9|把 <code>it</code> 所指元素移动到 <code>pos</code> 之前
+11|把范围 <code>[first, last)</code> 移动到 <code>pos</code> 之前
+13|把 <code>other</code> 中的所有元素移动到 <code>pos</code> 之前
+15|就地排序整个链表
+17|就地排序一个子范围
+19|把已排序的 <code>other</code> 合并进这个已排序的链表
+21|反转所有元素的顺序
+23|恰有一个元素时返回 <code>true</code>
+25|有两个或更多元素时返回 <code>true</code>
+26|2. 完整示例
+27|3. 为什么 list 往往比 vector 和 deque 慢得多
+28|尽管在理论上插入与删除是 &Theta;(1)，<code>list</code> 在真实工作负载中往往比 <code>vector</code> 或 <code>deque</code> <strong>慢 10&times; 到 100&times;</strong>。原因在于<strong>数据局部性</strong>&mdash;&mdash;容器的内存布局与 CPU 缓存体系结构的契合程度。
+29|缓存行利用率
+30|现代 CPU 按<strong>缓存行</strong>取内存，通常一行 64 字节。只要访问到某行中的任意一个字节，整行 64 字节都会被载入 L1 缓存。问题在于：这一行里有多少是真正有用的数据？
+31|容器
+32|布局
+33|每 64 字节缓存行中的有用字节数（以 <code>size_t</code> 为例）
+34|效率
+36|连续：<code>[e0][e1][e2]...[e7]</code>
+37|64 / 64 = <strong>64 字节</strong>（8 个元素）
+39|按块分块：每个块内部连续
+40|64 / 64 = <strong>64 字节</strong>（每块 8 个元素）
+41|块内约 100%
+43|结点散布：每个结点都是一次独立的堆分配
+44|8 / 64 = <strong>8 字节</strong>（每缓存行 1 个元素）
+45|一个 <code>list&lt;::std::size_t&gt;</code> 结点除了 8 字节的值，还有两个 8 字节指针（prev/next），加上对齐填充总共约 24&ndash;32 字节。但每个结点位于<em>不同</em>的堆地址，所以每次访问都可能触发<strong>缓存未命中</strong>。CPU 必须等待主存（约 100&nbsp;ns），而不是 L1 缓存（约 1&nbsp;ns）。
+46|指针追逐使预取器失效
+47|现代 CPU 使用<strong>硬件预取器</strong>，它能识别顺序访问模式，并在需要之前把将要使用的缓存行载入。这对 <code>vector</code>（连续、可预测）效果完美，对 <code>deque</code>（顺序的块）效果尚可。但 <code>list</code> 需要<strong>指针追逐</strong>：每个结点的地址只有在读完前一个结点的 <code>next</code> 指针之后才知道。预取器无法预测这些地址，因此每次访问都可能缓存未命中。
+48|常数因子压倒了渐近优势
+49|链表提供 &Theta;(1) 的插入/删除，而 <code>vector</code> 是 O(n)（针对序列中间的操作）。但两者的常数因子差异巨大：
+50|<code>vector</code> 插入：以约 10&ndash;50 GB/s 的速度用 <code>memcpy</code> 搬移约 n 个元素 &mdash; 一百万个元素只需几微秒。
+51|<code>list</code> 插入：调整 4 个指针，但每次指针访问都可能是一次约 100&nbsp;ns 的缓存未命中 &mdash; 即使是中等数量的元素也要几十微秒。
+52|在实践中，除了需要<strong>稳定的迭代器</strong>（不会因为别处的插入/删除而失效的迭代器）之外，几乎任何工作负载下 <code>vector</code> 都会胜出。
+53|基准测试：list 对 vector 对 deque
+54|压入 1000 万个 <code>::std::size_t</code> 元素，然后遍历求和：
+55|容器
+56|push_back
+57|遍历（求和）
+58|总计
+60|0.162&nbsp;s
+61|0.014&nbsp;s
+62|0.185&nbsp;s
+64|0.093&nbsp;s
+65|0.012&nbsp;s
+66|0.114&nbsp;s
+68|0.096&nbsp;s
+69|0.026&nbsp;s
+70|0.138&nbsp;s
+72|0.078&nbsp;s
+73|0.012&nbsp;s
+74|0.105&nbsp;s
+76|0.768&nbsp;s
+77|0.121&nbsp;s
+78|1.686&nbsp;s
+79|<code>list</code> 比不带 reserve 的 <code>vector</code> <strong>慢 9&times;</strong>（1.686&nbsp;s 对 0.185&nbsp;s），比带 <code>reserve</code> 的 <code>vector</code> <strong>慢 15&times;</strong>（1.686&nbsp;s 对 0.114&nbsp;s）。甚至单纯遍历也比 <code>vector</code> <strong>慢 9&times;</strong>（0.121&nbsp;s 对 0.014&nbsp;s），因为每访问一个结点都会缓存未命中。
+80|<strong>数据规模越大，差距越悬殊。</strong>当数据集超出 RAM 时，操作系统会把页面换到磁盘。每次访问 <code>list</code> 结点都可能变成<strong>缺页</strong>，需要磁盘 I/O &mdash; 每次访问约 10&nbsp;ms，比 L1 缓存命中（约 100&nbsp;ns）慢 100,000&times;。相比之下，<code>vector</code> 能受益于操作系统的<strong>预读</strong>：当一个页面缺页时，操作系统会批量预取相邻页面，把磁盘延迟分摊到数百个元素上。对 <code>list</code> 来说，每个随机地址都不太可能落在已预取的页面里，于是几乎每次访问都要付出完整的磁盘代价。在网络存储的延迟下（每次访问数毫秒），<code>list</code> 完全不可用。
+81|什么时候真的该用 list
+82|你需要迭代器或引用在别处插入、删除之后依然有效。
+83|你需要频繁地在容器之间 splice 元素。
+84|元素很大（复制昂贵），并且你需要频繁地在中部插入。
+85|你实现的算法在本质上需要链式结构（例如某些图算法）。
+86|除此之外几乎所有场合 &mdash; 尤其是遍历密集的工作负载 &mdash; 请优先使用 <code>vector</code> 或 <code>deque</code>。
+87|要点
+88|<code>splice()</code> 在链表之间搬移元素而不复制。
+89|<code>sort()</code>、<code>merge()</code> 和 <code>reverse()</code> 只调整指针。
+90|<code>is_single()</code> 和 <code>has_multiple()</code> 是链表特有的查询。
+91|链表操作从不会使未被移动或删除的元素的迭代器失效。
+92|<code>list</code> 比 <code>vector</code> 慢约 9&times;，比 <code>vector</code> + <code>reserve()</code> 慢约 15&times; &mdash; 除非你需要稳定的迭代器，否则用 <code>vector</code>。
+93|<a href="/docs/09.seqcontainers/06.forwardlist/" class="prev-button">&larr; 第9.6章: forward_list</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/09.seqcontainers/08.vectorcapacity/" class="next-button">第9.8章: vector &rarr;</a>

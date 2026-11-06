@@ -1,0 +1,56 @@
+1|第8.2章: range 类别 - 使用 fast_io 学习 C++ 教程
+2|第8.2章: range 类别
+3|概述
+4|不同的 range 支持的操作并不相同。有些只能被读取一次，有些允许多次遍历，有些允许向后移动，还有一些允许常数时间跳跃或直接访问内存地址。
+5|理解这些差异的一个清晰方式，是把 range 类别看作一条<strong>能力层级</strong>。每一级都包含上一级的全部能力，并在此基础上增加新的能力。
+6|本章将介绍：
+7|range 类别的完整层级
+8|从 <code>input_range</code> 到 <code>contiguous_range</code> 的可读链条
+9|独立的可写分支 <code>output_range</code>
+10|如何用 <code>if constexpr</code> 探测类别
+11|1. 完整的 range 层级
+12|所有 range 类别都是对基础概念 <code>range</code> 的细化。由此，层级分成一条可读链条和一个独立的可写分支：
+13|本章关注可读层级（图中左侧分支）。
+14|2. input_range
+15|最小的可读类别。input_range 支持：
+16|只能读取元素一次
+17|只能向前移动
+18|单遍遍历
+19|3. forward_range
+20|forward_range 具有 input_range 的全部能力，并额外支持：
+21|对同一批元素进行多次遍历
+22|按相同顺序重新访问元素
+23|forward_range 同时也是 input_range。
+24|4. bidirectional_range
+25|bidirectional_range 具有 forward_range 的全部能力，并额外支持：
+26|既能向前也能向后移动
+27|bidirectional_range 同时也是 forward_range。
+28|5. random_access_range
+29|random_access_range 具有 bidirectional_range 的全部能力，并额外支持：
+30|常数时间跳到任意位置
+31|用 <code>r[i]</code> 做下标访问
+32|random_access_range 同时也是 bidirectional_range。
+33|6. contiguous_range
+34|contiguous_range 具有 random_access_range 的全部能力，并额外保证它的元素在程序的抽象地址空间中占据相邻的地址。
+35|当 range <strong>非空</strong>时，对任何指向真实元素（而不是 <code>end()</code>）的迭代器 <code>it</code>，下面的等式成立：
+36|这一表述用迭代器刻画连续性，而且不需要解引用。
+37|contiguous_range 同时也是 random_access_range。
+38|7. output_range（独立分支）
+39|output_range 是 input_range 的可写对应物。它允许写入元素，但不要求从 range 读取。
+40|它<strong>不属于可读层级</strong>，而是在 <code>range</code> 之下自成一支。
+41|有些 range 只可读，有些只可写，还有一些两者都支持。
+42|8. 用 <code>if constexpr</code> 探测 range 类别
+43|range 类别是编译期属性，可以用 <code>if constexpr</code> 和标准概念来探测。
+44|由于 contiguous_range 满足所有更弱的可读类别，因此会打印出多行。
+45|9. 目前已介绍的 range 所属的类别
+46|目前介绍过的所有 range 都属于<strong>连续 range</strong>：
+54|C 风格数组
+55|后续章节会介绍不连续的 range。
+56|要点
+57|<code>range</code> 是根概念。
+58|可读层级从 <code>input_range</code> 一直上升到 <code>contiguous_range</code>。
+59|<code>output_range</code> 是一个<strong>独立的可写分支</strong>。
+60|每个更强的可读类别都包含所有更弱的类别。
+61|连续 range 保证在抽象地址空间中地址相邻。
+62|目前介绍过的所有 range 都是连续的。
+63|<a href="/docs/08.algorithm/01.ranges/" class="prev-button">← 第8.1章: ranges 与基于范围的算法</a> <a href="/" class="main-button">↑ 主页</a> <a href="/docs/08.algorithm/03.iteratorcategories/" class="next-button">第8.3章: 迭代器类别 →</a>

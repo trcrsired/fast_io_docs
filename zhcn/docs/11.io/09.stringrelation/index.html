@@ -3,47 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.9: Relationship with String - C++ Tutorial with fast_io</title>
+  <title>第11.9章: 与字符串的关系 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.9: Relationship with String</h1>
+    <h1>第11.9章: 与字符串的关系</h1>
     <p class="lang-switch"><a href="/docs/11.io/09.stringrelation/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>One System, Everywhere</h2>
+      <h2>一套系统，处处可用</h2>
       <p>
-        The <code>concat_fast_io</code> and <code>to&lt;T&gt;</code> APIs introduced
-        in <a href="/zhcn/docs/09.seqcontainers/12.string/">Ch9.12</a> are not a separate
-        string-formatting pipeline &mdash; they are <em>the same</em> I/O system that
-        powers <code>print</code>, <code>println</code>, and <code>scan</code>. Every
-        string operation in <code>fast_io</code> funnels through the library's core
-        I/O layer.
+        <a href="/zhcn/docs/09.seqcontainers/12.string/">第9.12章</a>中介绍的 <code>concat_fast_io</code> 与 <code>to&lt;T&gt;</code> 并不是另一条独立的字符串格式化流水线 &mdash; 它们<em>就是</em>支撑 <code>print</code>、<code>println</code> 和 <code>scan</code> 的那套 I/O 系统。<code>fast_io</code> 中的每个字符串操作都汇入库的核心 I/O 层。
       </p>
       <p>
-        This means the customisation points you learned for console and file output
-        &mdash; <code>print_define</code> and <code>print_reserve_define</code>
-        &mdash; automatically make your types work with string APIs too. There is
-        nothing extra to implement.
+        这意味着你为控制台和文件输出学到的定制点 &mdash; <code>print_define</code> 与 <code>print_reserve_define</code> &mdash; 会自动让你的类型也能配合字符串 API 工作。不需要额外实现任何东西。
       </p>
     </section>
 
     <section>
-      <h2>concat_fast_io Uses print_reserve_define</h2>
+      <h2>concat_fast_io 内部使用 print_reserve_define</h2>
       <p>
-        When you call <code>concat_fast_io</code>, the library formats each argument
-        into a string by invoking the same <code>print_reserve_define</code> (or
-        <code>print_define</code>) that <code>println</code> uses. If your type is
-        printable to the console, it is printable into a string &mdash; for free.
+        当你调用 <code>concat_fast_io</code> 时，库是通过调用 <code>println</code> 所用的同一个 <code>print_reserve_define</code>（或 <code>print_define</code>）把每个参数格式化进字符串的。如果你的类型能打印到控制台，它就能打印进字符串 &mdash; 而且免费。
       </p>
       <p>
-        For example, suppose we defined <code>print_reserve_define</code> for a
-        <code>Point</code> struct back in
-        <a href="/zhcn/docs/11.io/02.customtypes/">Ch11.2</a>:
+        例如，假设我们在<a href="/zhcn/docs/11.io/02.customtypes/">第11.2章</a>中为 <code>Point</code> 结构体定义了 <code>print_reserve_define</code>：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -81,28 +67,21 @@ int main() {
 }
 </code></pre>
       <p>
-        No separate <code>to_string</code> function, no
-        <code>std::format</code> specialisation, no <code>operator&lt;&lt;</code>
-        overload. One definition, every output target.
+        不需要单独的 <code>to_string</code> 函数，不需要 <code>std::format</code> 特化，也不需要 <code>operator&lt;&lt;</code> 重载。一次定义，所有输出目标都可用。
       </p>
     </section>
 
     <section>
-      <h2>to&lt;T&gt; Uses the Same I/O Pipeline</h2>
+      <h2>to&lt;T&gt; 使用同一条 I/O 流水线</h2>
       <p>
-        <code>to&lt;T&gt;</code> works in two stages, both of which go through the
-        standard I/O pipeline:
+        <code>to&lt;T&gt;</code> 分两个阶段工作，两个阶段都走标准 I/O 流水线：
       </p>
       <ol>
         <li>
-          <strong>Format</strong> &mdash; the arguments are formatted into a
-          temporary string using <code>concat_fast_io</code> (and therefore
-          <code>print_reserve_define</code>).
+          <strong>格式化</strong> &mdash; 用 <code>concat_fast_io</code>（因而也就是 <code>print_reserve_define</code>）把参数格式化进一个临时字符串。
         </li>
         <li>
-          <strong>Parse</strong> &mdash; the resulting string is scanned into the
-          target type <code>T</code> using <code>scan_define</code>, the same
-          customisation point that <code>scan</code> uses.
+          <strong>解析</strong> &mdash; 用 <code>scan_define</code> 把得到的字符串扫描进目标类型 <code>T</code>，这正是 <code>scan</code> 所用的同一个定制点。
         </li>
       </ol>
 <pre><code class="language-cpp">
@@ -122,40 +101,27 @@ int main() {
 }
 </code></pre>
       <p>
-        Because both stages reuse the standard pipeline, any custom type that
-        implements <code>print_reserve_define</code> <em>and</em>
-        <code>scan_define</code> can round-trip through <code>to&lt;T&gt;</code>
-        without any additional glue code.
+        因为两个阶段都复用标准流水线，任何同时实现了 <code>print_reserve_define</code> <em>和</em> <code>scan_define</code> 的自定义类型，都能在不写任何额外胶水代码的情况下通过 <code>to&lt;T&gt;</code> 往返。
       </p>
     </section>
 
     <section>
-      <h2>concat_std: Formatting to C++ std::string</h2>
+      <h2>concat_std：格式化到 C++ 的 std::string</h2>
       <p>
-        In <a href="/zhcn/docs/09.seqcontainers/16.std/">Ch9.16</a>, we introduced C++
-        Standard Library containers, including <code>::std::string</code>. If you
-        need to interoperate with C++ Standard Library code that expects
-        <code>::std::string</code>, <code>fast_io</code> provides
-        <code>::fast_io::concat_std</code> &mdash; which works exactly like
-        <code>concat_fast_io</code> but produces a <code>::std::string</code>
-        instead of a <code>::fast_io::string</code>.
+        在<a href="/zhcn/docs/09.seqcontainers/16.std/">第9.16章</a>中我们介绍了 C++ 标准库容器，包括 <code>::std::string</code>。如果你需要与期望 <code>::std::string</code> 的标准库代码互操作，<code>fast_io</code> 提供 <code>::fast_io::concat_std</code> &mdash; 它的用法与 <code>concat_fast_io</code> 完全一样，只是产出 <code>::std::string</code> 而不是 <code>::fast_io::string</code>。
       </p>
       <p>
-        Just like <code>concat_fast_io</code>, <code>concat_std</code> uses the
-        same <code>print_reserve_define</code> customisation points. Any type
-        that works with <code>println</code> or <code>concat_fast_io</code>
-        automatically works with <code>concat_std</code>.
+        与 <code>concat_fast_io</code> 一样，<code>concat_std</code> 使用同样的 <code>print_reserve_define</code> 定制点。任何能配合 <code>println</code> 或 <code>concat_fast_io</code> 工作的类型，都能自动配合 <code>concat_std</code> 工作。
       </p>
       <p>
-        There are also character-type variants for UTF-8, UTF-16, UTF-32, and
-        wide strings:
+        此外还有针对 UTF-8、UTF-16、UTF-32 和宽字符字符串的字符类型变体：
       </p>
       <ul>
-        <li><code>::fast_io::concat_std</code> &mdash; produces <code>::std::string</code> (<code>char</code>)</li>
-        <li><code>::fast_io::u8concat_std</code> &mdash; produces <code>::std::u8string</code> (<code>char8_t</code>)</li>
-        <li><code>::fast_io::u16concat_std</code> &mdash; produces <code>::std::u16string</code> (<code>char16_t</code>)</li>
-        <li><code>::fast_io::u32concat_std</code> &mdash; produces <code>::std::u32string</code> (<code>char32_t</code>)</li>
-        <li><code>::fast_io::wconcat_std</code> &mdash; produces <code>::std::wstring</code> (<code>wchar_t</code>)</li>
+        <li><code>::fast_io::concat_std</code> &mdash; 产出 <code>::std::string</code>（<code>char</code>）</li>
+        <li><code>::fast_io::u8concat_std</code> &mdash; 产出 <code>::std::u8string</code>（<code>char8_t</code>）</li>
+        <li><code>::fast_io::u16concat_std</code> &mdash; 产出 <code>::std::u16string</code>（<code>char16_t</code>）</li>
+        <li><code>::fast_io::u32concat_std</code> &mdash; 产出 <code>::std::u32string</code>（<code>char32_t</code>）</li>
+        <li><code>::fast_io::wconcat_std</code> &mdash; 产出 <code>::std::wstring</code>（<code>wchar_t</code>）</li>
       </ul>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -184,75 +150,60 @@ int main() {
 }
 </code></pre>
       <p>
-        There is also <code>::fast_io::concatln_std</code> (and its character-type
-        variants), which appends a newline at the end, just like
-        <code>concatln_fast_io</code>.
+        此外还有 <code>::fast_io::concatln_std</code>（及其字符类型变体），它在末尾追加一个换行，就像 <code>concatln_fast_io</code> 一样。
       </p>
       <p>
-        The primary use case for <code>concat_std</code> is when you need to pass
-        a formatted string to legacy C++ code that expects
-        <code>::std::string</code>. For new code, prefer
-        <code>concat_fast_io</code> with <code>::fast_io::string</code>.
+        <code>concat_std</code> 的主要用途，是需要把格式化好的字符串交给期望 <code>::std::string</code> 的遗留 C++ 代码时。对新代码来说，优先使用 <code>concat_fast_io</code> 配 <code>::fast_io::string</code>。
       </p>
     </section>
 
     <section>
-      <h2>The Unified Design</h2>
+      <h2>统一的设计</h2>
       <p>
-        The takeaway is that <code>fast_io</code> has <em>one</em> set of
-        customisation points for <em>every</em> output target:
+        要点是：<code>fast_io</code> 为<em>每一种</em>输出目标提供<em>一套</em>定制点：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Customisation Point</th>
-            <th>Used By</th>
+            <th>定制点</th>
+            <th>被谁使用</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>print_define</code> / <code>print_reserve_define</code></td>
             <td>
-              <code>println</code>, <code>print</code>, <code>concat_fast_io</code>,
-              <code>concatln_fast_io</code>, <code>concat_std</code>,
-              <code>concatln_std</code>, <code>to&lt;T&gt;</code>
+              <code>println</code>、<code>print</code>、<code>concat_fast_io</code>、<code>concatln_fast_io</code>、<code>concat_std</code>、<code>concatln_std</code>、<code>to&lt;T&gt;</code>
             </td>
           </tr>
           <tr>
             <td><code>scan_define</code> / <code>scan_context_define</code></td>
-            <td><code>scan</code>, <code>to&lt;T&gt;</code> (parse stage)</td>
+            <td><code>scan</code>、<code>to&lt;T&gt;</code>（解析阶段）</td>
           </tr>
         </tbody>
       </table>
       <p>
-        Console, file, buffered I/O, string, socket &mdash; they all share the same
-        formatting and parsing layer. Define your type once and it works everywhere.
+        控制台、文件、带缓冲 I/O、字符串、socket &mdash; 它们共享同一套格式化与解析层。定义一次你的类型，它在所有地方都能用。
       </p>
     </section>
 
     <section>
-      <h2>Writing to Existing Strings: {chtype}ostring_ref_fast_io</h2>
+      <h2>写入已有的字符串：{chtype}ostring_ref_fast_io</h2>
       <p>
-        While <code>concat_fast_io</code> creates a <em>new</em> string, sometimes you want to
-        format output directly into an <em>existing</em> string buffer. The
-        <code>::fast_io::{chtype}ostring_ref_fast_io</code> family of types lets you do exactly that.
-        These are non-owning reference types that wrap an existing string and expose it as an output
-        device for <code>print</code>, <code>println</code>, and other output operations.
+        <code>concat_fast_io</code> 创建的是<em>新</em>字符串，但有时你想把格式化后的输出直接写进一个<em>已有</em>的字符串缓冲区。<code>::fast_io::{chtype}ostring_ref_fast_io</code> 家族正是为此而生。它们是非拥有引用类型，包住一个已有字符串，并把它暴露为 <code>print</code>、<code>println</code> 等输出操作的输出设备。
       </p>
       <p>
-        The <code>{chtype}</code> placeholder is replaced with the character type:
+        其中的 <code>{chtype}</code> 占位符替换为字符类型：
       </p>
       <ul>
-        <li><code>::fast_io::ostring_ref_fast_io</code> &mdash; for <code>char</code> strings</li>
-        <li><code>::fast_io::u8ostring_ref_fast_io</code> &mdash; for <code>char8_t</code> / UTF-8 strings</li>
-        <li><code>::fast_io::u16ostring_ref_fast_io</code> &mdash; for <code>char16_t</code> / UTF-16 strings</li>
-        <li><code>::fast_io::u32ostring_ref_fast_io</code> &mdash; for <code>char32_t</code> / UTF-32 strings</li>
-        <li><code>::fast_io::wostring_ref_fast_io</code> &mdash; for <code>wchar_t</code> strings</li>
+        <li><code>::fast_io::ostring_ref_fast_io</code> &mdash; 用于 <code>char</code> 字符串</li>
+        <li><code>::fast_io::u8ostring_ref_fast_io</code> &mdash; 用于 <code>char8_t</code> / UTF-8 字符串</li>
+        <li><code>::fast_io::u16ostring_ref_fast_io</code> &mdash; 用于 <code>char16_t</code> / UTF-16 字符串</li>
+        <li><code>::fast_io::u32ostring_ref_fast_io</code> &mdash; 用于 <code>char32_t</code> / UTF-32 字符串</li>
+        <li><code>::fast_io::wostring_ref_fast_io</code> &mdash; 用于 <code>wchar_t</code> 字符串</li>
       </ul>
       <p>
-        You construct a reference by passing a pointer to an existing string. The string is
-        <strong>not cleared</strong> before writing &mdash; output is appended at the current position.
-        When you are done, the string contains everything that was written.
+        你通过传入指向已有字符串的指针来构造这个引用。写入之前字符串<strong>不会</strong>被清空 &mdash; 输出追加在当前位置之后。写完之后，字符串里就包含所有已写入的内容。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -288,63 +239,43 @@ int main()
 }
 </code></pre>
       <p>
-        This is particularly useful when you need to build a string incrementally, or when you want
-        to reuse a string buffer to avoid repeated allocations. The reference type itself is lightweight
-        &mdash; it just holds a pointer to the string.
+        当你需要逐步构建一个字符串，或者想复用字符串缓冲区以避免反复分配时，这特别有用。引用类型本身很轻 &mdash; 它只持有一个指向字符串的指针。
       </p>
       <p>
-        Note that these types are different from <code>::fast_io::u8string</code> and similar owning
-        string types. The <code>_ref_</code> in the name indicates that these are <strong>non-owning
-        references</strong> &mdash; they do not manage the lifetime of the underlying string. You must
-        ensure the string outlives the reference.
+        注意这些类型与 <code>::fast_io::u8string</code> 等拥有所有权的字符串类型不同。名字里的 <code>_ref_</code> 表示它们是<strong>非拥有引用</strong> &mdash; 它们不管理底层字符串的生命周期。你必须保证字符串比引用活得更久。
       </p>
     </section>
 
     <section>
-      <h2>Key Takeaways</h2>
+      <h2>要点</h2>
       <ul>
         <li>
-          <code>concat_fast_io</code> is not a separate formatter &mdash; it calls
-          <code>print_reserve_define</code> internally, the same entry point
-          <code>println</code> uses.
+          <code>concat_fast_io</code> 不是单独的格式化器 &mdash; 它内部调用 <code>print_reserve_define</code>，也就是 <code>println</code> 所用的同一个入口。
         </li>
         <li>
-          <code>to&lt;T&gt;</code> formats to a string via
-          <code>concat_fast_io</code>, then parses with <code>scan_define</code>.
-          Both stages use the standard I/O pipeline.
+          <code>to&lt;T&gt;</code> 先用 <code>concat_fast_io</code> 格式化到字符串，再用 <code>scan_define</code> 解析。两个阶段都走标准 I/O 流水线。
         </li>
         <li>
-          Any custom type that implements <code>print_reserve_define</code>
-          automatically works with <code>concat_fast_io</code> and the format
-          stage of <code>to&lt;T&gt;</code>.
+          任何实现了 <code>print_reserve_define</code> 的自定义类型都能自动配合 <code>concat_fast_io</code> 以及 <code>to&lt;T&gt;</code> 的格式化阶段。
         </li>
         <li>
-          Implement both <code>print_reserve_define</code> and
-          <code>scan_define</code> and your type can round-trip through
-          <code>to&lt;T&gt;</code> for free.
+          同时实现 <code>print_reserve_define</code> 与 <code>scan_define</code>，你的类型就能免费地通过 <code>to&lt;T&gt;</code> 往返。
         </li>
         <li>
-          This is the unified design: one set of customisation points for console,
-          file, string, and socket output.
+          这就是统一的设计：控制台、文件、字符串和 socket 输出共用一套定制点。
         </li>
         <li>
-          Use <code>::fast_io::{chtype}ostring_ref_fast_io</code> to write formatted output
-          directly into an existing string buffer. These non-owning reference types let you
-          build strings incrementally or reuse buffers to avoid allocations.
+          用 <code>::fast_io::{chtype}ostring_ref_fast_io</code> 把格式化输出直接写进已有的字符串缓冲区。这些非拥有引用类型让你能逐步构建字符串，或者复用缓冲区以避免分配。
         </li>
         <li>
-          Use <code>::fast_io::concat_std</code> when you need to produce a
-          <code>::std::string</code> for interoperation with C++ Standard Library
-          code. It uses the same customisation points as <code>concat_fast_io</code>.
+          当你需要产出 <code>::std::string</code> 以便与 C++ 标准库代码互操作时，用 <code>::fast_io::concat_std</code>。它使用与 <code>concat_fast_io</code> 相同的定制点。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/08.fileloader/" class="prev-button">&larr; Ch11.8: File Loader</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/10.socket/" class="next-button">Ch11.10: Socket Files &rarr;</a>
+      <a href="/zhcn/docs/11.io/08.fileloader/" class="prev-button">&larr; 第11.8章: 文件加载器</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/10.socket/" class="next-button">第11.10章: socket 文件 &rarr;</a>
     </div>
   </main>
 </body>

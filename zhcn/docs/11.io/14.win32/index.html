@@ -3,73 +3,62 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.14: Win32 File APIs - C++ Tutorial with fast_io</title>
+  <title>第11.14章: Win32 文件 API - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.14: Win32 File APIs</h1>
+    <h1>第11.14章: Win32 文件 API</h1>
     <p class="lang-switch"><a href="/docs/11.io/14.win32/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        On Windows, user-mode applications talk to the kernel through <code>kernel32.dll</code>.
-        The two entry points for opening files are:
+        在 Windows 上，用户态应用通过 <code>kernel32.dll</code> 与内核打交道。打开文件的两个入口是：
       </p>
       <ul>
         <li>
-          <code>CreateFileW</code> &mdash; the wide-character (UTF-16) variant, used on every
-          modern Windows release (NT, 2000, XP, 7, 10, 11).
+          <code>CreateFileW</code> &mdash; 宽字符（UTF-16）变体，每个现代 Windows 版本（NT、2000、XP、7、10、11）都用它。
         </li>
         <li>
-          <code>CreateFileA</code> &mdash; the ANSI variant, still encountered on the Windows 9x
-          family (95, 98, ME).
+          <code>CreateFileA</code> &mdash; ANSI 变体，在 Windows 9x 家族（95、98、ME）上还会遇到。
         </li>
       </ul>
       <p>
-        <code>fast_io</code> hides this difference behind two types, mirroring the POSIX layer:
+        <code>fast_io</code> 用两个类型把这个差异藏起来，与 POSIX 层一一对应：
       </p>
       <ul>
         <li>
-          <code>::fast_io::win32_file</code> &mdash; an RAII owning wrapper that calls
-          <code>CreateFileW</code> (or <code>CreateFileA</code> on 9x) in its constructor and
-          <code>CloseHandle</code> in its destructor.
+          <code>::fast_io::win32_file</code> &mdash; RAII 拥有式包装，构造函数调用 <code>CreateFileW</code>（9x 上则调用 <code>CreateFileA</code>），析构函数调用 <code>CloseHandle</code>。
         </li>
         <li>
-          <code>::fast_io::win32_io_observer</code> &mdash; a non-owning view over an existing
-          <code>HANDLE</code>. Trivially copyable, no destructor.
+          <code>::fast_io::win32_io_observer</code> &mdash; 对已有 <code>HANDLE</code> 的非拥有视图。可平凡复制，没有析构函数。
         </li>
       </ul>
     </section>
 
     <section>
-      <h2>Choosing Between ANSI and Wide: win32_api_family</h2>
+      <h2>在 ANSI 与 Wide 之间选择：win32_api_family</h2>
       <p>
-        The Win32 layer exposes a traits type called
-        <code>::fast_io::win32_api_family</code>. It selects which variant of the API should
-        be used on a given Windows target:
+        Win32 层暴露一个名为 <code>::fast_io::win32_api_family</code> 的特征类型。它选择在给定 Windows 目标上该用哪一套 API：
       </p>
       <ul>
         <li>
-          On the NT family (the default for any supported compiler today), the family picks
-          <code>CreateFileW</code> and the wide-character overloads.
+          在 NT 家族上（今天所有受支持的编译器的默认值），该家族选用 <code>CreateFileW</code> 以及宽字符重载。
         </li>
         <li>
-          On the 9x family, the family picks <code>CreateFileA</code> and the ANSI overloads.
+          在 9x 家族上，该家族选用 <code>CreateFileA</code> 以及 ANSI 重载。
         </li>
       </ul>
       <p>
-        In practice you almost never need to touch <code>win32_api_family</code> directly:
-        <code>win32_file</code> consults it automatically when you pass a filename.
+        实践中你几乎不需要直接接触 <code>win32_api_family</code>：当你传入文件名时，<code>win32_file</code> 会自动查询它。
       </p>
     </section>
 
     <section>
-      <h2>Opening a File with win32_file</h2>
+      <h2>用 win32_file 打开文件</h2>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
@@ -92,10 +81,9 @@ int main()
     </section>
 
     <section>
-      <h2>Wrapping an Existing HANDLE</h2>
+      <h2>包裹已有的 HANDLE</h2>
       <p>
-        Just like <code>posix_io_observer</code>, you can build a non-owning view over a
-        <code>HANDLE</code> you obtained elsewhere:
+        与 <code>posix_io_observer</code> 一样，你可以对别处取得的 <code>HANDLE</code> 构建非拥有视图：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -120,11 +108,9 @@ int main()
     </section>
 
     <section>
-      <h2>Reading and Open-at</h2>
+      <h2>读取与 open-at</h2>
       <p>
-        Reading uses <code>scan</code>. Opening relative to a directory handle uses
-        <code>NtCreateFile</code> under the hood because the Win32 API itself has no
-        <code>*at</code> equivalent:
+        读取使用 <code>scan</code>。相对于目录句柄打开时，底层使用 <code>NtCreateFile</code>，因为 Win32 API 本身没有 <code>*at</code> 的对应物：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -145,30 +131,22 @@ int main()
     </section>
 
     <section>
-      <h2>Windows Also Has File Descriptors</h2>
+      <h2>Windows 也有文件描述符</h2>
       <p>
-        A common misunderstanding is that Windows only has <code>HANDLE</code>s and no file descriptors.
-        This is incorrect. The Windows C runtime (MSVCRT, UCRT) provides POSIX-like file descriptors
-        through functions like <code>_fdopen</code>, <code>_open</code>, <code>_read</code>, <code>_write</code>,
-        and <code>_close</code>. These are declared in <code>&lt;io.h&gt;</code> and <code>&lt;fcntl.h&gt;</code>.
+        一个常见的误解是 Windows 只有 <code>HANDLE</code> 而没有文件描述符。这是不对的。Windows C 运行时（MSVCRT、UCRT）通过 <code>_fdopen</code>、<code>_open</code>、<code>_read</code>、<code>_write</code>、<code>_close</code> 等函数提供类 POSIX 的文件描述符，它们声明在 <code>&lt;io.h&gt;</code> 与 <code>&lt;fcntl.h&gt;</code> 中。
       </p>
       <p>
-        The C runtime maintains a table mapping file descriptors (small integers) to Win32 <code>HANDLE</code>s.
-        You can convert between them:
+        C 运行时维护一张把文件描述符（小整数）映射到 Win32 <code>HANDLE</code> 的表，你可以在两者之间转换：
       </p>
       <ul>
         <li>
-          <code>_get_osfhandle(fd)</code> &mdash; converts a file descriptor to a Win32 <code>HANDLE</code>.
-          See the
-          <a href="https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/get-osfhandle?view=msvc-170" target="_blank" rel="noopener noreferrer">Microsoft documentation</a>.
+          <code>_get_osfhandle(fd)</code> &mdash; 把文件描述符转换为 Win32 <code>HANDLE</code>。参见 <a href="https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/get-osfhandle?view=msvc-170" target="_blank" rel="noopener noreferrer">Microsoft 文档</a>。
         </li>
         <li>
-          <code>_open_osfhandle(handle, flags)</code> &mdash; converts a Win32 <code>HANDLE</code> to a file descriptor.
+          <code>_open_osfhandle(handle, flags)</code> &mdash; 把 Win32 <code>HANDLE</code> 转换为文件描述符。
         </li>
         <li>
-          <code>_fdopen(fd, mode)</code> &mdash; associates a C <code>FILE*</code> stream with a file descriptor.
-          See the
-          <a href="https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/fdopen-wfdopen?view=msvc-170" target="_blank" rel="noopener noreferrer">Microsoft documentation</a>.
+          <code>_fdopen(fd, mode)</code> &mdash; 把 C 的 <code>FILE*</code> 流关联到文件描述符上。参见 <a href="https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/fdopen-wfdopen?view=msvc-170" target="_blank" rel="noopener noreferrer">Microsoft 文档</a>。
         </li>
       </ul>
 <pre><code class="language-cpp">
@@ -200,75 +178,65 @@ int main()
 }
 </code></pre>
       <p>
-        This proves that <strong>Windows has both file descriptors and HANDLEs</strong>. The C runtime
-        provides a POSIX-like layer on top of the Win32 API. When you call <code>_read(fd, ...)</code>,
-        the C runtime internally calls <code>ReadFile(_get_osfhandle(fd), ...)</code>.
+        这证明<strong>Windows 既有文件描述符也有 HANDLE</strong>。C 运行时在 Win32 API 之上提供了一层类 POSIX 的包装。当你调用 <code>_read(fd, ...)</code> 时，C 运行时内部调用的是 <code>ReadFile(_get_osfhandle(fd), ...)</code>。
       </p>
     </section>
 
     <section>
-      <h2>The Raw Win32 I/O APIs</h2>
+      <h2>原始的 Win32 I/O API</h2>
       <p>
-        Before using <code>fast_io</code>'s wrappers, it helps to understand the underlying Win32 APIs.
-        These are the functions exported by <code>kernel32.dll</code>:
+        在使用 <code>fast_io</code> 的包装之前，先了解底层 Win32 API 会有帮助。这些是由 <code>kernel32.dll</code> 导出的函数：
       </p>
       <table>
         <thead>
           <tr>
-            <th>API Function</th>
-            <th>Purpose</th>
+            <th>API 函数</th>
+            <th>用途</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>CreateFileW(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile)</code></td>
-            <td>Open or create a file by name (wide-character / UTF-16). Returns a <code>HANDLE</code>.</td>
+            <td>按名字打开或创建文件（宽字符 / UTF-16），返回 <code>HANDLE</code>。</td>
           </tr>
           <tr>
             <td><code>CreateFileA(...)</code></td>
-            <td>ANSI variant of <code>CreateFileW</code>. Used on Windows 9x (95, 98, ME).</td>
+            <td><code>CreateFileW</code> 的 ANSI 变体，用于 Windows 9x（95、98、ME）。</td>
           </tr>
           <tr>
             <td><code>ReadFile(hFile, lpBuffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped)</code></td>
-            <td>Read bytes from a file handle. Returns <code>BOOL</code>; actual bytes read is written to <code>lpNumberOfBytesRead</code>.</td>
+            <td>从文件句柄读取字节。返回 <code>BOOL</code>；实际读到的字节数写入 <code>lpNumberOfBytesRead</code>。</td>
           </tr>
           <tr>
             <td><code>WriteFile(hFile, lpBuffer, nNumberOfBytesToWrite, lpNumberOfBytesWritten, lpOverlapped)</code></td>
-            <td>Write bytes to a file handle. Returns <code>BOOL</code>; actual bytes written is written to <code>lpNumberOfBytesWritten</code>.</td>
+            <td>向文件句柄写入字节。返回 <code>BOOL</code>；实际写入的字节数写入 <code>lpNumberOfBytesWritten</code>。</td>
           </tr>
           <tr>
             <td><code>CloseHandle(hObject)</code></td>
-            <td>Close a handle. <strong>Always required</strong> &mdash; handles are a limited resource.</td>
+            <td>关闭句柄。<strong>永远需要</strong> &mdash; 句柄是有限资源。</td>
           </tr>
           <tr>
             <td><code>SetFilePointer(hFile, lDistanceToMove, lpDistanceToMoveHigh, dwMoveMethod)</code></td>
-            <td>Change the file pointer. <code>dwMoveMethod</code> is <code>FILE_BEGIN</code>, <code>FILE_CURRENT</code>, or <code>FILE_END</code>. For large files, use <code>SetFilePointerEx</code>.</td>
+            <td>改变文件指针。<code>dwMoveMethod</code> 是 <code>FILE_BEGIN</code>、<code>FILE_CURRENT</code> 或 <code>FILE_END</code>。对大文件请用 <code>SetFilePointerEx</code>。</td>
           </tr>
           <tr>
             <td><code>GetFileSize(hFile, lpFileSizeHigh)</code></td>
-            <td>Get the size of a file. For large files, use <code>GetFileSizeEx</code>.</td>
+            <td>取得文件大小。对大文件请用 <code>GetFileSizeEx</code>。</td>
           </tr>
         </tbody>
       </table>
       <p>
-        These Win32 APIs are <strong>unbuffered</strong> &mdash; each call goes through <code>kernel32.dll</code>
-        to the kernel. This makes them slow for small or frequent operations. <code>fast_io</code>'s buffered
-        types (like <code>ibuf_file</code> and <code>obuf_file</code>) wrap these calls with user-space buffering
-        for much better performance.
+        这些 Win32 API <strong>不带缓冲</strong> &mdash; 每次调用都经 <code>kernel32.dll</code> 进入内核。这使得它们在操作很小或很频繁时很慢。<code>fast_io</code> 的带缓冲类型（如 <code>ibuf_file</code> 与 <code>obuf_file</code>）用用户态缓冲包装这些调用，性能好得多。
       </p>
     </section>
 
     <section>
-      <h2>Using win32_file for RAII Even Without fast_io I/O</h2>
+      <h2>即使不用 fast_io 的 I/O，也可以用 win32_file 做 RAII</h2>
       <p>
-        Even if you prefer to call the raw Win32 APIs directly (e.g., <code>ReadFile</code> and
-        <code>WriteFile</code>) instead of using <code>fast_io</code>'s <code>print</code> and <code>scan</code>,
-        you should <strong>still use <code>::fast_io::win32_file</code> for RAII</strong>. The destructor
-        guarantees <code>CloseHandle</code> is called, so you never forget to close the handle.
+        即使你更愿意直接调用原始 Win32 API（例如 <code>ReadFile</code> 与 <code>WriteFile</code>）而不使用 <code>fast_io</code> 的 <code>print</code> 与 <code>scan</code>，你<strong>仍然应该用 <code>::fast_io::win32_file</code> 做 RAII</strong>。它的析构函数保证调用 <code>CloseHandle</code>，所以你永远不会忘记关闭句柄。
       </p>
       <p>
-        This is especially important when exceptions or early returns are involved &mdash; without RAII,
-        you must manually call <code>CloseHandle</code> on every exit path, which is error-prone.
+        当涉及异常或提前返回时，这一点尤其重要 &mdash; 没有 RAII，你必须在每一条退出路径上手动调用 <code>CloseHandle</code>，这很容易出错。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -297,7 +265,7 @@ int main()
 }
 </code></pre>
       <p>
-        The same principle applies to reading:
+        同样的原则也适用于读取：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -321,7 +289,7 @@ int main()
 }
 </code></pre>
       <p>
-        For seeking, use <code>SetFilePointerEx</code> on the native handle:
+        要定位，就在原生句柄上使用 <code>SetFilePointerEx</code>：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -349,55 +317,38 @@ int main()
     </section>
 
     <section>
-      <h2>Summary</h2>
+      <h2>小结</h2>
       <ul>
         <li>
-          <code>::fast_io::win32_file</code> wraps the Win32 <code>CreateFileW</code> /
-          <code>CreateFileA</code> entry point with RAII.
+          <code>::fast_io::win32_file</code> 用 RAII 包装 Win32 的 <code>CreateFileW</code> / <code>CreateFileA</code> 入口。
         </li>
         <li>
-          <code>::fast_io::win32_io_observer</code> is a non-owning view over an existing
-          <code>HANDLE</code>.
+          <code>::fast_io::win32_io_observer</code> 是对已有 <code>HANDLE</code> 的非拥有视图。
         </li>
         <li>
-          <code>::fast_io::win32_api_family</code> selects between the ANSI and Wide variants
-          based on the target Windows family. You normally do not need to interact with it
-          directly.
+          <code>::fast_io::win32_api_family</code> 根据目标 Windows 家族在 ANSI 与 Wide 变体之间选择。通常你不需要直接接触它。
         </li>
         <li>
-          All standard <code>fast_io</code> algorithms &mdash; <code>print</code>,
-          <code>println</code>, <code>scan</code> &mdash; work on these types.
+          <code>fast_io</code> 的所有标准算法 &mdash; <code>print</code>、<code>println</code>、<code>scan</code> &mdash; 都能作用于这些类型。
         </li>
         <li>
-          <strong>Windows also has file descriptors</strong> through the C runtime (MSVCRT/UCRT),
-          not just Win32 <code>HANDLE</code>s. Use <code>_get_osfhandle(fd)</code> to convert a
-          file descriptor to a <code>HANDLE</code>, and <code>_open_osfhandle(handle, flags)</code>
-          to convert back.
+          <strong>Windows 也有文件描述符</strong>，由 C 运行时（MSVCRT/UCRT）提供，而不只有 Win32 <code>HANDLE</code>。用 <code>_get_osfhandle(fd)</code> 把文件描述符转成 <code>HANDLE</code>，用 <code>_open_osfhandle(handle, flags)</code> 转回来。
         </li>
         <li>
-          The raw Win32 APIs are <code>CreateFileW</code> (or <code>CreateFileA</code> on 9x),
-          <code>ReadFile</code>, <code>WriteFile</code>, <code>CloseHandle</code>,
-          <code>SetFilePointerEx</code>, and <code>GetFileSizeEx</code>. These are unbuffered
-          and go through <code>kernel32.dll</code>.
+          原始 Win32 API 有 <code>CreateFileW</code>（9x 上是 <code>CreateFileA</code>）、<code>ReadFile</code>、<code>WriteFile</code>、<code>CloseHandle</code>、<code>SetFilePointerEx</code> 与 <code>GetFileSizeEx</code>。它们不带缓冲，都经过 <code>kernel32.dll</code>。
         </li>
         <li>
-          <strong>Even if you call the raw Win32 APIs directly</strong> (e.g., <code>ReadFile</code>
-          and <code>WriteFile</code>), <strong>still use <code>::fast_io::win32_file</code> for RAII</strong>
-          to guarantee <code>CloseHandle</code> is called automatically. This prevents resource leaks,
-          especially with exceptions or early returns.
+          <strong>即使你直接调用原始 Win32 API</strong>（例如 <code>ReadFile</code> 与 <code>WriteFile</code>），<strong>也仍然要用 <code>::fast_io::win32_file</code> 做 RAII</strong>，以保证 <code>CloseHandle</code> 被自动调用。这能防止资源泄漏，在有异常或提前返回时尤其如此。
         </li>
         <li>
-          For more details on the Win32 file APIs, see the
-          <a href="https://learn.microsoft.com/en-us/windows/win32/api/fileapi/" target="_blank" rel="noopener noreferrer">Microsoft documentation</a>.
+          关于 Win32 文件 API 的更多细节，见 <a href="https://learn.microsoft.com/en-us/windows/win32/api/fileapi/" target="_blank" rel="noopener noreferrer">Microsoft 文档</a>。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/13.posix/" class="prev-button">&larr; Ch11.13: POSIX File APIs</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/15.nt/" class="next-button">Ch11.15: NT File APIs &rarr;</a>
+      <a href="/zhcn/docs/11.io/13.posix/" class="prev-button">&larr; 第11.13章: POSIX 文件 API</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/15.nt/" class="next-button">第11.15章: NT 文件 API &rarr;</a>
     </div>
   </main>
 </body>

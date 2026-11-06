@@ -1,0 +1,69 @@
+1|第11.5章: 带缓冲与不带缓冲的 I/O - 使用 fast_io 学习 C++ 教程
+2|第11.5章: 带缓冲与不带缓冲的 I/O
+3|概述
+4|<code>fast_io</code> 提供两个文件类型家族，它们的区别在于一点关键之处：<strong>是否带缓冲</strong>。选对了，程序可能几毫秒就跑完；选错了，就要跑上几秒。
+5|1. 两个家族
+6|类型
+7|方向
+8|带缓冲？
+9|最适合
+10|<code>::fast_io::native_file</code>
+11|输入 / 输出
+12|不带（无缓冲）
+13|大批量数据传输
+14|<code>::fast_io::ibuf_file</code>
+15|仅输入
+16|带
+17|大量小的读取
+18|<code>::fast_io::obuf_file</code>
+19|仅输出
+20|带
+21|大量小的写入
+22|<code>::fast_io::iobuf_file</code>
+23|输入 / 输出
+24|带
+25|混合的小规模读写
+26|2. native_file &mdash; 不带缓冲（每次操作一次系统调用）
+27|<code>native_file</code> 是 OS 文件句柄之上的一层薄包装。每次 <code>write_some</code> 或 <code>read_some</code> 调用都<strong>直接进入内核</strong>，你的代码和操作系统之间没有用户态缓冲区。
+28|当你传输大块数据时（例如一次读 1&nbsp;MiB），这没问题 &mdash; 甚至是最理想的。与搬移的数据量相比，系统调用的开销可以忽略。
+29|但当你发起大量小操作时，它<strong>慢得灾难性</strong>。每次 <code>char_put</code> 或小的 <code>print</code> 都变成一次单独的系统调用，而切入内核的上下文切换主导了运行时间。
+30|3. iobuf_file &mdash; 带缓冲（用户态批处理）
+31|<code>iobuf_file</code>（以及仅输入/仅输出的兄弟姐妹）用一个<strong>用户态缓冲区</strong>包裹原生句柄，通常有几 KiB。写入先积累在这个缓冲区里；只有当缓冲区填满时，<code>fast_io</code> 才发起一次大的系统调用把它刷新出去。读取则反过来同理：一次系统调用取回一大块，后续的 <code>char_get</code> 调用直接从缓冲区取。
+32|这把成千上万次微小的系统调用变成少数几次大的系统调用，速度快得多。
+33|对 <code>iobuf_file</code>（双向）来说，输入缓冲区和输出缓冲区是<strong>绑定在一起的</strong>：只要输入缓冲区需要从文件取更多数据，它就会先刷新任何待输出的内容。这意味着你可以安全地在读写之间交替，而不必手动调用 <code>flush</code>。
+34|4. 概念性基准
+35|下面的概念性数字用来说明差异。在现代 Linux 系统上按每字节一次写入 1&nbsp;MiB：
+36|设备
+37|发起的系统调用次数
+38|大致耗时
+39|<code>native_file</code>
+40|1&nbsp;048&nbsp;576
+41|约 200&ndash;500&nbsp;ms
+42|<code>obuf_file</code>
+43|约 16 次（每填满 64&nbsp;KiB 缓冲区一次）
+44|约 1&ndash;3&nbsp;ms
+45|写的是完全相同的字节，却有<strong>100&times;&ndash;500&times; 的加速</strong>。差别纯粹来自系统调用的代价。
+46|对大批量传输（一次读写若干兆字节）来说，两者相当，因为系统调用开销被大量数据摊薄了。差距只在大量小操作时才出现。
+47|5. 并排对比示例
+48|6. 何时用哪个
+49|场景
+50|使用
+51|以大块复制多兆字节的数据
+52|<code>native_file</code>（批量传输，没有缓冲区开销）
+53|用 <code>getline</code> 逐行读文件
+54|<code>ibuf_file</code>
+55|写上百万条小记录、整数或字符
+56|<code>obuf_file</code>
+57|先读再写同一个文件（例如修改文件头）
+58|<code>iobuf_file</code>
+59|在循环里逐字符或逐字节写
+60|<code>obuf_file</code> &mdash; <em>绝不要</em>用 <code>native_file</code>
+61|内存映射 / 无复制的大块 I/O
+62|<code>native_file</code> + <code>file_loader</code>（见第11.8章）
+63|要点
+64|<code>::fast_io::native_file</code> <strong>不带缓冲</strong>：每次读写都是一次系统调用。大批量传输时快，大量小操作时慢得灾难性。
+65|<code>::fast_io::iobuf_file</code>（以及 <code>ibuf_file</code> / <code>obuf_file</code>）<strong>带缓冲</strong>：在用户态缓冲区里把小的操作攒起来，满了用一次系统调用刷出 &mdash; 对小规模 I/O 快上数量级。
+66|仅输入用 <code>ibuf_file</code>，仅输出用 <code>obuf_file</code>，双向 I/O 用 <code>iobuf_file</code>。
+67|经验法则：如果你单次读写的规模小于缓冲区（通常 4&ndash;64&nbsp;KiB），就用带缓冲的类型。如果你本来就在按几 KiB 的块搬数据，<code>native_file</code> 能省掉多一次缓冲区复制。
+68|绝不要在循环里用 <code>native_file</code> 配 <code>char_put</code> &mdash; 改用 <code>obuf_file</code>。
+69|<a href="/docs/11.io/04.operations/" class="prev-button">&larr; 第11.4章: I/O 操作</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/06.mutex/" class="next-button">第11.6章: 互斥 &rarr;</a>

@@ -3,47 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.3: Manipulators - C++ Tutorial with fast_io</title>
+  <title>第11.3章: 操纵器 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.3: Manipulators</h1>
+    <h1>第11.3章: 操纵器</h1>
     <p class="lang-switch"><a href="/docs/11.io/03.manipulators/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>What Are Manipulators?</h2>
+      <h2>什么是操纵器？</h2>
       <p>
-        A <strong>manipulator</strong> is a small helper object that wraps a value (or values) and
-        tells <code>print</code> / <code>println</code> / <code>scan</code> <em>how</em> to
-        format or parse that value. Instead of format strings like <code>"%x"</code> or
-        <code>std::hex</code>, fast_io expresses formatting in the type system: the manipulator
-        is an object with its own type, so the compiler can check and inline it away completely.
+        <strong>操纵器</strong>是一个小辅助对象，它包住一个（或几个）值，告诉 <code>print</code> / <code>println</code> / <code>scan</code> <em>如何</em>格式化或解析那个值。它不用 <code>"%x"</code> 或 <code>std::hex</code> 那样的格式串，而是把格式化表达在类型系统里：操纵器是一个有自己类型的对象，因此编译器可以检查它并把它完全内联掉。
       </p>
       <p>
-        All manipulators live in the namespace
-        <code>::fast_io::manipulators</code>, which has the convenient shorthand
-        <code>::fast_io::mnp</code>. Most programs just add:
+        所有操纵器都在 <code>::fast_io::manipulators</code> 命名空间里，它的便捷简写是 <code>::fast_io::mnp</code>。大多数程序只需加一句：
       </p>
       <pre><code class="language-cpp">
 using namespace ::fast_io::mnp;
 </code></pre>
       <p>
-        and then use the manipulators directly. Every example below assumes this using-declaration.
+        然后就能直接使用操纵器。下面每个示例都假定有这句 using 声明。
       </p>
     </section>
 
     <section>
-      <h2>Numeric Bases: hex, oct, bin, dec</h2>
+      <h2>数制：hex、oct、bin、dec</h2>
       <p>
-        The most common manipulators change the base used to print or scan an integer.
-        <code>hex</code>, <code>oct</code>, <code>bin</code>, and <code>dec</code> produce
-        lowercase digits. Their uppercase siblings <code>hexupper</code> / <code>octupper</code> /
-        <code>binupper</code> exist too. For scanning, use the <code>_get</code> variants:
-        <code>hex_get</code>, <code>oct_get</code>, <code>bin_get</code>, <code>dec_get</code>.
+        最常见的操纵器改变打印或扫描整数所用的数制。<code>hex</code>、<code>oct</code>、<code>bin</code>、<code>dec</code> 产生小写数字。它们的大写同胞 <code>hexupper</code> / <code>octupper</code> / <code>binupper</code> 也存在。用于扫描时，使用带 <code>_get</code> 的变体：<code>hex_get</code>、<code>oct_get</code>、<code>bin_get</code>、<code>dec_get</code>。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -70,12 +59,9 @@ int main()
     </section>
 
     <section>
-      <h2>hex0x &mdash; Hex With 0x Prefix</h2>
+      <h2>hex0x &mdash; 带 0x 前缀的十六进制</h2>
       <p>
-        <code>hex0x</code> prints an integer in lowercase hexadecimal with the usual
-        <code>0x</code> prefix. Use <code>hex0xupper</code> for uppercase digits and
-        <code>0X</code>. These are ideal when producing output that a human will read and
-        then copy back into source code.
+        <code>hex0x</code> 用小写十六进制加常见的 <code>0x</code> 前缀打印整数。要大写数字和 <code>0X</code> 就用 <code>hex0xupper</code>。当你要产出人能读懂、并能再抄回源码的输出时，它们最合适。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -96,10 +82,7 @@ int main()
     <section>
       <h2>boolalpha</h2>
       <p>
-        By default, <code>bool</code> prints as <code>1</code> or <code>0</code>. The
-        <code>boolalpha</code> manipulator prints it as <code>true</code> / <code>false</code>
-        instead (or uppercase <code>TRUE</code> / <code>FALSE</code> with the template
-        argument).
+        默认情况下 <code>bool</code> 打印成 <code>1</code> 或 <code>0</code>。<code>boolalpha</code> 操纵器则把它打印成 <code>true</code> / <code>false</code>（或通过模板参数指定大写 <code>TRUE</code> / <code>FALSE</code>）。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -117,19 +100,17 @@ int main()
     </section>
 
     <section>
-      <h2>Floating-Point Formats: fixed, scientific, general</h2>
+      <h2>浮点格式：fixed、scientific、general</h2>
       <p>
-        Three manipulators control the notation used for floating-point output:
+        三个操纵器控制浮点输出所用的记法：
       </p>
       <ul>
-        <li><code>fixed(x)</code> &mdash; plain decimal notation, e.g. <code>1234.5678</code>.</li>
-        <li><code>scientific(x)</code> &mdash; scientific notation, e.g. <code>1.2345678e3</code>.</li>
-        <li><code>general(x)</code> &mdash; lets the library choose the shorter form.</li>
+        <li><code>fixed(x)</code> &mdash; 普通十进制记法，例如 <code>1234.5678</code>。</li>
+        <li><code>scientific(x)</code> &mdash; 科学计数法，例如 <code>1.2345678e3</code>。</li>
+        <li><code>general(x)</code> &mdash; 让库选择更短的那种形式。</li>
       </ul>
       <p>
-        Each has a <code>comma_</code> sibling (<code>comma_fixed</code>,
-        <code>comma_scientific</code>, <code>comma_general</code>) that inserts thousands
-        separators.
+        每个都有一个 <code>comma_</code> 同胞（<code>comma_fixed</code>、<code>comma_scientific</code>、<code>comma_general</code>），会插入千位分隔符。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -152,12 +133,9 @@ int main()
     </section>
 
     <section>
-      <h2>comma_decimal &mdash; Thousands Separators</h2>
+      <h2>comma_decimal &mdash; 千位分隔符</h2>
       <p>
-        When you only want commas (or other grouping separators) without changing the
-        floating-point notation, the <code>comma_*</code> family is what you reach for.
-        <code>comma_decimal</code> is the most common &mdash; it formats a number in plain
-        decimal notation with group separators inserted.
+        当你只想要逗号（或其他分组分隔符）而不改变浮点记法时，该用的就是 <code>comma_*</code> 家族。<code>comma_decimal</code> 是最常用的 &mdash; 它用普通十进制记法格式化数字并插入分组分隔符。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -174,11 +152,9 @@ int main()
     </section>
 
     <section>
-      <h2>Alignment: left, right, middle</h2>
+      <h2>对齐：left、right、middle</h2>
       <p>
-        <code>left</code>, <code>right</code>, and <code>middle</code> pad a value to a given
-        field width. The first argument is the value, the second is the width, and an optional
-        third argument is the fill character (defaults to space).
+        <code>left</code>、<code>right</code> 和 <code>middle</code> 把值补齐到给定的字段宽度。第一个参数是值，第二个是宽度，可选的第三个参数是填充字符（默认是空格）。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -202,11 +178,9 @@ int main()
     </section>
 
     <section>
-      <h2>chvw &mdash; Print an Integer as a Character</h2>
+      <h2>chvw &mdash; 把整数当作字符打印</h2>
       <p>
-        <code>chvw(ch)</code> treats an integral value as a character and prints it.
-        This is useful when you have a <code>char</code> stored in an integer, or when
-        you want to print a code point without going through a string.
+        <code>chvw(ch)</code> 把一个整型值当作字符打印。当你的 <code>char</code> 存在整数里，或者你想打印一个码点又不想经过字符串时，它很有用。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -223,12 +197,9 @@ int main()
     </section>
 
     <section>
-      <h2>rgvw &mdash; Range View</h2>
+      <h2>rgvw &mdash; 范围视图</h2>
       <p>
-        <code>rgvw(range, sep)</code> prints every element of a range, separated by the given
-        string or character. It is the idiomatic way to dump the contents of a container without
-        writing a loop. The separator may be a C string, a single character, or an
-        <code>os_c_str</code>-like object.
+        <code>rgvw(range, sep)</code> 打印 range 的每个元素，用给定的字符串或字符分隔。它是不写循环就导出容器内容的地道做法。分隔符可以是 C 字符串、单个字符，或者类似 <code>os_c_str</code> 的对象。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -250,12 +221,9 @@ int main()
     </section>
 
     <section>
-      <h2>addrvw and pointervw</h2>
+      <h2>addrvw 与 pointervw</h2>
       <p>
-        <code>addrvw(p)</code> prints the numeric value of a pointer in full-width hexadecimal
-        with a <code>0x</code> prefix &mdash; a classic "address" format.
-        <code>pointervw(p)</code> is similar but aimed at generic pointer-like objects, giving
-        a clean address-style output. Both work on raw pointers and pointer-like types.
+        <code>addrvw(p)</code> 用全宽十六进制加 <code>0x</code> 前缀打印指针的数值 &mdash; 经典的“地址”格式。<code>pointervw(p)</code> 类似，但面向泛指指针类对象，给出干净的地址风格输出。两者都可用于裸指针和指针类类型。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -276,11 +244,9 @@ int main()
     </section>
 
     <section>
-      <h2>hex_encode &mdash; Binary Data as Hex String</h2>
+      <h2>hex_encode &mdash; 把二进制数据写成十六进制串</h2>
       <p>
-        <code>hex_encode(first, last)</code> (or the range overload <code>hex_encode(range)</code>)
-        turns a sequence of bytes into a hex string, which is perfect for printing hashes, keys,
-        or raw buffers. <code>hex_encode_upper</code> produces uppercase letters.
+        <code>hex_encode(first, last)</code>（或 range 重载 <code>hex_encode(range)</code>）把一段字节序列变成十六进制字符串，非常适合打印哈希值、密钥或原始缓冲区。<code>hex_encode_upper</code> 产生大写字母。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -302,11 +268,9 @@ int main()
     </section>
 
     <section>
-      <h2>ordinal &mdash; 1st, 2nd, 3rd&hellip;</h2>
+      <h2>ordinal &mdash; 第 1、第 2、第 3&hellip;</h2>
       <p>
-        <code>ordinal(n)</code> prints an integer with its English ordinal suffix:
-        <code>1st</code>, <code>2nd</code>, <code>3rd</code>, <code>4th</code>,
-        <code>21st</code>, and so on. Useful for ranking, leaderboards, and dated log messages.
+        <code>ordinal(n)</code> 打印整数并附上英文序数后缀：<code>1st</code>、<code>2nd</code>、<code>3rd</code>、<code>4th</code>、<code>21st</code> 等等。适合排名、排行榜以及带日期的日志消息。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -325,19 +289,12 @@ int main()
     </section>
 
     <section>
-      <h2>Compound Manipulators: left_width, right_width</h2>
+      <h2>复合操纵器：left_width、right_width</h2>
       <p>
-        Compound manipulators combine multiple formatting operations into a single manipulator
-        object. <code>left_width</code> and <code>right_width</code> are examples that combine
-        value formatting with alignment. They are <strong>stateless</strong> &mdash; they apply
-        only to the value they wrap, with no stream state to corrupt.
+        复合操纵器把多项格式化操作合成一个操纵器对象。<code>left_width</code> 与 <code>right_width</code> 就是把值格式化与对齐结合起来的例子。它们是<strong>无状态</strong>的 &mdash; 只作用于自己包住的那个值，没有会被破坏的流状态。
       </p>
       <p>
-        <code>left_width(value, width, fill)</code> formats <code>value</code> and left-aligns it
-        within a field of the given <code>width</code>, padding with <code>fill</code> (defaults to
-        space). Similarly, <code>right_width(value, width, fill)</code> right-aligns. These are
-        useful when you want to combine formatting (like <code>hex</code> or <code>fixed</code>)
-        with alignment in a single, composable expression.
+        <code>left_width(value, width, fill)</code> 格式化 <code>value</code> 并在给定 <code>width</code> 的字段内左对齐，用 <code>fill</code> 填充（默认空格）。类似地，<code>right_width(value, width, fill)</code> 右对齐。当你想把格式化（例如 <code>hex</code> 或 <code>fixed</code>）与对齐结合在一个可组合的表达式里时，它们很有用。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -365,47 +322,39 @@ int main()
 }
 </code></pre>
       <p>
-        The key advantage is that these manipulators are <strong>stateless</strong>. There is no
-        stream state to corrupt, no need to manually restore settings. Each manipulator is a
-        self-contained object that applies only to the value it wraps.
+        关键优势在于这些操纵器是<strong>无状态</strong>的。没有会被破坏的流状态，也不需要手动恢复设置。每个操纵器都是自包含的对象，只作用于它包住的值。
       </p>
     </section>
 
     <section>
-      <h2>Full Appendix</h2>
+      <h2>完整附录</h2>
       <p>
-        The manipulators shown above are only the most common ones. The library also
-        provides base-N I/O (<code>base&lt;N&gt;</code>, <code>base_get&lt;N&gt;</code>),
-        ISO timestamps, IP address formatting, hex floats, percentage formatters,
-        transcode manipulators, and more.
+        上面展示的只是最常用的一批操纵器。库还提供任意进制 I/O（<code>base&lt;N&gt;</code>、<code>base_get&lt;N&gt;</code>）、ISO 时间戳、IP 地址格式化、十六进制浮点、百分比格式化器、转码操纵器等。
       </p>
       <p>
-        For the complete reference, see the
-        <a href="01.manipulators/">Appendix: Manipulators</a>.
+        完整参考见<a href="01.manipulators/">附录：操纵器</a>。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>Manipulators are ordinary objects in <code>::fast_io::manipulators</code> (shorthand: <code>::fast_io::mnp</code>) that control how values are formatted or parsed.</li>
-        <li>Base manipulators: <code>hex</code>, <code>oct</code>, <code>bin</code>, <code>dec</code> for output; <code>hex_get</code>, <code>oct_get</code>, <code>bin_get</code>, <code>dec_get</code> for input. <code>hex0x</code> adds the <code>0x</code> prefix.</li>
-        <li><code>boolalpha</code> switches between <code>1</code>/<code>0</code> and <code>true</code>/<code>false</code>.</li>
-        <li>Floating-point formatting: <code>fixed</code>, <code>scientific</code>, <code>general</code>, with <code>comma_*</code> variants for thousands separators.</li>
-        <li>Alignment: <code>left</code>, <code>right</code>, <code>middle</code> take a value and a field width, plus an optional fill character.</li>
-        <li><code>chvw</code> prints an integral value as a character; <code>rgvw</code> prints a range with a separator.</li>
-        <li><code>addrvw</code> and <code>pointervw</code> format pointers as addresses; <code>hex_encode</code> turns byte sequences into hex strings.</li>
-        <li><code>ordinal</code> appends English suffixes.</li>
-        <li>Compound manipulators: <code>left_width</code> and <code>right_width</code> combine value formatting with alignment. They are stateless and self-contained.</li>
-        <li>All manipulators compose with <code>print</code>, <code>println</code>, and <code>scan</code> in the same way as ordinary values &mdash; there is no separate formatting DSL to learn.</li>
+        <li>操纵器就是 <code>::fast_io::manipulators</code>（简写 <code>::fast_io::mnp</code>）里的普通对象，控制值如何被格式化或解析。</li>
+        <li>数制操纵器：输出用 <code>hex</code>、<code>oct</code>、<code>bin</code>、<code>dec</code>；输入用 <code>hex_get</code>、<code>oct_get</code>、<code>bin_get</code>、<code>dec_get</code>。<code>hex0x</code> 会加上 <code>0x</code> 前缀。</li>
+        <li><code>boolalpha</code> 在 <code>1</code>/<code>0</code> 与 <code>true</code>/<code>false</code> 之间切换。</li>
+        <li>浮点格式化：<code>fixed</code>、<code>scientific</code>、<code>general</code>，以及带千位分隔符的 <code>comma_*</code> 变体。</li>
+        <li>对齐：<code>left</code>、<code>right</code>、<code>middle</code> 接受一个值和字段宽度，外加可选填充字符。</li>
+        <li><code>chvw</code> 把整型值当字符打印；<code>rgvw</code> 带分隔符打印 range。</li>
+        <li><code>addrvw</code> 与 <code>pointervw</code> 把指针格式化成地址；<code>hex_encode</code> 把字节序列变成十六进制串。</li>
+        <li><code>ordinal</code> 追加英文序数后缀。</li>
+        <li>复合操纵器：<code>left_width</code> 与 <code>right_width</code> 把值格式化与对齐结合起来。它们无状态、自包含。</li>
+        <li>所有操纵器与 <code>print</code>、<code>println</code>、<code>scan</code> 的组合方式与普通值完全一样 &mdash; 没有另一套需要学习的格式化 DSL。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/02.customtypes/" class="prev-button">&larr; Ch11.2: Custom Types</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/04.operations/" class="next-button">Ch11.4: Operations &rarr;</a>
+      <a href="/zhcn/docs/11.io/02.customtypes/" class="prev-button">&larr; 第11.2章: 自定义类型</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/04.operations/" class="next-button">第11.4章: 操作 &rarr;</a>
     </div>
   </main>
 </body>

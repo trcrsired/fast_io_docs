@@ -3,57 +3,54 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch10.5: Iterating - C++ Tutorial with fast_io</title>
+  <title>第10.5章: 遍历 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch10.5: Iterating</h1>
+    <h1>第10.5章: 遍历</h1>
     <p class="lang-switch"><a href="/docs/10.associativecontainers/05.iterate/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. The Range-For, and What You Get Out</h2>
+      <h2>1. range-for，以及你会拿到什么</h2>
       <p>
-        Iteration is a range-for over <code>begin()</code>/<code>end()</code>, same
-        as every other container. What an element <em>is</em> differs between sets
-        and maps:
+        遍历就是用 <code>begin()</code>/<code>end()</code> 写 range-for，和其他容器一样。元素<em>是什么</em>，在集合和映射之间不同：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Container</th>
-            <th><code>*it</code> gives</th>
-            <th>Read a key</th>
-            <th>Read/write the value</th>
+            <th>容器</th>
+            <th><code>*it</code> 给出</th>
+            <th>读键</th>
+            <th>读/写值</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><code>str_btree_set</code>, <code>str_ranked_btree_set</code></td>
+            <td><code>str_btree_set</code>、<code>str_ranked_btree_set</code></td>
             <td><code>::fast_io::cstring_view</code></td>
-            <td>the value itself</td>
-            <td>there is no value</td>
+            <td>值本身就是键</td>
+            <td>没有值</td>
           </tr>
           <tr>
             <td><code>str_swiss_set</code></td>
             <td><code>::fast_io::cstring_view</code></td>
-            <td>the value itself</td>
-            <td>there is no value</td>
+            <td>值本身就是键</td>
+            <td>没有值</td>
           </tr>
           <tr>
-            <td><code>str_btree_map&lt;M&gt;</code>, <code>str_ranked_btree_map&lt;M&gt;</code></td>
-            <td>a proxy with <code>key()</code> / <code>mapped()</code></td>
+            <td><code>str_btree_map&lt;M&gt;</code>、<code>str_ranked_btree_map&lt;M&gt;</code></td>
+            <td>带 <code>key()</code> / <code>mapped()</code> 的代理对象</td>
             <td><code>e.key()</code></td>
-            <td><code>e.mapped()</code> (writable)</td>
+            <td><code>e.mapped()</code>（可写）</td>
           </tr>
           <tr>
             <td><code>str_swiss_map&lt;M&gt;</code></td>
-            <td>a reference to a key/value pair</td>
+            <td>对键/值对的引用</td>
             <td><code>e.key()</code></td>
-            <td><code>e.mapped()</code> (writable via non-const iterator)</td>
+            <td><code>e.mapped()</code>（通过非 const 迭代器可写）</td>
           </tr>
         </tbody>
       </table>
@@ -80,27 +77,17 @@ int main()
   c = 3
 </code></pre>
       <div class="warning">
-        <strong>There is no <code>first</code> and <code>second</code>.</strong>
-        A map element is not a <code>pair</code>. It has
-        <code>key()</code> and <code>mapped()</code>, and that is all. Written
-        <code>e.key()</code>, the code says what it reads; written
-        <code>e.first</code>, you would have to remember which half is which.
+        <strong>没有 <code>first</code> 和 <code>second</code>。</strong>映射元素不是 <code>pair</code>。它有 <code>key()</code> 和 <code>mapped()</code>，仅此而已。写成 <code>e.key()</code>，代码就说清了读的是什么；写成 <code>e.first</code>，你就得记着哪一半是哪一半。
       </div>
     </section>
 
     <section>
-      <h2>2. Order</h2>
+      <h2>2. 顺序</h2>
       <p>
-        The B-tree family iterates in <strong>ascending key order</strong>. Always.
-        That is a guarantee you can rely on, not an implementation detail: after
-        inserting <code>"c"</code>, <code>"a"</code>, <code>"b"</code> in that order,
-        the loop above prints <code>a</code>, <code>b</code>, <code>c</code>.
+        B 树家族按键<strong>升序</strong>遍历，一贯如此。这是你可以依赖的保证，而不是实现细节：依次插入 <code>"c"</code>、<code>"a"</code>、<code>"b"</code> 之后，上面的循环会打印 <code>a</code>、<code>b</code>、<code>c</code>。
       </p>
       <p>
-        The Swiss-table family makes <strong>no</strong> ordering promise. The order
-        is determined by the hash of the keys, so it is reproducible for the same
-        input &mdash; but it is not sorted, and it changes when the table grows or
-        when you erase. Never write code that depends on the sequence:
+        Swiss 表家族<strong>不</strong>作任何顺序保证。顺序由键的哈希决定，所以对相同输入它是可复现的 &mdash; 但它不是有序的，并且会在表增长或你删除元素时改变。绝不要写出依赖这个序列的代码：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_swiss_set s;
@@ -110,17 +97,14 @@ s.insert_key("foo");
 for (auto const &e : s) { println(e); }   // some order; not sorted
 </code></pre>
       <p>
-        If you need a sorted result out of a Swiss table, copy the keys into a vector
-        and sort that; do not hope for iteration order.
+        如果你需要从 Swiss 表得到有序结果，就把键复制到一个 vector 里再排序；不要指望遍历顺序。
       </p>
     </section>
 
     <section>
-      <h2>3. Reverse Iteration</h2>
+      <h2>3. 反向遍历</h2>
       <p>
-        To walk the elements backwards, wrap the container in
-        <code>::std::ranges::reverse_view</code>. It is a view, so nothing is
-        copied, and it works on all six containers:
+        要倒着走元素，把容器包进 <code>::std::ranges::reverse_view</code>。它是一个视图，因此不复制任何东西，并且对六个容器都适用：
       </p>
       <pre><code class="language-cpp">
 for (auto const &amp;e : ::std::ranges::reverse_view(m))
@@ -134,11 +118,10 @@ for (auto const &amp;e : ::std::ranges::reverse_view(m))
   a = 1
 </code></pre>
       <p>
-        For a B-tree that means descending key order. For a Swiss table it is just
-        &ldquo;the same arbitrary order, backwards&rdquo;.
+        对 B 树来说这意味着键降序。对 Swiss 表来说它只是“同样的任意顺序，反过来”。
       </p>
       <p>
-        The same view works on sets, where the element is the key itself:
+        同一个视图也能用在集合上，那里元素本身就是键：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_btree_set s{{::fast_io::string_view("a"), ::fast_io::string_view("b")}};
@@ -152,101 +135,78 @@ for (auto const &amp;e : ::std::ranges::reverse_view(s))
   a
 </code></pre>
       <div class="note">
-        <strong>Prefer the view over calling <code>rbegin()</code> by hand.</strong>
-        A loop written as
-        <code>for (auto it{m.crbegin()}; it != m.crend(); ++it)</code> also works,
-        but the view says &ldquo;iterate this backwards&rdquo; at the point where the
-        range is used and cannot get the <code>crend()</code> comparison subtly
-        wrong. Use <code>crbegin()</code>/<code>crend()</code> when you want to spell
-        the iterators out: they are the const pair and therefore work on
-        <code>const</code> and non-<code>const</code> containers alike.
+        <strong>优先用这个视图，而不是手动调用 <code>rbegin()</code>。</strong>写成 <code>for (auto it{m.crbegin()}; it != m.crend(); ++it)</code> 的循环也能用，但视图在使用范围的地方就表达了“把它倒着遍历”，并且不会把 <code>crend()</code> 的比较写错。当你想把迭代器写出来时，用 <code>crbegin()</code>/<code>crend()</code>：它们是 const 的那一对，因此对 <code>const</code> 和非 <code>const</code> 容器都适用。
       </div>
     </section>
 
     <section>
-      <h2>4. First and Last Element</h2>
+      <h2>4. 第一个与最后一个元素</h2>
       <p>
-        The B-tree family has <code>front()</code> and <code>back()</code> for the
-        smallest and largest key, in constant time &mdash; no iteration needed:
+        B 树家族有 <code>front()</code> 和 <code>back()</code>，分别给出最小和最大的键，且是常数时间 &mdash; 不需要遍历：
       </p>
       <pre><code class="language-cpp">
 println("first key: ", m.front().key());
-println("last key: ", m.back().key());
+println("last key:  ", m.back().key());
 </code></pre>
       <p>
-        For a set they return the key view directly:
-        <code>println(s.front());</code>. Both are checked: calling them on an empty
-        container is a contract violation, which terminates the program (or throws
-        <code>::std::errc::invalid_argument</code> if you opted into throwing
-        allocators &mdash; Ch10.11).
+        对集合来说它们直接返回键视图：<code>println(s.front());</code>。两者都是带检查的：在空容器上调用它们是违反契约，会终止程序（如果你选择了会抛异常的分配器，则抛出 <code>::std::errc::invalid_argument</code> &mdash; 第10.11章）。
       </p>
       <p>
-        The Swiss table has no <code>front()</code>/<code>back()</code>, since
-        &ldquo;first&rdquo; and &ldquo;last&rdquo; mean nothing without an order. Its
-        <code>begin()</code> points at the first occupied slot in table order.
+        Swiss 表没有 <code>front()</code>/<code>back()</code>，因为离开顺序，“第一个”和“最后一个”毫无意义。它的 <code>begin()</code> 指向按表顺序第一个被占用的槽位。
       </p>
     </section>
 
     <section>
-      <h2>5. Counting Elements in a B-tree</h2>
+      <h2>5. 统计 B 树中的元素个数</h2>
       <p>
-        The B-tree containers do not store a total element count, so they have no
-        <code>size()</code>. If you write one, the compiler says so:
+        B 树容器不保存元素总数，因此没有 <code>size()</code>。如果你写了，编译器会告诉你：
       </p>
       <pre><code class="language-text">
 error: 'fast_io::str_btree_set' {aka 'class fast_io::containers::basic_str_btree_set&lt;char, ...&gt;'}
        has no member named 'size'
 </code></pre>
       <p>
-        That is not an oversight. Keeping a counter up to date on every insert,
-        erase and node merge costs work on the hot path, and most programs never
-        need the number. When you do need it, iterate:
+        这不是疏忽。在每次插入、删除和结点合并时都维护一个计数器，会在热路径上付出代价，而大多数程序从不需要这个数字。当你确实需要时，就遍历：
       </p>
       <pre><code class="language-cpp">
 auto n{::std::ranges::distance(m)};   // walks every element
 println("elements: ", n);
 </code></pre>
       <p>
-        If &ldquo;how many elements are there&rdquo; is a question your program asks
-        often, use a container that stores the answer:
-        <code>str_ranked_btree_set</code> / <code>str_ranked_btree_map</code> have
-        <code>size()</code> (Ch10.8), and so do the Swiss-table containers
-        (Ch10.9).
+        如果“一共有多少元素”是你的程序经常问的问题，那就用会保存这个答案的容器：<code>str_ranked_btree_set</code> / <code>str_ranked_btree_map</code> 有 <code>size()</code>（第10.8章），Swiss 表容器也有（第10.9章）。
       </p>
       <table>
         <thead>
           <tr>
-            <th>Container</th>
+            <th>容器</th>
             <th><code>is_empty()</code></th>
             <th><code>size()</code></th>
             <th><code>front()</code>/<code>back()</code></th>
           </tr>
         </thead>
         <tbody>
-          <tr><td><code>str_btree_set</code> / <code>str_btree_map</code></td><td>yes</td><td>no</td><td>yes</td></tr>
-          <tr><td><code>str_ranked_btree_set</code> / <code>str_ranked_btree_map</code></td><td>yes</td><td>yes</td><td>yes</td></tr>
-          <tr><td><code>str_swiss_set</code> / <code>str_swiss_map</code></td><td>yes</td><td>yes</td><td>no</td></tr>
+          <tr><td><code>str_btree_set</code> / <code>str_btree_map</code></td><td>有</td><td>没有</td><td>有</td></tr>
+          <tr><td><code>str_ranked_btree_set</code> / <code>str_ranked_btree_map</code></td><td>有</td><td>有</td><td>有</td></tr>
+          <tr><td><code>str_swiss_set</code> / <code>str_swiss_map</code></td><td>有</td><td>有</td><td>没有</td></tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>Iterate with a range-for; sets yield <code>cstring_view</code>, maps yield elements with <code>key()</code> and <code>mapped()</code>.</li>
-        <li>There is no <code>first</code>/<code>second</code> in a map element.</li>
-        <li>B-tree iteration is ascending by key &mdash; guaranteed. Swiss-table iteration is unordered &mdash; never rely on it.</li>
-        <li>Use <code>::std::ranges::reverse_view</code> to iterate backwards; it works on every one of the six containers.</li>
-        <li><code>front()</code>/<code>back()</code> give the smallest/largest key on the B-tree family, checked, constant time.</li>
-        <li>B-tree containers have no <code>size()</code>; count with <code>::std::ranges::distance</code> or pick a container that tracks it.</li>
+        <li>用 range-for 遍历；集合给出 <code>cstring_view</code>，映射给出带 <code>key()</code> 与 <code>mapped()</code> 的元素。</li>
+        <li>映射元素里没有 <code>first</code>/<code>second</code>。</li>
+        <li>B 树的遍历按键升序 &mdash; 有保证。Swiss 表的遍历无序 &mdash; 绝不要依赖。</li>
+        <li>用 <code>::std::ranges::reverse_view</code> 反向遍历；它对六个容器都适用。</li>
+        <li>B 树家族的 <code>front()</code>/<code>back()</code> 给出最小/最大的键，带检查、常数时间。</li>
+        <li>B 树容器没有 <code>size()</code>；用 <code>::std::ranges::distance</code> 统计，或者选一个会记录它的容器。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/10.associativecontainers/04.lookup/" class="prev-button">&larr; Ch10.4: Looking Keys Up</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/10.associativecontainers/06.erase/" class="next-button">Ch10.6: Erasing &rarr;</a>
+      <a href="/zhcn/docs/10.associativecontainers/04.lookup/" class="prev-button">&larr; 第10.4章: 按键查找</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/10.associativecontainers/06.erase/" class="next-button">第10.6章: 删除 &rarr;</a>
     </div>
   </main>
 </body>

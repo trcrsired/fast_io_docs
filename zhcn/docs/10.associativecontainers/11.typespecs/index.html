@@ -3,28 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch10.11: Element Types, Error Specifications, and Validity - C++ Tutorial with fast_io</title>
+  <title>第10.11章: 元素类型、错误规格与有效性 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch10.11: Element Types, Error Specifications, and Validity</h1>
+    <h1>第10.11章: 元素类型、错误规格与有效性</h1>
     <p class="lang-switch"><a href="/docs/10.associativecontainers/11.typespecs/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. What the Key May Be</h2>
+      <h2>1. 键可以是什么</h2>
       <p>
-        The key type parameter is constrained to integral character types. In
-        practice that means the five the aliases cover:
+        键的类型参数被约束为整型字符类型。实践中就是别名所覆盖的那五种：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Type</th>
-            <th>Alias prefix</th>
+            <th>类型</th>
+            <th>别名前缀</th>
           </tr>
         </thead>
         <tbody>
@@ -36,20 +34,14 @@
         </tbody>
       </table>
       <p>
-        A key is a sequence of those units, compared byte by byte. There is no
-        encoding awareness: a <code>u32str_btree_map</code> compares code points,
-        and a <code>str_</code> container compares UTF-8 bytes. For UTF-8, byte-wise
-        ordering happens to agree with code point ordering, which is why the
-        <code>str_</code> family is the right default even for UTF-8 text.
+        键就是这些单元的序列，按字节比较。它不感知任何编码：<code>u32str_btree_map</code> 比较码点，<code>str_</code> 容器比较 UTF-8 字节。对 UTF-8 来说，逐字节的顺序恰好与码点顺序一致，这就是为什么即使是 UTF-8 文本，<code>str_</code> 家族也是正确的默认选择。
       </p>
     </section>
 
     <section>
-      <h2>2. What the Mapped Type May Be</h2>
+      <h2>2. 映射值可以是什么</h2>
       <p>
-        Map values must be <strong>nothrow move constructible</strong> and
-        <strong>nothrow move assignable</strong>. This is a class-level constraint,
-        checked the moment you name the type:
+        映射的值必须是<strong>移动构造不抛异常</strong>且<strong>移动赋值不抛异常</strong>的。这是类级别的约束，在你写出这个类型的那一刻就会被检查：
       </p>
       <pre><code class="language-text">
 error: template constraint failure for
@@ -61,29 +53,17 @@ error: template constraint failure for
 note: constraints not satisfied
 </code></pre>
       <p>
-        The reason is the same one behind every <code>fast_io</code> container: when
-        a node splits, values are relocated. A relocation that can fail would leave
-        the container in a half-moved state with no way to describe it, so the
-        requirement is moved to compile time. Types with a <code>noexcept</code>
-        move &mdash; <code>::std::size_t</code>, <code>::fast_io::string</code>,
-        <code>::fast_io::vector</code>, most of what you will store &mdash; satisfy it
-        automatically.
+        理由与 <code>fast_io</code> 所有容器背后的理由相同：结点分裂时值要被搬移。会失败的搬移会让容器处于“挪了一半”的状态且无法描述它，因此这个要求被挪到了编译期。带 <code>noexcept</code> 移动的类型 &mdash; <code>::std::size_t</code>、<code>::fast_io::string</code>、<code>::fast_io::vector</code>，也就是你会存放的绝大多数东西 &mdash; 自动满足它。
       </p>
       <div class="note">
-        <strong>Copying may still throw.</strong> The constraint is only about moves.
-        A value type with a throwing copy constructor is fine, and it simply makes
-        the copying insert overload
-        <code>throws</code> &mdash; see Section 3.
+        <strong>复制仍然可能抛异常。</strong>这个约束只针对移动。复制构造函数会抛的值类型是可以的，它只会让“复制式插入”的重载变成 <code>throws</code> &mdash; 见第3节。
       </div>
     </section>
 
     <section>
-      <h2>3. Error Specifications</h2>
+      <h2>3. 错误规格</h2>
       <p>
-        With the default allocators, a container of nothrow-movable values is
-        <strong>entirely <code>noexcept</code></strong>: every insert, every erase,
-        every lookup, every iterator operation. You can verify that at compile time
-        instead of trusting the documentation:
+        在默认分配器下，存放“移动不抛”的值的容器<strong>完全是 <code>noexcept</code></strong>：每次插入、每次删除、每次查找、每个迭代器操作。你可以在编译期验证这一点，而不必相信文档：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_btree_map&lt;::std::size_t&gt; m;
@@ -96,27 +76,17 @@ static_assert(noexcept(m.erase_key("x")));
 static_assert(noexcept(m.clear()));
 </code></pre>
       <p>
-        A failed allocation in that configuration <em>terminates</em> the program; it
-        does not throw. That is the deliberate default: running out of memory is not
-        a condition a string container can recover from, so the runtime does not
-        pretend otherwise.
+        在这种配置下分配失败会<em>终止</em>程序，而不是抛异常。这是刻意的默认：内存耗尽不是字符串容器能够恢复的状况，所以运行时也不会假装可以。
       </p>
       <p>
-        Two things can make a member <code>throws</code> instead, and both are
-        visible in the type, not in a comment:
+        有两样东西能让某个成员变成 <code>throws</code>，而两者都体现在类型里，而不是注释里：
       </p>
       <ol>
         <li>
-          <strong>The value type can throw where the operation constructs it.</strong>
-          A copy constructor that can throw makes
-          <code>insert_key(key, lvalue)</code> a <code>throws</code> function; a
-          constructor that can throw makes the <code>emplace_key</code> overload
-          that calls it <code>throws</code>.
+          <strong>值类型在该操作构造它的地方可能抛。</strong>会抛的复制构造函数让 <code>insert_key(key, lvalue)</code> 成为 <code>throws</code> 函数；会抛的构造函数让它所调用的那个 <code>emplace_key</code> 重载成为 <code>throws</code>。
         </li>
         <li>
-          <strong>You chose a throwing allocator.</strong> Wrapping the allocator
-          with flags turns allocation failure and contract violations into
-          herbceptions.
+          <strong>你选择了会抛异常的分配器。</strong>用标志包装分配器会把分配失败与契约违反变成赫布异常。
         </li>
       </ol>
       <pre><code class="language-cpp">
@@ -130,10 +100,7 @@ static_assert(!noexcept(ts.insert_key("x")));   // may throw on allocation failu
 static_assert(!noexcept(ts.front()));           // may throw on an empty container
 </code></pre>
       <p>
-        The interesting part is what a <em>checked</em> operation reports. Reading
-        <code>front()</code> of an empty container is a bug in your program, not a
-        runtime condition &mdash; but if you asked for errors to be reportable, it is
-        reported as <code>::std::errc::invalid_argument</code> in the POSIX domain:
+        有意思的是<em>带检查</em>的操作报告什么。读取空容器的 <code>front()</code> 是你程序里的 bug，不是一种运行时状况 &mdash; 但如果你要求错误可被报告，它会在 POSIX 域中以 <code>::std::errc::invalid_argument</code> 报告：
       </p>
       <pre><code class="language-cpp">
 try
@@ -151,23 +118,14 @@ caught
 [posix](22)Invalid argument
 </code></pre>
       <div class="important">
-        <strong>You do not have to handle anything.</strong> With the default
-        allocators &mdash; which is what <code>::fast_io::str_btree_map</code> and
-        friends use &mdash; the containers are <code>noexcept</code> and there is no
-        <code>try</code>/<code>catch throws</code> anywhere in your code. Throwing
-        allocators exist for the programs that need a recoverable path, and they must
-        be opted into explicitly.
+        <strong>你不需要处理任何东西。</strong>在默认分配器下 &mdash; 也就是 <code>::fast_io::str_btree_map</code> 及其伙伴所使用的 &mdash; 容器是 <code>noexcept</code> 的，你的代码里任何地方都不需要 <code>try</code>/<code>catch throws</code>。会抛异常的分配器是给需要可恢复路径的程序准备的，必须显式选择。
       </div>
     </section>
 
     <section>
-      <h2>4. Writing Your Own Signatures</h2>
+      <h2>4. 自己写函数签名</h2>
       <p>
-        Because the specifications are conditional, the rule from
-        <a href="/zhcn/docs/06.function/16.noexceptthrows/">Ch6.16</a> does the work for
-        you: a function that only reads from a container is <code>noexcept</code>, and
-        a function that inserts is <code>noexcept</code> unless the container can
-        throw.
+        由于这些规格是有条件的，<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>里的规则就替你干了活：只从容器读取的函数是 <code>noexcept</code>，而插入的函数也是 <code>noexcept</code> &mdash; 除非容器能抛。
       </p>
       <pre><code class="language-cpp">
 // reads only: contains/find/iteration are noexcept
@@ -183,65 +141,58 @@ void remember(::fast_io::str_btree_set &s, ::fast_io::string_view w) noexcept
 }
 </code></pre>
       <p>
-        When the mapped type can throw, the compiler refuses the second shape and
-        tells you why:
+        当映射类型能抛时，编译器会拒绝第二种写法并告诉你原因：
       </p>
       <pre><code class="language-text">
 error: an unhandled herbceptions failure cannot leave a function without a
        herbceptions specification
 </code></pre>
       <p>
-        Mark that function <code>throws</code> and the error goes away &mdash; there is
-        never a reason to fall back to legacy exceptions or to
-        <code>catch (...)</code>.
+        把那个函数标成 <code>throws</code>，错误就消失了 &mdash; 从来没有理由退回传统异常或 <code>catch (...)</code>。
       </p>
     </section>
 
     <section>
-      <h2>5. What Stays Valid</h2>
+      <h2>5. 什么会保持有效</h2>
       <p>
-        Iterators, key views and mapped references point into the container&rsquo;s
-        own storage. The rules below are short, and following them is the whole of
-        memory safety with these types.
+        迭代器、键视图和映射值引用都指向容器自己的存储。下面的规则很短，照着做就覆盖了使用这些类型时的全部内存安全。
       </p>
       <table>
         <thead>
           <tr>
-            <th>Operation</th>
-            <th>Effect on iterators and views</th>
+            <th>操作</th>
+            <th>对迭代器和视图的影响</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Lookup (<code>contains</code>, <code>find</code>, <code>lower_bound</code>, iteration)</td>
-            <td>Nothing is invalidated. Lookups only read.</td>
+            <td>查找（<code>contains</code>、<code>find</code>、<code>lower_bound</code>、遍历）</td>
+            <td>什么都不失效。查找只读。</td>
           </tr>
           <tr>
-            <td>Insert (B-tree family)</td>
-            <td>The inserted element&rsquo;s own iterator is new; existing keys keep their identity, so views of other elements survive.</td>
+            <td>插入（B 树家族）</td>
+            <td>被插入元素自己的迭代器是新的；已有键保持各自的标识，因此指向其他元素的视图仍然有效。</td>
           </tr>
           <tr>
-            <td>Insert (Swiss family)</td>
-            <td>A growth rehashes every key. Treat all iterators and views as gone once the table grows.</td>
+            <td>插入（Swiss 表家族）</td>
+            <td>增长会重新哈希每个键。一旦表增长，就把所有迭代器和视图视为失效。</td>
           </tr>
           <tr>
-            <td>Erase</td>
-            <td>Everything referring to the erased element dies. Only the returned iterator is known-good.</td>
+            <td>删除</td>
+            <td>所有指向被删元素的东西都失效。只有返回的迭代器是已知可用的。</td>
           </tr>
           <tr>
-            <td><code>clear()</code>, <code>clear_destroy()</code>, destruction</td>
-            <td>Everything dies.</td>
+            <td><code>clear()</code>、<code>clear_destroy()</code>、析构</td>
+            <td>一切都失效。</td>
           </tr>
           <tr>
-            <td>Move, copy-assign, swap</td>
-            <td>Iterators into the moved-from container are gone; re-look the keys up.</td>
+            <td>移动、复制赋值、swap</td>
+            <td>指向被移出容器的迭代器失效；重新查一次键。</td>
           </tr>
         </tbody>
       </table>
       <p>
-        In practice: <strong>do not hold an iterator or a key view across a
-        modification</strong>. Look the key up again &mdash; the lookup is the cheap
-        operation you chose this container for in the first place.
+        实践上就是：<strong>不要跨一次修改持有迭代器或键视图</strong>。重新查一次键 &mdash; 查找很便宜，而这正是你当初选这个容器的原因。
       </p>
       <pre><code class="language-cpp">
 // safe: the view is used immediately
@@ -253,30 +204,26 @@ s.insert_key("something else");
 // kept may be dangling here
 </code></pre>
       <p>
-        Keys that are <em>copied out</em> are of course fine forever &mdash; a
-        <code>::fast_io::string</code> built from <code>e.key()</code> is your own
-        storage and has nothing to do with the container any more.
+        当然，被<em>复制出来</em>的键永远是安全的 &mdash; 由 <code>e.key()</code> 构造出的 <code>::fast_io::string</code> 是你自己的存储，已经与容器无关了。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>Keys are integral character types: <code>char</code>, <code>wchar_t</code>, <code>char8_t</code>, <code>char16_t</code>, <code>char32_t</code>; comparison is byte-wise.</li>
-        <li>Mapped values must be nothrow-move-constructible and nothrow-move-assignable, enforced by the class constraint.</li>
-        <li>With default allocators, every container operation is <code>noexcept</code>; allocation failure terminates.</li>
-        <li>A throwing value operation, or a throwing allocator adapter, makes exactly those members <code>throws</code> &mdash; never the whole container.</li>
-        <li>Contract violations (<code>front()</code> on empty, out-of-range <code>nth_element</code>) terminate, or throw <code>::std::errc::invalid_argument</code> in a throwing configuration.</li>
-        <li>Functions that only read are <code>noexcept</code>; inserters are <code>noexcept</code> unless the value type or allocator can throw, and then they are <code>throws</code>.</li>
-        <li>Never keep an iterator or key view across a modification; look the key up again.</li>
+        <li>键是整型字符类型：<code>char</code>、<code>wchar_t</code>、<code>char8_t</code>、<code>char16_t</code>、<code>char32_t</code>；比较按字节进行。</li>
+        <li>映射值必须是移动构造与移动赋值都不抛异常的，由类的约束强制执行。</li>
+        <li>在默认分配器下，每个容器操作都是 <code>noexcept</code>；分配失败会终止程序。</li>
+        <li>会抛的值操作、或会抛的分配器适配器，只会让相应的那些成员变成 <code>throws</code> &mdash; 从不会让整个容器变成 <code>throws</code>。</li>
+        <li>契约违反（对空容器调用 <code>front()</code>、越界的 <code>nth_element</code>）会终止程序，或者在会抛异常的配置中抛出 <code>::std::errc::invalid_argument</code>。</li>
+        <li>只读的函数是 <code>noexcept</code>；插入函数也是 <code>noexcept</code>，除非值类型或分配器能抛，那时它们就是 <code>throws</code>。</li>
+        <li>绝不要跨一次修改保留迭代器或键视图；重新查一次键。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/10.associativecontainers/10.choose/" class="prev-button">&larr; Ch10.10: Choosing a Container</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/" class="next-button">Ch11: I/O &rarr;</a>
+      <a href="/zhcn/docs/10.associativecontainers/10.choose/" class="prev-button">&larr; 第10.10章: 如何选择容器</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/" class="next-button">第11章: I/O &rarr;</a>
     </div>
   </main>
 </body>

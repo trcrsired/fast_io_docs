@@ -1,0 +1,66 @@
+1|第10.1章: 什么是关联容器 - 使用 fast_io 学习 C++ 教程
+2|第10.1章: 什么是关联容器
+3|1. 它解决的问题
+4|程序在容器上花的大部分时间，都是在就某个<em>名字</em>提问：这个 token 是我认识的吗？这个配置项对应什么值？这一行我之前见过吗？用第9章的容器，你会维护一个名字的 <code>::fast_io::vector</code>，每次提问都扫一遍 &mdash; 每次都是 <em>O(n)</em> 的查找，于是对一百万个名字提一百万个问题，就是一百万乘一百万次比较。
+5|关联容器用<em>查表</em>取代顺序扫描。你交给它一个键，它把元素交还给你（或者告诉你没有这个元素）。键就是一个字符串，而容器自己决定把它放在哪里。
+6|输出：
+7|全部想法就是这些：字符串 <code>"https"</code><em>就是</em>元素的地址。你从不计算下标，也从不需要查找。
+8|2. 集合与映射
+9|两种形态，你会一直用到它们：
+10|<strong>集合</strong> &mdash; 键<em>就是</em>元素。用它回答“这个字符串我之前见过吗？”，里面不存别的。
+11|<strong>映射</strong> &mdash; 每个键带有一个 <code>M</code> 类型的值。用它回答“这个字符串关联着什么？”。遍历映射得到的是带 <code>key()</code> 与 <code>mapped()</code> 的、类似 pair 的元素（第10.7章）。
+12|一个键最多出现一次。插入重复的键不算错误，也不会产生第二个元素；它究竟是被忽略还是被覆盖，取决于你调用哪个插入函数（第10.2章）。
+13|3. 有序还是哈希
+14|两个家族最根本的差别只有一条：元素是否保持<strong>有序</strong>。
+15|<strong>B 树家族</strong>（<code>str_btree_*</code>、<code>str_ranked_btree_*</code>）保持键有序。遍历即按键升序遍历，而且你能做范围查询：<code>lower_bound</code>、<code>upper_bound</code>、<code>equal_range</code>，还有取最小/最大键的 <code>front()</code>/<code>back()</code>。
+16|<strong>Swiss 表家族</strong>（<code>str_swiss_*</code>）计算键的哈希，把它放进一张表里。遍历顺序就是哈希产生什么算什么 &mdash; 只要你不修改表，它是稳定的，但没有意义。作为交换，你得到 <code>size()</code>、<code>capacity()</code> 和 <code>reserve()</code>，而且完全不需要排序比较。
+17|如果你需要“把 <code>"b"</code> 和 <code>"d"</code> 之间的所有键都给我”，那就是 B 树。如果你只需要“有/没有”或“这个键对应什么值”，Swiss 表是自然的选择。第10.10章给出一张决策表。
+18|4. 类型是怎么拼写的
+19|每个容器都是按字符类型参数化的类模板，并且每种字符类型都有一个便捷别名。你几乎总是用别名：
+20|别名
+21|键的字符类型
+22|完整类型
+23|<code>str_btree_set</code>
+24|<code>char</code>
+25|<code>basic_str_btree_set&lt;char&gt;</code>
+26|<code>wstr_btree_set</code>
+27|<code>wchar_t</code>
+28|<code>basic_str_btree_set&lt;wchar_t&gt;</code>
+29|<code>u8str_btree_set</code>
+30|<code>char8_t</code>
+31|<code>basic_str_btree_set&lt;char8_t&gt;</code>
+32|<code>u16str_btree_set</code>
+33|<code>char16_t</code>
+34|<code>basic_str_btree_set&lt;char16_t&gt;</code>
+35|<code>u32str_btree_set</code>
+36|<code>char32_t</code>
+37|<code>basic_str_btree_set&lt;char32_t&gt;</code>
+38|<code>zu_str_btree_map</code>
+39|<code>char</code>，映射到 <code>::std::size_t</code>
+40|<code>basic_str_btree_map&lt;char, ::std::size_t&gt;</code>
+41|六个容器全都遵循同样的模式 &mdash; <code>str_</code>、<code>wstr_</code>、<code>u8str_</code>、<code>u16str_</code>、<code>u32str_</code> &mdash; 而 <code>zu_str_swiss_map</code> 就是 <code>zu_str_btree_map</code> 的 Swiss 表对应物。完整类型还要接受分配器，对 B 树家族还要接受结点扇出（默认 16，必须是非零偶数）：
+42|<strong>为什么扇出是模板参数。</strong>它是 B 树唯一暴露的调优旋钮，而合适的取值取决于你的键和映射值的规模。保持默认值是正确的；只有当你测出了理由才去改它。
+43|5. 头文件
+44|每个容器一个头文件，如果还想打印就再加 <code>&lt;fast_io.h&gt;</code>：
+45|所有内容都在 <code>::fast_io</code> 命名空间里。底层实现上，类模板位于 <code>::fast_io::containers</code>；只有当你需要写出分配器或扇出时才会用到那个命名空间。
+46|6. 键是拥有的，查找只用视图
+47|这是唯一一条决定你写每一行代码的设​​计决策，所以值得讲清楚。
+48|<strong>插入会复制键。</strong>容器为这些字符加上一个结尾的 <code>'\0'</code> 分配空间并复制它们，它<em>不会</em>保留你的指针。循环里的局部字符串、一个临时的 <code>::fast_io::string</code>、你先前读入的文件中的一小段 &mdash; 它们都可以安全地插入，然后就可以消亡：
+49|<strong>查表只接受视图。</strong><code>contains</code>、<code>find</code>、<code>erase_key</code> 等等都接受 <code>::fast_io::string_view</code>（指针 + 长度）。不发生任何分配，也不复制任何东西，你永远不需要把查找键包进 <code>::fast_io::string</code>：
+50|<strong>遍历交给你的同样是视图。</strong>解引用集合的迭代器得到一个 <code>::fast_io::cstring_view</code>，指向容器自己那份键的副本 &mdash; 以空字符结尾、打印便宜，并且只在该元素存在期间有效（第10.11章）。
+51|<strong>字符串字面量可以转换，<code>char const *</code> 不行。</strong>视图类型有一个从数组（<code>char const (&amp;)[N]</code>）的隐式构造函数，这就是 <code>insert_key("alpha")</code> 能编译的原因。而一个普通的指针变量没有这样的构造函数：
+        <pre><code class="language-cpp">
+char const *p = "alpha";
+s.insert_key(p);                               // error: no conversion
+s.insert_key(::fast_io::mnp::os_c_str(p));     // fine: null-terminated C string
+</code></pre>
+        打印也是如此：<code>println(p)</code> 不能编译，<code>println(::fast_io::mnp::os_c_str(p))</code> 可以。这是刻意设计的 &mdash; 裸指针并不说明字符串有多长，而两种不同的回答对应两种不同的包装器（<code>os_c_str</code> 用于以空字符结尾的字符串，<code>os_str_known_size_without_null_terminated</code> 用于你已经知道长度的情形）。
+52|要点
+53|关联容器按键查找元素，而不是按位置。
+54|<strong>集合</strong>存放键；<strong>映射</strong>存放键和值，通过 <code>key()</code> / <code>mapped()</code> 访问。
+55|B 树（<code>str_btree_*</code>）保持键有序，因此支持范围查询以及 <code>front()</code>/<code>back()</code>。
+56|Swiss 表（<code>str_swiss_*</code>）对键做哈希，因此有 <code>size()</code>、<code>capacity()</code>、<code>reserve()</code>，但没有顺序。
+57|有序统计 B 树（<code>str_ranked_btree_*</code>）是同时记录子树规模的 B 树（第10.8章）。
+58|插入会把键复制进容器；查找只传视图，因此查找永不分配内存。
+59|每个容器的键都有 <code>str_</code> / <code>wstr_</code> / <code>u8str_</code> / <code>u16str_</code> / <code>u32str_</code> 变体。
+60|<a href="/docs/10.associativecontainers/" class="prev-button">&larr; 第10章: 关联容器</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/10.associativecontainers/02.create/" class="next-button">第10.2章: 创建与插入 &rarr;</a>

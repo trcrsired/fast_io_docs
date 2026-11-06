@@ -1,0 +1,33 @@
+1|第10.6章: 删除 - 使用 fast_io 学习 C++ 教程
+2|第10.6章: 删除
+3|1. 按键删除
+4|<code>erase_key(key)</code> 删除键为指定值的元素，并返回删掉了多少个元素 &mdash; <code>1</code> 或 <code>0</code>：
+5|删除一个不存在的键<strong>不是</strong>错误。如果你需要知道它原本在不在，就看返回值，或者在那样写更易读时先调用 <code>contains</code>。删除本身从不需要迭代器，也从不分配内存。
+6|2. 按迭代器删除
+7|<code>erase(it)</code> 删除迭代器所指的元素，并返回指向<strong>下一个</strong>元素的迭代器 &mdash; 即在顺序中接替被删位置的那个元素：
+8|返回下一个位置，正是“边遍历边删除”的循环无需手动自增就安全的原因。下面的循环删除所有以 <code>"tmp"</code> 开头的键：
+9|<strong>在 <code>erase(it)</code> 之后绝不要 <code>++it</code>。</strong>你传进去的迭代器在元素销毁的那一刻就失效了，只有返回的迭代器可用。写成 <code>s.erase(it); ++it;</code> 是释放后使用，而且没有任何机制会替你发现它。
+10|删除一个范围
+11|<code>erase(first, last)</code> 删除左闭范围 <code>[first, last)</code> &mdash; 从 <code>first</code> 开始、到但不包括 <code>last</code> 的每个元素 &mdash; 并返回指向 <code>last</code> 原本所指元素的迭代器：
+12|当 <code>last == cend()</code> 时，从 <code>first</code> 到末尾的全部被删除，返回的迭代器是 <code>cend()</code>。
+13|3. 删除全部
+14|两者都是 <code>noexcept</code>，在空容器上也安全。在 <code>clear()</code> 之后的插入行为与在新容器里完全一样；<code>clear_destroy()</code> 还会额外释放容器为自身管理信息分配的内存，这正是让一个大容器长时间闲置之前该做的事。
+15|4. 一条语句，一次修改
+16|C++ 没有规定函数参数的求值顺序。这会让下面这行变成 bug：
+17|你先拿到的是删除前还是删除后的大小，取决于编译器。把修改和查看拆成两条语句，问题就消失了：
+18|<strong>这不是容器特有的问题。</strong>任何既修改状态又报告状态的调用都会遇到同样的问题。“一条语句，一次修改”这条风格规则不花代价，却能消除整整一类问题。
+19|5. 删除会使什么失效
+20|删除会销毁元素，所以所有指向<em>那个</em>元素的东西都失效了：它的迭代器，以及你从它那里取得的任何键视图或映射值引用。在 B 树家族中，从<em>其他</em>元素取得的视图不受删除影响，因为插入与删除搬移的是整棵子树，而不是把元素挪来挪去。
+21|在 Swiss 表家族中，一次删除可能把某个元素搬进它留下的空洞，因此一旦你修改了表，就把任何指向表内的引用视为已失效。对六个容器都成立的那条规则是：
+22|迭代器、键视图或映射值引用，在该元素被删除之前都有效；或者在容器被清空、被移动之后（Swiss 表则在表增长/重构之后）失效。
+23|在 <code>erase</code> 之后，只有返回的迭代器是已知可用的。
+24|如果你又需要一个迭代器，就重新查一次键 &mdash; 查找很便宜。
+25|要点
+26|<code>erase_key(key)</code> 按键删除并返回 0 或 1；删一个不存在的键是无害的。
+27|<code>erase(it)</code> 按位置删除并返回指向下一个元素的迭代器。
+28|<code>erase(first, last)</code> 删除左闭范围并返回 <code>last</code> 的位置。
+29|边遍历边删除：把结果赋回去，之后绝不再自增。
+30|<code>clear()</code> 与 <code>clear_destroy()</code> 都是 <code>noexcept</code>，任何时候都能调用。
+31|绝不要在同一条语句里混合修改与查询 &mdash; 实参求值顺序是未指定的。
+32|删除之后只有返回的迭代器有效；指向被删元素的视图都已失效。
+33|<a href="/docs/10.associativecontainers/05.iterate/" class="prev-button">&larr; 第10.5章: 遍历</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/10.associativecontainers/07.maps/" class="next-button">第10.7章: 映射 &rarr;</a>

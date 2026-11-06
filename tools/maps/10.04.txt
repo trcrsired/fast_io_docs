@@ -1,0 +1,41 @@
+1|第10.4章: 按键查找 - 使用 fast_io 学习 C++ 教程
+2|第10.4章: 按键查找
+3|1. 两个问题
+4|每次查找都在回答两个问题中的一个，各有一个函数对应：
+5|<strong>“这个键在不在？”</strong> &mdash; <code>contains(key)</code> 返回 <code>bool</code>。大多数时候你要的就是这个。
+6|<strong>“这个键在哪里？”</strong> &mdash; <code>find(key)</code> 返回一个迭代器，你拿它与 <code>cend()</code> 比较。
+7|两者都接受<strong>视图</strong>，所以查找时既不分配也不复制。字符串字面量可以直接用：
+8|<code>count</code> 之所以存在，是因为同样的代码形状也会用在键可能重复的其他容器上；在这里它就是结果类型为大小的 <code>contains</code>。只要“有/没有”，就用 <code>contains</code>。
+9|<strong><code>find_key</code> 是 <code>find</code> 的同义词。</strong>B 树容器两个名字都提供。Swiss 表容器只提供 <code>find_key</code>，因为 <code>find</code> 会与“按值查找<em>元素</em>”的普通容器约定冲突。既然你总是知道自己找的是什么，那就用 <code>find_key</code>，代码就能在六个容器之间通用。
+10|2. <code>find</code> 和它返回的迭代器
+11|<code>find</code> 返回的迭代器要么指向该元素，要么是 <code>cend()</code>。解引用元素得到 <code>::fast_io::cstring_view</code> &mdash; 容器自己那份键的副本：
+12|与 <code>cend()</code> 比较就是惯用法。没有 <code>npos</code>、没有下标、没有可空指针：等于 <code>cend()</code> 的迭代器就是“未找到”的结果。
+13|<strong>不要解引用 <code>cend()</code>。</strong>那句 <code>if (it == s.cend())</code> 检查不是可有可无的礼貌 &mdash; 没有指向元素的迭代器什么也给不了你。
+14|3. 范围查询（仅 B 树家族）
+15|因为 B 树保持键有序，它能回答关于键的<em>范围</em>的问题。Swiss 表容器做不到，这也是选择 B 树的主要理由。
+16|调用
+17|返回什么的位置
+18|<code>lower_bound(k)</code>
+19|第一个<strong>不小于</strong> <code>k</code> 的键
+20|<code>upper_bound(k)</code>
+21|第一个<strong>大于</strong> <code>k</code> 的键
+22|<code>equal_range(k)</code>
+23|两者，打包在 <code>.first</code> 与 <code>.second</code> 中
+24|键按纯字节串比较，所以 <code>"user:101"</code> 排在 <code>"user:42"</code> <strong>之前</strong>：<code>'1'</code> &lt; <code>'4'</code>。排序是字典序，不是数值序。如果你需要数字按数值排序，就把它们补齐到固定宽度，或者把数值部分存到别处。
+25|扫描前缀
+26|“所有以 <code>user:</code> 开头的键”就是 <code>lower_bound</code> 加一个带提前退出的循环。<code>lower_bound</code> 把你放到第一个候选处；只要前缀仍然匹配就继续：
+27|这次扫描的代价是查找加上每个匹配键一步 &mdash; 你永远不会走过不匹配的键。
+28|4. 完整配方
+29|把上面组合起来，一次带合理兜底的查找长这样：
+30|有两点值得注意。第一，参数是 <code>::fast_io::string_view</code>，不是 <code>::fast_io::string</code>，也不是 <code>::fast_io::cstring_view</code>：查找从不需要所有权，而普通视图是要求最弱的形式，任何调用者都能把手里有的东西传进来。第二，函数是 <code>noexcept</code> &mdash; 在默认分配器下，六个容器中的所有查找都是 <code>noexcept</code>，因为查找既不能分配也不能失败（第10.11章）。
+31|当容器是 <code>const</code> 时，你得到的是 <code>const_iterator</code> &mdash; 从非 const 的集合上得到的也是它，因为集合的键是不可变的。对映射来说，非 const 容器给出的 <code>iterator</code> 的 <code>mapped()</code> 是可以写入的（第10.7章）。
+32|要点
+33|查找接受视图：不分配、不复制，字面量可直接使用。
+34|<code>contains(key)</code> 回答“有/没有”；<code>count(key)</code> 是 0 或 1。
+35|<code>find</code> / <code>find_key</code> 返回迭代器；与 <code>cend()</code> 比较，解引用得到 <code>cstring_view</code>。
+36|Swiss 容器只有 <code>find_key</code>；为了代码通用，请处处使用这个名字。
+37|<code>lower_bound</code> / <code>upper_bound</code> / <code>equal_range</code> 只存在于 B 树家族。
+38|前缀扫描就是 <code>lower_bound(prefix)</code> 加一个在前缀不再匹配时停止的循环。
+39|键按字节排序：<code>"user:101"</code> 在 <code>"user:42"</code> 之前。
+40|在默认分配器下所有查找都是 <code>noexcept</code>。
+41|<a href="/docs/10.associativecontainers/03.contains/" class="prev-button">&larr; 第10.3章: contains()</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/10.associativecontainers/05.iterate/" class="next-button">第10.5章: 遍历 &rarr;</a>

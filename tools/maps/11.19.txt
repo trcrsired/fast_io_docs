@@ -1,0 +1,32 @@
+1|第11.19章: 临时文件 - 使用 fast_io 学习 C++ 教程
+2|第11.19章: 临时文件
+3|概述
+4|临时文件用于存放只需短暂存在的数据。<code>fast_io</code> 提供 <code>::fast_io::io_temp</code> 来创建关闭时自动删除的临时文件。
+5|创建临时文件
+6|要创建临时文件，把 <code>::fast_io::io_temp</code> 传给任何文件类型的构造函数。文件被创建在系统的临时目录里（例如 Unix 上的 <code>/tmp</code>，Windows 上的 <code>%TEMP%</code>）。当文件对象离开作用域时，文件被自动关闭并删除。
+7|<code>::fast_io::io_temp</code> 可用于任何文件类型：
+8|<strong>重要：</strong>临时文件只在文件对象存活期间存在。一旦它离开作用域，文件就被关闭并从文件系统中删除。这就是 RAII &mdash; 你永远不会忘记清理临时文件。
+9|从临时文件读取
+10|你也可以从临时文件读。由于临时文件是以读写权限打开的，你可以写入数据、定位回开头，然后读出来：
+11|临时文件与普通文件的区别
+12|为什么要用 <code>io_temp</code>，而不是直接打开一个普通文件？
+13|<strong>自动清理：</strong>对象离开作用域时文件被删除，即使抛出了异常也是如此。
+14|<strong>安全的位置：</strong>文件被创建在系统的临时目录里，那正是临时数据该在的地方。
+15|<strong>不会重名：</strong>系统会生成唯一的名字，所以你不必操心挑选文件名。
+16|<strong>安全性：</strong>在某些系统上，临时文件以受限的权限创建。
+17|与此对比，C 标准库的 <code>tmpfile()</code> 也会创建临时文件，但返回一个你必须手动关闭的 <code>FILE*</code>：
+18|用 <code>fast_io</code> 的 <code>io_temp</code>，你得到的是 RAII 语义 &mdash; 文件被自动清理，你永远不会忘记调用 <code>fclose</code>。
+19|什么时候该用临时文件
+20|临时文件适用于：
+21|<strong>中间结果：</strong>处理大数据集时，你可以把中间结果写入临时文件，而不是全部留在内存里。
+22|<strong>缓存：</strong>缓存那些重新计算代价很高的结果。
+23|<strong>进程间通信：</strong>写入另一个进程要读的数据（尽管管道或共享内存往往更好）。
+24|<strong>测试：</strong>为单元测试创建临时文件，而不污染文件系统。
+25|要点
+26|<code>::fast_io::io_temp</code> 是传给文件构造函数的标签，用于在系统临时目录中创建临时文件。
+27|文件对象离开作用域时，临时文件被自动删除。Linux 上使用 <code>O_TMPFILE</code>；Windows 上使用 <code>FILE_FLAG_DELETE_ON_CLOSE</code>。
+28|对只需短暂存在的数据使用 <code>io_temp</code> &mdash; 你永远不会忘记清理。
+29|临时文件以读写权限打开。在读写之间切换时用 <code>rewind</code> 或 <code>seek</code>。
+30|优先用 <code>io_temp</code>，而不是用普通文件 API 手动管理临时文件。
+31|每种文件类型都接受 <code>io_temp</code> &mdash; <code>native_file</code>、<code>obuf_file</code>、<code>iobuf_file</code>、<code>c_file</code> 等。
+32|<a href="/docs/11.io/18.filesystem/" class="prev-button">&larr; 第11.18章: 文件系统 API</a> <a href="/" class="main-button">&uarr; 主页</a>

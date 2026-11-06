@@ -1,0 +1,66 @@
+1|第10.5章: 遍历 - 使用 fast_io 学习 C++ 教程
+2|第10.5章: 遍历
+3|1. range-for，以及你会拿到什么
+4|遍历就是用 <code>begin()</code>/<code>end()</code> 写 range-for，和其他容器一样。元素<em>是什么</em>，在集合和映射之间不同：
+5|容器
+6|<code>*it</code> 给出
+7|读键
+8|读/写值
+9|<code>str_btree_set</code>、<code>str_ranked_btree_set</code>
+10|<code>::fast_io::cstring_view</code>
+11|值本身就是键
+12|没有值
+13|<code>str_swiss_set</code>
+14|<code>::fast_io::cstring_view</code>
+15|值本身就是键
+16|没有值
+17|<code>str_btree_map&lt;M&gt;</code>、<code>str_ranked_btree_map&lt;M&gt;</code>
+18|带 <code>key()</code> / <code>mapped()</code> 的代理对象
+19|<code>e.key()</code>
+20|<code>e.mapped()</code>（可写）
+21|<code>str_swiss_map&lt;M&gt;</code>
+22|对键/值对的引用
+23|<code>e.key()</code>
+24|<code>e.mapped()</code>（通过非 const 迭代器可写）
+25|<strong>没有 <code>first</code> 和 <code>second</code>。</strong>映射元素不是 <code>pair</code>。它有 <code>key()</code> 和 <code>mapped()</code>，仅此而已。写成 <code>e.key()</code>，代码就说清了读的是什么；写成 <code>e.first</code>，你就得记着哪一半是哪一半。
+26|2. 顺序
+27|B 树家族按键<strong>升序</strong>遍历，一贯如此。这是你可以依赖的保证，而不是实现细节：依次插入 <code>"c"</code>、<code>"a"</code>、<code>"b"</code> 之后，上面的循环会打印 <code>a</code>、<code>b</code>、<code>c</code>。
+28|Swiss 表家族<strong>不</strong>作任何顺序保证。顺序由键的哈希决定，所以对相同输入它是可复现的 &mdash; 但它不是有序的，并且会在表增长或你删除元素时改变。绝不要写出依赖这个序列的代码：
+29|如果你需要从 Swiss 表得到有序结果，就把键复制到一个 vector 里再排序；不要指望遍历顺序。
+30|3. 反向遍历
+31|要倒着走元素，把容器包进 <code>::std::ranges::reverse_view</code>。它是一个视图，因此不复制任何东西，并且对六个容器都适用：
+32|对 B 树来说这意味着键降序。对 Swiss 表来说它只是“同样的任意顺序，反过来”。
+33|同一个视图也能用在集合上，那里元素本身就是键：
+34|<strong>优先用这个视图，而不是手动调用 <code>rbegin()</code>。</strong>写成 <code>for (auto it{m.crbegin()}; it != m.crend(); ++it)</code> 的循环也能用，但视图在使用范围的地方就表达了“把它倒着遍历”，并且不会把 <code>crend()</code> 的比较写错。当你想把迭代器写出来时，用 <code>crbegin()</code>/<code>crend()</code>：它们是 const 的那一对，因此对 <code>const</code> 和非 <code>const</code> 容器都适用。
+35|4. 第一个与最后一个元素
+36|B 树家族有 <code>front()</code> 和 <code>back()</code>，分别给出最小和最大的键，且是常数时间 &mdash; 不需要遍历：
+37|对集合来说它们直接返回键视图：<code>println(s.front());</code>。两者都是带检查的：在空容器上调用它们是违反契约，会终止程序（如果你选择了会抛异常的分配器，则抛出 <code>::std::errc::invalid_argument</code> &mdash; 第10.11章）。
+38|Swiss 表没有 <code>front()</code>/<code>back()</code>，因为离开顺序，“第一个”和“最后一个”毫无意义。它的 <code>begin()</code> 指向按表顺序第一个被占用的槽位。
+39|5. 统计 B 树中的元素个数
+40|B 树容器不保存元素总数，因此没有 <code>size()</code>。如果你写了，编译器会告诉你：
+41|这不是疏忽。在每次插入、删除和结点合并时都维护一个计数器，会在热路径上付出代价，而大多数程序从不需要这个数字。当你确实需要时，就遍历：
+42|如果“一共有多少元素”是你的程序经常问的问题，那就用会保存这个答案的容器：<code>str_ranked_btree_set</code> / <code>str_ranked_btree_map</code> 有 <code>size()</code>（第10.8章），Swiss 表容器也有（第10.9章）。
+43|容器
+44|<code>is_empty()</code>
+45|<code>size()</code>
+46|<code>front()</code>/<code>back()</code>
+47|<code>str_btree_set</code> / <code>str_btree_map</code>
+48|有
+49|没有
+50|有
+51|<code>str_ranked_btree_set</code> / <code>str_ranked_btree_map</code>
+52|有
+53|有
+54|有
+55|<code>str_swiss_set</code> / <code>str_swiss_map</code>
+56|有
+57|有
+58|没有
+59|要点
+60|用 range-for 遍历；集合给出 <code>cstring_view</code>，映射给出带 <code>key()</code> 与 <code>mapped()</code> 的元素。
+61|映射元素里没有 <code>first</code>/<code>second</code>。
+62|B 树的遍历按键升序 &mdash; 有保证。Swiss 表的遍历无序 &mdash; 绝不要依赖。
+63|用 <code>::std::ranges::reverse_view</code> 反向遍历；它对六个容器都适用。
+64|B 树家族的 <code>front()</code>/<code>back()</code> 给出最小/最大的键，带检查、常数时间。
+65|B 树容器没有 <code>size()</code>；用 <code>::std::ranges::distance</code> 统计，或者选一个会记录它的容器。
+66|<a href="/docs/10.associativecontainers/04.lookup/" class="prev-button">&larr; 第10.4章: 按键查找</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/10.associativecontainers/06.erase/" class="next-button">第10.6章: 删除 &rarr;</a>

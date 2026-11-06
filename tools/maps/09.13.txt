@@ -1,0 +1,42 @@
+1|第9.13章: string_view 与 cstring_view - 使用 fast_io 学习 C++ 教程
+2|第9.13章: string_view 与 cstring_view
+3|概述
+4|<code>::fast_io::string_view</code> 与 <code>::fast_io::cstring_view</code> 都是对字符序列的非拥有视图。它们很轻（指针 + 大小），不需要复制。关键区别在于 <code>cstring_view</code> 保证以空字符结尾。
+5|<em> 字符串视图还有许多其他操作（查找、修剪、比较等）。你可以<strong>先跳过这些细节</strong>，需要时再回到<a href="#appendix">附录第9.13.1节</a>。 </em>
+6|1. basic_string_view
+7|<code>string_view</code> 就是一个指针加一个大小。用它把字符串传给函数，不产生额外开销：
+8|字符类型变体
+9|别名
+10|字符类型
+11|<code>::fast_io::string_view</code>
+12|<code>char</code>
+13|<code>::fast_io::wstring_view</code>
+14|<code>wchar_t</code>
+15|<code>::fast_io::u8string_view</code>
+16|<code>char8_t</code>
+17|<code>::fast_io::u16string_view</code>
+18|<code>char16_t</code>
+19|<code>::fast_io::u32string_view</code>
+20|<code>char32_t</code>
+21|2. cstring_view
+22|<code>::fast_io::cstring_view</code> 是带<strong>空字符结尾保证</strong>的 <code>string_view</code>。它可以由 <code>string</code>（始终以空字符结尾）和字符串字面量构造。在与 C API 交互时使用它：
+23|3. 悬空的 string_view
+24|<code>string_view</code> 不拥有它的数据。它只是一个指针加一个大小 &mdash; 如果底层缓冲区被搬移或释放，这个视图就会<strong>悬空</strong>。
+25|安全的部分：临时量不会造成悬空
+26|<code>fast_io::string_view</code> 与 <code>fast_io::span</code> 只接受<strong>左值引用</strong>。这意味着你无法意外地从临时量创建视图 &mdash; 编译器会拒绝：
+27|因此其他语言里那种经典的悬空模式在这里不可能出现。编译器保护你不受指向已销毁对象的视图之害。
+28|危险的部分：重新分配会使视图失效
+29|<strong>危险：</strong>指向某个 <code>string</code> 的 <code>string_view</code> 会在该 <code>string</code> <strong>重新分配</strong>时悬空。<code>push_back()</code>、<code>insert_index()</code>、<code>replace_index()</code>、<code>append()</code> 以及 <code>operator+=</code> 等操作都可能触发重新分配，把缓冲区搬到新的内存。已有的 <code>string_view</code> 仍然指向旧的（已释放的）缓冲区。
+30|对指向 <code>vector</code> 或 <code>deque</code> 的 <code>span</code> 也是如此：任何使容器增长的操都可能使已有视图失效。
+31|<strong>经验法则：</strong>不要跨任何可能修改底层容器的操作持有 <code>string_view</code>（或 <code>span</code>）。
+32|要在测试期间发现悬空视图，可以使用 <strong>Wasm MemTag</strong>（WebAssembly 内存标记）。在启用内存标记的情况下编译到 Wasm 后，对已释放内存的访问会在运行期被捕获，从而使悬空视图的 bug 可被发现。
+33|要点
+34|<code>string_view</code> 是只含指针和大小的非拥有视图，传递时不产生额外开销。
+35|<code>cstring_view</code> 额外保证以空字符结尾，便于与 C API 互操作。
+36|所有字符类型变体都可用：<code>string_view</code>、<code>wstring_view</code>、<code>u8string_view</code> 等。
+37|<code>string_view</code> 的迭代器总是 const（不可变视图）。
+38|<code>string_view</code> 只绑定左值引用 &mdash; 编译器阻止从临时量产生悬空。
+39|不过，当底层 <code>string</code> 重新分配时（通过 <code>insert_index</code>、<code>replace_index</code>、<code>append</code> 等），<code>string_view</code> 仍会悬空。不要跨修改操作持有视图。
+40|测试时用 Wasm MemTag 检测悬空视图。
+41|完整的操作参考见<a href="01.ops/">附录第9.13.1节</a>。
+42|<a href="/docs/09.seqcontainers/12.string/" class="prev-button">&larr; 第9.12章: string</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/09.seqcontainers/14.adapters/" class="next-button">第9.14章: 适配器 &rarr;</a>

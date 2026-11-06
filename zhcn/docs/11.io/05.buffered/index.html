@@ -3,85 +3,73 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.5: Buffered vs Unbuffered I/O - C++ Tutorial with fast_io</title>
+  <title>第11.5章: 带缓冲与不带缓冲的 I/O - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.5: Buffered vs Unbuffered I/O</h1>
+    <h1>第11.5章: 带缓冲与不带缓冲的 I/O</h1>
     <p class="lang-switch"><a href="/docs/11.io/05.buffered/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        <code>fast_io</code> provides two families of file types that differ in
-        a single, critical way: <strong>buffering</strong>. Choosing the right
-        one can be the difference between a program that runs in milliseconds
-        and one that takes seconds.
+        <code>fast_io</code> 提供两个文件类型家族，它们的区别在于一点关键之处：<strong>是否带缓冲</strong>。选对了，程序可能几毫秒就跑完；选错了，就要跑上几秒。
       </p>
     </section>
 
     <section>
-      <h2>1. The Two Families</h2>
+      <h2>1. 两个家族</h2>
       <table>
         <thead>
           <tr>
-            <th>Type</th>
-            <th>Direction</th>
-            <th>Buffered?</th>
-            <th>Best For</th>
+            <th>类型</th>
+            <th>方向</th>
+            <th>带缓冲？</th>
+            <th>最适合</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::native_file</code></td>
-            <td>In / Out</td>
-            <td>No (unbuffered)</td>
-            <td>Large bulk transfers</td>
+            <td>输入 / 输出</td>
+            <td>不带（无缓冲）</td>
+            <td>大批量数据传输</td>
           </tr>
           <tr>
             <td><code>::fast_io::ibuf_file</code></td>
-            <td>Input only</td>
-            <td>Yes</td>
-            <td>Many small reads</td>
+            <td>仅输入</td>
+            <td>带</td>
+            <td>大量小的读取</td>
           </tr>
           <tr>
             <td><code>::fast_io::obuf_file</code></td>
-            <td>Output only</td>
-            <td>Yes</td>
-            <td>Many small writes</td>
+            <td>仅输出</td>
+            <td>带</td>
+            <td>大量小的写入</td>
           </tr>
           <tr>
             <td><code>::fast_io::iobuf_file</code></td>
-            <td>In / Out</td>
-            <td>Yes</td>
-            <td>Mixed small reads and writes</td>
+            <td>输入 / 输出</td>
+            <td>带</td>
+            <td>混合的小规模读写</td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>2. native_file &mdash; Unbuffered (one syscall per operation)</h2>
+      <h2>2. native_file &mdash; 不带缓冲（每次操作一次系统调用）</h2>
       <p>
-        <code>native_file</code> is a thin wrapper over the OS file handle.
-        Every <code>write_some</code> or <code>read_some</code> call goes
-        <strong>directly to the kernel</strong>. There is no user-space buffer
-        between your code and the OS.
+        <code>native_file</code> 是 OS 文件句柄之上的一层薄包装。每次 <code>write_some</code> 或 <code>read_some</code> 调用都<strong>直接进入内核</strong>，你的代码和操作系统之间没有用户态缓冲区。
       </p>
       <p>
-        This is fine &mdash; even ideal &mdash; when you are transferring large
-        blocks of data (e.g. reading a 1&nbsp;MiB chunk at a time). The syscall
-        overhead is negligible compared to the amount of data moved.
+        当你传输大块数据时（例如一次读 1&nbsp;MiB），这没问题 &mdash; 甚至是最理想的。与搬移的数据量相比，系统调用的开销可以忽略。
       </p>
       <p>
-        It is <strong>disastrously slow</strong> when you issue many small
-        operations. Each <code>char_put</code> or small <code>print</code>
-        becomes a separate syscall, and context-switching into the kernel
-        dominates the runtime.
+        但当你发起大量小操作时，它<strong>慢得灾难性</strong>。每次 <code>char_put</code> 或小的 <code>print</code> 都变成一次单独的系统调用，而切入内核的上下文切换主导了运行时间。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -105,19 +93,12 @@ int main() {
     </section>
 
     <section>
-      <h2>3. iobuf_file &mdash; Buffered (user-space batching)</h2>
+      <h2>3. iobuf_file &mdash; 带缓冲（用户态批处理）</h2>
       <p>
-        <code>iobuf_file</code> (and its input/output-only siblings) wraps the
-        native handle with a <strong>user-space buffer</strong>, typically
-        several KiB in size. Writes accumulate in this buffer; only when the
-        buffer fills does <code>fast_io</code> issue a single large syscall to
-        flush it. Reads work the same way in reverse: one syscall fetches a
-        large block, and subsequent <code>char_get</code> calls serve from the
-        buffer.
+        <code>iobuf_file</code>（以及仅输入/仅输出的兄弟姐妹）用一个<strong>用户态缓冲区</strong>包裹原生句柄，通常有几 KiB。写入先积累在这个缓冲区里；只有当缓冲区填满时，<code>fast_io</code> 才发起一次大的系统调用把它刷新出去。读取则反过来同理：一次系统调用取回一大块，后续的 <code>char_get</code> 调用直接从缓冲区取。
       </p>
       <p>
-        This turns thousands of tiny syscalls into a handful of large ones,
-        which is dramatically faster.
+        这把成千上万次微小的系统调用变成少数几次大的系统调用，速度快得多。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -136,54 +117,46 @@ int main() {
 }
 </code></pre>
       <p>
-        For <code>iobuf_file</code> (bidirectional), the input and output buffers are
-        <strong>tied together</strong>: whenever the input buffer needs to fetch more data
-        from the file, it first flushes any pending output. This means you can safely
-        alternate between reading and writing without manually calling <code>flush</code>.
+        对 <code>iobuf_file</code>（双向）来说，输入缓冲区和输出缓冲区是<strong>绑定在一起的</strong>：只要输入缓冲区需要从文件取更多数据，它就会先刷新任何待输出的内容。这意味着你可以安全地在读写之间交替，而不必手动调用 <code>flush</code>。
       </p>
     </section>
 
     <section>
-      <h2>4. Conceptual Benchmark</h2>
+      <h2>4. 概念性基准</h2>
       <p>
-        The following conceptual numbers illustrate the difference. Writing
-        1&nbsp;MiB one byte at a time on a modern Linux system:
+        下面的概念性数字用来说明差异。在现代 Linux 系统上按每字节一次写入 1&nbsp;MiB：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Device</th>
-            <th>Syscalls Issued</th>
-            <th>Approximate Time</th>
+            <th>设备</th>
+            <th>发起的系统调用次数</th>
+            <th>大致耗时</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>native_file</code></td>
             <td>1&nbsp;048&nbsp;576</td>
-            <td>~200&ndash;500&nbsp;ms</td>
+            <td>约 200&ndash;500&nbsp;ms</td>
           </tr>
           <tr>
             <td><code>obuf_file</code></td>
-            <td>~16 (one per 64&nbsp;KiB buffer fill)</td>
-            <td>~1&ndash;3&nbsp;ms</td>
+            <td>约 16 次（每填满 64&nbsp;KiB 缓冲区一次）</td>
+            <td>约 1&ndash;3&nbsp;ms</td>
           </tr>
         </tbody>
       </table>
       <p>
-        That is a <strong>100&times;&ndash;500&times; speedup</strong> for the
-        exact same bytes written. The difference is purely the cost of
-        syscalls.
+        写的是完全相同的字节，却有<strong>100&times;&ndash;500&times; 的加速</strong>。差别纯粹来自系统调用的代价。
       </p>
       <p>
-        For large bulk transfers (reading or writing megabytes at a time),
-        the two are comparable because the syscall overhead is amortized over
-        a lot of data. The gap only appears with many small operations.
+        对大批量传输（一次读写若干兆字节）来说，两者相当，因为系统调用开销被大量数据摊薄了。差距只在大量小操作时才出现。
       </p>
     </section>
 
     <section>
-      <h2>5. Side-by-Side Example</h2>
+      <h2>5. 并排对比示例</h2>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
@@ -239,59 +212,57 @@ int main() {
     </section>
 
     <section>
-      <h2>6. When to Use Which</h2>
+      <h2>6. 何时用哪个</h2>
       <table>
         <thead>
           <tr>
-            <th>Scenario</th>
-            <th>Use</th>
+            <th>场景</th>
+            <th>使用</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Copying multi-megabyte blobs in large chunks</td>
-            <td><code>native_file</code> (bulk transfer, no buffer overhead)</td>
+            <td>以大块复制多兆字节的数据</td>
+            <td><code>native_file</code>（批量传输，没有缓冲区开销）</td>
           </tr>
           <tr>
-            <td>Reading a file line by line with <code>getline</code></td>
+            <td>用 <code>getline</code> 逐行读文件</td>
             <td><code>ibuf_file</code></td>
           </tr>
           <tr>
-            <td>Writing millions of small records, integers, or characters</td>
+            <td>写上百万条小记录、整数或字符</td>
             <td><code>obuf_file</code></td>
           </tr>
           <tr>
-            <td>Reading then writing to the same file (e.g. patching a header)</td>
+            <td>先读再写同一个文件（例如修改文件头）</td>
             <td><code>iobuf_file</code></td>
           </tr>
           <tr>
-            <td>Single-character or single-byte writes in a loop</td>
-            <td><code>obuf_file</code> &mdash; <em>never</em> <code>native_file</code></td>
+            <td>在循环里逐字符或逐字节写</td>
+            <td><code>obuf_file</code> &mdash; <em>绝不要</em>用 <code>native_file</code></td>
           </tr>
           <tr>
-            <td>Memory-mapped / zero-copy bulk I/O</td>
-            <td><code>native_file</code> + <code>file_loader</code> (see Ch11.8)</td>
+            <td>内存映射 / 无复制的大块 I/O</td>
+            <td><code>native_file</code> + <code>file_loader</code>（见第11.8章）</td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li><code>::fast_io::native_file</code> is <strong>unbuffered</strong>: every read or write is a syscall. Fast for large bulk transfers, catastrophically slow for many small operations.</li>
-        <li><code>::fast_io::iobuf_file</code> (and <code>ibuf_file</code> / <code>obuf_file</code>) are <strong>buffered</strong>: they batch small operations in a user-space buffer and flush with a single syscall when full &mdash; orders of magnitude faster for small I/O.</li>
-        <li>Use <code>ibuf_file</code> for input-only, <code>obuf_file</code> for output-only, <code>iobuf_file</code> for bidirectional I/O.</li>
-        <li>Rule of thumb: if your individual read/write size is smaller than the buffer (typically 4&ndash;64&nbsp;KiB), use a buffered type. If you are already moving data in multi-KiB chunks, <code>native_file</code> avoids the extra buffer copy.</li>
-        <li>Never use <code>native_file</code> with <code>char_put</code> in a loop &mdash; use <code>obuf_file</code> instead.</li>
+        <li><code>::fast_io::native_file</code> <strong>不带缓冲</strong>：每次读写都是一次系统调用。大批量传输时快，大量小操作时慢得灾难性。</li>
+        <li><code>::fast_io::iobuf_file</code>（以及 <code>ibuf_file</code> / <code>obuf_file</code>）<strong>带缓冲</strong>：在用户态缓冲区里把小的操作攒起来，满了用一次系统调用刷出 &mdash; 对小规模 I/O 快上数量级。</li>
+        <li>仅输入用 <code>ibuf_file</code>，仅输出用 <code>obuf_file</code>，双向 I/O 用 <code>iobuf_file</code>。</li>
+        <li>经验法则：如果你单次读写的规模小于缓冲区（通常 4&ndash;64&nbsp;KiB），就用带缓冲的类型。如果你本来就在按几 KiB 的块搬数据，<code>native_file</code> 能省掉多一次缓冲区复制。</li>
+        <li>绝不要在循环里用 <code>native_file</code> 配 <code>char_put</code> &mdash; 改用 <code>obuf_file</code>。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/04.operations/" class="prev-button">&larr; Ch11.4: I/O Operations</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/06.mutex/" class="next-button">Ch11.6: Mutex &rarr;</a>
+      <a href="/zhcn/docs/11.io/04.operations/" class="prev-button">&larr; 第11.4章: I/O 操作</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/06.mutex/" class="next-button">第11.6章: 互斥 &rarr;</a>
     </div>
   </main>
 </body>

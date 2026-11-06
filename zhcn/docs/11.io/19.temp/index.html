@@ -3,33 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.19: Temporary Files - C++ Tutorial with fast_io</title>
+  <title>第11.19章: 临时文件 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.19: Temporary Files</h1>
+    <h1>第11.19章: 临时文件</h1>
     <p class="lang-switch"><a href="/docs/11.io/19.temp/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        Temporary files are used for storing data that only needs to exist for a short time.
-        <code>fast_io</code> provides <code>::fast_io::io_temp</code> for creating temporary files
-        that are automatically deleted when closed.
+        临时文件用于存放只需短暂存在的数据。<code>fast_io</code> 提供 <code>::fast_io::io_temp</code> 来创建关闭时自动删除的临时文件。
       </p>
     </section>
 
     <section>
-      <h2>Creating a Temporary File</h2>
+      <h2>创建临时文件</h2>
       <p>
-        To create a temporary file, pass <code>::fast_io::io_temp</code> to any file type's constructor.
-        The file is created in the system's temporary directory (e.g., <code>/tmp</code> on Unix,
-        <code>%TEMP%</code> on Windows). When the file object goes out of scope, the file is automatically
-        closed and deleted.
+        要创建临时文件，把 <code>::fast_io::io_temp</code> 传给任何文件类型的构造函数。文件被创建在系统的临时目录里（例如 Unix 上的 <code>/tmp</code>，Windows 上的 <code>%TEMP%</code>）。当文件对象离开作用域时，文件被自动关闭并删除。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -49,7 +43,7 @@ int main() {
 }
 </code></pre>
       <p>
-        You can use <code>::fast_io::io_temp</code> with any file type:
+        <code>::fast_io::io_temp</code> 可用于任何文件类型：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -74,17 +68,14 @@ int main() {
 }
 </code></pre>
       <p>
-        <strong>Important:</strong> The temporary file exists only as long as the file object is alive.
-        Once it goes out of scope, the file is closed and deleted from the filesystem. This is RAII
-        &mdash; you never forget to clean up temporary files.
+        <strong>重要：</strong>临时文件只在文件对象存活期间存在。一旦它离开作用域，文件就被关闭并从文件系统中删除。这就是 RAII &mdash; 你永远不会忘记清理临时文件。
       </p>
     </section>
 
     <section>
-      <h2>Reading from a Temporary File</h2>
+      <h2>从临时文件读取</h2>
       <p>
-        You can also read from a temporary file. Since temporary files are opened with both read
-        and write access, you can write data, seek back to the beginning, and read it:
+        你也可以从临时文件读。由于临时文件是以读写权限打开的，你可以写入数据、定位回开头，然后读出来：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -115,19 +106,18 @@ int main() {
     </section>
 
     <section>
-      <h2>Temporary Files vs Regular Files</h2>
+      <h2>临时文件与普通文件的区别</h2>
       <p>
-        Why use <code>io_temp</code> instead of just opening a regular file?
+        为什么要用 <code>io_temp</code>，而不是直接打开一个普通文件？
       </p>
       <ul>
-        <li><strong>Automatic cleanup:</strong> The file is deleted when the object goes out of scope, even if an exception is thrown.</li>
-        <li><strong>Safe location:</strong> The file is created in the system's temporary directory, which is the appropriate place for temporary data.</li>
-        <li><strong>No naming conflicts:</strong> The system generates a unique name, so you don't need to worry about picking a filename.</li>
-        <li><strong>Security:</strong> On some systems, temporary files are created with restricted permissions.</li>
+        <li><strong>自动清理：</strong>对象离开作用域时文件被删除，即使抛出了异常也是如此。</li>
+        <li><strong>安全的位置：</strong>文件被创建在系统的临时目录里，那正是临时数据该在的地方。</li>
+        <li><strong>不会重名：</strong>系统会生成唯一的名字，所以你不必操心挑选文件名。</li>
+        <li><strong>安全性：</strong>在某些系统上，临时文件以受限的权限创建。</li>
       </ul>
       <p>
-        Compare this to the C standard library's <code>tmpfile()</code>, which also creates temporary
-        files but returns a <code>FILE*</code> that you must manually close:
+        与此对比，C 标准库的 <code>tmpfile()</code> 也会创建临时文件，但返回一个你必须手动关闭的 <code>FILE*</code>：
       </p>
 <pre><code class="language-c">
 #include &lt;stdio.h&gt;
@@ -144,57 +134,50 @@ int main() {
 }
 </code></pre>
       <p>
-        With <code>fast_io</code>'s <code>io_temp</code>, you get RAII semantics &mdash; the file
-        is automatically cleaned up, and you never forget to call <code>fclose</code>.
+        用 <code>fast_io</code> 的 <code>io_temp</code>，你得到的是 RAII 语义 &mdash; 文件被自动清理，你永远不会忘记调用 <code>fclose</code>。
       </p>
     </section>
 
     <section>
-      <h2>When to Use Temporary Files</h2>
+      <h2>什么时候该用临时文件</h2>
       <p>
-        Temporary files are useful for:
+        临时文件适用于：
       </p>
       <ul>
-        <li><strong>Intermediate results:</strong> When processing large datasets, you might write intermediate results to a temporary file instead of keeping everything in memory.</li>
-        <li><strong>Caching:</strong> Cache computed results that are expensive to regenerate.</li>
-        <li><strong>Inter-process communication:</strong> Write data that another process will read (though pipes or shared memory are often better).</li>
-        <li><strong>Testing:</strong> Create temporary files for unit tests without polluting the filesystem.</li>
+        <li><strong>中间结果：</strong>处理大数据集时，你可以把中间结果写入临时文件，而不是全部留在内存里。</li>
+        <li><strong>缓存：</strong>缓存那些重新计算代价很高的结果。</li>
+        <li><strong>进程间通信：</strong>写入另一个进程要读的数据（尽管管道或共享内存往往更好）。</li>
+        <li><strong>测试：</strong>为单元测试创建临时文件，而不污染文件系统。</li>
       </ul>
     </section>
 
     <section>
-      <h2>Key Takeaways</h2>
+      <h2>要点</h2>
       <ul>
         <li>
-          <code>::fast_io::io_temp</code> is a tag passed to file constructors to create a
-          temporary file in the system's temporary directory.
+          <code>::fast_io::io_temp</code> 是传给文件构造函数的标签，用于在系统临时目录中创建临时文件。
         </li>
         <li>
-          The temporary file is automatically deleted when the file object goes out of scope.
-          On Linux, this uses <code>O_TMPFILE</code>; on Windows, <code>FILE_FLAG_DELETE_ON_CLOSE</code>.
+          文件对象离开作用域时，临时文件被自动删除。Linux 上使用 <code>O_TMPFILE</code>；Windows 上使用 <code>FILE_FLAG_DELETE_ON_CLOSE</code>。
         </li>
         <li>
-          Use <code>io_temp</code> for data that only needs to exist temporarily &mdash; you never
-          forget to clean up.
+          对只需短暂存在的数据使用 <code>io_temp</code> &mdash; 你永远不会忘记清理。
         </li>
         <li>
-          Temporary files are opened with both read and write access. Use <code>rewind</code>
-          or <code>seek</code> to move between reading and writing.
+          临时文件以读写权限打开。在读写之间切换时用 <code>rewind</code> 或 <code>seek</code>。
         </li>
         <li>
-          Prefer <code>io_temp</code> over manually managing temporary files with regular file APIs.
+          优先用 <code>io_temp</code>，而不是用普通文件 API 手动管理临时文件。
         </li>
         <li>
-          Every file type accepts <code>io_temp</code> &mdash; <code>native_file</code>,
-          <code>obuf_file</code>, <code>iobuf_file</code>, <code>c_file</code>, etc.
+          每种文件类型都接受 <code>io_temp</code> &mdash; <code>native_file</code>、<code>obuf_file</code>、<code>iobuf_file</code>、<code>c_file</code> 等。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/18.filesystem/" class="prev-button">&larr; Ch11.18: Filesystem APIs</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/11.io/18.filesystem/" class="prev-button">&larr; 第11.18章: 文件系统 API</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a>
     </div>
   </main>
 </body>

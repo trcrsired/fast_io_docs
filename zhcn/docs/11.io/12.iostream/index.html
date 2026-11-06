@@ -3,52 +3,46 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.12: C++ iostream - C++ Tutorial with fast_io</title>
+  <title>第11.12章: C++ iostream - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.12: C++ iostream</h1>
+    <h1>第11.12章: C++ iostream</h1>
     <p class="lang-switch"><a href="/docs/11.io/12.iostream/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        C++&rsquo;s standard I/O library provides <code>std::fstream</code>, <code>std::ifstream</code>,
-        and <code>std::ofstream</code>. These stream classes are built on top of
-        <code>std::basic_filebuf</code>, which is the C++ runtime&rsquo;s buffered file abstraction.
+        C++ 的标准 I/O 库提供 <code>std::fstream</code>、<code>std::ifstream</code> 和 <code>std::ofstream</code>。这些流类建立在 <code>std::basic_filebuf</code> 之上，那是 C++ 运行时的带缓冲文件抽象。
       </p>
       <p>
-        <code>fast_io</code> provides wrappers that let you bring <code>std::basic_filebuf</code>
-        into the <code>fast_io</code> I/O system, so you can use <code>print</code>,
-        <code>println</code>, and <code>scan</code> on them.
+        <code>fast_io</code> 提供包装，让你能把 <code>std::basic_filebuf</code> 接入 <code>fast_io</code> 的 I/O 系统，从而对它们使用 <code>print</code>、<code>println</code> 和 <code>scan</code>。
       </p>
     </section>
 
     <section>
-      <h2>Standard C++ I/O: <code>&lt;iostream&gt;</code>, <code>&lt;fstream&gt;</code>, <code>&lt;sstream&gt;</code></h2>
+      <h2>标准 C++ I/O：<code>&lt;iostream&gt;</code>、<code>&lt;fstream&gt;</code>、<code>&lt;sstream&gt;</code></h2>
       <p>
-        Before discussing how <code>fast_io</code> wraps C++ I/O, let&rsquo;s review the standard C++
-        I/O library. C++ provides three main headers for I/O:
+        在讨论 <code>fast_io</code> 如何包装 C++ I/O 之前，先回顾一下标准 C++ I/O 库。C++ 为 I/O 提供三个主要头文件：
       </p>
       <ul>
-        <li><code>&lt;iostream&gt;</code> &mdash; standard streams (<code>std::cin</code>, <code>std::cout</code>, <code>std::cerr</code>, <code>std::clog</code>)</li>
-        <li><code>&lt;fstream&gt;</code> &mdash; file streams (<code>std::ifstream</code>, <code>std::ofstream</code>, <code>std::fstream</code>)</li>
-        <li><code>&lt;sstream&gt;</code> &mdash; string streams (<code>std::istringstream</code>, <code>std::ostringstream</code>, <code>std::stringstream</code>)</li>
+        <li><code>&lt;iostream&gt;</code> &mdash; 标准流（<code>std::cin</code>、<code>std::cout</code>、<code>std::cerr</code>、<code>std::clog</code>）</li>
+        <li><code>&lt;fstream&gt;</code> &mdash; 文件流（<code>std::ifstream</code>、<code>std::ofstream</code>、<code>std::fstream</code>）</li>
+        <li><code>&lt;sstream&gt;</code> &mdash; 字符串流（<code>std::istringstream</code>、<code>std::ostringstream</code>、<code>std::stringstream</code>）</li>
       </ul>
 
-      <h3>Standard Streams</h3>
+      <h3>标准流</h3>
       <p>
-        C++ provides four predefined streams:
+        C++ 提供四个预定义流：
       </p>
       <ul>
-        <li><code>std::cin</code> &mdash; standard input (usually keyboard)</li>
-        <li><code>std::cout</code> &mdash; standard output (usually terminal)</li>
-        <li><code>std::cerr</code> &mdash; standard error (unbuffered, usually terminal)</li>
-        <li><code>std::clog</code> &mdash; standard error (buffered, usually terminal)</li>
+        <li><code>std::cin</code> &mdash; 标准输入（通常是键盘）</li>
+        <li><code>std::cout</code> &mdash; 标准输出（通常是终端）</li>
+        <li><code>std::cerr</code> &mdash; 标准错误（不带缓冲，通常是终端）</li>
+        <li><code>std::clog</code> &mdash; 标准错误（带缓冲，通常是终端）</li>
       </ul>
 <pre><code class="language-cpp">
 #include &lt;iostream&gt;
@@ -76,7 +70,7 @@ int main() {
 }
 </code></pre>
 
-      <h3>File Streams</h3>
+      <h3>文件流</h3>
 <pre><code class="language-cpp">
 #include &lt;fstream&gt;
 #include &lt;iostream&gt;
@@ -116,18 +110,18 @@ int main() {
 }
 </code></pre>
       <p>
-        Common file open modes:
+        常见的文件打开模式：
       </p>
       <ul>
-        <li><code>std::ios::in</code> &mdash; open for reading</li>
-        <li><code>std::ios::out</code> &mdash; open for writing</li>
-        <li><code>std::ios::app</code> &mdash; append to end</li>
-        <li><code>std::ios::ate</code> &mdash; seek to end after opening</li>
-        <li><code>std::ios::trunc</code> &mdash; truncate file if it exists</li>
-        <li><code>std::ios::binary</code> &mdash; binary mode (no text translation)</li>
+        <li><code>std::ios::in</code> &mdash; 以读方式打开</li>
+        <li><code>std::ios::out</code> &mdash; 以写方式打开</li>
+        <li><code>std::ios::app</code> &mdash; 追加到末尾</li>
+        <li><code>std::ios::ate</code> &mdash; 打开后定位到末尾</li>
+        <li><code>std::ios::trunc</code> &mdash; 文件存在时截断</li>
+        <li><code>std::ios::binary</code> &mdash; 二进制模式（不做文本转换）</li>
       </ul>
 
-      <h3>String Streams</h3>
+      <h3>字符串流</h3>
 <pre><code class="language-cpp">
 #include &lt;sstream&gt;
 #include &lt;iostream&gt;
@@ -157,7 +151,7 @@ int main() {
 }
 </code></pre>
 
-      <h3>Stream Manipulators</h3>
+      <h3>流的操纵器</h3>
 <pre><code class="language-cpp">
 #include &lt;iostream&gt;
 #include &lt;iomanip&gt;
@@ -184,64 +178,46 @@ int main() {
     </section>
 
     <section>
-      <h2>Appendices</h2>
+      <h2>附录</h2>
       <p>
-        For complete C++ iostream and iomanip references, see:
+        完整的 C++ iostream 与 iomanip 参考见：
       </p>
       <ul>
-        <li><a href="01.cppreference/">Ch11.12.1: Complete C++ I/O Reference</a></li>
-        <li><a href="02.iomanip/">Ch11.12.2: Complete &lt;iomanip&gt; Reference</a></li>
+        <li><a href="01.cppreference/">第11.12.1章: 完整的 C++ I/O 参考</a></li>
+        <li><a href="02.iomanip/">第11.12.2章: 完整的 &lt;iomanip&gt; 参考</a></li>
       </ul>
     </section>
 
     <section>
-      <h2>Key Takeaways</h2>
+      <h2>要点</h2>
       <ul>
         <li>
-          <code>::fast_io::filebuf_file</code> owns a <code>std::basic_filebuf*</code> with RAII
-          semantics.
+          <code>::fast_io::filebuf_file</code> 以 RAII 语义拥有一个 <code>std::basic_filebuf*</code>。
         </li>
         <li>
-          <code>::fast_io::filebuf_io_observer</code> is a non-owning view over an existing
-          <code>std::basic_filebuf*</code>, perfect for wrapping an <code>fstream</code>&rsquo;s
-          <code>rdbuf()</code>.
+          <code>::fast_io::filebuf_io_observer</code> 是对已有 <code>std::basic_filebuf*</code> 的非拥有视图，非常适合包裹 <code>fstream</code> 的 <code>rdbuf()</code>。
         </li>
         <li>
-          Only narrow (<code>filebuf_file</code>) and wide (<code>wfilebuf_file</code>) variants
-          exist, because the C++ standard library does not provide <code>basic_filebuf</code> for
-          other character types.
+          只存在窄字符（<code>filebuf_file</code>）和宽字符（<code>wfilebuf_file</code>）两个变体，因为 C++ 标准库没有为其他字符类型提供 <code>basic_filebuf</code>。
         </li>
         <li>
-          <strong>Sockets are just files.</strong> On POSIX systems, you can wrap a socket in a
-          <code>filebuf_file</code> and use <code>fstream</code> to read/write it. C++&rsquo;s
-          artificial separation of files and sockets (e.g., Boost.Asio vs fstream) violates the
-          POSIX philosophy.
+          <strong>socket 就是文件。</strong>在 POSIX 系统上，你可以把 socket 包进 <code>filebuf_file</code>，用 <code>fstream</code> 读写它。C++ 人为地把文件与 socket 分开（例如 Boost.Asio 与 fstream 的对立）违背了 POSIX 的哲学。
         </li>
         <li>
-          <strong>C++ iostream has fundamental design flaws:</strong> pointer confusion (security
-          issues), not thread-safe, not exception-safe, stateful manipulators that corrupt stream
-          state, locale-dependent output, and poor performance. <code>fast_io</code> fixes all of
-          these.
+          <strong>C++ iostream 有根本性的设计缺陷：</strong>指针混淆（带来安全问题）、非线程安全、非异常安全、会破坏流状态的有状态操纵器、依赖 locale 的输出，以及糟糕的性能。<code>fast_io</code> 把这些全部修正了。
         </li>
         <li>
-          <strong>fast_io&rsquo;s manipulators are stateless.</strong> Unlike <code>std::hex</code>
-          which changes the stream state, <code>::fast_io::mnp::hex(value)</code> applies only to
-          that value. No state to restore, no bugs.
+          <strong>fast_io 的操纵器是无状态的。</strong>与会改变流状态的 <code>std::hex</code> 不同，<code>::fast_io::mnp::hex(value)</code> 只作用于那个值。没有状态需要恢复，也就没有相应的 bug。
         </li>
         <li>
-          <strong>Use fast_io internally for fstream implementations.</strong> If you need to
-          maintain compatibility with <code>fstream</code>, use
-          <code>::fast_io::filebuf_io_observer</code> internally. The performance cost is minimal,
-          and you get the benefits of <code>fast_io</code>&rsquo;s efficient syscall layer.
+          <strong>在 fstream 的实现内部改用 fast_io。</strong>如果你需要与 <code>fstream</code> 保持兼容，就在内部使用 <code>::fast_io::filebuf_io_observer</code>。性能代价极小，而你能得到 <code>fast_io</code> 高效系统调用层的好处。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/11.cstyle/" class="prev-button">&larr; Ch11.11: C-Style I/O</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/13.posix/" class="next-button">Ch11.13: POSIX &rarr;</a>
+      <a href="/zhcn/docs/11.io/11.cstyle/" class="prev-button">&larr; 第11.11章: C 风格 I/O</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/13.posix/" class="next-button">第11.13章: POSIX &rarr;</a>
     </div>
   </main>
 </body>

@@ -3,40 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch9.8: vector - C++ Tutorial with fast_io</title>
+  <title>第9.8章: vector - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch9.8: vector</h1>
+    <h1>第9.8章: vector</h1>
     <p class="lang-switch"><a href="/docs/09.seqcontainers/08.vectorcapacity/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        Understanding how <code>::fast_io::vector</code> manages its capacity is
-        essential for writing efficient code. A vector maintains two quantities:
+        要写出高效的代码，理解 <code>::fast_io::vector</code> 如何管理容量是必不可少的。vector 维护两个量：
       </p>
       <ul>
-        <li><strong>size</strong>: the number of elements currently stored.</li>
-        <li><strong>capacity</strong>: the number of elements the vector can hold
-          before it must allocate more memory.</li>
+        <li><strong>大小</strong>（size）：当前存放的元素个数。</li>
+        <li>
+          <strong>容量</strong>（capacity）：在必须分配更多内存之前 vector 能容纳的元素个数。
+        </li>
       </ul>
     </section>
 
     <section>
-      <h2>1. How Growth Works</h2>
+      <h2>1. 增长是如何发生的</h2>
       <p>
-        Internally, a vector is three pointers into a single contiguous heap
-        allocation:
+        在内部，vector 就是指向单块连续堆分配的三个指针：
       </p>
       <ul>
-        <li><code>begin_ptr</code> &mdash; start of the allocated buffer.</li>
-        <li><code>curr_ptr</code> &mdash; one past the last constructed element (i.e., <code>begin_ptr + size()</code>).</li>
-        <li><code>end_ptr</code> &mdash; one past the end of the allocated buffer (i.e., <code>begin_ptr + capacity()</code>).</li>
+        <li><code>begin_ptr</code> &mdash; 已分配缓冲区的起点。</li>
+        <li><code>curr_ptr</code> &mdash; 最后一个已构造元素之后的位置（即 <code>begin_ptr + size()</code>）。</li>
+        <li><code>end_ptr</code> &mdash; 已分配缓冲区末尾之后的位置（即 <code>begin_ptr + capacity()</code>）。</li>
       </ul>
 <pre><code class="language-cpp">
 // Conceptual layout of a vector with size=3, capacity=8:
@@ -52,104 +50,82 @@
 //   |___________ capacity=8 _________________|
 </code></pre>
 
-      <h3>The hot path: when there is spare capacity</h3>
+      <h3>热路径：还有空闲容量时</h3>
       <p>
-        When you call <code>push_back()</code> or <code>emplace_back()</code>,
-        the vector first checks whether <code>curr_ptr != end_ptr</code>. If
-        there is room, the element is constructed in-place at
-        <code>curr_ptr</code> and the pointer is advanced. This is the
-        <strong>hot path</strong> &mdash; a single constructor call and a
-        pointer increment, with no allocation.
+        当你调用 <code>push_back()</code> 或 <code>emplace_back()</code> 时，vector 先检查 <code>curr_ptr != end_ptr</code>。若还有空间，就在 <code>curr_ptr</code> 处就地构造元素并推进指针。这就是<strong>热路径</strong> &mdash; 一次构造函数调用加一次指针自增，没有任何分配。
       </p>
 
-      <h3>The cold path: when capacity is exhausted</h3>
+      <h3>冷路径：容量耗尽时</h3>
       <p>
-        When <code>curr_ptr == end_ptr</code>, the vector must
-        <strong>reallocate</strong>. The steps are:
+        当 <code>curr_ptr == end_ptr</code> 时，vector 必须<strong>重新分配</strong>。步骤如下：
       </p>
       <ol>
-        <li><strong>Compute new capacity</strong>: the capacity is
-          <strong>doubled</strong> (2&times;). If the current capacity is 0, it
-          grows to 1 element. If doubling would overflow
-          <code>size_t</code>, it clamps to the maximum possible capacity.</li>
-        <li><strong>Allocate</strong> a new buffer of the new capacity.</li>
-        <li><strong>Move elements</strong> from the old buffer to the new one.
-          For <em>trivially-copyable</em> types (like integers, floats, POD
-          structs), this is a single <code>memcpy</code>. For non-trivial types,
-          each element is move-constructed into the new buffer and then
-          destroyed in the old buffer.</li>
-        <li><strong>Deallocate</strong> the old buffer.</li>
-        <li><strong>Update</strong> all three pointers to point into the new
-          buffer.</li>
+        <li>
+          <strong>计算新容量</strong>：容量<strong>翻倍</strong>（2&times;）。若当前容量为 0，则增长到 1 个元素。若翻倍会使 <code>size_t</code> 溢出，则取到可能的最大容量。
+        </li>
+        <li>按新容量<strong>分配</strong>一块新缓冲区。</li>
+        <li>
+          把元素从旧缓冲区<strong>搬移</strong>到新缓冲区。对<em>可平凡复制</em>的类型（如整数、浮点数、POD 结构体），这就是一次 <code>memcpy</code>；对非平凡类型，则逐个在新缓冲区中移动构造，再在旧缓冲区中析构。
+        </li>
+        <li><strong>释放</strong>旧缓冲区。</li>
+        <li>
+          把三个指针<strong>更新</strong>为指向新缓冲区。
+        </li>
       </ol>
 <pre><code class="language-cpp">
 // Growth sequence for a vector&lt;size_t&gt;:
 //
 // capacity: 0 → 1 → 2 → 4 → 8 → 16 → 32 → ...
-// size: 0   1   2   3   4    5    6    ...
+// size:     0   1   2   3   4    5    6    ...
 //
 // Each arrow that crosses a power-of-2 boundary triggers reallocation.
 </code></pre>
 
-      <h3>Why doubling gives amortised &Theta;(1)</h3>
+      <h3>为什么翻倍能带来摊还 &Theta;(1)</h3>
       <p>
-        Consider the total work of <code>n</code> insertions starting from an
-        empty vector. The reallocations happen at sizes 1, 2, 4, 8, &hellip;,
-        up to the largest power of 2 less than <code>n</code>. The total number
-        of element moves is:
+        考虑从空 vector 开始进行 <code>n</code> 次插入的总工作量。重新分配发生在大小为 1、2、4、8、&hellip;，一直到小于 <code>n</code> 的最大 2 的幂。元素搬移的总次数是：
       </p>
       <p style="text-align: center;">
         1 + 2 + 4 + 8 + &hellip; + n/2 &lt; n
       </p>
       <p>
-        So the <em>total</em> cost of all reallocations is proportional to
-        <code>n</code>, giving an <strong>amortised &Theta;(1)</strong> cost per
-        insertion. Most insertions hit the hot path; only a few trigger the
-        expensive reallocation.
+        所以所有重新分配的<em>总</em>代价与 <code>n</code> 成正比，于是每次插入是<strong>摊还 &Theta;(1)</strong>。绝大多数插入走热路径，只有少数会触发昂贵的重新分配。
       </p>
 
-      <h3>Trivially-copyable vs non-trivial types</h3>
+      <h3>可平凡复制与不可平凡的类型</h3>
       <table>
         <thead>
           <tr>
-            <th>Type category</th>
-            <th>Element relocation during reallocation</th>
-            <th>Examples</th>
+            <th>类型类别</th>
+            <th>重新分配时元素的搬移方式</th>
+            <th>例子</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Trivially copyable or trivially relocatable</td>
-            <td>Bulk <code>memcpy</code> &mdash; one call copies the entire buffer</td>
-            <td><code>::std::size_t</code>, <code>double</code>, POD structs</td>
+            <td>可平凡复制或可平凡搬移</td>
+            <td>批量 <code>memcpy</code> &mdash; 一次调用复制整个缓冲区</td>
+            <td><code>::std::size_t</code>、<code>double</code>、POD 结构体</td>
           </tr>
           <tr>
-            <td>Non-trivial (has custom move constructor or destructor)</td>
-            <td>Element-wise move-construct + destroy</td>
-            <td><code>::fast_io::string</code>, <code>::fast_io::vector</code></td>
+            <td>非平凡（有自定义移动构造函数或析构函数）</td>
+            <td>逐元素移动构造 + 析构</td>
+            <td><code>::fast_io::string</code>、<code>::fast_io::vector</code></td>
           </tr>
         </tbody>
       </table>
       <p>
-        This distinction matters for performance: a
-        <code>vector&lt;::std::size_t&gt;</code> of 1 million elements
-        reallocates via a single <code>memcpy</code> of 8&nbsp;MB, which is
-        heavily optimised by the hardware. A
-        <code>vector&lt;::fast_io::string&gt;</code> of 1 million elements must
-        move-construct and destroy each string individually.
+        这个区别对性能有影响：100 万个元素的 <code>vector&lt;::std::size_t&gt;</code> 重新分配时只做一次 8&nbsp;MB 的 <code>memcpy</code>，硬件对它有很深的优化。而 100 万个元素的 <code>vector&lt;::fast_io::string&gt;</code> 必须逐个移动构造并析构每个字符串。
       </p>
     </section>
 
     <section>
       <h2>2. reserve()</h2>
       <p>
-        <code>reserve(n)</code> ensures that the vector has enough capacity for at
-        least <code>n</code> elements. It does not change the size. If the current
-        capacity is already &ge; <code>n</code>, this is a no-op.
+        <code>reserve(n)</code> 保证 vector 至少有容纳 <code>n</code> 个元素的容量，但不改变大小。若当前容量已经 &ge; <code>n</code>，它什么都不做。
       </p>
       <p>
-        Use <code>reserve()</code> when you know in advance how many elements
-        you will need, to avoid repeated reallocations:
+        当你事先知道需要多少元素时，用 <code>reserve()</code> 来避免反复重新分配：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/vector.h&gt;
@@ -172,9 +148,7 @@ int main() {
     <section>
       <h2>3. push_back_unchecked()</h2>
       <p>
-        When you have pre-allocated capacity with <code>reserve()</code>, you can
-        use <code>push_back_unchecked()</code> to skip the capacity check on each
-        insertion. This eliminates a branch from the hot path:
+        当你已用 <code>reserve()</code> 预分配好容量时，可以使用 <code>push_back_unchecked()</code> 跳过每次插入的容量检查。这样就省掉了热路径上的一个分支：
       </p>
 <pre><code class="language-cpp">
 ::fast_io::vector&lt;::std::size_t&gt; v;
@@ -188,18 +162,14 @@ for (::std::size_t i{}; i &lt; 100zu; ++i) {
 // size() == 100, capacity() >= 100
 </code></pre>
       <p>
-        The pattern <code>reserve()</code> + <code>push_back_unchecked()</code>
-        is the fastest way to fill a vector when the count is known in advance.
+        当元素个数事先已知时，<code>reserve()</code> + <code>push_back_unchecked()</code> 是填充 vector 最快的方式。
       </p>
     </section>
 
     <section>
       <h2>4. shrink_to_fit()</h2>
       <p>
-        <code>shrink_to_fit()</code> requests that the vector reduce its capacity
-        to match its size. This triggers a reallocation if the current capacity
-        exceeds the size, copying elements to a tighter buffer and freeing the
-        old one.
+        <code>shrink_to_fit()</code> 请求 vector 把容量缩减到与大小相符。若当前容量大于大小，这会触发一次重新分配：把元素复制到更紧凑的缓冲区，并释放旧的缓冲区。
       </p>
 <pre><code class="language-cpp">
 ::fast_io::vector&lt;::std::size_t&gt; v;
@@ -213,31 +183,31 @@ v.shrink_to_fit();
     </section>
 
     <section>
-      <h2>5. clear() vs clear_destroy()</h2>
+      <h2>5. clear() 与 clear_destroy() 的区别</h2>
       <p>
-        These two operations differ in what happens to the allocated memory:
+        这两个操作的区别在于已分配的内存会被如何处理：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Operation</th>
-            <th>Elements</th>
-            <th>Memory</th>
-            <th>Use case</th>
+            <th>操作</th>
+            <th>元素</th>
+            <th>内存</th>
+            <th>适用场景</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>clear()</code></td>
-            <td>Destroyed</td>
-            <td><strong>Retained</strong> (capacity unchanged)</td>
-            <td>You plan to reuse the vector soon</td>
+            <td>被析构</td>
+            <td><strong>保留</strong>（容量不变）</td>
+            <td>你打算很快复用这个 vector</td>
           </tr>
           <tr>
             <td><code>clear_destroy()</code></td>
-            <td>Destroyed</td>
-            <td><strong>Deallocated</strong> (capacity becomes 0)</td>
-            <td>You want to free memory back to the allocator</td>
+            <td>被析构</td>
+            <td><strong>被释放</strong>（容量变为 0）</td>
+            <td>你想把内存还给分配器</td>
           </tr>
         </tbody>
       </table>
@@ -254,22 +224,20 @@ v.clear_destroy();
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>A vector is three pointers (<code>begin_ptr</code>, <code>curr_ptr</code>, <code>end_ptr</code>) into one contiguous allocation.</li>
-        <li>Growth is 2&times;: capacity doubles on each reallocation, giving amortised &Theta;(1) <code>push_back</code>.</li>
-        <li>Trivially-copyable types relocate via <code>memcpy</code>; non-trivial types are move-constructed element-wise.</li>
-        <li><code>reserve(n)</code> pre-allocates to avoid reallocations when the count is known.</li>
-        <li><code>reserve()</code> + <code>push_back_unchecked()</code> is the fastest way to fill a vector.</li>
-        <li><code>clear()</code> keeps memory for reuse; <code>clear_destroy()</code> frees it.</li>
+        <li>vector 就是指向一块连续分配的三个指针（<code>begin_ptr</code>、<code>curr_ptr</code>、<code>end_ptr</code>）。</li>
+        <li>以 2&times; 增长：每次重新分配容量翻倍，于是 <code>push_back</code> 是摊还 &Theta;(1)。</li>
+        <li>可平凡复制的类型用 <code>memcpy</code> 搬移；非平凡类型逐元素移动构造。</li>
+        <li>元素个数已知时，用 <code>reserve(n)</code> 预分配以避免重新分配。</li>
+        <li><code>reserve()</code> + <code>push_back_unchecked()</code> 是填充 vector 最快的方式。</li>
+        <li><code>clear()</code> 保留内存以备复用；<code>clear_destroy()</code> 把内存释放掉。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/09.seqcontainers/07.listspecialops/" class="prev-button">&larr; Ch9.7: list</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/09.seqcontainers/09.deque/" class="next-button">Ch9.9: deque &rarr;</a>
+      <a href="/zhcn/docs/09.seqcontainers/07.listspecialops/" class="prev-button">&larr; 第9.7章: list</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/09.seqcontainers/09.deque/" class="next-button">第9.9章: deque &rarr;</a>
     </div>
   </main>
 </body>

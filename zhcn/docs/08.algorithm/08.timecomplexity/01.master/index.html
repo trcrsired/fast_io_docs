@@ -3,29 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch8.8.1: Master Theorem - C++ Tutorial</title>
+  <title>第8.8.1章: 主定理 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch8.8.1: Master Theorem (Appendix)</h1>
+    <h1>第8.8.1章: 主定理（附录）</h1>
     <p class="lang-switch"><a href="/docs/08.algorithm/08.timecomplexity/01.master/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
 
       <p>
-        Many algorithms are defined recursively. To analyze their time complexity,
-        we often write a <strong>recurrence relation</strong> describing how the
-        running time depends on smaller subproblems.
+        许多算法是递归定义的。为了分析它们的时间复杂度，我们常常写出一个<strong>递推关系</strong>，描述运行时间如何取决于规模更小的子问题。
       </p>
 
       <p>
-        The <strong>Master Theorem</strong> is a tool that solves many common
-        recurrences of the form:
+        <strong>主定理</strong>是求解下面这类常见递推式的工具：
       </p>
 
       <pre><code class="language-cpp">
@@ -33,26 +29,25 @@ T(n) = a · T(n / b) + f(n)
       </code></pre>
 
       <p>
-        where:
+        其中：
       </p>
 
       <ul>
-        <li><code>a</code> = number of subproblems</li>
-        <li><code>b</code> = factor by which the problem size shrinks</li>
-        <li><code>f(n)</code> = cost outside the recursive calls</li>
+        <li><code>a</code> = 子问题的个数</li>
+        <li><code>b</code> = 问题规模缩小的倍数</li>
+        <li><code>f(n)</code> = 递归调用之外的代价</li>
       </ul>
 
       <p>
-        This appendix teaches you how to compute and prove time complexity using
-        the Master Theorem, with examples including mergesort and quicksort.
+        本附录将教你如何用主定理计算并证明时间复杂度，并给出归并排序和快速排序等例子。
       </p>
     </section>
 
     <section>
-      <h2>1. The Master Theorem</h2>
+      <h2>1. 主定理</h2>
 
       <p>
-        Consider the recurrence:
+        考虑递推式：
       </p>
 
       <pre><code class="language-cpp">
@@ -60,7 +55,7 @@ T(n) = a · T(n / b) + f(n)
       </code></pre>
 
       <p>
-        Define the <strong>critical exponent</strong>:
+        定义<strong>临界指数</strong>：
       </p>
 
       <pre><code class="language-cpp">
@@ -68,57 +63,57 @@ n^(log_b(a))
       </code></pre>
 
       <p>
-        Compare <code>f(n)</code> to <code>n^(log_b(a))</code>.
+        把 <code>f(n)</code> 与 <code>n^(log_b(a))</code> 作比较。
       </p>
 
-      <h3>Case 1: f(n) is smaller</h3>
+      <h3>情形 1：f(n) 更小</h3>
 
       <pre><code class="language-cpp">
 f(n) = O(n^(log_b(a) - ε))
       </code></pre>
 
       <p>
-        for some <code>ε &gt; 0</code>.
+        对某个 <code>ε &gt; 0</code>。
       </p>
 
       <p>
-        Then:
+        则：
       </p>
 
       <pre><code class="language-cpp">
 T(n) = Θ(n^(log_b(a)))
       </code></pre>
 
-      <h3>Case 2: f(n) matches the critical exponent</h3>
+      <h3>情形 2：f(n) 与临界指数相当</h3>
 
       <pre><code class="language-cpp">
 f(n) = Θ(n^(log_b(a)) · ln^k(n))
       </code></pre>
 
       <p>
-        for some <code>k ≥ 0</code>.
+        对某个 <code>k ≥ 0</code>。
       </p>
 
       <p>
-        Then:
+        则：
       </p>
 
       <pre><code class="language-cpp">
 T(n) = Θ(n^(log_b(a)) · ln^(k+1)(n))
       </code></pre>
 
-      <h3>Case 3: f(n) is larger</h3>
+      <h3>情形 3：f(n) 更大</h3>
 
       <pre><code class="language-cpp">
 f(n) = Ω(n^(log_b(a) + ε))
       </code></pre>
 
       <p>
-        for some <code>ε &gt; 0</code>, and a regularity condition holds.
+        对某个 <code>ε &gt; 0</code>，并且满足正则性条件。
       </p>
 
       <p>
-        Then:
+        则：
       </p>
 
       <pre><code class="language-cpp">
@@ -127,11 +122,10 @@ T(n) = Θ(f(n))
     </section>
 
     <section>
-      <h2>2. Example: Mergesort</h2>
+      <h2>2. 例子：归并排序</h2>
 
       <p>
-        Mergesort splits the array into two halves, recursively sorts each half,
-        and then merges them in linear time.
+        归并排序把数组分成两半，递归排序每一半，然后用线性时间把它们合并起来。
       </p>
 
       <pre><code class="language-cpp">
@@ -139,7 +133,7 @@ T(n) = 2 · T(n / 2) + Θ(n)
       </code></pre>
 
       <p>
-        Here:
+        这里：
       </p>
 
       <ul>
@@ -149,7 +143,7 @@ T(n) = 2 · T(n / 2) + Θ(n)
       </ul>
 
       <p>
-        Critical exponent:
+        临界指数：
       </p>
 
       <pre><code class="language-cpp">
@@ -157,7 +151,7 @@ n^(log_2(2)) = n
       </code></pre>
 
       <p>
-        Since <code>f(n) = Θ(n)</code>, this is <strong>Case 2</strong>.
+        由于 <code>f(n) = Θ(n)</code>，属于<strong>情形 2</strong>。
       </p>
 
       <pre><code class="language-cpp">
@@ -166,11 +160,10 @@ T(n) = Θ(n · ln(n))
     </section>
 
     <section>
-      <h2>3. Example: Quicksort (average case)</h2>
+      <h2>3. 例子：快速排序（平均情况）</h2>
 
       <p>
-        In the average case, Quicksort splits the array into two subproblems of
-        roughly equal size, and partitioning takes linear time.
+        在平均情况下，快速排序把数组分成两个规模大致相等的子问题，划分耗时线性时间。
       </p>
 
       <pre><code class="language-cpp">
@@ -178,7 +171,7 @@ T(n) = 2 · T(n / 2) + Θ(n)
       </code></pre>
 
       <p>
-        This is the same recurrence as mergesort, so:
+        这与归并排序的递推式相同，因此：
       </p>
 
       <pre><code class="language-cpp">
@@ -186,15 +179,15 @@ T(n) = Θ(n · ln(n))
       </code></pre>
 
       <p>
-        This explains why Quicksort is fast on average.
+        这就解释了为什么快速排序平均情况下很快。
       </p>
     </section>
 
     <section>
-      <h2>4. Example: Quicksort (worst case)</h2>
+      <h2>4. 例子：快速排序（最坏情况）</h2>
 
       <p>
-        In the worst case (pivot always smallest or largest), the recurrence becomes:
+        最坏情况下（枢轴总是最小或最大元素），递推式变成：
       </p>
 
       <pre><code class="language-cpp">
@@ -202,7 +195,7 @@ T(n) = T(n - 1) + Θ(n)
       </code></pre>
 
       <p>
-        Expand the recurrence:
+        把递推式展开：
       </p>
 
       <pre><code class="language-cpp">
@@ -210,15 +203,15 @@ T(n) = n + (n - 1) + (n - 2) + ... + 1 = Θ(n^2)
       </code></pre>
 
       <p>
-        This does not fit the Master Theorem, but it is easy to compute directly.
+        它不满足主定理的适用条件，但可以直接计算。
       </p>
     </section>
 
     <section>
-      <h2>5. Example: Binary tree recursion</h2>
+      <h2>5. 例子：二叉树递归</h2>
 
       <p>
-        Consider a function that recursively processes a binary tree:
+        考虑一个递归处理二叉树的函数：
       </p>
 
       <pre><code class="language-cpp">
@@ -226,7 +219,7 @@ T(n) = 2 · T(n / 2) + Θ(1)
       </code></pre>
 
       <p>
-        Here:
+        这里：
       </p>
 
       <ul>
@@ -236,7 +229,7 @@ T(n) = 2 · T(n / 2) + Θ(1)
       </ul>
 
       <p>
-        Critical exponent:
+        临界指数：
       </p>
 
       <pre><code class="language-cpp">
@@ -244,8 +237,7 @@ n^(log_2(2)) = n
       </code></pre>
 
       <p>
-        Since <code>f(n) = Θ(1)</code> is smaller than <code>n</code>, this is
-        <strong>Case 1</strong>.
+        由于 <code>f(n) = Θ(1)</code> 比 <code>n</code> 小，属于<strong>情形 1</strong>。
       </p>
 
       <pre><code class="language-cpp">
@@ -253,26 +245,26 @@ T(n) = Θ(n)
       </code></pre>
 
       <p>
-        This matches the intuition: visiting each node once is linear time.
+        这符合直觉：每个结点访问一次，总时间是线性的。
       </p>
     </section>
 
     <section>
-      <h2>6. When the Master Theorem does not apply</h2>
+      <h2>6. 主定理不适用的情况</h2>
 
       <p>
-        The Master Theorem does <strong>not</strong> apply to:
+        主定理<strong>不</strong>适用于：
       </p>
 
       <ul>
-        <li>recurrences where subproblem sizes are not equal</li>
-        <li>recurrences like <code>T(n) = T(n - 1) + T(n - 2)</code></li>
-        <li>recurrences with variable branching factors</li>
-        <li>recurrences with non-polynomial <code>f(n)</code></li>
+        <li>子问题规模不相等的递推式</li>
+        <li><code>T(n) = T(n - 1) + T(n - 2)</code> 这类递推式</li>
+        <li>分支因子会变化的递推式</li>
+        <li><code>f(n)</code> 不是多项式的递推式</li>
       </ul>
 
       <p>
-        For example, the Fibonacci recurrence:
+        例如斐波那契递推式：
       </p>
 
       <pre><code class="language-cpp">
@@ -280,36 +272,32 @@ T(n) = T(n - 1) + T(n - 2) + Θ(1)
       </code></pre>
 
       <p>
-        grows as <code>Θ(2^n)</code>, but this cannot be derived using the Master
-        Theorem.
+        它以 <code>Θ(2^n)</code> 增长，但这无法用主定理推出。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
 
       <ul>
-        <li>The Master Theorem solves recurrences of the form <code>T(n) = a·T(n/b) + f(n)</code>.</li>
-        <li>Compare <code>f(n)</code> to <code>n^(log_b(a))</code> to determine the case.</li>
-        <li>Case 1: <code>f(n)</code> is smaller → <code>Θ(n^(log_b(a)))</code>.</li>
-        <li>Case 2: <code>f(n)</code> matches the critical exponent → <code>Θ(n^(log_b(a)) · ln(n))</code>.</li>
-        <li>Case 3: <code>f(n)</code> is larger → <code>Θ(f(n))</code> (with regularity conditions).</li>
-        <li>Mergesort and average-case Quicksort both satisfy <code>T(n) = 2T(n/2) + Θ(n)</code> → <code>Θ(n·ln(n))</code>.</li>
-        <li>Worst-case Quicksort is <code>Θ(n^2)</code> and does not fit the theorem.</li>
-        <li>Not all recurrences can be solved with the Master Theorem (e.g., Fibonacci).</li>
+        <li>主定理求解 <code>T(n) = a·T(n/b) + f(n)</code> 形式的递推式。</li>
+        <li>把 <code>f(n)</code> 与 <code>n^(log_b(a))</code> 比较以确定属于哪种情形。</li>
+        <li>情形 1：<code>f(n)</code> 更小 → <code>Θ(n^(log_b(a)))</code>。</li>
+        <li>情形 2：<code>f(n)</code> 与临界指数相当 → <code>Θ(n^(log_b(a)) · ln(n))</code>。</li>
+        <li>情形 3：<code>f(n)</code> 更大 → <code>Θ(f(n))</code>（需满足正则性条件）。</li>
+        <li>归并排序与平均情况快速排序都满足 <code>T(n) = 2T(n/2) + Θ(n)</code> → <code>Θ(n·ln(n))</code>。</li>
+        <li>最坏情况快速排序是 <code>Θ(n^2)</code>，不满足主定理的适用条件。</li>
+        <li>并非所有递推式都能用主定理求解（例如斐波那契）。</li>
       </ul>
 
       <p>
-        The Master Theorem is one of the most important tools for analyzing
-        divide-and-conquer algorithms. With it, you can compute the time
-        complexity of many recursive algorithms quickly and rigorously.
+        主定理是分析分治算法的重要工具之一。有了它，你可以快速而严谨地算出一大批递归算法的时间复杂度。
       </p>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/08.algorithm/08.timecomplexity/" class="prev-button"> Ch8.8: Time &amp; Space Complexity</a>
-      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/08.algorithm/08.timecomplexity/" class="prev-button"> 第8.8章: 时间与空间复杂度</a> <a href="/zhcn/" class="main-button">↑ 主页</a>
     </div>
   </main>
 </body>

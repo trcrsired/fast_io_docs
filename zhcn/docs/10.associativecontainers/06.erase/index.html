@@ -3,23 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch10.6: Erasing - C++ Tutorial with fast_io</title>
+  <title>第10.6章: 删除 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch10.6: Erasing</h1>
+    <h1>第10.6章: 删除</h1>
     <p class="lang-switch"><a href="/docs/10.associativecontainers/06.erase/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. Erasing by Key</h2>
+      <h2>1. 按键删除</h2>
       <p>
-        <code>erase_key(key)</code> removes the element whose key you name and
-        returns how many elements it removed &mdash; <code>1</code> or
-        <code>0</code>:
+        <code>erase_key(key)</code> 删除键为指定值的元素，并返回删掉了多少个元素 &mdash; <code>1</code> 或 <code>0</code>：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/str_btree_set.h&gt;
@@ -44,19 +41,14 @@ int main()
 0
 </code></pre>
       <p>
-        Erasing a key that is not there is <strong>not</strong> an error. If you
-        need to know whether it was there, look at the return value, or call
-        <code>contains</code> first when the branch is easier to read that way. The
-        removal itself never needs an iterator and never allocates.
+        删除一个不存在的键<strong>不是</strong>错误。如果你需要知道它原本在不在，就看返回值，或者在那样写更易读时先调用 <code>contains</code>。删除本身从不需要迭代器，也从不分配内存。
       </p>
     </section>
 
     <section>
-      <h2>2. Erasing by Iterator</h2>
+      <h2>2. 按迭代器删除</h2>
       <p>
-        <code>erase(it)</code> removes the element the iterator points at and
-        returns an iterator to the <strong>next</strong> element &mdash; the element
-        that took the removed one&rsquo;s place in the order:
+        <code>erase(it)</code> 删除迭代器所指的元素，并返回指向<strong>下一个</strong>元素的迭代器 &mdash; 即在顺序中接替被删位置的那个元素：
       </p>
       <pre><code class="language-cpp">
 auto it{s.find("beta")};
@@ -70,9 +62,7 @@ if (it != s.cend())
 next: c
 </code></pre>
       <p>
-        Returning the next position is what makes the erase-while-iterating loop
-        safe without incrementing anything by hand. The loop below removes every
-        key that starts with <code>"tmp"</code>:
+        返回下一个位置，正是“边遍历边删除”的循环无需手动自增就安全的原因。下面的循环删除所有以 <code>"tmp"</code> 开头的键：
       </p>
       <pre><code class="language-cpp">
 for (auto it{s.cbegin()}; it != s.cend();)
@@ -89,19 +79,12 @@ for (auto it{s.cbegin()}; it != s.cend();)
 }
 </code></pre>
       <div class="warning">
-        <strong>Never <code>++it</code> after <code>erase(it)</code>.</strong>
-        The iterator you passed in is invalid the moment the element dies; only the
-        returned iterator is usable. Writing
-        <code>s.erase(it); ++it;</code> is a use-after-free that will not be caught
-        for you.
+        <strong>在 <code>erase(it)</code> 之后绝不要 <code>++it</code>。</strong>你传进去的迭代器在元素销毁的那一刻就失效了，只有返回的迭代器可用。写成 <code>s.erase(it); ++it;</code> 是释放后使用，而且没有任何机制会替你发现它。
       </div>
 
-      <h3>Erasing a range</h3>
+      <h3>删除一个范围</h3>
       <p>
-        <code>erase(first, last)</code> removes the left-inclusive range
-        <code>[first, last)</code> &mdash; every element from <code>first</code> up
-        to, but not including, <code>last</code> &mdash; and returns an iterator to
-        the element <code>last</code> pointed at:
+        <code>erase(first, last)</code> 删除左闭范围 <code>[first, last)</code> &mdash; 从 <code>first</code> 开始、到但不包括 <code>last</code> 的每个元素 &mdash; 并返回指向 <code>last</code> 原本所指元素的迭代器：
       </p>
       <pre><code class="language-cpp">
 auto first{s.find("c")};
@@ -113,13 +96,12 @@ println("next: ", *after);          // d
 next: d
 </code></pre>
       <p>
-        With <code>last == cend()</code> everything from <code>first</code> to the
-        end is removed, and the returned iterator is <code>cend()</code>.
+        当 <code>last == cend()</code> 时，从 <code>first</code> 到末尾的全部被删除，返回的迭代器是 <code>cend()</code>。
       </p>
     </section>
 
     <section>
-      <h2>3. Erasing Everything</h2>
+      <h2>3. 删除全部</h2>
       <pre><code class="language-cpp">
 s.clear();                  // remove all elements, keep the object usable
 println(s.is_empty());      // 1
@@ -128,79 +110,61 @@ s.insert_key("again");      // fine
 s.clear_destroy();          // remove all elements and release the container's storage
 </code></pre>
       <p>
-        Both are <code>noexcept</code> and both are safe on an empty container.
-        After <code>clear()</code> the following inserts behave exactly as in a fresh
-        container; <code>clear_destroy()</code> additionally drops whatever the
-        container had allocated for its own bookkeeping, which is what you want
-        before letting a large container sit idle.
+        两者都是 <code>noexcept</code>，在空容器上也安全。在 <code>clear()</code> 之后的插入行为与在新容器里完全一样；<code>clear_destroy()</code> 还会额外释放容器为自身管理信息分配的内存，这正是让一个大容器长时间闲置之前该做的事。
       </p>
     </section>
 
     <section>
-      <h2>4. One Statement, One Mutation</h2>
+      <h2>4. 一条语句，一次修改</h2>
       <p>
-        C++ does not specify the order in which function arguments are evaluated.
-        That turns this line into a bug:
+        C++ 没有规定函数参数的求值顺序。这会让下面这行变成 bug：
       </p>
       <pre><code class="language-cpp">
 println(s.erase_key("beta"), s.size());   // WRONG: size() may run before the erase
 </code></pre>
       <p>
-        Whether you get the size before or after the removal depends on the
-        compiler. Split mutation and inspection into separate statements and the
-        question disappears:
+        你先拿到的是删除前还是删除后的大小，取决于编译器。把修改和查看拆成两条语句，问题就消失了：
       </p>
       <pre><code class="language-cpp">
 auto n{s.erase_key("beta")};
 println("removed ", n, ", size now ", s.size());
 </code></pre>
       <div class="note">
-        <strong>This is not specific to containers.</strong> Any call that both
-        mutates and reports state runs into the same problem. The style rule
-        &ldquo;one statement, one mutation&rdquo; costs nothing and removes the
-        whole category.
+        <strong>这不是容器特有的问题。</strong>任何既修改状态又报告状态的调用都会遇到同样的问题。“一条语句，一次修改”这条风格规则不花代价，却能消除整整一类问题。
       </div>
     </section>
 
     <section>
-      <h2>5. What Erasing Invalidates</h2>
+      <h2>5. 删除会使什么失效</h2>
       <p>
-        Erasing destroys an element, so everything that referred to <em>that</em>
-        element is dead: its iterator, and any key view or mapped reference you took
-        from it. Views taken from <em>other</em> elements are not affected by an
-        erase in the B-tree family, because inserting and erasing moves whole
-        subtrees rather than shuffling elements around.
+        删除会销毁元素，所以所有指向<em>那个</em>元素的东西都失效了：它的迭代器，以及你从它那里取得的任何键视图或映射值引用。在 B 树家族中，从<em>其他</em>元素取得的视图不受删除影响，因为插入与删除搬移的是整棵子树，而不是把元素挪来挪去。
       </p>
       <p>
-        In the Swiss-table family, an erase can move an element into the hole it
-        leaves behind, so treat any reference into the table as gone once you modify
-        it. The rule that always holds, for all six containers:
+        在 Swiss 表家族中，一次删除可能把某个元素搬进它留下的空洞，因此一旦你修改了表，就把任何指向表内的引用视为已失效。对六个容器都成立的那条规则是：
       </p>
       <ul>
-        <li>An iterator, key view or mapped reference is valid until that element is erased, or until the container is cleared, moved from, or (Swiss) grows/reshapes.</li>
-        <li>After <code>erase</code>, only the returned iterator is known-good.</li>
-        <li>Re-look the key up if you need an iterator again &mdash; lookups are cheap.</li>
+        <li>迭代器、键视图或映射值引用，在该元素被删除之前都有效；或者在容器被清空、被移动之后（Swiss 表则在表增长/重构之后）失效。</li>
+        <li>在 <code>erase</code> 之后，只有返回的迭代器是已知可用的。</li>
+        <li>如果你又需要一个迭代器，就重新查一次键 &mdash; 查找很便宜。</li>
       </ul>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li><code>erase_key(key)</code> removes by key and returns 0 or 1; removing a missing key is harmless.</li>
-        <li><code>erase(it)</code> removes by position and returns the iterator to the next element.</li>
-        <li><code>erase(first, last)</code> removes a left-inclusive range and returns the position of <code>last</code>.</li>
-        <li>Erase-while-iterating: assign the result back, never increment afterwards.</li>
-        <li><code>clear()</code> and <code>clear_destroy()</code> are <code>noexcept</code> and can be called at any time.</li>
-        <li>Never mix a mutation and a query in one statement &mdash; argument evaluation order is unspecified.</li>
-        <li>After an erase, only the returned iterator is valid; views into erased elements are gone.</li>
+        <li><code>erase_key(key)</code> 按键删除并返回 0 或 1；删一个不存在的键是无害的。</li>
+        <li><code>erase(it)</code> 按位置删除并返回指向下一个元素的迭代器。</li>
+        <li><code>erase(first, last)</code> 删除左闭范围并返回 <code>last</code> 的位置。</li>
+        <li>边遍历边删除：把结果赋回去，之后绝不再自增。</li>
+        <li><code>clear()</code> 与 <code>clear_destroy()</code> 都是 <code>noexcept</code>，任何时候都能调用。</li>
+        <li>绝不要在同一条语句里混合修改与查询 &mdash; 实参求值顺序是未指定的。</li>
+        <li>删除之后只有返回的迭代器有效；指向被删元素的视图都已失效。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/10.associativecontainers/05.iterate/" class="prev-button">&larr; Ch10.5: Iterating</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/10.associativecontainers/07.maps/" class="next-button">Ch10.7: Maps &rarr;</a>
+      <a href="/zhcn/docs/10.associativecontainers/05.iterate/" class="prev-button">&larr; 第10.5章: 遍历</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/10.associativecontainers/07.maps/" class="next-button">第10.7章: 映射 &rarr;</a>
     </div>
   </main>
 </body>

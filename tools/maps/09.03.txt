@@ -1,0 +1,47 @@
+1|第9.3章: 按下标插入与删除 - 使用 fast_io 学习 C++ 教程
+2|第9.3章: 按下标插入与删除
+3|概述
+4|<code>fast_io</code> 容器提供 <code>insert_index</code> 和 <code>erase_index</code> 操作。它们是基于迭代器的插入与删除的<strong>带边界检查</strong>替代品。若下标越界，它们会调用 <code>fast_terminate()</code>。
+5|1. insert_index
+6|可用于：
+7|容器
+8|单个元素
+9|多个副本
+10|范围
+11|<code>vector</code>
+12|<code>insert_index(idx, val)</code>
+13|&mdash;
+14|&mdash;
+15|<code>deque</code>
+16|<code>insert_index(idx, val)</code>
+17|<code>insert_index(idx, count, val)</code>
+18|<code>insert_range_index(idx, rg)</code>
+19|<code>bitvec</code>
+20|<code>insert_index(idx, bit)</code>
+21|&mdash;
+22|&mdash;
+23|2. erase_index
+24|可用于：
+25|容器
+26|单个元素
+27|范围 [first, last)
+28|<code>vector</code>
+29|<code>erase_index(idx)</code>
+30|<code>erase_index(first, last)</code>
+31|<code>deque</code>
+32|<code>erase_index(idx)</code>
+33|<code>erase_index(first, last)</code>
+34|<code>bitvec</code>
+35|<code>erase_index(idx)</code>
+36|<code>erase_index(first, last)</code>
+37|<strong>注意：</strong><code>first</code> 和 <code>last</code> 是<em>下标</em>，不是个数。范围 <code>[first, last)</code> 表示左下标包含、右下标不包含。例如 <code>erase_index(1zu, 3zu)</code> 删除的是下标&nbsp;1 和下标&nbsp;2 的元素（而不是从下标&nbsp;1 开始的 3 个元素）。
+38|<strong>建议：</strong>优先使用 <code>insert_index</code> / <code>erase_index</code>，而不是基于迭代器的操作。它们更好用、更不易误用，而且免费提供边界检查。
+39|<strong>迭代器失效：</strong>与基于迭代器的对应操作一样，<code>insert_index</code> 和 <code>erase_index</code> 会使迭代器失效。对 <code>vector</code> 和 <code>bitvec</code> 来说，任何插入或删除都会使<strong>所有</strong>迭代器、指针和引用失效。对 <code>deque</code> 来说，迭代器总会失效，但指向未被删除元素的指针和引用在 <code>push_front()</code> 与 <code>push_back()</code> 之后<strong>仍然有效</strong>&mdash;&mdash;详见第9.9章。
+40|要点
+41|<code>insert_index(idx, val)</code> 在指定位置插入，并做边界检查。
+42|<code>erase_index(idx)</code> 删除一个元素；<code>erase_index(first, last)</code> 删除一个范围。
+43|可用于 <code>vector</code>、<code>deque</code> 和 <code>bitvec</code>。
+44|下标越界时会调用 <code>fast_terminate()</code>。
+45|为了安全，优先使用 <code>_index</code> 系列操作而不是基于迭代器的插入/删除。
+46|<code>insert_index</code> 和 <code>erase_index</code> 会使迭代器失效。对 <code>deque</code> 来说，指向未被删除元素的指针和引用在尾部插入后仍然有效。
+47|<a href="/docs/09.seqcontainers/02.commonops/" class="prev-button">&larr; 第9.2章: 通用操作</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/09.seqcontainers/04.iterators/" class="next-button">第9.4章: 迭代器 &rarr;</a>

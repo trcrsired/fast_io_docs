@@ -3,110 +3,100 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch9.16: C++ Standard Library Containers - C++ Tutorial with fast_io</title>
+  <title>第9.16章: C++ 标准库容器 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch9.16: C++ Standard Library Containers</h1>
+    <h1>第9.16章: C++ 标准库容器</h1>
     <p class="lang-switch"><a href="/docs/09.seqcontainers/16.std/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        The C++ standard library ships its own set of containers in the
-        <code>std::</code> namespace. If you are coming from another language or
-        have not used C++ before, you may encounter these in existing codebases.
-        This section introduces them and explains how they differ from
-        <code>fast_io</code>.
+        C++ 标准库在 <code>std::</code> 命名空间中自带一套容器。如果你来自其他语言，或者以前没用过 C++，可能会在现有代码库里遇到它们。本节介绍它们，并说明它们与 <code>fast_io</code> 有何不同。
       </p>
       <p>
-        <strong>In short: prefer <code>fast_io</code> containers.</strong> They
-        are safer, faster, and more consistent. But you should still recognise
-        the <code>std::</code> equivalents so you can read other people&rsquo;s
-        code and understand the ecosystem.
+        <strong>一句话：优先使用 <code>fast_io</code> 容器。</strong>它们更安全、更快、更一致。但你仍应能认出 <code>std::</code> 中的对应物，以便读懂别人的代码、理解整个生态。
       </p>
     </section>
 
     <section>
-      <h2>1. Available Containers</h2>
+      <h2>1. 可用的容器</h2>
       <table>
         <thead>
           <tr>
-            <th><code>std::</code> container</th>
-            <th><code>fast_io::</code> equivalent</th>
-            <th>Description</th>
+            <th><code>std::</code> 容器</th>
+            <th><code>fast_io::</code> 中的对应物</th>
+            <th>说明</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>std::vector&lt;T&gt;</code></td>
             <td><code>::fast_io::vector&lt;T&gt;</code></td>
-            <td>Dynamic contiguous array.</td>
+            <td>动态连续数组。</td>
           </tr>
           <tr>
             <td><code>std::deque&lt;T&gt;</code></td>
             <td><code>::fast_io::deque&lt;T&gt;</code></td>
-            <td>Double-ended queue (block-map layout).</td>
+            <td>双端队列（块映射布局）。</td>
           </tr>
           <tr>
             <td><code>std::list&lt;T&gt;</code></td>
             <td><code>::fast_io::list&lt;T&gt;</code></td>
-            <td>Doubly-linked list.</td>
+            <td>双向链表。</td>
           </tr>
           <tr>
             <td><code>std::forward_list&lt;T&gt;</code></td>
             <td><code>::fast_io::forward_list&lt;T&gt;</code></td>
-            <td>Singly-linked list.</td>
+            <td>单向链表。</td>
           </tr>
           <tr>
             <td><code>std::array&lt;T, N&gt;</code></td>
             <td><code>::fast_io::array&lt;T, N&gt;</code></td>
-            <td>Fixed-size array.</td>
+            <td>固定大小数组。</td>
           </tr>
           <tr>
             <td><code>std::string</code></td>
             <td><code>::fast_io::string</code></td>
-            <td>Dynamic, null-terminated character sequence.</td>
+            <td>动态的、以空字符结尾的字符序列。</td>
           </tr>
           <tr>
             <td><code>std::string_view</code></td>
             <td><code>::fast_io::string_view</code></td>
-            <td>Non-owning view over characters.</td>
+            <td>对字符的非拥有视图。</td>
           </tr>
           <tr>
             <td><code>std::span&lt;T&gt;</code></td>
             <td><code>::fast_io::span&lt;T&gt;</code></td>
-            <td>Non-owning view over a contiguous sequence.</td>
+            <td>对连续序列的非拥有视图。</td>
           </tr>
           <tr>
             <td><code>std::stack&lt;T&gt;</code></td>
             <td><code>::fast_io::stack&lt;T&gt;</code></td>
-            <td>LIFO adaptor.</td>
+            <td>LIFO 适配器。</td>
           </tr>
           <tr>
             <td><code>std::queue&lt;T&gt;</code></td>
             <td><code>::fast_io::queue&lt;T&gt;</code></td>
-            <td>FIFO adaptor.</td>
+            <td>FIFO 适配器。</td>
           </tr>
           <tr>
             <td><code>std::priority_queue&lt;T&gt;</code></td>
             <td><code>::fast_io::priority_queue&lt;T&gt;</code></td>
-            <td>Priority-based adaptor.</td>
+            <td>基于优先级的适配器。</td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>2. Basic Usage</h2>
+      <h2>2. 基本用法</h2>
       <p>
-        The <code>std::</code> containers are used in much the same way as
-        <code>fast_io</code> ones. The main differences are in the header paths
-        and the lack of some <code>fast_io</code>-specific features:
+        <code>std::</code> 容器的用法与 <code>fast_io</code> 的容器大体相同。主要差别在于头文件路径，以及缺少一些 <code>fast_io</code> 特有的功能：
       </p>
 <pre><code class="language-cpp">
 #include &lt;vector&gt;
@@ -135,107 +125,96 @@ int main() {
 </code></pre>
 
       <div class="warning">
-        <strong>Note:</strong> This tutorial uses <code>fast_io</code>
-        throughout. You do not need to learn the <code>std::</code> containers
-        to follow along &mdash; everything we cover uses <code>fast_io</code>.
+        <strong>注意：</strong>本教程通篇使用 <code>fast_io</code>。你不需要为了跟上进度而去学习 <code>std::</code> 容器 &mdash; 我们讲的所有内容都用 <code>fast_io</code>。
       </div>
     </section>
 
     <section>
-      <h2>3. Key Differences</h2>
+      <h2>3. 关键差异</h2>
       <p>
-        If you do encounter <code>std::</code> containers, be aware of these
-        differences:
+        如果你确实遇到 <code>std::</code> 容器，请注意这些差异：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Aspect</th>
-            <th><code>std::</code> containers</th>
-            <th><code>fast_io::</code> containers</th>
+            <th>方面</th>
+            <th><code>std::</code> 容器</th>
+            <th><code>fast_io::</code> 容器</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>Bounds checking</strong></td>
-            <td><code>operator[]</code> is unchecked &mdash; out-of-bounds is undefined behaviour. <code>at()</code> throws <code>std::out_of_range</code>, but this adds significant overhead for bounds checking. Worse, an out-of-bounds access is already a bug &mdash; catching an exception at that point does not fix the underlying problem. Trying to recover from a program bug makes things worse compared to just terminating and restarting.</td>
-            <td><code>operator[]</code> is bounds-checked. Out-of-bounds calls <code>fast_terminate()</code> immediately &mdash; deterministic, no exception overhead, no false sense of recovery.</td>
+            <td><strong>边界检查</strong></td>
+            <td><code>operator[]</code> 不做检查 &mdash; 越界是未定义行为。<code>at()</code> 会抛出 <code>std::out_of_range</code>，但边界检查本身带来可观的开销。更糟的是，越界访问本身就已经是 bug &mdash; 在那一刻捕获异常并不能修正底层问题。试图从程序 bug 中恢复，比直接终止并重启更糟。</td>
+            <td><code>operator[]</code> 带边界检查。越界会立刻调用 <code>fast_terminate()</code> &mdash; 行为确定、没有异常开销、也不会给人错误的“已恢复”幻觉。</td>
           </tr>
           <tr>
-            <td><strong>Allocation failure</strong></td>
-            <td>Throws <code>std::bad_alloc</code>. A failed heap allocation means the abstract machine is corrupted &mdash; there is no meaningful way to continue. Throwing an exception invites buggy recovery code that tries to limp along on a broken heap.</td>
-            <td>Calls <code>fast_terminate()</code> &mdash; no exception unwinding, no attempt to recover from an unrecoverable state. The program is already corrupt; crash deterministically.</td>
+            <td><strong>分配失败</strong></td>
+            <td>抛出 <code>std::bad_alloc</code>。堆分配失败意味着抽象机已经损坏 &mdash; 没有有意义的方式可以继续。抛异常只会招来那些试图在已经损坏的堆上勉强前行的错误恢复代码。</td>
+            <td>调用 <code>fast_terminate()</code> &mdash; 不展开异常，也不试图从不可恢复的状态中恢复。程序已经损坏了，就让它确定性地崩溃。</td>
           </tr>
           <tr>
-            <td><strong>Logic bugs (empty front/back, OOB)</strong></td>
-            <td>Undefined behaviour. Silent memory corruption in release builds.</td>
-            <td>Deterministic termination. Bugs are caught immediately.</td>
+            <td><strong>逻辑 bug（空的 front/back、越界）</strong></td>
+            <td>未定义行为。在发行版构建中会悄悄破坏内存。</td>
+            <td>确定性地终止。bug 立刻被发现。</td>
           </tr>
           <tr>
-            <td><strong>Growth relocation</strong></td>
-            <td>Uses move constructors. For types with non-trivial moves, this can be slow.</td>
-            <td>Uses <code>memcpy</code> when types are trivially relocatable &mdash; much faster.</td>
+            <td><strong>增长时的搬移</strong></td>
+            <td>使用移动构造函数。对移动非平凡的类型来说，这可能很慢。</td>
+            <td>当类型可平凡搬移时使用 <code>memcpy</code> &mdash; 快得多。</td>
           </tr>
           <tr>
-            <td><strong>Index-based operations</strong></td>
-            <td>No <code>insert_index</code> / <code>erase_index</code>. Must use iterators.</td>
-            <td>Bounds-checked <code>insert_index</code> / <code>erase_index</code> on all eligible containers.</td>
+            <td><strong>基于下标的操作</strong></td>
+            <td>没有 <code>insert_index</code> / <code>erase_index</code>，必须使用迭代器。</td>
+            <td>在所有适用的容器上都提供带边界检查的 <code>insert_index</code> / <code>erase_index</code>。</td>
           </tr>
           <tr>
-            <td><strong>String formatting</strong></td>
-            <td><code>std::format</code> (C++20) or <code>std::stringstream</code> &mdash; relatively slow.</td>
-            <td><code>concat_fast_io</code> + <code>to&lt;T&gt;</code> &mdash; compile-time optimised.</td>
+            <td><strong>字符串格式化</strong></td>
+            <td><code>std::format</code>（C++20）或 <code>std::stringstream</code> &mdash; 相对较慢。</td>
+            <td><code>concat_fast_io</code> + <code>to&lt;T&gt;</code> &mdash; 在编译期优化。</td>
           </tr>
           <tr>
-            <td><strong>Unchecked variants</strong></td>
-            <td>None. Only <code>operator[]</code> is unchecked; everything else is checked via exceptions.</td>
-            <td>Explicit <code>_unchecked</code> variants for performance-critical code.</td>
+            <td><strong>非检查变体</strong></td>
+            <td>没有。只有 <code>operator[]</code> 是非检查的，其余都通过异常做检查。</td>
+            <td>为性能关键的代码提供显式的 <code>_unchecked</code> 变体。</td>
           </tr>
           <tr>
-            <td><strong>Bit vector</strong></td>
-            <td><code>std::vector&lt;bool&gt;</code> is a specialisation that packs bits but has a broken interface (proxy references).</td>
-            <td><code>::fast_io::bitvec</code> is a separate, clean type with proper bit-level operations.</td>
+            <td><strong>位向量</strong></td>
+            <td><code>std::vector&lt;bool&gt;</code> 是一个打包了位、但接口很糟糕的特化（代理引用）。</td>
+            <td><code>::fast_io::bitvec</code> 是一个独立、干净的位级类型，具有正确的按位操作。</td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>4. A Note on C++26 Hardening</h2>
+      <h2>4. 关于 C++26 的加固</h2>
       <p>
-        C++26 introduces <strong>hardening</strong> for standard library
-        containers &mdash; bounds checks on <code>operator[]</code>,
-        <code>front()</code>, <code>back()</code>, and iterator validity
-        assertions. However, these containers were <em>not</em> designed to be
-        hardened from the ground up. Retrofitting safety checks onto decades of
-        existing ABI leads to problems:
+        C++26 为标准库容器引入了<strong>加固</strong> &mdash; 对 <code>operator[]</code>、<code>front()</code>、<code>back()</code> 做边界检查，并增加迭代器有效性断言。然而这些容器在设计之初<em>并不是</em>为了被加固的。把安全检查补丁打到几十年的既有 ABI 上会带来问题：
       </p>
       <ul>
-        <li><strong>ODR violations</strong> &mdash; translation units compiled with
-          different hardening levels see different class layouts, violating the
-          One Definition Rule.</li>
-        <li><strong>Inconsistent coverage</strong> &mdash; some checks are
-          opt-in, some are implementation-defined, and the exact set of checks
-          varies between standard library vendors.</li>
-        <li><strong>Still no index-based API</strong> &mdash; hardening adds
-          checks but does not add <code>insert_index</code> /
-          <code>erase_index</code>. You still need iterators for index-based
-          manipulation.</li>
+        <li>
+          <strong>ODR 违规</strong> &mdash; 以不同加固级别编译的翻译单元看到不同的类布局，违反单一定义规则（ODR）。
+        </li>
+        <li>
+          <strong>覆盖不一致</strong> &mdash; 有些检查是可选的，有些由实现定义，具体检查集合在不同标准库供应商之间并不相同。
+        </li>
+        <li>
+          <strong>仍然没有基于下标的 API</strong> &mdash; 加固只增加检查，并不增加 <code>insert_index</code> / <code>erase_index</code>。基于下标的操作仍然需要迭代器。
+        </li>
       </ul>
       <p>
-        <code>fast_io</code> containers were designed with safety from the
-        start &mdash; no ODR issues, no opt-in confusion, and consistent
-        deterministic termination across all builds.
+        <code>fast_io</code> 容器从一开始就把安全设计进去 &mdash; 没有 ODR 问题，没有“可选”带来的混乱，并且在所有构建下都一致地确定性终止。
       </p>
     </section>
 
     <section>
-      <h2>5. Code Comparison</h2>
+      <h2>5. 代码对比</h2>
       <p>
-        Here is the same program written with both libraries:
+        下面是同一个程序分别用两个库写的版本：
       </p>
 
-      <h3>With <code>fast_io</code> (preferred)</h3>
+      <h3>使用 <code>fast_io</code>（推荐）</h3>
 <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/vector.h&gt;
 #include &lt;fast_io_dsal/string.h&gt;
@@ -260,7 +239,7 @@ int main() {
 }
 </code></pre>
 
-      <h3>With <code>std::</code></h3>
+      <h3>使用 <code>std::</code></h3>
 <pre><code class="language-cpp">
 #include &lt;vector&gt;
 #include &lt;string&gt;
@@ -289,37 +268,30 @@ int main() {
     </section>
 
     <section>
-      <h2>6. Further Reading</h2>
+      <h2>6. 延伸阅读</h2>
       <p>
-        For full documentation of the <code>std::</code> containers, see
-        <a href="https://en.cppreference.com/cpp/container" target="_blank" rel="noopener">
-        cppreference &mdash; Container library</a>. It provides exhaustive
-        reference material for every <code>std::</code> type, method, and
-        overload.
+        <code>std::</code> 容器的完整文档见 <a href="https://en.cppreference.com/cpp/container" target="_blank" rel="noopener"> cppreference &mdash; Container library</a>。它对每个 <code>std::</code> 类型、方法和重载都给出详尽参考。
       </p>
       <p>
-        However, for new code in this tutorial&rsquo;s projects, always reach
-        for the <code>fast_io</code> equivalent first.
+        不过，在本教程项目的新代码里，请总是优先使用 <code>fast_io</code> 的对应物。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>C++ ships its own containers in <code>std::</code>: <code>vector</code>, <code>deque</code>, <code>list</code>, <code>forward_list</code>, <code>array</code>, <code>string</code>, <code>stack</code>, <code>queue</code>, <code>priority_queue</code>, etc.</li>
-        <li>Their usage patterns are similar to <code>fast_io</code> &mdash; but they lack bounds checking, index operations, and deterministic termination.</li>
-        <li><code>std::vector&lt;bool&gt;</code> is a broken specialisation; use <code>::fast_io::bitvec</code> instead.</li>
-        <li>C++26 adds hardening to <code>std::</code> containers, but retrofitting safety onto existing ABIs causes ODR violations and inconsistent coverage. <code>fast_io</code> was designed safe from the start.</li>
-        <li>Prefer <code>fast_io</code> containers for safety, performance, and consistency.</li>
-        <li>For <code>std::</code> container documentation, see <a href="https://en.cppreference.com/cpp/container" target="_blank" rel="noopener">cppreference</a>.</li>
+        <li>C++ 在 <code>std::</code> 中自带一套容器：<code>vector</code>、<code>deque</code>、<code>list</code>、<code>forward_list</code>、<code>array</code>、<code>string</code>、<code>stack</code>、<code>queue</code>、<code>priority_queue</code> 等。</li>
+        <li>它们的用法与 <code>fast_io</code> 类似 &mdash; 但缺少边界检查、下标操作和确定性终止。</li>
+        <li><code>std::vector&lt;bool&gt;</code> 是一个糟糕的特化；请改用 <code>::fast_io::bitvec</code>。</li>
+        <li>C++26 为 <code>std::</code> 容器增加了加固，但把安全补丁打到既有 ABI 上会造成 ODR 违规和覆盖不一致。<code>fast_io</code> 从一开始就是按安全设计的。</li>
+        <li>为了安全、性能和一致性，请优先使用 <code>fast_io</code> 容器。</li>
+        <li><code>std::</code> 容器的文档见 <a href="https://en.cppreference.com/cpp/container" target="_blank" rel="noopener">cppreference</a>。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/09.seqcontainers/15.algorithms/" class="prev-button">&larr; Ch9.15: Algorithms</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/10.associativecontainers/" class="next-button">Ch10: Associative Containers &rarr;</a>
+      <a href="/zhcn/docs/09.seqcontainers/15.algorithms/" class="prev-button">&larr; 第9.15章: 算法</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/10.associativecontainers/" class="next-button">第10章: 关联容器 &rarr;</a>
     </div>
   </main>
 </body>

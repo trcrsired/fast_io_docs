@@ -3,44 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch8.10: Why “Zero‑Overhead” and “Zero‑Cost” Are Meaningless - C++ Tutorial</title>
+  <title>第8.10章: 为什么“零开销”与“零成本”毫无意义 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch8.10: Why “Zero‑Overhead” and “Zero‑Cost” Are Meaningless</h1>
+    <h1>第8.10章: 为什么“零开销”与“零成本”毫无意义</h1>
     <p class="lang-switch"><a href="/docs/08.algorithm/10.zerocost/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
 
       <p>
-        The phrases <strong>“zero‑overhead”</strong> and <strong>“zero‑cost abstractions”</strong>
-        are repeated constantly in the C++ and Rust communities. They appear in
-        conference talks, Reddit threads, blog posts, and even standard‑committee
-        discussions. But these slogans are not engineering concepts. They are
-        marketing language — and worse, they are often used to shut down nuanced,
-        evidence‑based discussion.
+        <strong>“零开销”</strong>和<strong>“零成本抽象”</strong>这两个说法在 C++ 与 Rust 社区里被反复念诵。它们出现在会议演讲、Reddit 帖子、博客文章，甚至标准委员会的讨论里。但这些口号不是工程概念，而是营销话术——更糟的是，它们常常被用来封杀那些有细致分析和证据的讨论。
       </p>
 
       <p>
-        In this chapter, we examine why these slogans are meaningless in practice,
-        why they are routinely misused, and why real‑world performance depends on
-        binary size, memory hierarchy, platform constraints, and economics — not
-        on slogans.
+        本章将考察这些口号为什么在实践中毫无意义，为什么它们被习惯性地误用，以及为什么现实世界中的性能取决于二进制体积、存储层次结构、平台约束和经济成本，而不是口号。
       </p>
     </section>
 
     <section>
-      <h2>1. The slogan as propaganda</h2>
+      <h2>1. 作为宣传的口号</h2>
 
       <p>
-        In many online communities (r/cpp, r/rust, etc.), the phrase
-        <strong>“zero‑overhead”</strong> is used as a rhetorical weapon. Instead of
-        engaging with trade‑offs, people simply assert:
+        在很多在线社区（r/cpp、r/rust 等）里，<strong>“零开销”</strong>被当作修辞武器使用。人们不去讨论取舍，而是直接断言：
       </p>
 
       <blockquote>
@@ -48,237 +37,193 @@
       </blockquote>
 
       <p>
-        This is not engineering. It is propaganda.  
-        It prevents discussion about:
+        这不是工程，这是宣传。它阻止人们讨论：
       </p>
 
       <ul>
-        <li>binary size</li>
-        <li>instruction cache pressure</li>
-        <li>relocation cost</li>
-        <li>optimizer complexity</li>
-        <li>debuggability</li>
-        <li>portability</li>
-        <li>economic cost</li>
+        <li>二进制体积</li>
+        <li>指令缓存压力</li>
+        <li>重定位代价</li>
+        <li>优化器复杂度</li>
+        <li>可调试性</li>
+        <li>可移植性</li>
+        <li>经济成本</li>
       </ul>
 
       <p>
-        None of these are “zero.”  
-        None of these can be optimized away.
+        这些没有一项是“零”。这些没有一项可以被优化掉。
       </p>
     </section>
 
     <section>
-      <h2>2. Exception handling is not zero‑overhead</h2>
+      <h2>2. 异常处理不是零开销</h2>
 
       <p>
-        C++ exception handling is often marketed as “zero‑overhead” because the
-        happy path contains no explicit checks. But this ignores the real costs:
+        C++ 异常处理常被宣传为“零开销”，理由是正常路径中没有显式检查。但这忽略了一些真实代价：
       </p>
 
       <ul>
-        <li>larger binary size</li>
-        <li>unwind tables and metadata</li>
-        <li>more relocation entries</li>
-        <li>reduced optimization opportunities</li>
-        <li>worse icache locality</li>
+        <li>更大的二进制体积</li>
+        <li>展开表与元数据</li>
+        <li>更多的重定位项</li>
+        <li>更少的优化机会</li>
+        <li>更差的指令缓存局部性</li>
       </ul>
 
       <p>
-        For applications where <strong>crashing is acceptable</strong> (which is
-        most modern apps), <code>std::abort()</code> is strictly cheaper.
+        对于<strong>崩溃是可接受</strong>的应用（也就是大多数现代应用）来说，<code>std::abort()</code> 显然更便宜。
       </p>
 
       <p>
-        Linux overcommit kills processes.  
-        Android and iOS kill apps without permission.  
-        Users do not care. They keep buying phones.
+        Linux 的 overcommit 会杀掉进程，Android 和 iOS 会未经许可杀掉应用。用户并不在意，他们照样买手机。
       </p>
 
       <p>
-        So the claim that EH is “zero‑overhead” is simply false.
+        所以说异常处理是“零开销”的说法根本不成立。
       </p>
 
       <p>
-        See Raymond Chen’s article:
-        <a href="https://devblogs.microsoft.com/oldnewthing/20220228-00/?p=106296" target="_blank">
-          “Zero-cost exceptions aren’t actually zero cost”
-        </a>.
+        参见 Raymond Chen 的文章：<a href="https://devblogs.microsoft.com/oldnewthing/20220228-00/?p=106296" target="_blank"> “Zero-cost exceptions aren’t actually zero cost” </a>。
       </p>
     </section>
 
     <section>
-      <h2>3. Lambdas are not zero‑overhead</h2>
+      <h2>3. lambda 不是零开销</h2>
 
       <p>
-        Lambdas duplicate code. Even if two lambdas contain identical bodies,
-        they generate separate instantiations. This increases:
+        lambda 会复制代码。即使两个 lambda 的函数体完全相同，它们也会各自生成独立的实例。这增加了：
       </p>
 
       <ul>
-        <li>binary size</li>
-        <li>instruction cache pressure</li>
-        <li>relocation cost</li>
+        <li>二进制体积</li>
+        <li>指令缓存压力</li>
+        <li>重定位代价</li>
       </ul>
 
       <p>
-        Larger binaries are slower to load, slower to map, and harder for the
-        optimizer to reason about. None of this is “zero‑overhead.”
+        更大的二进制加载更慢、映射更慢，优化器也更难对它进行推理。这些没有一项是“零开销”。
       </p>
     </section>
 
     <section>
-    <h2>4. span and string_view are not zero‑overhead on Windows x64</h2>
+    <h2>4. 在 Windows x64 上 span 与 string_view 不是零开销</h2>
 
     <p>
-        A common claim is that <code>std::span</code> and <code>std::string_view</code>
-        are “zero‑overhead” abstractions. This is not true on Windows x86‑64, and the
-        reason is very concrete: the Windows x64 calling convention only passes
-        arguments of size 1, 2, 4, or 8 bytes in registers.
+      一个常见的说法是 <code>std::span</code> 和 <code>std::string_view</code> 是“零开销”抽象。这在 Windows x86‑64 上并不成立，原因非常具体：Windows x64 调用约定只把大小为 1、2、4、8 字节的参数放在寄存器里传递。
     </p>
 
     <p>
-        Both <code>std::span</code> and <code>std::string_view</code> are 16‑byte
-        aggregates (a pointer plus a size) on 64‑bit platforms. On Windows x64, such
-        16‑byte types do <strong>not</strong> qualify for register passing and are
-        therefore always passed <strong>by memory</strong>. This is purely an ABI
-        rule, not an STL or MSVC bug.
+      在 64 位平台上，<code>std::span</code> 和 <code>std::string_view</code> 都是 16 字节的聚合体（一个指针加一个大小）。在 Windows x64 上，这类 16 字节类型<strong>不</strong>满足寄存器传递的条件，因此总是<strong>通过内存</strong>传递。这纯粹是 ABI 规则，不是 STL 或 MSVC 的 bug。
     </p>
 
     <p>
-        On 32‑bit (i686) and Windows on ARM, and on SysV x86‑64 (Linux, BSD, macOS),
-        16‑byte aggregates <em>can</em> be passed in registers, so the same
-        <code>span</code>/<code>string_view</code> code has different calling‑convention
-        costs across platforms. The Godbolt examples demonstrate this difference
-        clearly for 64‑bit Windows vs 32‑bit and SysV ABIs.
+      在 32 位（i686）与 Windows on ARM 上，以及在 SysV x86‑64（Linux、BSD、macOS）上，16 字节聚合体<em>可以</em>通过寄存器传递，因此同一份 <code>span</code>/<code>string_view</code> 代码在不同平台上的调用约定代价并不相同。Godbolt 上的例子清楚地展示了 64 位 Windows 与 32 位以及 SysV ABI 之间的这种差异。
     </p>
 
     <p>
-        The key point is that “zero‑overhead” is not a universal property of an
-        abstraction; it depends on the ABI. An abstraction that looks “zero‑overhead”
-        on SysV can be measurably more expensive on Windows x64. Platform rules win
-        over slogans.
+      关键在于：“零开销”并不是某个抽象的普遍属性，它取决于 ABI。一个在 SysV 上看起来“零开销”的抽象，在 Windows x64 上可能贵得多。平台规则压倒口号。
     </p>
     </section>
 
 
     <section>
-      <h2>5. Instruction ordering and optimizer complexity</h2>
+      <h2>5. 指令顺序与优化器复杂度</h2>
 
       <p>
-        Even changing the order of instructions can affect performance.  
-        The optimizer must reason about dependencies, aliasing, and scheduling.
+        甚至只是改变指令的顺序也会影响性能。优化器必须推理依赖关系、别名关系和调度。
       </p>
 
       <p>
-        More abstraction → more IR → more complexity → fewer optimizations.  
-        This is overhead. It is not zero.
+        更多抽象 → 更多中间表示 → 更高复杂度 → 更少的优化。这就是开销，它不是零。
       </p>
     </section>
 
     <section>
-      <h2>6. C++ is used for portability, not performance</h2>
+      <h2>6. C++ 被采用是为了可移植性，而不是性能</h2>
 
       <p>
-        Many people claim C++ is used because it is “fast.”  
-        In reality, C++ is used because it is:
+        很多人声称 C++ 被采用是因为它“快”。实际上，C++ 被采用是因为它：
       </p>
 
       <ul>
-        <li>portable</li>
-        <li>stable</li>
-        <li>supported everywhere</li>
-        <li>compatible with existing code</li>
+        <li>可移植</li>
+        <li>稳定</li>
+        <li>到处都有支持</li>
+        <li>与现有代码兼容</li>
       </ul>
 
       <p>
-        Performance is often secondary.  
-        In many cases, it is irrelevant.
+        性能往往是次要的，在许多场合甚至无关紧要。
       </p>
 
       <p>
-        We will discuss this more in the chapter on Freestanding and Progressive
-        Web Apps, and how mobile app sandboxing (Android, iOS, UWP) makes native
-        apps slower to start, slower to update, and harder to distribute.
+        关于这一点，我们会在讲 freestanding 与渐进式 Web 应用的那一章里进一步讨论，也会讨论移动应用的沙箱机制（Android、iOS、UWP）如何让原生应用启动更慢、更新更慢、分发更难。
       </p>
     </section>
 
     <section>
-      <h2>7. PWAs can outperform native apps</h2>
+      <h2>7. PWA 可以比原生应用更快</h2>
 
       <p>
-        Consider a simple media player. A PWA can be:
+        考虑一个简单的媒体播放器。一个 PWA 可以：
       </p>
 
       <ul>
-        <li>smaller (under 100 KB)</li>
-        <li>faster to start (browser already running)</li>
-        <li>cross‑platform by default</li>
-        <li>more secure (browser sandbox)</li>
-        <li>cheaper to update</li>
+        <li>更小（不到 100 KB）</li>
+        <li>启动更快（浏览器已经在运行）</li>
+        <li>默认跨平台</li>
+        <li>更安全（浏览器沙箱）</li>
+        <li>更新成本更低</li>
       </ul>
 
       <p>
-        Meanwhile, VLC’s installer is over 100 MB.  
-        SMPlayer is similar.  
-        Updates are expensive.  
-        Startup is slower because the entire application must be loaded from disk.
+        而 VLC 的安装包超过 100 MB，SMPlayer 也差不多。更新代价高，启动更慢，因为整个应用都必须从磁盘加载。
       </p>
 
       <p>
-        My PWA Player is a concrete demonstration of this. The player itself is under
-        100 KB, while the browser’s media engine — written in highly optimized
-        C/C++/assembly — is already loaded in memory and shared across processes.
-        The PWA does not re‑implement a media engine; it simply uses the one the
-        browser already provides.
+        我的 PWA Player 就是一个具体例子。播放器本身不到 100 KB，而浏览器中那个用高度优化的 C/C++/汇编写成的媒体引擎早已加载在内存中，并在多个进程之间共享。PWA 并不重新实现媒体引擎，它只是使用浏览器已经提供的那个。
       </p>
 
       <p>
-        This architecture allows a lightweight PWA to outperform heavyweight native
-        apps in startup time, update cost, and distribution convenience. It directly
-        contradicts the simplistic “C++ is always faster” narrative.
+        这种架构让一个轻量的 PWA 在启动时间、更新成本和分发便利性上胜过重量级的原生应用。它直接反驳了“C++ 总是更快”这种简单化叙事。
       </p>
 
       <p>
-        Try it here:
-        <a href="https://pwa-player.pages.dev/" target="_blank">
-          https://pwa-player.pages.dev/
-        </a>
+        在这里试试：<a href="https://pwa-player.pages.dev/" target="_blank"> https://pwa-player.pages.dev/ </a>
       </p>
     </section>
 
     <section>
-      <h2>8. Economic cost is real overhead</h2>
+      <h2>8. 经济成本是实实在在的开销</h2>
 
       <p>
-        Adding features like exception handling consumes:
+        增加异常处理这类特性会消耗：
       </p>
 
       <ul>
-        <li>committee time</li>
-        <li>compiler engineering resources</li>
-        <li>maintenance cost</li>
-        <li>testing cost</li>
+        <li>委员会的时间</li>
+        <li>编译器工程资源</li>
+        <li>维护成本</li>
+        <li>测试成本</li>
       </ul>
 
       <p>
-        These resources could have been spent on:
+        这些资源本可以用于：
       </p>
 
       <ul>
-        <li>better optimizations</li>
-        <li>better tooling</li>
-        <li>better diagnostics</li>
-        <li>better portability</li>
+        <li>更好的优化</li>
+        <li>更好的工具</li>
+        <li>更好的诊断信息</li>
+        <li>更好的可移植性</li>
       </ul>
 
       <p>
-        Economic cost is overhead.  
-        It affects real‑world performance indirectly but significantly.
+        经济成本就是开销。它虽然间接，却显著地影响着现实世界中的性能。
       </p>
 
       <p>
-        See Chandler Carruth’s CppCon 2019 talk:
+        参见 Chandler Carruth 在 CppCon 2019 的演讲：
       </p>
 
       <div class="video-container">
@@ -295,26 +240,24 @@
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
 
       <ul>
-        <li>“Zero‑overhead” and “zero‑cost” are slogans, not engineering terms.</li>
-        <li>They are often used to shut down discussion rather than encourage it.</li>
-        <li>Exception handling, lambdas, span, and string_view all have real costs.</li>
-        <li>Binary size, icache pressure, and relocation cost matter.</li>
-        <li>Platform differences matter; nothing is universally zero‑overhead.</li>
-        <li>C++ is used for portability far more than for performance.</li>
-        <li>PWAs can outperform native apps because the browser is already running.</li>
-        <li>Economic cost is overhead; committee time is not free.</li>
-        <li>There are no zero‑cost abstractions — only trade‑offs.</li>
+        <li>“零开销”和“零成本”是口号，不是工程术语。</li>
+        <li>它们常常被用来终结讨论，而不是促进讨论。</li>
+        <li>异常处理、lambda、span、string_view 都有真实代价。</li>
+        <li>二进制体积、指令缓存压力与重定位代价都很重要。</li>
+        <li>平台差异很重要；没有任何东西是普遍零开销的。</li>
+        <li>C++ 被采用主要是为了可移植性，而不是性能。</li>
+        <li>PWA 之所以能胜过原生应用，是因为浏览器已经在运行。</li>
+        <li>经济成本是开销；委员会的时间不是免费的。</li>
+        <li>不存在零成本抽象——只有取舍。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/08.algorithm/09.rammachine/" class="prev-button">← Ch8.9: The RAM Model &amp; Its Limits</a>
-      <a href="/zhcn/" class="main-button">↑ 主页</a>
-      <a href="/zhcn/docs/09.seqcontainers/" class="next-button">Ch9: Sequence container →</a>
+      <a href="/zhcn/docs/08.algorithm/09.rammachine/" class="prev-button">← 第8.9章: RAM 模型及其局限</a> <a href="/zhcn/" class="main-button">↑ 主页</a> <a href="/zhcn/docs/09.seqcontainers/" class="next-button">第9章: 序列容器 →</a>
     </div>
   </main>
 </body>

@@ -3,22 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.15: NT File APIs - C++ Tutorial with fast_io</title>
+  <title>第11.15章: NT 文件 API - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.15: NT File APIs</h1>
+    <h1>第11.15章: NT 文件 API</h1>
     <p class="lang-switch"><a href="/docs/11.io/15.nt/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        Modern Windows (NT, 2000, XP, 7, 10, 11) is built on the NT kernel. The lowest-level
-        user-mode entry points for file I/O are the native system calls:
+        现代 Windows（NT、2000、XP、7、10、11）建立在 NT 内核之上。用户态文件 I/O 的最低层入口是原生系统调用：
       </p>
       <ul>
         <li><code>NtCreateFile</code></li>
@@ -27,33 +25,26 @@
         <li><code>NtClose</code></li>
       </ul>
       <p>
-        These live in <code>ntdll.dll</code> and are the same functions the Win32 subsystem
-        itself calls. A parallel set of entry points with the <code>Zw</code> prefix
-        (<code>ZwCreateFile</code>, &hellip;) exist as well; they differ only in whether the
-        previous-mode parameter is set to <em>KernelMode</em> or <em>UserMode</em>. For
-        user-mode code they behave identically.
+        它们位于 <code>ntdll.dll</code>，正是 Win32 子系统自己调用的那些函数。此外还有一套带 <code>Zw</code> 前缀的对应入口（<code>ZwCreateFile</code> 等）；它们的区别只在于“前一模式”参数被设为 <em>KernelMode</em> 还是 <em>UserMode</em>。对用户态代码来说行为完全相同。
       </p>
       <p>
-        <code>fast_io</code> exposes the NT layer through:
+        <code>fast_io</code> 通过下面这些类型暴露 NT 层：
       </p>
       <ul>
         <li>
-          <code>::fast_io::nt_file</code> &mdash; an RAII owning wrapper. The constructor
-          invokes <code>NtCreateFile</code>; the destructor calls <code>NtClose</code>.
+          <code>::fast_io::nt_file</code> &mdash; RAII 拥有式包装。构造函数调用 <code>NtCreateFile</code>，析构函数调用 <code>NtClose</code>。
         </li>
         <li>
-          <code>::fast_io::nt_io_observer</code> &mdash; a non-owning view over an existing
-          NT <code>HANDLE</code>. Trivially copyable, no destructor.
+          <code>::fast_io::nt_io_observer</code> &mdash; 对已有 NT <code>HANDLE</code> 的非拥有视图。可平凡复制，没有析构函数。
         </li>
       </ul>
       <p>
-        The programming model is exactly the same pattern as <code>posix_file</code> and
-        <code>win32_file</code>.
+        编程模型与 <code>posix_file</code>、<code>win32_file</code> 完全是同一个模式。
       </p>
     </section>
 
     <section>
-      <h2>Opening a File with nt_file</h2>
+      <h2>用 nt_file 打开文件</h2>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
@@ -76,7 +67,7 @@ int main()
     </section>
 
     <section>
-      <h2>Wrapping an Existing HANDLE</h2>
+      <h2>包裹已有的 HANDLE</h2>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
@@ -102,11 +93,9 @@ int main()
     </section>
 
     <section>
-      <h2>Relative Opens</h2>
+      <h2>相对打开</h2>
       <p>
-        Because <code>NtCreateFile</code> natively accepts a
-        <em>RootDirectory</em> handle and a relative <em>ObjectName</em>, the NT layer is
-        the most natural home for <code>at(dir)</code> on Windows:
+        由于 <code>NtCreateFile</code> 原生接受一个 <em>RootDirectory</em> 句柄和一个相对的 <em>ObjectName</em>，NT 层是 Windows 上 <code>at(dir)</code> 最自然的归宿：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -126,85 +115,71 @@ int main(int argc, char** argv)
     </section>
 
     <section>
-      <h2>Why Use nt_file Directly?</h2>
+      <h2>为什么直接使用 nt_file？</h2>
       <p>
-        Most programs should just use <code>::fast_io::native_file</code> (which aliases to
-        <code>nt_file</code> on NT) or <code>::fast_io::iobuf_file</code>. You reach for
-        <code>nt_file</code> directly when you need:
+        大多数程序直接用 <code>::fast_io::native_file</code>（在 NT 上别名到 <code>nt_file</code>）或 <code>::fast_io::iobuf_file</code> 即可。当你需要下列能力时，才直接使用 <code>nt_file</code>：
       </p>
       <ul>
-        <li>Direct kernel access without going through <code>kernel32.dll</code>.</li>
-        <li>Fine-grained control over <code>NtCreateFile</code> parameters.</li>
-        <li>Relative opens, which map cleanly onto the native API.</li>
+        <li>不经 <code>kernel32.dll</code> 的直接内核访问。</li>
+        <li>对 <code>NtCreateFile</code> 参数的细粒度控制。</li>
+        <li>相对打开，它能干净地映射到原生 API 上。</li>
       </ul>
     </section>
 
     <section>
-      <h2>The Raw NT I/O APIs</h2>
+      <h2>原始的 NT I/O API</h2>
       <p>
-        Before using <code>fast_io</code>'s wrappers, it helps to understand the underlying NT native APIs.
-        These are the functions exported by <code>ntdll.dll</code>, the lowest-level user-mode entry points
-        that <code>kernel32.dll</code> itself calls:
+        在使用 <code>fast_io</code> 的包装之前，先了解底层 NT 原生 API 会有帮助。这些是由 <code>ntdll.dll</code> 导出的函数，也就是 <code>kernel32.dll</code> 自己调用的最低层用户态入口：
       </p>
       <table>
         <thead>
           <tr>
-            <th>API Function</th>
-            <th>Purpose</th>
+            <th>API 函数</th>
+            <th>用途</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>NtCreateFile(FileHandle, DesiredAccess, ObjectAttributes, IoStatusBlock, AllocationSize, FileAttributes, ShareAccess, CreateDisposition, CreateOptions, EaBuffer, EaLength)</code></td>
-            <td>Open or create a file. Returns a <code>HANDLE</code> through <code>FileHandle</code>. This is the most fundamental file-opening API on NT.</td>
+            <td>打开或创建文件。通过 <code>FileHandle</code> 返回 <code>HANDLE</code>。这是 NT 上最基础的文件打开 API。</td>
           </tr>
           <tr>
             <td><code>NtReadFile(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, Buffer, Length, ByteOffset, Key)</code></td>
-            <td>Read bytes from a file handle. Can be synchronous or asynchronous.</td>
+            <td>从文件句柄读取字节。可以是同步或异步的。</td>
           </tr>
           <tr>
             <td><code>NtWriteFile(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, Buffer, Length, ByteOffset, Key)</code></td>
-            <td>Write bytes to a file handle. Can be synchronous or asynchronous.</td>
+            <td>向文件句柄写入字节。可以是同步或异步的。</td>
           </tr>
           <tr>
             <td><code>NtClose(Handle)</code></td>
-            <td>Close a handle. <strong>Always required</strong> &mdash; handles are a limited resource.</td>
+            <td>关闭句柄。<strong>永远需要</strong> &mdash; 句柄是有限资源。</td>
           </tr>
           <tr>
             <td><code>NtSetInformationFile(FileHandle, IoStatusBlock, FileInformation, Length, FileInformationClass)</code></td>
-            <td>Set file information, including file position (seek). Used with <code>FilePositionInformation</code>.</td>
+            <td>设置文件信息，包括文件位置（定位）。配合 <code>FilePositionInformation</code> 使用。</td>
           </tr>
           <tr>
             <td><code>NtQueryInformationFile(FileHandle, IoStatusBlock, FileInformation, Length, FileInformationClass)</code></td>
-            <td>Query file information, including file position and size.</td>
+            <td>查询文件信息，包括文件位置与大小。</td>
           </tr>
         </tbody>
       </table>
       <p>
-        There are also <code>Zw*</code> variants (<code>ZwCreateFile</code>, <code>ZwReadFile</code>, etc.).
-        In user space, <code>Nt*</code> and <code>Zw*</code> are <strong>identical</strong>. They differ only
-        in kernel mode: <code>Nt*</code> validates parameters from user mode, while <code>Zw*</code> sets the
-        previous-mode to <code>KernelMode</code> and skips validation. For user-mode code, they behave the same.
+        另外还有 <code>Zw*</code> 变体（<code>ZwCreateFile</code>、<code>ZwReadFile</code> 等）。在用户空间，<code>Nt*</code> 与 <code>Zw*</code> 是<strong>相同的</strong>。它们只在内核态才有区别：<code>Nt*</code> 校验来自用户态的指针参数，而 <code>Zw*</code> 把前一模式设为 <code>KernelMode</code> 并跳过校验。对用户态代码来说行为一致。
       </p>
       <p>
-        These NT APIs are <strong>unbuffered</strong> &mdash; each call goes through <code>ntdll.dll</code>
-        to the kernel (<code>ntoskrnl.exe</code>). This makes them slow for small or frequent operations.
-        <code>fast_io</code>'s buffered types (like <code>ibuf_file</code> and <code>obuf_file</code>) wrap
-        these calls with user-space buffering for much better performance.
+        这些 NT API <strong>不带缓冲</strong> &mdash; 每次调用都经 <code>ntdll.dll</code> 进入内核（<code>ntoskrnl.exe</code>）。这使得它们在操作很小或很频繁时很慢。<code>fast_io</code> 的带缓冲类型（如 <code>ibuf_file</code> 与 <code>obuf_file</code>）用用户态缓冲包装这些调用，性能好得多。
       </p>
     </section>
 
     <section>
-      <h2>Using nt_file for RAII Even Without fast_io I/O</h2>
+      <h2>即使不用 fast_io 的 I/O，也可以用 nt_file 做 RAII</h2>
       <p>
-        Even if you prefer to call the raw NT APIs directly (e.g., <code>NtReadFile</code> and
-        <code>NtWriteFile</code>) instead of using <code>fast_io</code>'s <code>print</code> and <code>scan</code>,
-        you should <strong>still use <code>::fast_io::nt_file</code> for RAII</strong>. The destructor
-        guarantees <code>NtClose</code> is called, so you never forget to close the handle.
+        即使你更愿意直接调用原始 NT API（例如 <code>NtReadFile</code> 与 <code>NtWriteFile</code>）而不使用 <code>fast_io</code> 的 <code>print</code> 与 <code>scan</code>，你<strong>仍然应该用 <code>::fast_io::nt_file</code> 做 RAII</strong>。它的析构函数保证调用 <code>NtClose</code>，所以你永远不会忘记关闭句柄。
       </p>
       <p>
-        This is especially important when exceptions or early returns are involved &mdash; without RAII,
-        you must manually call <code>NtClose</code> on every exit path, which is error-prone.
+        当涉及异常或提前返回时，这一点尤其重要 &mdash; 没有 RAII，你必须在每一条退出路径上手动调用 <code>NtClose</code>，这很容易出错。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -231,15 +206,10 @@ int main()
 }
 </code></pre>
       <p>
-        <strong>Note:</strong> Calling NT APIs directly is complex. <code>NtCreateFile</code> requires
-        setting up <code>OBJECT_ATTRIBUTES</code>, <code>IO_STATUS_BLOCK</code>, and many other parameters.
-        <code>NtReadFile</code> and <code>NtWriteFile</code> are similarly involved. Most programs should
-        use <code>fast_io</code>'s <code>print</code>, <code>println</code>, and <code>scan</code> instead.
-        The raw APIs are documented here for completeness and to show that <code>fast_io</code> wraps them
-        with RAII.
+        <strong>注意：</strong>直接调用 NT API 很复杂。<code>NtCreateFile</code> 需要设置 <code>OBJECT_ATTRIBUTES</code>、<code>IO_STATUS_BLOCK</code> 以及许多其他参数。<code>NtReadFile</code> 与 <code>NtWriteFile</code> 也同样繁琐。大多数程序应该改用 <code>fast_io</code> 的 <code>print</code>、<code>println</code> 与 <code>scan</code>。这里记录原始 API 是为了完整，并说明 <code>fast_io</code> 是用 RAII 把它们包起来的。
       </p>
       <p>
-        The same RAII principle applies if you do call the raw NT APIs:
+        如果你确实直接调用 NT API，同样的 RAII 原则仍然适用：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -259,55 +229,41 @@ int main()
     </section>
 
     <section>
-      <h2>Summary</h2>
+      <h2>小结</h2>
       <ul>
         <li>
-          <code>::fast_io::nt_file</code> wraps the NT kernel's <code>NtCreateFile</code> /
-          <code>NtClose</code> with RAII.
+          <code>::fast_io::nt_file</code> 用 RAII 包装 NT 内核的 <code>NtCreateFile</code> / <code>NtClose</code>。
         </li>
         <li>
-          <code>::fast_io::nt_io_observer</code> is a non-owning view over an existing NT
-          <code>HANDLE</code>.
+          <code>::fast_io::nt_io_observer</code> 是对已有 NT <code>HANDLE</code> 的非拥有视图。
         </li>
         <li>
-          The API surface mirrors <code>posix_file</code> and <code>win32_file</code>: once
-          you know one layer, the others are trivial.
+          API 表面与 <code>posix_file</code>、<code>win32_file</code> 一致：学会一层之后，其他层都变得平平无奇。
         </li>
         <li>
-          On modern Windows, <code>::fast_io::native_file</code> is an alias for
-          <code>nt_file</code>.
+          在现代 Windows 上，<code>::fast_io::native_file</code> 是 <code>nt_file</code> 的别名。
         </li>
         <li>
-          The raw NT APIs are <code>NtCreateFile</code>, <code>NtReadFile</code>, <code>NtWriteFile</code>,
-          <code>NtClose</code>, <code>NtSetInformationFile</code>, and <code>NtQueryInformationFile</code>.
-          These are unbuffered and go through <code>ntdll.dll</code> to the kernel.
+          原始 NT API 有 <code>NtCreateFile</code>、<code>NtReadFile</code>、<code>NtWriteFile</code>、<code>NtClose</code>、<code>NtSetInformationFile</code> 与 <code>NtQueryInformationFile</code>。它们不带缓冲，都经 <code>ntdll.dll</code> 进入内核。
         </li>
         <li>
-          <code>Nt*</code> and <code>Zw*</code> variants are <strong>identical in user space</strong>.
-          They differ only in kernel mode.
+          <code>Nt*</code> 与 <code>Zw*</code> 变体在<strong>用户空间完全相同</strong>，只在内核态才有区别。
         </li>
         <li>
-          <strong>Even if you call the raw NT APIs directly</strong> (e.g., <code>NtReadFile</code>
-          and <code>NtWriteFile</code>), <strong>still use <code>::fast_io::nt_file</code> for RAII</strong>
-          to guarantee <code>NtClose</code> is called automatically. This prevents resource leaks,
-          especially with exceptions or early returns.
+          <strong>即使你直接调用原始 NT API</strong>（例如 <code>NtReadFile</code> 与 <code>NtWriteFile</code>），<strong>也仍然要用 <code>::fast_io::nt_file</code> 做 RAII</strong>，以保证 <code>NtClose</code> 被自动调用。这能防止资源泄漏，在有异常或提前返回时尤其如此。
         </li>
         <li>
-          Calling NT APIs directly is complex. Most programs should use <code>fast_io</code>'s
-          <code>print</code>, <code>println</code>, and <code>scan</code> instead.
+          直接调用 NT API 很复杂。大多数程序应该改用 <code>fast_io</code> 的 <code>print</code>、<code>println</code> 与 <code>scan</code>。
         </li>
         <li>
-          For more details on the NT APIs, see the
-          <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/" target="_blank" rel="noopener noreferrer">Microsoft WDM documentation</a>.
+          关于 NT API 的更多细节，见 <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/" target="_blank" rel="noopener noreferrer">Microsoft WDM 文档</a>。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/14.win32/" class="prev-button">&larr; Ch11.14: Win32 File APIs</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/16.wine/" class="next-button">Ch11.16: Wine File APIs &rarr;</a>
+      <a href="/zhcn/docs/11.io/14.win32/" class="prev-button">&larr; 第11.14章: Win32 文件 API</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/16.wine/" class="next-button">第11.16章: Wine 文件 API &rarr;</a>
     </div>
   </main>
 </body>

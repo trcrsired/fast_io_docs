@@ -1,0 +1,32 @@
+1|第8.7章: 数值算法 - 使用 fast_io 学习 C++ 教程
+2|第8.7章: 数值算法
+3|概述
+4|头文件 <code>&lt;numeric&gt;</code> 提供了一批把元素组合起来的算法：求和、归约、计算前缀结果等等。这些算法很简单，但在日常编程中极其有用。
+5|本章将介绍：
+11|1. accumulate
+12|<code>accumulate</code> 从左到右处理元素，并用一个二元运算把它们组合起来。它<strong>总是需要一个初始值</strong>。
+13|可以用 <code>std::multiplies&lt;&gt;</code> 来计算连乘：
+14|<strong>注意：</strong>初始值会影响结果。例如对整数从 <code>1</code> 而不是从 <code>0</code> 开始累加，得到的总和是不一样的。这正是 <code>reduce</code> 往往更受欢迎的原因之一。
+15|2. reduce
+16|<code>reduce</code> 与 <code>accumulate</code> 类似，但它为并行执行而设计。与 <code>accumulate</code> 不同，它<strong>不要求初始值</strong>；如果不提供，就使用第一个元素。
+17|你也可以显式提供一个初始值：
+18|由于组合顺序未作规定，该运算必须满足结合律。
+19|<strong>为什么优先用 reduce？</strong>因为它能避免“选错初始值”这个常见错误。用 <code>accumulate</code> 时忘记初始值会悄悄改变结果；用 <code>reduce</code> 时，默认行为通常就是正确的。
+20|3. transform_reduce
+21|<code>transform_reduce</code> 把投影和归约合成一步。它先对每个元素做一次变换，再对结果做归约。
+22|归约使用一个函数对象。投影可以是 lambda，也可以是指向成员的指针。
+23|4. partial_sum
+24|<code>partial_sum</code> 计算前缀和：
+25|若 <code>v = {1,2,3,4}</code>，则 <code>out = {1,3,6,10}</code>。
+26|5. inclusive_scan 与 exclusive_scan
+27|它们是对前缀运算的现代、对 ranges 友好的版本。
+28|<code>inclusive_scan</code> 包含当前元素，<code>exclusive_scan</code> 不包含。
+29|要点
+30|<code>accumulate</code> 总是需要初始值。
+31|<code>reduce</code> 不需要初始值，并能避免常见错误。
+32|<code>reduce</code> 对并行友好，且要求运算满足结合律。
+33|<code>transform_reduce</code> 把投影与归约合为一体。
+34|<code>partial_sum</code> 和 scan 系列计算前缀结果。
+35|二元运算请使用函数对象（<code>std::plus&lt;&gt;</code>、<code>std::multiplies&lt;&gt;</code>）。
+36|简单的投影请使用 <code>&amp;Item::member</code>。
+37|<a href="/docs/08.algorithm/06.typical/" class="prev-button">← 第8.6章: 典型算法</a> <a href="/" class="main-button">↑ 主页</a> <a href="/docs/08.algorithm/08.timecomplexity/" class="next-button">第8.8章: 时间与空间复杂度 →</a>

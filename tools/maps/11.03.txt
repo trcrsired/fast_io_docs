@@ -1,0 +1,51 @@
+1|第11.3章: 操纵器 - 使用 fast_io 学习 C++ 教程
+2|第11.3章: 操纵器
+3|什么是操纵器？
+4|<strong>操纵器</strong>是一个小辅助对象，它包住一个（或几个）值，告诉 <code>print</code> / <code>println</code> / <code>scan</code> <em>如何</em>格式化或解析那个值。它不用 <code>"%x"</code> 或 <code>std::hex</code> 那样的格式串，而是把格式化表达在类型系统里：操纵器是一个有自己类型的对象，因此编译器可以检查它并把它完全内联掉。
+5|所有操纵器都在 <code>::fast_io::manipulators</code> 命名空间里，它的便捷简写是 <code>::fast_io::mnp</code>。大多数程序只需加一句：
+6|然后就能直接使用操纵器。下面每个示例都假定有这句 using 声明。
+7|数制：hex、oct、bin、dec
+8|最常见的操纵器改变打印或扫描整数所用的数制。<code>hex</code>、<code>oct</code>、<code>bin</code>、<code>dec</code> 产生小写数字。它们的大写同胞 <code>hexupper</code> / <code>octupper</code> / <code>binupper</code> 也存在。用于扫描时，使用带 <code>_get</code> 的变体：<code>hex_get</code>、<code>oct_get</code>、<code>bin_get</code>、<code>dec_get</code>。
+9|hex0x &mdash; 带 0x 前缀的十六进制
+10|<code>hex0x</code> 用小写十六进制加常见的 <code>0x</code> 前缀打印整数。要大写数字和 <code>0X</code> 就用 <code>hex0xupper</code>。当你要产出人能读懂、并能再抄回源码的输出时，它们最合适。
+11|boolalpha
+12|默认情况下 <code>bool</code> 打印成 <code>1</code> 或 <code>0</code>。<code>boolalpha</code> 操纵器则把它打印成 <code>true</code> / <code>false</code>（或通过模板参数指定大写 <code>TRUE</code> / <code>FALSE</code>）。
+13|浮点格式：fixed、scientific、general
+14|三个操纵器控制浮点输出所用的记法：
+15|<code>fixed(x)</code> &mdash; 普通十进制记法，例如 <code>1234.5678</code>。
+16|<code>scientific(x)</code> &mdash; 科学计数法，例如 <code>1.2345678e3</code>。
+17|<code>general(x)</code> &mdash; 让库选择更短的那种形式。
+18|每个都有一个 <code>comma_</code> 同胞（<code>comma_fixed</code>、<code>comma_scientific</code>、<code>comma_general</code>），会插入千位分隔符。
+19|comma_decimal &mdash; 千位分隔符
+20|当你只想要逗号（或其他分组分隔符）而不改变浮点记法时，该用的就是 <code>comma_*</code> 家族。<code>comma_decimal</code> 是最常用的 &mdash; 它用普通十进制记法格式化数字并插入分组分隔符。
+21|对齐：left、right、middle
+22|<code>left</code>、<code>right</code> 和 <code>middle</code> 把值补齐到给定的字段宽度。第一个参数是值，第二个是宽度，可选的第三个参数是填充字符（默认是空格）。
+23|chvw &mdash; 把整数当作字符打印
+24|<code>chvw(ch)</code> 把一个整型值当作字符打印。当你的 <code>char</code> 存在整数里，或者你想打印一个码点又不想经过字符串时，它很有用。
+25|rgvw &mdash; 范围视图
+26|<code>rgvw(range, sep)</code> 打印 range 的每个元素，用给定的字符串或字符分隔。它是不写循环就导出容器内容的地道做法。分隔符可以是 C 字符串、单个字符，或者类似 <code>os_c_str</code> 的对象。
+27|addrvw 与 pointervw
+28|<code>addrvw(p)</code> 用全宽十六进制加 <code>0x</code> 前缀打印指针的数值 &mdash; 经典的“地址”格式。<code>pointervw(p)</code> 类似，但面向泛指指针类对象，给出干净的地址风格输出。两者都可用于裸指针和指针类类型。
+29|hex_encode &mdash; 把二进制数据写成十六进制串
+30|<code>hex_encode(first, last)</code>（或 range 重载 <code>hex_encode(range)</code>）把一段字节序列变成十六进制字符串，非常适合打印哈希值、密钥或原始缓冲区。<code>hex_encode_upper</code> 产生大写字母。
+31|ordinal &mdash; 第 1、第 2、第 3&hellip;
+32|<code>ordinal(n)</code> 打印整数并附上英文序数后缀：<code>1st</code>、<code>2nd</code>、<code>3rd</code>、<code>4th</code>、<code>21st</code> 等等。适合排名、排行榜以及带日期的日志消息。
+33|复合操纵器：left_width、right_width
+34|复合操纵器把多项格式化操作合成一个操纵器对象。<code>left_width</code> 与 <code>right_width</code> 就是把值格式化与对齐结合起来的例子。它们是<strong>无状态</strong>的 &mdash; 只作用于自己包住的那个值，没有会被破坏的流状态。
+35|<code>left_width(value, width, fill)</code> 格式化 <code>value</code> 并在给定 <code>width</code> 的字段内左对齐，用 <code>fill</code> 填充（默认空格）。类似地，<code>right_width(value, width, fill)</code> 右对齐。当你想把格式化（例如 <code>hex</code> 或 <code>fixed</code>）与对齐结合在一个可组合的表达式里时，它们很有用。
+36|关键优势在于这些操纵器是<strong>无状态</strong>的。没有会被破坏的流状态，也不需要手动恢复设置。每个操纵器都是自包含的对象，只作用于它包住的值。
+37|完整附录
+38|上面展示的只是最常用的一批操纵器。库还提供任意进制 I/O（<code>base&lt;N&gt;</code>、<code>base_get&lt;N&gt;</code>）、ISO 时间戳、IP 地址格式化、十六进制浮点、百分比格式化器、转码操纵器等。
+39|完整参考见<a href="01.manipulators/">附录：操纵器</a>。
+40|要点
+41|操纵器就是 <code>::fast_io::manipulators</code>（简写 <code>::fast_io::mnp</code>）里的普通对象，控制值如何被格式化或解析。
+42|数制操纵器：输出用 <code>hex</code>、<code>oct</code>、<code>bin</code>、<code>dec</code>；输入用 <code>hex_get</code>、<code>oct_get</code>、<code>bin_get</code>、<code>dec_get</code>。<code>hex0x</code> 会加上 <code>0x</code> 前缀。
+43|<code>boolalpha</code> 在 <code>1</code>/<code>0</code> 与 <code>true</code>/<code>false</code> 之间切换。
+44|浮点格式化：<code>fixed</code>、<code>scientific</code>、<code>general</code>，以及带千位分隔符的 <code>comma_*</code> 变体。
+45|对齐：<code>left</code>、<code>right</code>、<code>middle</code> 接受一个值和字段宽度，外加可选填充字符。
+46|<code>chvw</code> 把整型值当字符打印；<code>rgvw</code> 带分隔符打印 range。
+47|<code>addrvw</code> 与 <code>pointervw</code> 把指针格式化成地址；<code>hex_encode</code> 把字节序列变成十六进制串。
+48|<code>ordinal</code> 追加英文序数后缀。
+49|复合操纵器：<code>left_width</code> 与 <code>right_width</code> 把值格式化与对齐结合起来。它们无状态、自包含。
+50|所有操纵器与 <code>print</code>、<code>println</code>、<code>scan</code> 的组合方式与普通值完全一样 &mdash; 没有另一套需要学习的格式化 DSL。
+51|<a href="/docs/11.io/02.customtypes/" class="prev-button">&larr; 第11.2章: 自定义类型</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/04.operations/" class="next-button">第11.4章: 操作 &rarr;</a>

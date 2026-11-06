@@ -1,0 +1,43 @@
+1|第10.7章: 映射：带值的键 - 使用 fast_io 学习 C++ 教程
+2|第10.7章: 映射：带值的键
+3|1. 读取映射元素
+4|映射元素有两半：永不改变的键，以及属于你的、可读可写的映射值。两者都通过具名成员访问：
+5|<code>key()</code> 返回指向容器自己那份键副本的 <code>::fast_io::cstring_view</code>。<code>mapped()</code> 返回对值的引用，因此它也是你<em>写入</em>值的方式：
+6|<strong>B 树映射给出的是一个小代理对象；Swiss 映射给出的是引用。</strong>这就是为什么上面 B 树的循环写 <code>for (auto e : m)</code>，而 Swiss 的对应写法是 <code>for (auto &amp;e : sm)</code>（第10.9章）。两者都允许你通过 <code>e.mapped()</code> 写入；代理对象只是一个 <code>(node, position)</code> 对，所以按值复制。
+7|2. 写入一个值
+8|读永远不会改变映射，所以就是 <code>find</code> 加 <code>mapped()</code>。写则用一个赋值函数明确表达意图：
+9|调用处写着“插入或赋值”，所以不存在“键不存在时会不会被创建”的疑问：会创建，而且你传的值就是它得到的值。当你需要知道发生的是哪一种时，返回值告诉你 &mdash; <code>true</code> 表示映射变大了，<code>false</code> 表示已有的值被替换了：
+10|如果你只想在键不存在时插入、而保留已有值不动，那就是 <code>insert_key</code>，它只做一件事：
+11|<strong>没有那种一边读一边插入的简写。</strong>每次读都是 <code>find</code>/<code>find_key</code>，每次写都是 <code>insert_key</code> / <code>insert_key_or_assign</code> / <code>emplace_key</code>。一次调用只做一件事，所以键写错了也绝不会悄悄把你的映射变大，也不会构造出你没要求的东西。
+12|3. 插入函数家族
+13|三个函数覆盖了“键已存在时该怎么办”的所有组合：
+14|调用
+15|键已存在
+16|键是新的
+17|<code>insert_key(k, v)</code>
+18|保留旧值，什么都不做。
+19|插入 <code>v</code>。
+20|<code>insert_key_or_assign(k, v)</code>
+21|用 <code>v</code> 覆盖。
+22|插入 <code>v</code>。
+23|<code>emplace_key(k, args...)</code>
+24|保留旧值，什么都不做。
+25|用 <code>args</code> 就地构造值。
+26|当值的构造成本很高时，<code>emplace_key</code> 才有意义：只有当键确实是新的时才构造值；而 <code>insert_key(k, make_value())</code> 会先构造临时量，遇到重复再把它丢掉。
+27|4. 就地修改值
+28|当值不是被整体替换、而是就地更新时（<code>+=</code>、<code>push_back</code>、计数器），就用遍历。B 树映射给出的是小代理对象，所以循环按值绑定，仍然通过 <code>mapped()</code> 写入：
+29|Swiss 映射给出的是引用，所以循环按引用绑定：
+30|在遍历之外，Swiss 映射的值通过赋一个新值来写：<code>sm.insert_key_or_assign("a", 100zu)</code>。读它则是 <code>sm.find_key("a")-&gt;mapped()</code>。
+31|5. 计数
+32|统计出现次数是经典的映射循环：先把键查出来，然后要么插入第一次的计数，要么把已经找到的值加一。
+33|由于 <code>str_btree_map</code> 按有序顺序遍历，报告不用第二遍就自然按键排序。B 树映射有两个性质让这个循环这么短：<code>find</code> 给出的迭代器的 <code>mapped()</code> 可写，所以第二次出现只需 <code>++it-&gt;mapped()</code>。
+34|在 Swiss 映射上 <code>find_key</code> 返回的是 <code>const_iterator</code>，所以同样的循环要么靠遍历找到要加一的元素（第10.9章），要么通过 <code>insert_key_or_assign</code> 替换值：
+35|要点
+36|映射元素暴露 <code>key()</code>（只读视图）和 <code>mapped()</code>（引用）&mdash; 从不是 <code>first</code>/<code>second</code>。
+37|通过 <code>e.mapped()</code> 写入；B 树映射按代理对象的值遍历，Swiss 映射按引用遍历。
+38|读用 <code>find</code>/<code>find_key</code>；写用 <code>insert_key</code>、<code>insert_key_or_assign</code> 或 <code>emplace_*</code> &mdash; 一次调用只做一件事。
+39|<code>insert_key</code> 保留旧值，<code>insert_key_or_assign</code> 覆盖，<code>emplace_*</code> 就地构造。
+40|<code>insert_key_or_assign</code> 只在真正插入时返回 <code>true</code>，所以它同时回答了“这个键原本是新的吗？”。
+41|<code>find_key</code> 给出 <code>const_iterator</code>，所以它只能读。
+42|当值是 <code>::std::size_t</code> 时，<code>::fast_io::zu_str_btree_map</code> / <code>zu_str_swiss_map</code> 能省去打字。
+43|<a href="/docs/10.associativecontainers/06.erase/" class="prev-button">&larr; 第10.6章: 删除</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/10.associativecontainers/08.ranked/" class="next-button">第10.8章: 有序统计 B 树 &rarr;</a>

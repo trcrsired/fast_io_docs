@@ -3,208 +3,176 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch8.9: The RAM Model &amp; Its Limits - C++ Tutorial</title>
+  <title>第8.9章: RAM 模型及其局限 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch8.9: The RAM Model &amp; Its Limits</h1>
+    <h1>第8.9章: RAM 模型及其局限</h1>
     <p class="lang-switch"><a href="/docs/08.algorithm/09.rammachine/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
 
       <p>
-        All of our time-complexity analysis so far has relied on a simple,
-        idealized machine model called the <strong>RAM model</strong>
-        (Random Access Machine). It is the standard model used in algorithm
-        textbooks and in the C++ standard library.
+        到目前为止，我们所有的时间复杂度分析都建立在一个简单而理想化的机器模型之上，它叫 <strong>RAM 模型</strong>（随机访问机）。这也是算法教科书和 C++ 标准库所采用的标准模型。
       </p>
 
       <p>
-        The RAM model is extremely useful, but it is also unrealistic in many
-        ways. Understanding both its strengths and its limits will help you
-        reason about performance honestly.
+        RAM 模型极其有用，但它在很多方面也不符合现实。理解它的长处与局限，能帮助你诚实地推理性能。
       </p>
 
-      <p>You will learn:</p>
+      <p>你将学到：</p>
 
       <ul>
-        <li>the assumptions of the RAM model</li>
-        <li>why we use it for asymptotic complexity</li>
-        <li>where the RAM model breaks down</li>
-        <li>how real hardware behaves differently</li>
-        <li>why memory hierarchy dominates performance</li>
-        <li>why linked lists are slow in practice</li>
-        <li>why big integers break constant-time arithmetic</li>
-        <li>the physical limits of data movement</li>
+        <li>RAM 模型的各项假设</li>
+        <li>为什么我们用做渐近复杂度分析</li>
+        <li>RAM 模型在哪里失效</li>
+        <li>真实硬件的行为有何不同</li>
+        <li>为什么存储层次结构主导性能</li>
+        <li>为什么链表在实践中很慢</li>
+        <li>为什么大整数打破了常数时间算术</li>
+        <li>数据移动在物理上的极限</li>
       </ul>
     </section>
 
     <section>
-      <h2>1. The RAM model</h2>
+      <h2>1. RAM 模型</h2>
 
       <p>
-        The RAM model assumes:
+        RAM 模型假设：
       </p>
 
       <ul>
-        <li>each basic operation takes constant time</li>
-        <li>each memory access takes constant time</li>
-        <li>the machine has unlimited memory</li>
-        <li>the machine executes one instruction at a time</li>
+        <li>每个基本操作耗时常数时间</li>
+        <li>每次内存访问耗时常数时间</li>
+        <li>机器拥有无限内存</li>
+        <li>机器一次执行一条指令</li>
       </ul>
 
       <p>
-        Under these assumptions, we can count operations and derive clean
-        asymptotic bounds like <code>&Theta;(n)</code> and <code>O(n&nbsp;ln&nbsp;n)</code>.
+        在这些假设下，我们可以数操作次数，得出干净漂亮的渐近界，例如 <code>&Theta;(n)</code> 与 <code>O(n&nbsp;ln&nbsp;n)</code>。
       </p>
 
       <p>
-        This model is simple, elegant, and mathematically convenient.
+        这个模型简单、优雅，在数学上也很方便。
       </p>
     </section>
 
     <section>
-      <h2>2. Why the RAM model is useful</h2>
+      <h2>2. RAM 模型为什么有用</h2>
 
       <p>
-        The RAM model is not meant to be realistic. It is meant to be
-        <strong>predictive</strong>:
+        RAM 模型并不是为了贴近现实，而是为了有<strong>预测能力</strong>：
       </p>
 
       <ul>
-        <li>Algorithms with lower asymptotic complexity are usually faster.</li>
-        <li>Linear-time algorithms usually beat quadratic ones.</li>
-        <li>Logarithmic-time algorithms scale extremely well.</li>
-        <li>Exponential-time algorithms are hopeless for large inputs.</li>
+        <li>渐近复杂度更低的算法通常更快。</li>
+        <li>线性时间的算法通常胜过平方时间的算法。</li>
+        <li>对数时间的算法扩展性极好。</li>
+        <li>指数时间的算法面对大规模输入毫无希望。</li>
       </ul>
 
       <p>
-        Even though real hardware is more complicated, the RAM model captures
-        the <em>dominant trends</em> in algorithmic performance.
+        尽管真实硬件更复杂，RAM 模型仍然抓住了算法性能中的<em>主导趋势</em>。
       </p>
     </section>
 
     <section>
-      <h2>3. Where the RAM model breaks down</h2>
+      <h2>3. RAM 模型在哪里失效</h2>
 
       <p>
-        Real computers do not behave like the RAM model. In reality:
+        真实的计算机并不像 RAM 模型那样工作。现实中：
       </p>
 
       <ul>
-        <li>memory access time is not constant</li>
-        <li>cache misses are hundreds of times slower than cache hits</li>
-        <li>virtual memory introduces page faults</li>
-        <li>disk access is millions of times slower than RAM</li>
-        <li>data movement dominates runtime for large datasets</li>
+        <li>内存访问时间不是常数</li>
+        <li>缓存未命中比缓存命中慢几百倍</li>
+        <li>虚拟内存会引入缺页</li>
+        <li>磁盘访问比内存慢几百万倍</li>
+        <li>对大规模数据集来说，数据移动主导运行时间</li>
       </ul>
 
       <p>
-        These effects can dominate performance, especially for large data.
+        这些效应可能主导性能，尤其是面对大数据时。
       </p>
     </section>
 
     <section>
-      <h2>4. Memory hierarchy</h2>
+      <h2>4. 存储层次结构</h2>
 
       <p>
-        Modern CPUs have multiple levels of memory:
+        现代 CPU 有多级存储：
       </p>
 
       <ul>
-        <li>L1 cache (very fast, very small)</li>
-        <li>L2 cache</li>
-        <li>L3 cache</li>
+        <li>L1 缓存（极快、极小）</li>
+        <li>L2 缓存</li>
+        <li>L3 缓存</li>
         <li>RAM</li>
-        <li>SSD / disk</li>
+        <li>SSD / 磁盘</li>
       </ul>
 
       <p>
-        Accessing L1 cache may take ~1 cycle.  
-        Accessing RAM may take ~200 cycles.  
-        Accessing disk may take millions of cycles.
+        访问 L1 缓存可能只要约 1 个周期；访问 RAM 可能要约 200 个周期；访问磁盘可能要几百万个周期。
       </p>
 
       <p>
-        The RAM model pretends all of these are the same.
+        RAM 模型却假装这些都是同一回事。
       </p>
 
       <p>
-        This is why algorithms with good locality (like scanning a vector) are
-        often much faster than algorithms with poor locality (like chasing
-        pointers through a linked list), even if both are <code>&Theta;(n)</code>.
+        这就是为什么局部性好的算法（例如顺序扫描 vector）往往比局部性差的算法（例如在链表中追逐指针）快得多，即使两者都是 <code>&Theta;(n)</code>。
       </p>
     </section>
 
     <section>
-      <h2>5. Why the RAM model mispredicts linked‑list performance</h2>
+      <h2>5. 为什么 RAM 模型会误判链表的性能</h2>
 
       <p>
-        In the RAM model, following a pointer is assumed to take <strong>Θ(1)</strong>
-        time. Under this assumption, walking a linked list is considered a linear‑time
-        operation with constant‑time steps.
+        在 RAM 模型中，跟随一次指针被认为耗 <strong>Θ(1)</strong> 时间。在这个假设下，遍历链表被当作一种每步常数时间的线性时间操作。
       </p>
 
       <p>
-        On real hardware, this assumption is <strong>not accurate</strong>.
+        在真实硬件上，这个假设<strong>并不成立</strong>。
       </p>
 
       <p>
-        Modern CPUs rely heavily on caching and spatial locality. A linked list
-        scatters its nodes across memory, so each pointer dereference often jumps to
-        a location that is not in cache. This forces the CPU to fetch a new cache
-        line from a slower level of memory.
+        现代 CPU 严重依赖缓存和空间局部性。链表把结点散布在内存各处，因此每次解引用指针往往都会跳到不在缓存中的位置，迫使 CPU 从更慢的存储层次取回新的缓存行。
       </p>
 
       <p>
-        The exact mathematical complexity of this behavior is difficult to model,
-        and it depends on many hardware details. However, we can safely say:
+        这种行为的精确数学复杂度很难建模，它取决于许多硬件细节。不过我们可以有把握地说：
       </p>
 
       <p>
-        <strong>The real‑world cost of accessing a linked‑list node is not Θ(1).  
-        It is significantly higher, and it grows as the list becomes larger.</strong>
+        <strong>访问链表结点在现实世界中的代价并不是 Θ(1)，它要高得多，而且随着链表变长而增长。</strong>
       </p>
 
       <p>
-        Empirical measurements (such as those in the article
-        <a href="https://www.ilikebigbits.com/2014_04_21_myth_of_ram_1.html" target="_blank">
-          “The Myth of RAM”
-        </a>)
-        show that the slowdown increases with <code>n</code>, and the overall traversal
-        time grows faster than the RAM model predicts. Some experiments even observe
-        behavior resembling <code>O(√n)</code>, but the exact form is not the point.
+        实测（例如 <a href="https://www.ilikebigbits.com/2014_04_21_myth_of_ram_1.html" target="_blank"> “The Myth of RAM” </a> 一文中的测量）表明，这种减慢随 <code>n</code> 增大而加剧，整体遍历时间的增长快于 RAM 模型的预测。有些实验甚至观察到类似 <code>O(√n)</code> 的行为，但具体形式并不是重点。
       </p>
 
       <p>
-        The important lesson is that the RAM model’s constant‑time assumption for
-        pointer chasing does <strong>not</strong> reflect real hardware. Linked lists
-        are much slower in practice because they defeat caching.
+        重要的教训是：RAM 模型对指针追逐所作“常数时间”的假设<strong>并不</strong>反映真实硬件。链表在实践中慢得多，因为它们破坏了缓存。
       </p>
     </section>
 
     <section>
-      <h2>6. Why big integers break the constant‑time assumption</h2>
+      <h2>6. 为什么大整数打破了常数时间假设</h2>
 
       <p>
-        The RAM model assumes that basic operations such as addition, subtraction,
-        and multiplication take <strong>constant time</strong>. This is only true
-        when numbers fit into a machine word (typically 32 or 64 bits).
+        RAM 模型假设加法、减法、乘法这类基本运算耗<strong>常数时间</strong>。这只在数字能放进一个机器字（通常是 32 或 64 位）时成立。
       </p>
 
       <p>
-        When numbers grow larger than a machine word, they must be stored across
-        multiple words. Adding two big integers of size <code>k</code> requires
-        adding <code>k</code> machine words and propagating carries.
+        当数字大于一个机器字时，就必须用多个字来存储。两个规模为 <code>k</code> 的大整数相加，需要把 <code>k</code> 个机器字相加并传播进位。
       </p>
 
       <p>
-        This means that big‑integer addition takes:
+        这意味着大整数加法耗时：
       </p>
 
       <pre><code class="language-cpp">
@@ -212,107 +180,79 @@
       </code></pre>
 
       <p>
-        not <code>Θ(1)</code>.
+        而不是 <code>Θ(1)</code>。
       </p>
 
       <p>
-        Big‑integer multiplication is even more expensive. The simplest algorithms
-        take <code>Θ(k²)</code>, and more advanced algorithms (Karatsuba, FFT‑based
-        multiplication) take <code>Θ(k^1.58)</code> or <code>Θ(k log k)</code>.
+        大整数乘法更昂贵。最简单的算法是 <code>Θ(k²)</code>，更先进的算法（Karatsuba、基于 FFT 的乘法）是 <code>Θ(k^1.58)</code> 或 <code>Θ(k log k)</code>。
       </p>
 
       <p>
-        This breaks the RAM model’s assumption that arithmetic is constant‑time.
-        Algorithms that manipulate large numbers (cryptography, arbitrary‑precision
-        math, symbolic computation) must account for the cost of big‑integer
-        operations.
+        这打破了 RAM 模型“算术是常数时间”的假设。处理大数的算法（密码学、任意精度数学、符号计算）必须把大整数运算的代价计算在内。
       </p>
 
       <p>
-        In practice, this means that the true running time of an algorithm may depend
-        not only on the number of operations, but also on the <strong>size of the
-        numbers being manipulated</strong>.
+        在实践中，这意味着一个算法的真实运行时间可能不仅取决于操作次数，还取决于<strong>所操作数字的规模</strong>。
       </p>
     </section>
 
     <section>
-      <h2>7. The physical limits of data and computation</h2>
+      <h2>7. 数据与计算在物理上的极限</h2>
 
       <p>
-        The RAM model assumes that memory is infinite and that accessing any location
-        takes constant time. In reality, both assumptions break down as data grows.
+        RAM 模型假设内存无限，并且访问任何位置都耗常数时间。现实中，随着数据增长，这两个假设都会失效。
       </p>
 
       <p>
-        The more data we have, the more physical space it occupies. Even if signals
-        travel at the speed of light, there is a hard lower bound on how long it
-        takes to move information from one place to another. This means that
-        <strong>latency grows with distance</strong>, and distance grows with the
-        amount of data we store.
+        数据越多，它占据的物理空间越大。即使信号以光速传播，把信息从一个地方搬到另一个地方也仍然存在硬性的下界。这意味着<strong>延迟随距离增长</strong>，而距离随我们存储的数据量增长。
       </p>
 
       <p>
-        When data fits in CPU cache, access is extremely fast. When it grows beyond
-        cache, we must use RAM, which is slower. When it grows beyond RAM, we must
-        use disk, which is much slower. When it grows beyond a single machine, we
-        must store it on:
+        当数据能装进 CPU 缓存时，访问极快；当它超出缓存时，就必须用 RAM，更慢；当它超出 RAM 时，就必须用磁盘，慢得多；当它超出单台机器时，就必须存放在：
       </p>
 
       <ul>
-        <li>local networks (LAN)</li>
-        <li>data centers (cluster storage)</li>
-        <li>wide-area networks (WAN)</li>
-        <li>the global internet</li>
+        <li>局域网（LAN）</li>
+        <li>数据中心（集群存储）</li>
+        <li>广域网（WAN）</li>
+        <li>全球互联网</li>
       </ul>
 
       <p>
-        Each step is slower than the previous one. Distributed systems such as
-        MapReduce exist because moving data across machines is so expensive that we
-        must bring computation to the data instead of the other way around.
+        每一级都比上一级更慢。MapReduce 这类分布式系统之所以存在，正是因为跨机器搬数据太昂贵，以至于我们必须把计算搬到数据旁边，而不是反过来。
       </p>
 
       <p>
-        If the data grows even larger, we would need more physical storage space,
-        potentially spread across continents. In the extreme, storing arbitrarily
-        large data would require more physical space in the universe. Each increase
-        in scale increases latency, energy cost, and the time required to move or
-        process the data.
+        如果数据继续增长，我们就需要更多物理存储空间，甚至可能跨越大洲。极端情况下，存储任意大的数据将需要超出宇宙所能提供的物理空间。规模的每一次提升，都会增加延迟、能耗，以及搬运和处理数据所需的时间。
       </p>
 
       <p>
-        In fact, the reason we download files is to reduce latency: we manually
-        “cache” data from the internet onto local storage so that future access is
-        faster. This is the same principle that hardware caches use automatically.
+        事实上，我们下载文件就是为了降低延迟：我们手动把互联网上的数据“缓存”到本地存储中，以便后续访问更快。这与硬件缓存的自动机制是同一条原则。
       </p>
 
       <p>
-        These physical constraints mean that as data grows, the cost of accessing
-        and processing it grows as well. This growth is not constant-time; it is a
-        <strong>strictly increasing function</strong> of the size and physical
-        distribution of the data.
+        这些物理约束意味着：随着数据增长，访问和处理它的代价也在增长。这种增长不是常数时间的，而是数据规模及其物理分布的<strong>严格递增函数</strong>。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
 
       <ul>
-        <li>The RAM model assumes constant-time operations and memory access.</li>
-        <li>It is simple and useful for theoretical analysis.</li>
-        <li>Real hardware has caches, memory hierarchy, and physical latency limits.</li>
-        <li>Linked-list traversal is not Θ(1) per step on real hardware; it grows with data size.</li>
-        <li>Big integers break constant-time arithmetic; their cost grows with number size.</li>
-        <li>Data movement has physical limits: distance, bandwidth, energy, and the speed of light.</li>
-        <li>As data grows beyond cache, RAM, disk, and even a single machine, latency increases at every level.</li>
-        <li>Downloading is manual caching: we move data closer to reduce latency.</li>
+        <li>RAM 模型假设操作和内存访问都是常数时间。</li>
+        <li>它简单，适合做理论分析。</li>
+        <li>真实硬件有缓存、有存储层次，也有物理延迟极限。</li>
+        <li>在真实硬件上，链表遍历每步并不是 Θ(1)，它随数据规模增长。</li>
+        <li>大整数打破了常数时间算术，代价随数字规模增长。</li>
+        <li>数据移动有物理极限：距离、带宽、能耗以及光速。</li>
+        <li>当数据超出缓存、RAM、磁盘乃至单台机器时，每一层的延迟都在增加。</li>
+        <li>下载就是手动缓存：我们把数据搬到更近的地方以降低延迟。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/08.algorithm/08.timecomplexity/" class="prev-button">← Ch8.8: Time &amp; Space Complexity</a>
-      <a href="/zhcn/">↑ 主页</a>
-      <a href="/zhcn/docs/08.algorithm/10.zerocost/" class="next-button">Ch8.10: Why “Zero‑Overhead” and “Zero‑Cost” Are Meaningless →</a>
+      <a href="/zhcn/docs/08.algorithm/08.timecomplexity/" class="prev-button">← 第8.8章: 时间与空间复杂度</a> <a href="/zhcn/" class="main-button">↑ 主页</a> <a href="/zhcn/docs/08.algorithm/10.zerocost/" class="next-button">第8.10章: 为什么“零开销”与“零成本”毫无意义 →</a>
     </div>
 
   </main>

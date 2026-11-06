@@ -1,0 +1,59 @@
+1|第11.2章: 自定义类型 - 使用 fast_io 学习 C++ 教程
+2|第11.2章: 为 I/O 定义自定义类型
+3|概述
+4|<code>fast_io</code> 用<strong>定制点</strong>让你定义自己的类型如何被打印和扫描。主要有四个定制点，各有不同的取舍。
+5|1. 定制点一览
+6|定制点
+7|最适合
+8|速度
+9|安全性
+10|<code>print_reserve_define</code>
+11|大小固定的类型（整数、浮点数、枚举、小结构体）
+12|最快
+13|如果算错大小就不安全
+14|<code>print_scatter_define</code>
+15|已经以连续字符串形式存放的类型（字符串字面量、枚举名）
+16|无复制
+17|安全
+18|<code>print_define</code>
+19|复杂/复合类型（最灵活）
+20|中等
+21|安全
+22|<code>scan_context_define</code>
+23|表示形式会跨越多次缓冲区填充的类型（流式解析）
+24|不适用（输入）
+25|安全
+26|2. print_reserve_define &mdash; 最快（但危险）
+27|<code>print_reserve_define</code> 直接写进 I/O 缓冲区。它是<strong>最快的方法</strong> &mdash; 甚至比返回数组还快，因为它复用已有的 I/O 缓冲区内存，没有任何额外的分配或复制。
+28|<strong>危险：</strong>你必须正确计算缓冲区大小。如果 <code>print_reserve_size</code> 返回的值太小，你就会写越界 &mdash; 这是未定义行为，可能破坏内存。
+29|<strong>何时使用：</strong>当你的类型有一个固定的小规模文本表示，且你能在编译期精确算出大小时。
+30|3. print_scatter_define &mdash; 无复制
+31|<code>print_scatter_define</code> 返回指向已有数据的指针和长度。不需要复制 &mdash; I/O 系统直接引用你的数据。
+32|<strong>何时使用：</strong>当你的类型的文本表示在内存中已经是一段连续字符串时（字符串字面量、枚举名等）。
+33|4. print_define &mdash; 最灵活
+34|<code>print_define</code> 用 <code>print_freestanding</code> 写到输出流上。它最灵活，但也是三种打印方法里最慢的（依然很快 &mdash; 只是不如 <code>print_reserve_define</code> 那么快）。
+35|<strong>何时使用：</strong>用于输出依赖运行时数据的复杂类型，或者当你需要组合多个子对象时。
+36|5. scan_context_define &mdash; 多次调用的扫描
+37|<code>scan_context_define</code> 用于文本表示可能跨越多次缓冲区填充的类型。它用一个<strong>上下文</strong>在多次调用之间记录解析状态。
+38|你必须提供三个函数：
+39|<code>scan_context_type</code> &mdash; 声明上下文类型
+40|<code>scan_context_define</code> &mdash; 从缓冲区解析，返回 partial/ok/invalid
+41|<code>scan_context_eof_define</code> &mdash; 处理输入结束
+42|6. 我该用哪一个？
+43|你的类型是……
+44|那么用……
+45|大小固定、编译期可计算（整数、小结构体）
+46|<code>print_reserve_define</code>（最快）
+47|已经是连续字符串（枚举名、字面量）
+48|<code>print_scatter_define</code>（无复制）
+49|复杂，由多个部分组成
+50|<code>print_define</code>（最灵活）
+51|可能跨越多次缓冲区读取（流式解析）
+52|<code>scan_context_define</code>
+53|要点
+54|<code>print_reserve_define</code> 最快 &mdash; 直接写进 I/O 缓冲区，没有任何额外分配。但必须正确计算大小，否则会写越界。
+55|<code>print_scatter_define</code> 返回指向已有数据的指针 &mdash; 零复制。最适合枚举名和类字符串类型。
+56|<code>print_define</code> 最灵活 &mdash; 用 <code>print_freestanding</code> 写到流上。
+57|<code>scan_context_define</code> 处理会跨越多次缓冲区填充的类型 &mdash; 用上下文记录解析状态。
+58|选择适合你类型的最简单方法。只有在你能够精确计算大小时才用 <code>print_reserve_define</code>。
+59|<a href="/docs/11.io/01.fileio/" class="prev-button">&larr; 第11.1章: 文件 I/O</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/03.manipulators/" class="next-button">第11.3章: 操纵器 &rarr;</a>

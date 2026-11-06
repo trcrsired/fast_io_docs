@@ -3,41 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch9.4: Iterators, Ranges, and Invalidation - C++ Tutorial with fast_io</title>
+  <title>第9.4章: 迭代器、范围与失效 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch9.4: Iterators, Left-Inclusive Ranges, and Invalidation</h1>
+    <h1>第9.4章: 迭代器、左闭范围与失效</h1>
     <p class="lang-switch"><a href="/docs/09.seqcontainers/04.iterators/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        This section explains the left-inclusive range convention used by all
-        <code>fast_io</code> containers, discusses iterator invalidation rules,
-        and explains why you should prefer <code>_index</code> operations when
-        possible.
+        本节解释所有 <code>fast_io</code> 容器采用的左闭范围约定，讨论迭代器失效规则，并说明为什么应当尽量优先使用 <code>_index</code> 系列操作。
       </p>
     </section>
 
     <section>
-      <h2>1. Left-Inclusive Ranges</h2>
+      <h2>1. 左闭范围</h2>
       <p>
-        All <code>fast_io</code> containers use the <strong>left-inclusive</strong>
-        (also called <em>half-open</em>) range convention: a range is denoted by
-        <code>[first, last)</code>, meaning it includes the element pointed to by
-        <code>first</code> but <em>excludes</em> the element pointed to by
-        <code>last</code>.
+        所有 <code>fast_io</code> 容器都采用<strong>左闭</strong>（也叫<em>半开</em>）范围约定：范围记作 <code>[first, last)</code>，意思是它包含 <code>first</code> 指向的元素，但<em>不包含</em> <code>last</code> 指向的元素。
       </p>
-      <p>This convention has several advantages:</p>
+      <p>这个约定有几个好处：</p>
       <ul>
-        <li><code>begin()</code> to <code>end()</code> covers all elements.</li>
-        <li>An empty range is simply <code>first == last</code>.</li>
-        <li>The distance <code>last - first</code> equals the number of elements.</li>
+        <li><code>begin()</code> 到 <code>end()</code> 覆盖所有元素。</li>
+        <li>空范围就是 <code>first == last</code>。</li>
+        <li>距离 <code>last - first</code> 等于元素个数。</li>
       </ul>
 <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/vector.h&gt;
@@ -55,68 +47,61 @@ int main() {
     </section>
 
     <section>
-      <h2>2. Iterator Invalidation</h2>
+      <h2>2. 迭代器失效</h2>
       <p>
-        When you modify a container, existing iterators may become invalid (pointing
-        to freed or relocated memory). Understanding which operations invalidate
-        which iterators is critical:
+        当你修改容器时，已有的迭代器可能失效（指向已被释放或搬移的内存）。弄清哪些操作会使哪些迭代器失效非常关键：
       </p>
 
       <table>
         <thead>
           <tr>
-            <th>Container</th>
-            <th>Insertion invalidates</th>
-            <th>Erasure invalidates</th>
+            <th>容器</th>
+            <th>插入会使这些失效</th>
+            <th>删除会使这些失效</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>vector</code></td>
-            <td><strong>All</strong> iterators (reallocation may occur)</td>
-            <td>Iterator to erased element and all after it</td>
+            <td><strong>所有</strong>迭代器（可能发生重新分配）</td>
+            <td>指向被删元素及其之后所有元素的迭代器</td>
           </tr>
           <tr>
             <td><code>deque</code></td>
-            <td><strong>All</strong> iterators (insertion at either end may
-              reallocate the block map)</td>
-            <td>Iterator to erased element; all iterators if erasing at
-              front or back; only erased iterators if erasing in the middle</td>
+            <td>
+              <strong>所有</strong>迭代器（任一端插入都可能重新分配块索引表）
+            </td>
+            <td>
+              指向被删元素的迭代器；在头部或尾部删除时是所有迭代器；在中间删除时只有被删的迭代器
+            </td>
           </tr>
           <tr>
             <td><code>list</code></td>
-            <td><strong>None</strong> &mdash; existing iterators remain valid</td>
-            <td>Only the iterator to the erased element</td>
+            <td><strong>不会失效</strong> &mdash; 已有迭代器仍然有效</td>
+            <td>只有指向被删元素的迭代器</td>
           </tr>
           <tr>
             <td><code>forward_list</code></td>
-            <td><strong>None</strong> &mdash; existing iterators remain valid</td>
-            <td>Only the iterator to the erased element</td>
+            <td><strong>不会失效</strong> &mdash; 已有迭代器仍然有效</td>
+            <td>只有指向被删元素的迭代器</td>
           </tr>
           <tr>
             <td><code>array</code></td>
-            <td>N/A &mdash; fixed size, no insertion</td>
-            <td>N/A &mdash; fixed size, no erasure</td>
+            <td>不适用 &mdash; 大小固定，不能插入</td>
+            <td>不适用 &mdash; 大小固定，不能删除</td>
           </tr>
         </tbody>
       </table>
 
       <div class="warning">
-        <strong>Danger:</strong> After a <code>vector::push_back()</code>,
-        <em>every</em> iterator, reference, and pointer into the vector may be
-        invalidated because the vector might have reallocated its storage. Never
-        cache iterators across insertions on a <code>vector</code>.
+        <strong>危险：</strong>在 <code>vector::push_back()</code> 之后，指向该 vector 的<em>每一个</em>迭代器、引用和指针都可能失效，因为 vector 可能已经重新分配了存储。绝不要在 <code>vector</code> 上跨插入操作缓存迭代器。
       </div>
     </section>
 
     <section>
-      <h2>3. Prefer _index Operations</h2>
+      <h2>3. 优先使用 _index 操作</h2>
       <p>
-        Because iterators can be invalidated unexpectedly, prefer the index-based
-        operations (<code>insert_index</code>, <code>erase_index</code>, and
-        <code>operator[]</code>) when working with <code>vector</code> and
-        <code>deque</code>. They are bounds-checked and do not suffer from
-        invalidation issues:
+        由于迭代器可能在意想不到的时候失效，在 <code>vector</code> 和 <code>deque</code> 上操作时请优先使用基于下标的操作（<code>insert_index</code>、<code>erase_index</code> 和 <code>operator[]</code>）。它们带边界检查，也不会有失效问题：
       </p>
 <pre><code class="language-cpp">
 // Preferred: index-based
@@ -135,21 +120,19 @@ for (::std::size_t i{}; i != v.size(); ++i) {
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>All containers use left-inclusive <code>[first, last)</code> ranges.</li>
-        <li><code>vector</code> and <code>deque</code> invalidate all iterators on insertion.</li>
-        <li><code>list</code> and <code>forward_list</code> never invalidate existing iterators on insertion.</li>
-        <li>Never cache iterators across insertions on contiguous containers.</li>
-        <li>Prefer <code>_index</code> operations for safety on <code>vector</code> and <code>deque</code>.</li>
+        <li>所有容器都使用左闭的 <code>[first, last)</code> 范围。</li>
+        <li><code>vector</code> 和 <code>deque</code> 在插入时会使所有迭代器失效。</li>
+        <li><code>list</code> 和 <code>forward_list</code> 在插入时从不会使已有迭代器失效。</li>
+        <li>绝不要在连续容器上跨插入操作缓存迭代器。</li>
+        <li>在 <code>vector</code> 和 <code>deque</code> 上，为了安全请优先使用 <code>_index</code> 系列操作。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/09.seqcontainers/03.inserteraseindex/" class="prev-button">&larr; Ch9.3: Insert/Erase by Index</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/09.seqcontainers/05.unchecked/" class="next-button">Ch9.5: Unchecked Operations &rarr;</a>
+      <a href="/zhcn/docs/09.seqcontainers/03.inserteraseindex/" class="prev-button">&larr; 第9.3章: 按下标插入/删除</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/09.seqcontainers/05.unchecked/" class="next-button">第9.5章: 非检查操作 &rarr;</a>
     </div>
   </main>
 </body>

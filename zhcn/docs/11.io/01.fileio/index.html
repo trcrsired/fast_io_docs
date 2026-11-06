@@ -3,37 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.1: File I/O - C++ Tutorial with fast_io</title>
+  <title>第11.1章: 文件 I/O - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.1: File I/O</h1>
+    <h1>第11.1章: 文件 I/O</h1>
     <p class="lang-switch"><a href="/docs/11.io/01.fileio/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        <code>fast_io</code> provides high-performance file I/O through several
-        buffered file types. These wrap the native file handle with user-space
-        buffering for maximum throughput.
+        <code>fast_io</code> 通过若干带缓冲的文件类型提供高性能文件 I/O。它们在原生文件句柄之上加了用户态缓冲区，以获得最大吞吐量。
       </p>
     </section>
 
     <section>
-      <h2>1. File Types</h2>
+      <h2>1. 文件类型</h2>
       <p>
-        Each buffered file type comes in five character-type variants. The default
-        uses <code>char</code>; the others are prefixed with <code>u8</code>,
-        <code>u16</code>, <code>u32</code>, or <code>w</code> (for <code>wchar_t</code>).
+        每种带缓冲的文件类型都有五种字符类型变体。默认使用 <code>char</code>；其余分别带 <code>u8</code>、<code>u16</code>、<code>u32</code> 前缀，或者带 <code>w</code> 前缀（表示 <code>wchar_t</code>）。
       </p>
       <table>
         <thead>
           <tr>
-            <th>Direction</th>
+            <th>方向</th>
             <th><code>char</code></th>
             <th><code>char8_t</code></th>
             <th><code>char16_t</code></th>
@@ -43,7 +38,7 @@
         </thead>
         <tbody>
           <tr>
-            <td>Input</td>
+            <td>输入</td>
             <td><code>ibuf_file</code></td>
             <td><code>u8ibuf_file</code></td>
             <td><code>u16ibuf_file</code></td>
@@ -51,7 +46,7 @@
             <td><code>wibuf_file</code></td>
           </tr>
           <tr>
-            <td>Output</td>
+            <td>输出</td>
             <td><code>obuf_file</code></td>
             <td><code>u8obuf_file</code></td>
             <td><code>u16obuf_file</code></td>
@@ -59,7 +54,7 @@
             <td><code>wobuf_file</code></td>
           </tr>
           <tr>
-            <td>Input/Output</td>
+            <td>输入/输出</td>
             <td><code>iobuf_file</code></td>
             <td><code>u8iobuf_file</code></td>
             <td><code>u16iobuf_file</code></td>
@@ -69,15 +64,14 @@
         </tbody>
       </table>
       <p>
-        All file types are RAII-managed: the file is automatically closed when
-        the object goes out of scope.
+        所有文件类型都由 RAII 管理：对象离开作用域时文件会自动关闭。
       </p>
     </section>
 
     <section>
-      <h2>2. Hello World Example</h2>
+      <h2>2. Hello World 示例</h2>
       <p>
-        Here is a complete file I/O example:
+        这里是一个完整的文件 I/O 示例：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -105,73 +99,69 @@ int main() {
     </section>
 
     <section>
-      <h2>3. Opening Modes</h2>
+      <h2>3. 打开模式</h2>
       <p>
-        Use <code>::fast_io::open_mode</code> to control how files are opened.
-        The most commonly used cross-platform flags are:
+        用 <code>::fast_io::open_mode</code> 控制文件如何打开。最常用的跨平台标志有：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Flag</th>
-            <th>Description</th>
+            <th>标志</th>
+            <th>说明</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>open_mode::in</code></td>
-            <td>Open for reading.</td>
+            <td>以读方式打开。</td>
           </tr>
           <tr>
             <td><code>open_mode::out</code></td>
-            <td>Open for writing.</td>
+            <td>以写方式打开。</td>
           </tr>
           <tr>
             <td><code>open_mode::app</code></td>
-            <td>Append mode (writes go to end).</td>
+            <td>追加模式（写入落到末尾）。</td>
           </tr>
           <tr>
             <td><code>open_mode::trunc</code></td>
-            <td>Truncate existing file to zero length.</td>
+            <td>把已有文件截断为零长度。</td>
           </tr>
           <tr>
             <td><code>open_mode::creat</code></td>
-            <td>Create the file if it does not exist.</td>
+            <td>文件不存在时创建它。</td>
           </tr>
           <tr>
             <td><code>open_mode::excl</code></td>
-            <td>Fail if the file already exists (also called <code>noreplace</code>).</td>
+            <td>文件已存在则失败（也叫 <code>noreplace</code>）。</td>
           </tr>
           <tr>
             <td><code>open_mode::direct</code></td>
-            <td>Bypass the OS page cache (POSIX <code>O_DIRECT</code>).</td>
+            <td>绕过操作系统页缓存（POSIX 的 <code>O_DIRECT</code>）。</td>
           </tr>
           <tr>
             <td><code>open_mode::sync</code></td>
-            <td>Synchronous I/O — flush after each write.</td>
+            <td>同步 I/O &mdash; 每次写入后刷新。</td>
           </tr>
           <tr>
             <td><code>open_mode::no_block</code></td>
-            <td>Non-blocking mode.</td>
+            <td>非阻塞模式。</td>
           </tr>
           <tr>
             <td><code>open_mode::text</code></td>
-            <td>Text mode (newline translation). On DOS/Windows (not Cygwin), this enables CRLF &harr; LF conversion. Ignored by <code>native_file</code> on pure POSIX systems, but may be honored by the POSIX layer on Windows. Only meaningful for <code>c_file</code> and <code>filebuf_file</code>.</td>
+            <td>文本模式（换行转换）。在 DOS/Windows 上（不含 Cygwin），这会启用 CRLF 与 LF 之间的转换。在纯 POSIX 系统上被 <code>native_file</code> 忽略，但在 Windows 上可能被 POSIX 层兑现。只对 <code>c_file</code> 与 <code>filebuf_file</code> 有意义。</td>
           </tr>
           <tr>
             <td><code>open_mode::temporary</code></td>
-            <td>Create a temporary file that is deleted on close.</td>
+            <td>创建一个关闭时即被删除的临时文件。</td>
           </tr>
         </tbody>
       </table>
       <p>
-        There are also platform-specific flags for Windows attributes (e.g.
-        <code>hidden</code>, <code>archive</code>, <code>compressed</code>,
-        <code>encrypted</code>) and Linux-specific flags (e.g. <code>no_atime</code>,
-        <code>path</code>).
+        此外还有针对 Windows 属性的平台专用标志（例如 <code>hidden</code>、<code>archive</code>、<code>compressed</code>、<code>encrypted</code>），以及 Linux 专用标志（例如 <code>no_atime</code>、<code>path</code>）。
       </p>
       <p>
-        Combine flags with <code>|</code>:
+        用 <code>|</code> 组合标志：
       </p>
 <pre><code class="language-cpp">
 // Open for writing, create if not exists, truncate if exists
@@ -183,14 +173,9 @@ int main() {
     </section>
 
     <section>
-      <h2>4. UTF-8 File I/O</h2>
+      <h2>4. UTF-8 文件 I/O</h2>
       <p>
-        For UTF-8 text files, use the <code>u8</code> variants. Note that
-        <code>u8string</code> uses <code>char8_t</code>, which is a different
-        character type from the <code>char</code> used by standard output. To
-        print UTF-8 text to the console, use a <code>u8obuf_file</code> wrapping
-        <code>stdout</code>, or use <code>::fast_io::mnp::code_cvt</code> to
-        convert between character types.
+        对 UTF-8 文本文件，使用 <code>u8</code> 变体。注意 <code>u8string</code> 使用 <code>char8_t</code>，它与标准输出所用的 <code>char</code> 是不同的字符类型。要把 UTF-8 文本打印到控制台，可以用包住 <code>stdout</code> 的 <code>u8obuf_file</code>，或者用 <code>::fast_io::mnp::code_cvt</code> 在字符类型之间转换。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -219,11 +204,9 @@ int main() {
     </section>
 
     <section>
-      <h2>5. Opening Files Relative to a Directory</h2>
+      <h2>5. 相对于某个目录打开文件</h2>
       <p>
-        <code>::fast_io::dir_file</code> opens a directory handle. Use <code>at(df)</code>
-        to open files relative to that directory &mdash; this is safer and more efficient
-        than building full paths, and avoids race conditions from path resolution.
+        <code>::fast_io::dir_file</code> 打开一个目录句柄。用 <code>at(df)</code> 相对于该目录打开文件 &mdash; 这比拼接完整路径更安全、更高效，也避免了路径解析带来的竞态。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -241,31 +224,27 @@ int main() {
 }
 </code></pre>
       <p>
-        The full directory iteration API (<code>current(at(df))</code>,
-        <code>recursive(at(df))</code>, and directory entry functions) is covered
-        in the filesystem chapter (Ch11.18).
+        完整的目录遍历 API（<code>current(at(df))</code>、<code>recursive(at(df))</code> 以及目录项相关函数）在文件系统一章（第11.18章）中介绍。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li><code>ibuf_file</code> for reading, <code>obuf_file</code> for writing, <code>iobuf_file</code> for both.</li>
-        <li>Each type has five character variants: <code>char</code>, <code>u8</code> (<code>char8_t</code>), <code>u16</code> (<code>char16_t</code>), <code>u32</code> (<code>char32_t</code>), and <code>w</code> (<code>wchar_t</code>).</li>
-        <li>Files are RAII-managed &mdash; automatically closed on scope exit.</li>
-        <li>Use <code>open_mode</code> flags to control opening behavior. There is no <code>open_mode::binary</code> &mdash; native files are always binary. <code>open_mode::text</code> enables CRLF &harr; LF conversion on DOS/Windows (not Cygwin); on pure POSIX it is ignored, but may be honored by the POSIX layer on Windows.</li>
-        <li>Use <code>using namespace ::fast_io::iomnp;</code> (which includes <code>::fast_io::io</code>) then call <code>println</code> / <code>print</code> / <code>scan</code> and manipulators like <code>str_line_get</code> directly.</li>
-        <li>Use <code>scan</code> with the <code>str_line_get</code> manipulator for line-by-line reading: <code>for (::fast_io::string line; scan&lt;true&gt;(ibf, str_line_get(line)); ) { ... }</code></li>
-        <li>You cannot directly print between different character types. Use <code>::fast_io::mnp::code_cvt</code> to convert, or write to a device with the matching character type.</li>
-        <li>Use <code>::fast_io::dir_file</code> to open a directory, then <code>at(df)</code> to open files relative to it. Directory iteration is covered in Ch11.18.</li>
+        <li>读用 <code>ibuf_file</code>，写用 <code>obuf_file</code>，两者都用用 <code>iobuf_file</code>。</li>
+        <li>每种类型有五个字符变体：<code>char</code>、<code>u8</code>（<code>char8_t</code>）、<code>u16</code>（<code>char16_t</code>）、<code>u32</code>（<code>char32_t</code>）以及 <code>w</code>（<code>wchar_t</code>）。</li>
+        <li>文件由 RAII 管理 &mdash; 离开作用域时自动关闭。</li>
+        <li>用 <code>open_mode</code> 标志控制打开行为。没有 <code>open_mode::binary</code> &mdash; 原生文件永远是二进制模式。<code>open_mode::text</code> 在 DOS/Windows（不含 Cygwin）上启用 CRLF 与 LF 的转换；在纯 POSIX 上它被忽略，但在 Windows 上可能被 POSIX 层兑现。</li>
+        <li>先 <code>using namespace ::fast_io::iomnp;</code>（它包含 <code>::fast_io::io</code>），然后就能直接调用 <code>println</code> / <code>print</code> / <code>scan</code>，以及像 <code>str_line_get</code> 这样的操纵器。</li>
+        <li>逐行读取时使用 <code>scan</code> 搭配 <code>str_line_get</code> 操纵器：<code>for (::fast_io::string line; scan&lt;true&gt;(ibf, str_line_get(line)); ) { ... }</code></li>
+        <li>你不能在不同字符类型之间直接打印。用 <code>::fast_io::mnp::code_cvt</code> 转换，或者写到字符类型匹配的设备上。</li>
+        <li>用 <code>::fast_io::dir_file</code> 打开目录，再用 <code>at(df)</code> 相对于它打开文件。目录遍历见第11.18章。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/" class="prev-button">&larr; Ch11: I/O</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/02.customtypes/" class="next-button">Ch11.2: Custom Types &rarr;</a>
+      <a href="/zhcn/docs/11.io/" class="prev-button">&larr; 第11章: I/O</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/02.customtypes/" class="next-button">第11.2章: 自定义类型 &rarr;</a>
     </div>
   </main>
 </body>

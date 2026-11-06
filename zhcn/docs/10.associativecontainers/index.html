@@ -3,109 +3,87 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch10: Associative Containers - C++ Tutorial with fast_io</title>
+  <title>第10章: 关联容器 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch10: Associative Containers</h1>
+    <h1>第10章: 关联容器</h1>
     <p class="lang-switch"><a href="/docs/10.associativecontainers/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
 
       <p>
-        A <strong>sequential container</strong> (Chapter 9) stores elements at the
-        positions where you put them: index 0, index 1, and so on. An
-        <strong>associative container</strong> does not care about positions. You
-        give it a <strong>key</strong>, and it finds the element again later,
-        without you remembering where it went.
+        <strong>序列容器</strong>（第9章）把元素存放在你放置的位置上：下标 0、下标 1，依此类推。<strong>关联容器</strong>不在乎位置。你给它一个<strong>键</strong>，之后它就能把元素再找出来，而你不必记住它放在了哪里。
       </p>
 
       <p>
-        The containers in this chapter all use a <strong>string key</strong>. This
-        is the case that matters in real programs: counting words, mapping names
-        to records, looking up settings, caching results, checking membership of a
-        token. <code>fast_io</code> gives you two families for it, each in a
-        <em>set</em> flavour (the key is the whole element) and a <em>map</em>
-        flavour (the key is attached to a value):
+        本章的容器都使用<strong>字符串键</strong>。这正是真实程序里最要紧的情形：统计词频、把名字映射到记录、查找配置项、缓存结果、判断某个 token 是否存在。<code>fast_io</code> 为此提供两个家族，每个家族都有<em>集合</em>形式（键就是整个元素）和<em>映射</em>形式（键附带一个值）：
       </p>
 
       <table>
         <thead>
           <tr>
-            <th>Family</th>
-            <th>Set</th>
-            <th>Map</th>
-            <th>Order of elements</th>
+            <th>家族</th>
+            <th>集合</th>
+            <th>映射</th>
+            <th>元素的顺序</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>B-tree</td>
+            <td>B 树</td>
             <td><code>::fast_io::str_btree_set</code></td>
             <td><code>::fast_io::str_btree_map&lt;M&gt;</code></td>
-            <td>Always sorted by key.</td>
+            <td>始终按键有序。</td>
           </tr>
           <tr>
-            <td>Ranked B-tree</td>
+            <td>有序统计 B 树</td>
             <td><code>::fast_io::str_ranked_btree_set</code></td>
             <td><code>::fast_io::str_ranked_btree_map&lt;M&gt;</code></td>
-            <td>Sorted by key, and knows how many elements come before each one.</td>
+            <td>按键有序，并且知道每个元素之前有多少个元素。</td>
           </tr>
           <tr>
-            <td>Swiss table (hash)</td>
+            <td>Swiss 表（哈希）</td>
             <td><code>::fast_io::str_swiss_set</code></td>
             <td><code>::fast_io::str_swiss_map&lt;M&gt;</code></td>
-            <td>Unordered &mdash; the order is an artefact of the hashing.</td>
+            <td>无序 &mdash; 顺序是哈希的副产物。</td>
           </tr>
         </tbody>
       </table>
 
       <p>
-        All six types share the same style of interface, so what you learn for one
-        mostly carries over to the others: <code>insert_key</code>,
-        <code>contains</code>, <code>find</code>, <code>erase_key</code>, and
-        iteration with <code>begin()</code>/<code>end()</code>. The differences are
-        what each family can do beyond that (order, rank, capacity) and how much
-        bookkeeping it does per element.
+        这六种类型共享同一套接口风格，因此你为其中一个学到的用法大多能直接搬到其他几个上：<code>insert_key</code>、<code>contains</code>、<code>find</code>、<code>erase_key</code>，以及用 <code>begin()</code>/<code>end()</code> 遍历。差别在于每个家族在此之外还能做什么（顺序、排名、容量），以及每个元素要维护多少额外信息。
       </p>
 
       <div class="important">
-        <strong>The keys own their characters.</strong> When you insert
-        <code>"alpha"</code>, the container keeps its own null-terminated copy.
-        When you look a key up, you only pass a <strong>view</strong>
-        (<code>::fast_io::string_view</code> / <code>::fast_io::cstring_view</code>),
-        so a lookup never allocates. This is covered in
-        <a href="/zhcn/docs/10.associativecontainers/01.overview/">Ch10.1</a>.
+        <strong>键自己拥有字符。</strong>当你插入 <code>"alpha"</code> 时，容器保留一份自己的、以空字符结尾的副本。而查找时你只传一个<strong>视图</strong>（<code>::fast_io::string_view</code> / <code>::fast_io::cstring_view</code>），所以查找永不分配内存。详见<a href="/zhcn/docs/10.associativecontainers/01.overview/">第10.1章</a>。
       </div>
     </section>
 
     <section>
-      <h2>Contents</h2>
+      <h2>目录</h2>
       <ul>
-        <li><a href="/zhcn/docs/10.associativecontainers/01.overview/">Ch10.1: What an Associative Container Is</a></li>
-        <li><a href="/zhcn/docs/10.associativecontainers/02.create/">Ch10.2: Creating a Container and Inserting Keys</a></li>
-        <li><a href="/zhcn/docs/10.associativecontainers/03.contains/">Ch10.3: contains(): Membership Testing</a></li>
-        <li><a href="/zhcn/docs/10.associativecontainers/04.lookup/">Ch10.4: Looking Keys Up</a></li>
-        <li><a href="/zhcn/docs/10.associativecontainers/05.iterate/">Ch10.5: Iterating</a></li>
-        <li><a href="/zhcn/docs/10.associativecontainers/06.erase/">Ch10.6: Erasing</a></li>
-        <li><a href="/zhcn/docs/10.associativecontainers/07.maps/">Ch10.7: Maps: Keys With Values</a></li>
-        <li><a href="/zhcn/docs/10.associativecontainers/08.ranked/">Ch10.8: Ranked B-trees: size() and nth_element()</a></li>
-        <li><a href="/zhcn/docs/10.associativecontainers/09.swiss/">Ch10.9: Swiss Tables: Unordered and Resizable</a></li>
-        <li><a href="/zhcn/docs/10.associativecontainers/10.choose/">Ch10.10: Choosing a Container</a></li>
-        <li><a href="/zhcn/docs/10.associativecontainers/11.typespecs/">Ch10.11: Element Types, Error Specifications, and Validity</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/01.overview/">第10.1章: 什么是关联容器</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/02.create/">第10.2章: 创建容器并插入键</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/03.contains/">第10.3章: contains()：成员测试</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/04.lookup/">第10.4章: 按键查找</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/05.iterate/">第10.5章: 遍历</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/06.erase/">第10.6章: 删除</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/07.maps/">第10.7章: 映射：带值的键</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/08.ranked/">第10.8章: 有序统计 B 树：size() 与 nth_element()</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/09.swiss/">第10.9章: Swiss 表：无序且可扩容</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/10.choose/">第10.10章: 如何选择容器</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/11.typespecs/">第10.11章: 元素类型、错误规格与有效性</a></li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/09.seqcontainers/16.std/" class="prev-button">&larr; Ch9.16: C++ Standard Library Containers</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/10.associativecontainers/01.overview/" class="next-button">Ch10.1: Overview &rarr;</a>
+      <a href="/zhcn/docs/09.seqcontainers/16.std/" class="prev-button">&larr; 第9.16章: C++ 标准库容器</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/10.associativecontainers/01.overview/" class="next-button">第10.1章: 概览 &rarr;</a>
     </div>
   </main>
 </body>

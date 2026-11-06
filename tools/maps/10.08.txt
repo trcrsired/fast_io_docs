@@ -1,0 +1,35 @@
+1|第10.8章: 有序统计 B 树：size() 与 nth_element() - 使用 fast_io 学习 C++ 教程
+2|第10.8章: 有序统计 B 树：<code>size()</code> 与 <code>nth_element()</code>
+3|1. 会计数的 B 树
+4|<code>str_ranked_btree_set</code> 与 <code>str_ranked_btree_map</code> 就是第10.4&ndash;10.6章里的 B 树容器，外加一份额外的记账：每棵子树都记住自己含有多少个键。这换来普通 B 树没有的两样东西。
+5|<strong><code>size()</code></strong> &mdash; 常数时间得到元素个数，不需要遍历（对比第10.5章）。
+6|<strong><code>nth_element(n)</code></strong> &mdash; 指向有序顺序中排名第 <code>n</code> 的元素的迭代器，而不必走过它前面那 <code>n</code> 个元素。
+7|其他一切完全相同：同样的头文件组织形式，同样的 <code>insert_key</code> / <code>contains</code> / <code>find_key</code> / <code>erase_key</code> / 有序遍历。你只为排名记账付代价，所以需要排名时用带排名的版本，否则用普通版本。
+8|2. 排名是有序顺序中从 0 开始的位置
+9|<code>nth_element(0)</code> 是最小的键，<code>nth_element(1)</code> 是第二小的，<code>nth_element(size() - 1)</code> 是最大的。它是排序序列中的位置，不是插入顺序：
+10|代价是树的高度，而不是排名：在每个结点上，容器把 <code>n</code> 与各个子树的规模比较，然后只下降到其中一棵。在一百万个键里问第 900,000 个，并不需要走过 900,000 个键。
+11|询问一个不存在的排名是违反契约。在空容器上，或者 <code>n &gt;= size()</code> 时，程序会终止 &mdash; 如果你选择了会抛异常的分配器，则抛出 <code>::std::errc::invalid_argument</code>：
+12|这就是你在 vector 上熟悉的“带检查/`_unchecked`”之分（第9.5章）：<code>nth_element(n)</code> 做检查，<code>nth_element_unchecked(n)</code> 不做。
+13|3. 中位数与其他分位数
+14|经典用法是中位数。有了 <code>size()</code> 和 <code>nth_element</code>，只要两行：
+15|元素个数为偶数时没有唯一的中间元素，所以 <code>size() / 2</code> 取两个候选中的靠后者。这是一种选择，不是定律：按你的问题需要挑一种约定。
+16|任何分位数都是同样的形状 &mdash; 一百万个元素的第 90 百分位是 <code>nth_element(size() * 90u / 100u)</code>。因为返回的是迭代器，你还可以读它的邻居，或者从那里开始遍历：
+17|4. 什么时候不该用它
+18|排名记账不是免费的：每次插入和删除都要修正所经路径上的计数，而且每个结点都多带一个字段。如果你从不需要 <code>size()</code> 或 <code>nth_element()</code>，普通的 <code>str_btree_*</code> 用每次操作更少的工作量就能干同样的活。
+19|你需要
+20|使用
+21|有序遍历、范围查询、最小/最大的键
+22|<code>str_btree_set</code> / <code>str_btree_map</code>
+23|有序遍历再加上元素计数，或按排名取第 n 个键
+24|<code>str_ranked_btree_set</code> / <code>str_ranked_btree_map</code>
+25|只要成员判断和值查找，不需要顺序
+26|<code>str_swiss_set</code> / <code>str_swiss_map</code>（第10.9章）
+27|<strong>有序统计 B 树上的 <code>size()</code> 既精确又便宜。</strong>与普通 B 树不同，你可以把它写在循环条件里，而不会让循环变成平方级。
+28|要点
+29|<code>str_ranked_btree_*</code> 是记录子树规模的 B 树家族。
+30|<code>size()</code> 是常数时间；普通 B 树根本没有 <code>size()</code>。
+31|<code>nth_element(n)</code> 返回指向第 n 小键（从 0 开始）的迭代器，时间与树高成正比。
+32|<code>nth_element(n)</code> 带检查（终止 / 抛出 <code>errc::invalid_argument</code>）；<code>nth_element_unchecked(n)</code> 不带。
+33|中位数和百分位查询各只需一次调用。
+34|不需要排名时就用普通 B 树 &mdash; 那份记账不是免费的。
+35|<a href="/docs/10.associativecontainers/07.maps/" class="prev-button">&larr; 第10.7章: 映射</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/10.associativecontainers/09.swiss/" class="next-button">第10.9章: Swiss 表 &rarr;</a>

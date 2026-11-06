@@ -3,39 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch9.13: string_view and cstring_view - C++ Tutorial with fast_io</title>
+  <title>第9.13章: string_view 与 cstring_view - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch9.13: string_view and cstring_view</h1>
+    <h1>第9.13章: string_view 与 cstring_view</h1>
     <p class="lang-switch"><a href="/docs/09.seqcontainers/13.stringview/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        <code>::fast_io::string_view</code> and <code>::fast_io::cstring_view</code>
-        are non-owning views over character sequences. They are lightweight
-        (pointer + size) and avoid copying. The key difference is that
-        <code>cstring_view</code> guarantees null-termination.
+        <code>::fast_io::string_view</code> 与 <code>::fast_io::cstring_view</code> 都是对字符序列的非拥有视图。它们很轻（指针 + 大小），不需要复制。关键区别在于 <code>cstring_view</code> 保证以空字符结尾。
       </p>
       <p>
-        <em>
-          String views have many additional operations (search, trim, compare,
-          etc.). You can <strong>skip the details for now</strong> and return to
-          the <a href="#appendix">Appendix &sect;9.13.1</a> when you need them.
-        </em>
+        <em> 字符串视图还有许多其他操作（查找、修剪、比较等）。你可以<strong>先跳过这些细节</strong>，需要时再回到<a href="#appendix">附录第9.13.1节</a>。 </em>
       </p>
     </section>
 
     <section>
       <h2>1. basic_string_view</h2>
       <p>
-        A <code>string_view</code> is just a pointer and a size. Use it to pass
-        strings to functions without overhead:
+        <code>string_view</code> 就是一个指针加一个大小。用它把字符串传给函数，不产生额外开销：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/string_view.h&gt;
@@ -67,12 +58,12 @@ int main() {
 }
 </code></pre>
 
-      <h3>Character type variants</h3>
+      <h3>字符类型变体</h3>
       <table>
         <thead>
           <tr>
-            <th>Alias</th>
-            <th>Character Type</th>
+            <th>别名</th>
+            <th>字符类型</th>
           </tr>
         </thead>
         <tbody>
@@ -88,10 +79,7 @@ int main() {
     <section>
       <h2>2. cstring_view</h2>
       <p>
-        <code>::fast_io::cstring_view</code> is a <code>string_view</code> with a
-        <strong>null-termination guarantee</strong>. It can be constructed from
-        <code>string</code> (which is always null-terminated) and from string
-        literals. Use it when interfacing with C APIs:
+        <code>::fast_io::cstring_view</code> 是带<strong>空字符结尾保证</strong>的 <code>string_view</code>。它可以由 <code>string</code>（始终以空字符结尾）和字符串字面量构造。在与 C API 交互时使用它：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/string.h&gt;
@@ -112,19 +100,14 @@ int main() {
     </section>
 
     <section>
-      <h2>3. Dangling string_view</h2>
+      <h2>3. 悬空的 string_view</h2>
       <p>
-        <code>string_view</code> does not own its data. It is a pointer and a
-        size &mdash; if the underlying buffer moves or is freed, the view
-        becomes <strong>dangling</strong>.
+        <code>string_view</code> 不拥有它的数据。它只是一个指针加一个大小 &mdash; 如果底层缓冲区被搬移或释放，这个视图就会<strong>悬空</strong>。
       </p>
 
-      <h3>What is safe: no dangling from temporaries</h3>
+      <h3>安全的部分：临时量不会造成悬空</h3>
       <p>
-        <code>fast_io::string_view</code> and <code>fast_io::span</code> only
-        accept <strong>lvalue references</strong>. This means you cannot
-        accidentally create a view from a temporary &mdash; the compiler
-        rejects it:
+        <code>fast_io::string_view</code> 与 <code>fast_io::span</code> 只接受<strong>左值引用</strong>。这意味着你无法意外地从临时量创建视图 &mdash; 编译器会拒绝：
       </p>
 <pre><code class="language-cpp">
 // This does NOT compile — string_view only binds to lvalues
@@ -134,19 +117,12 @@ int main() {
 }
 </code></pre>
       <p>
-        So the classic dangling pattern from other languages is not possible
-        here. The compiler protects you from views over destroyed objects.
+        因此其他语言里那种经典的悬空模式在这里不可能出现。编译器保护你不受指向已销毁对象的视图之害。
       </p>
 
-      <h3>What is dangerous: reallocation invalidates views</h3>
+      <h3>危险的部分：重新分配会使视图失效</h3>
       <div class="warning">
-        <strong>Danger:</strong> A <code>string_view</code> over a
-        <code>string</code> becomes dangling when the <code>string</code>
-        <strong>reallocates</strong>. Operations like <code>push_back()</code>,
-        <code>insert_index()</code>, <code>replace_index()</code>,
-        <code>append()</code>, and <code>operator+=</code> may trigger a
-        reallocation, moving the buffer to new memory. Any existing
-        <code>string_view</code> still points to the old (freed) buffer.
+        <strong>危险：</strong>指向某个 <code>string</code> 的 <code>string_view</code> 会在该 <code>string</code> <strong>重新分配</strong>时悬空。<code>push_back()</code>、<code>insert_index()</code>、<code>replace_index()</code>、<code>append()</code> 以及 <code>operator+=</code> 等操作都可能触发重新分配，把缓冲区搬到新的内存。已有的 <code>string_view</code> 仍然指向旧的（已释放的）缓冲区。
       </div>
 <pre><code class="language-cpp">
 ::fast_io::string s{"Hello, World!"};
@@ -159,42 +135,33 @@ s.append(" this is a long string that forces reallocation");
 // Reading sv is undefined behaviour
 </code></pre>
       <p>
-        The same applies to <code>span</code> over <code>vector</code> or
-        <code>deque</code>: any operation that grows the container may
-        invalidate existing views.
+        对指向 <code>vector</code> 或 <code>deque</code> 的 <code>span</code> 也是如此：任何使容器增长的操都可能使已有视图失效。
       </p>
       <p>
-        <strong>Rule of thumb:</strong> do not hold a <code>string_view</code>
-        (or <code>span</code>) across any operation that might mutate the
-        underlying container.
+        <strong>经验法则：</strong>不要跨任何可能修改底层容器的操作持有 <code>string_view</code>（或 <code>span</code>）。
       </p>
       <p>
-        To detect dangling views during testing, you can use
-        <strong>Wasm MemTag</strong> (WebAssembly memory tagging). When compiled
-        for Wasm with memory tagging enabled, accesses to freed memory are caught
-        at runtime, making dangling-view bugs detectable.
+        要在测试期间发现悬空视图，可以使用 <strong>Wasm MemTag</strong>（WebAssembly 内存标记）。在启用内存标记的情况下编译到 Wasm 后，对已释放内存的访问会在运行期被捕获，从而使悬空视图的 bug 可被发现。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li><code>string_view</code> is a non-owning pointer + size. Zero-cost to pass.</li>
-        <li><code>cstring_view</code> adds a null-termination guarantee for C API interop.</li>
-        <li>All character type variants are available: <code>string_view</code>, <code>wstring_view</code>, <code>u8string_view</code>, etc.</li>
-        <li><code>string_view</code> iterators are always const (immutable view).</li>
-        <li><code>string_view</code> only binds to lvalue references &mdash; the compiler prevents dangling from temporaries.</li>
-        <li>However, <code>string_view</code> still dangles when the underlying <code>string</code> reallocates (via <code>insert_index</code>, <code>replace_index</code>, <code>append</code>, etc.). Do not hold a view across mutations.</li>
-        <li>Use Wasm MemTag to detect dangling views during testing.</li>
-        <li>See <a href="01.ops/">Appendix &sect;9.13.1</a> for the full operations reference.</li>
+        <li><code>string_view</code> 是只含指针和大小的非拥有视图，传递时不产生额外开销。</li>
+        <li><code>cstring_view</code> 额外保证以空字符结尾，便于与 C API 互操作。</li>
+        <li>所有字符类型变体都可用：<code>string_view</code>、<code>wstring_view</code>、<code>u8string_view</code> 等。</li>
+        <li><code>string_view</code> 的迭代器总是 const（不可变视图）。</li>
+        <li><code>string_view</code> 只绑定左值引用 &mdash; 编译器阻止从临时量产生悬空。</li>
+        <li>不过，当底层 <code>string</code> 重新分配时（通过 <code>insert_index</code>、<code>replace_index</code>、<code>append</code> 等），<code>string_view</code> 仍会悬空。不要跨修改操作持有视图。</li>
+        <li>测试时用 Wasm MemTag 检测悬空视图。</li>
+        <li>完整的操作参考见<a href="01.ops/">附录第9.13.1节</a>。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/09.seqcontainers/12.string/" class="prev-button">&larr; Ch9.12: string</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/09.seqcontainers/14.adapters/" class="next-button">Ch9.14: Adaptors &rarr;</a>
+      <a href="/zhcn/docs/09.seqcontainers/12.string/" class="prev-button">&larr; 第9.12章: string</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/09.seqcontainers/14.adapters/" class="next-button">第9.14章: 适配器 &rarr;</a>
     </div>
   </main>
 </body>

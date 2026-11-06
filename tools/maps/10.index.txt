@@ -1,0 +1,36 @@
+1|第10章: 关联容器 - 使用 fast_io 学习 C++ 教程
+2|第10章: 关联容器
+3|概述
+4|<strong>序列容器</strong>（第9章）把元素存放在你放置的位置上：下标 0、下标 1，依此类推。<strong>关联容器</strong>不在乎位置。你给它一个<strong>键</strong>，之后它就能把元素再找出来，而你不必记住它放在了哪里。
+5|本章的容器都使用<strong>字符串键</strong>。这正是真实程序里最要紧的情形：统计词频、把名字映射到记录、查找配置项、缓存结果、判断某个 token 是否存在。<code>fast_io</code> 为此提供两个家族，每个家族都有<em>集合</em>形式（键就是整个元素）和<em>映射</em>形式（键附带一个值）：
+6|家族
+7|集合
+8|映射
+9|元素的顺序
+10|B 树
+11|<code>::fast_io::str_btree_set</code>
+12|<code>::fast_io::str_btree_map&lt;M&gt;</code>
+13|始终按键有序。
+14|有序统计 B 树
+15|<code>::fast_io::str_ranked_btree_set</code>
+16|<code>::fast_io::str_ranked_btree_map&lt;M&gt;</code>
+17|按键有序，并且知道每个元素之前有多少个元素。
+18|Swiss 表（哈希）
+19|<code>::fast_io::str_swiss_set</code>
+20|<code>::fast_io::str_swiss_map&lt;M&gt;</code>
+21|无序 &mdash; 顺序是哈希的副产物。
+22|这六种类型共享同一套接口风格，因此你为其中一个学到的用法大多能直接搬到其他几个上：<code>insert_key</code>、<code>contains</code>、<code>find</code>、<code>erase_key</code>，以及用 <code>begin()</code>/<code>end()</code> 遍历。差别在于每个家族在此之外还能做什么（顺序、排名、容量），以及每个元素要维护多少额外信息。
+23|<strong>键自己拥有字符。</strong>当你插入 <code>"alpha"</code> 时，容器保留一份自己的、以空字符结尾的副本。而查找时你只传一个<strong>视图</strong>（<code>::fast_io::string_view</code> / <code>::fast_io::cstring_view</code>），所以查找永不分配内存。详见<a href="/docs/10.associativecontainers/01.overview/">第10.1章</a>。
+24|目录
+25|<a href="/docs/10.associativecontainers/01.overview/">第10.1章: 什么是关联容器</a>
+26|<a href="/docs/10.associativecontainers/02.create/">第10.2章: 创建容器并插入键</a>
+27|<a href="/docs/10.associativecontainers/03.contains/">第10.3章: contains()：成员测试</a>
+28|<a href="/docs/10.associativecontainers/04.lookup/">第10.4章: 按键查找</a>
+29|<a href="/docs/10.associativecontainers/05.iterate/">第10.5章: 遍历</a>
+30|<a href="/docs/10.associativecontainers/06.erase/">第10.6章: 删除</a>
+31|<a href="/docs/10.associativecontainers/07.maps/">第10.7章: 映射：带值的键</a>
+32|<a href="/docs/10.associativecontainers/08.ranked/">第10.8章: 有序统计 B 树：size() 与 nth_element()</a>
+33|<a href="/docs/10.associativecontainers/09.swiss/">第10.9章: Swiss 表：无序且可扩容</a>
+34|<a href="/docs/10.associativecontainers/10.choose/">第10.10章: 如何选择容器</a>
+35|<a href="/docs/10.associativecontainers/11.typespecs/">第10.11章: 元素类型、错误规格与有效性</a>
+36|<a href="/docs/09.seqcontainers/16.std/" class="prev-button">&larr; 第9.16章: C++ 标准库容器</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/10.associativecontainers/01.overview/" class="next-button">第10.1章: 概览 &rarr;</a>

@@ -1,0 +1,65 @@
+1|第9.8章: vector - 使用 fast_io 学习 C++ 教程
+2|第9.8章: vector
+3|概述
+4|要写出高效的代码，理解 <code>::fast_io::vector</code> 如何管理容量是必不可少的。vector 维护两个量：
+5|<strong>大小</strong>（size）：当前存放的元素个数。
+6|<strong>容量</strong>（capacity）：在必须分配更多内存之前 vector 能容纳的元素个数。
+7|1. 增长是如何发生的
+8|在内部，vector 就是指向单块连续堆分配的三个指针：
+9|<code>begin_ptr</code> &mdash; 已分配缓冲区的起点。
+10|<code>curr_ptr</code> &mdash; 最后一个已构造元素之后的位置（即 <code>begin_ptr + size()</code>）。
+11|<code>end_ptr</code> &mdash; 已分配缓冲区末尾之后的位置（即 <code>begin_ptr + capacity()</code>）。
+12|热路径：还有空闲容量时
+13|当你调用 <code>push_back()</code> 或 <code>emplace_back()</code> 时，vector 先检查 <code>curr_ptr != end_ptr</code>。若还有空间，就在 <code>curr_ptr</code> 处就地构造元素并推进指针。这就是<strong>热路径</strong> &mdash; 一次构造函数调用加一次指针自增，没有任何分配。
+14|冷路径：容量耗尽时
+15|当 <code>curr_ptr == end_ptr</code> 时，vector 必须<strong>重新分配</strong>。步骤如下：
+16|<strong>计算新容量</strong>：容量<strong>翻倍</strong>（2&times;）。若当前容量为 0，则增长到 1 个元素。若翻倍会使 <code>size_t</code> 溢出，则取到可能的最大容量。
+17|按新容量<strong>分配</strong>一块新缓冲区。
+18|把元素从旧缓冲区<strong>搬移</strong>到新缓冲区。对<em>可平凡复制</em>的类型（如整数、浮点数、POD 结构体），这就是一次 <code>memcpy</code>；对非平凡类型，则逐个在新缓冲区中移动构造，再在旧缓冲区中析构。
+19|<strong>释放</strong>旧缓冲区。
+20|把三个指针<strong>更新</strong>为指向新缓冲区。
+21|为什么翻倍能带来摊还 &Theta;(1)
+22|考虑从空 vector 开始进行 <code>n</code> 次插入的总工作量。重新分配发生在大小为 1、2、4、8、&hellip;，一直到小于 <code>n</code> 的最大 2 的幂。元素搬移的总次数是：
+23|1 + 2 + 4 + 8 + &hellip; + n/2 &lt; n
+24|所以所有重新分配的<em>总</em>代价与 <code>n</code> 成正比，于是每次插入是<strong>摊还 &Theta;(1)</strong>。绝大多数插入走热路径，只有少数会触发昂贵的重新分配。
+25|可平凡复制与不可平凡的类型
+26|类型类别
+27|重新分配时元素的搬移方式
+28|例子
+29|可平凡复制或可平凡搬移
+30|批量 <code>memcpy</code> &mdash; 一次调用复制整个缓冲区
+31|<code>::std::size_t</code>、<code>double</code>、POD 结构体
+32|非平凡（有自定义移动构造函数或析构函数）
+33|逐元素移动构造 + 析构
+34|<code>::fast_io::string</code>、<code>::fast_io::vector</code>
+35|这个区别对性能有影响：100 万个元素的 <code>vector&lt;::std::size_t&gt;</code> 重新分配时只做一次 8&nbsp;MB 的 <code>memcpy</code>，硬件对它有很深的优化。而 100 万个元素的 <code>vector&lt;::fast_io::string&gt;</code> 必须逐个移动构造并析构每个字符串。
+36|2. reserve()
+37|<code>reserve(n)</code> 保证 vector 至少有容纳 <code>n</code> 个元素的容量，但不改变大小。若当前容量已经 &ge; <code>n</code>，它什么都不做。
+38|当你事先知道需要多少元素时，用 <code>reserve()</code> 来避免反复重新分配：
+39|3. push_back_unchecked()
+40|当你已用 <code>reserve()</code> 预分配好容量时，可以使用 <code>push_back_unchecked()</code> 跳过每次插入的容量检查。这样就省掉了热路径上的一个分支：
+41|当元素个数事先已知时，<code>reserve()</code> + <code>push_back_unchecked()</code> 是填充 vector 最快的方式。
+42|4. shrink_to_fit()
+43|<code>shrink_to_fit()</code> 请求 vector 把容量缩减到与大小相符。若当前容量大于大小，这会触发一次重新分配：把元素复制到更紧凑的缓冲区，并释放旧的缓冲区。
+44|5. clear() 与 clear_destroy() 的区别
+45|这两个操作的区别在于已分配的内存会被如何处理：
+46|操作
+47|元素
+48|内存
+49|适用场景
+50|<code>clear()</code>
+51|被析构
+52|<strong>保留</strong>（容量不变）
+53|你打算很快复用这个 vector
+54|<code>clear_destroy()</code>
+55|被析构
+56|<strong>被释放</strong>（容量变为 0）
+57|你想把内存还给分配器
+58|要点
+59|vector 就是指向一块连续分配的三个指针（<code>begin_ptr</code>、<code>curr_ptr</code>、<code>end_ptr</code>）。
+60|以 2&times; 增长：每次重新分配容量翻倍，于是 <code>push_back</code> 是摊还 &Theta;(1)。
+61|可平凡复制的类型用 <code>memcpy</code> 搬移；非平凡类型逐元素移动构造。
+62|元素个数已知时，用 <code>reserve(n)</code> 预分配以避免重新分配。
+63|<code>reserve()</code> + <code>push_back_unchecked()</code> 是填充 vector 最快的方式。
+64|<code>clear()</code> 保留内存以备复用；<code>clear_destroy()</code> 把内存释放掉。
+65|<a href="/docs/09.seqcontainers/07.listspecialops/" class="prev-button">&larr; 第9.7章: list</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/09.seqcontainers/09.deque/" class="next-button">第9.9章: deque &rarr;</a>

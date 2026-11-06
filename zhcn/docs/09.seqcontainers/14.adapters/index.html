@@ -3,58 +3,55 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch9.14: Sequential Container Adaptors - C++ Tutorial with fast_io</title>
+  <title>第9.14章: 序列容器适配器 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch9.14: Sequential Container Adaptors</h1>
+    <h1>第9.14章: 序列容器适配器</h1>
     <p class="lang-switch"><a href="/docs/09.seqcontainers/14.adapters/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        An <strong>adaptor</strong> is a class that wraps an existing container to
-        provide a restricted interface. <code>fast_io</code> provides three
-        adaptors. We will cover them in more detail in Chapter 10.
+        <strong>适配器</strong>是包裹现有容器、提供受限接口的类。<code>fast_io</code> 提供三种适配器，我们会在第10章更详细地介绍它们。
       </p>
     </section>
 
     <section>
-      <h2>1. Adaptor Summary</h2>
+      <h2>1. 适配器一览</h2>
       <table>
         <thead>
           <tr>
-            <th>Adaptor</th>
-            <th>Default Container</th>
-            <th>Access Pattern</th>
+            <th>适配器</th>
+            <th>默认容器</th>
+            <th>访问模式</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::stack&lt;T&gt;</code></td>
             <td><code>deque&lt;T&gt;</code></td>
-            <td>LIFO (last in, first out)</td>
+            <td>LIFO（后进先出）</td>
           </tr>
           <tr>
             <td><code>::fast_io::queue&lt;T&gt;</code></td>
             <td><code>deque&lt;T&gt;</code></td>
-            <td>FIFO (first in, first out)</td>
+            <td>FIFO（先进先出）</td>
           </tr>
           <tr>
             <td><code>::fast_io::priority_queue&lt;T&gt;</code></td>
             <td><code>vector&lt;T&gt;</code></td>
-            <td>Highest-priority element on top</td>
+            <td>优先级最高的元素在顶部</td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>2. Example</h2>
+      <h2>2. 示例</h2>
 <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/stack.h&gt;
 #include &lt;fast_io_dsal/queue.h&gt;
@@ -88,14 +85,10 @@ int main() {
 </code></pre>
 
       <p>
-        All adaptors provide <code>pop_element()</code> &mdash; it moves the top
-        element out and pops in one operation, returning the moved value. This is
-        more efficient than calling <code>top()</code> then <code>pop()</code>
-        separately. They also provide <code>get_container()</code> to access the
-        underlying container.
+        所有适配器都提供 <code>pop_element()</code> &mdash; 它一步完成“把顶部元素移出并弹出”，并返回被移出的值。这比分别调用 <code>top()</code> 再 <code>pop()</code> 更高效。它们还提供 <code>get_container()</code> 来访问底层容器。
       </p>
 
-      <h3>pop_element() example</h3>
+      <h3>pop_element() 示例</h3>
 <pre><code class="language-cpp">
 // Stack: pop_element() moves and returns the top element
 ::fast_io::stack&lt;::fast_io::string&gt; stk;
@@ -122,15 +115,12 @@ pq.push(2zu);
 </code></pre>
 
       <p>
-        There is also <code>pop_element_unchecked()</code> which skips the empty
-        check for performance-critical code.
+        还有 <code>pop_element_unchecked()</code>，它跳过空检查，适用于性能关键的代码。
       </p>
 
-      <h3>get_container() — Accessing the Underlying Container</h3>
+      <h3>get_container() &mdash;&mdash;访问底层容器</h3>
       <p>
-        <code>get_container()</code> returns a reference to the underlying
-        container. This lets you iterate over all elements, query
-        <code>size()</code>, or use any method the container provides:
+        <code>get_container()</code> 返回底层容器的引用。这让你可以遍历所有元素、查询 <code>size()</code>，或使用容器提供的任何方法：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/stack.h&gt;
@@ -166,28 +156,24 @@ int main() {
 }
 </code></pre>
       <p>
-        The non-const overload returns a mutable reference, so you can modify
-        the underlying container directly. Both const and non-const overloads
-        are provided.
+        非 const 重载返回可变引用，因此你可以直接修改底层容器。const 与非 const 两个重载都提供。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li><code>stack</code> provides LIFO access (default: <code>deque</code> underneath).</li>
-        <li><code>queue</code> provides FIFO access (default: <code>deque</code> underneath).</li>
-        <li><code>priority_queue</code> keeps the highest-priority element on top (default: <code>vector</code> underneath).</li>
-        <li><code>pop_element()</code> moves the top/front element out and pops in one step, returning the moved value.</li>
-        <li><code>get_container()</code> gives access to the underlying container.</li>
+        <li><code>stack</code> 提供 LIFO 访问（默认底层是 <code>deque</code>）。</li>
+        <li><code>queue</code> 提供 FIFO 访问（默认底层是 <code>deque</code>）。</li>
+        <li><code>priority_queue</code> 让优先级最高的元素保持在顶部（默认底层是 <code>vector</code>）。</li>
+        <li><code>pop_element()</code> 一步把顶部/前端元素移出并弹出，返回被移出的值。</li>
+        <li><code>get_container()</code> 提供对底层容器的访问。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/09.seqcontainers/13.stringview/" class="prev-button">&larr; Ch9.13: string_view</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/09.seqcontainers/15.algorithms/" class="next-button">Ch9.15: Algorithms &rarr;</a>
+      <a href="/zhcn/docs/09.seqcontainers/13.stringview/" class="prev-button">&larr; 第9.13章: string_view</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/09.seqcontainers/15.algorithms/" class="next-button">第9.15章: 算法 &rarr;</a>
     </div>
   </main>
 </body>

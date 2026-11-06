@@ -1,0 +1,56 @@
+1|第11.18章: 文件系统 API - 使用 fast_io 学习 C++ 教程
+2|第11.18章: 文件系统 API
+3|概述
+4|<code>::fast_io::dir_file</code> 打开一个用于枚举的目录句柄。与 <code>at()</code>、<code>current()</code> 和 <code>recursive()</code> 结合使用时，它提供了一种强大且类型安全的文件系统遍历方式。每次迭代产生一个 <code>directory_entry</code>，带有查询文件名、扩展名和文件类型的函数。
+5|打开目录
+6|由路径构造一个 <code>dir_file</code>。构造函数接受任何能转换成 C 字符串的东西 &mdash; C 字符串、<code>string_view</code>、<code>u8string</code>，或者用 <code>os_c_str</code> 包装过的对象。
+7|<code>at()</code> 函数
+8|调用 <code>at(df)</code> 得到一个 <code>at_entry</code> &mdash; 锚定在该目录上的轻量句柄。<code>current()</code> 与 <code>recursive()</code> 用这个句柄枚举目录项，它也可以用来相对于该目录打开文件（如第11.1章所示）。
+9|遍历直接子项：<code>current()</code>
+10|<code>current(at(df))</code> 返回一个 range，依次给出该目录的每个直接子项（不递归）。在 range-for 循环中使用它：
+11|递归遍历：<code>recursive()</code>
+12|<code>recursive(at(df))</code> 走遍该目录的所有后代，给出其中每一个文件与子目录。这非常适合搜索或处理整棵目录树。
+13|目录项函数
+14|<code>current()</code> 或 <code>recursive()</code> 给出的每个 <code>directory_entry</code> 都暴露这些函数：
+15|函数
+16|返回
+17|说明
+19|<code>char8_t</code> 的 string_view
+20|UTF-8 形式的文件名。
+22|<code>char8_t</code> 的 string_view
+23|UTF-8 形式的扩展名（从最后一个 <code>.</code> 开始）。
+25|<code>char8_t</code> 的 string_view
+26|UTF-8 形式的不含扩展名的文件名。
+28|<code>file_type</code>
+29|文件类型（见下文）。
+31|<code>bool</code>
+32|名字是 <code>.</code> 或 <code>..</code> 时为真。
+34|<code>fs_dirent</code>
+35|一个 (fd, name) 对 &mdash; 传给文件构造函数或加载器即可打开该项。
+37|<code>at_entry</code>
+38|把 <code>*at</code> 风格的操作锚定到该目录项上。
+39|此外还有 <code>native_filename()</code>、<code>native_extension()</code> 和 <code>native_stem()</code> 变体，返回原生编码形式的文件名（在所有平台上未必是 UTF-8）。
+40|<code>file_type</code> 枚举
+41|<code>::fast_io::file_type</code> 对文件系统项分类：
+42|取值
+43|说明
+45|普通文件。
+47|目录。
+49|符号链接。
+51|块设备。
+53|字符设备。
+55|FIFO（命名管道）。
+57|套接字。
+59|未知类型。
+61|文件不存在。
+62|相对于目录项打开文件
+63|用 <code>drt(ent)</code> 得到一个 (fd, name) 对，文件构造函数和加载器可以直接打开它。这比拼接完整路径更高效，也避免了路径解析带来的竞态。
+64|要点
+65|用 <code>::fast_io::dir_file</code> 打开目录句柄。
+66|调用 <code>at(df)</code> 得到用于枚举的 <code>at_entry</code>。
+67|用 <code>current(at(df))</code> 遍历直接子项（不递归）。
+68|用 <code>recursive(at(df))</code> 遍历所有后代。
+69|每个目录项暴露 <code>u8filename()</code>、<code>u8extension()</code>、<code>type()</code>、<code>is_dot()</code>、<code>drt()</code> 和 <code>at()</code>。
+70|用 <code>drt(ent)</code> 高效地相对于目录项打开文件。
+71|把 <code>type(ent)</code> 与 <code>file_type</code> 枚举配合，按文件类型过滤。
+72|<a href="/docs/11.io/17.layers/" class="prev-button">&larr; 第11.17章: 文件各层</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/19.temp/" class="next-button">第11.19章: 临时文件 &rarr;</a>

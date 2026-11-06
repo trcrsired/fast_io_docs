@@ -3,67 +3,63 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch9.5: Unchecked Operations - C++ Tutorial with fast_io</title>
+  <title>第9.5章: 非检查操作 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch9.5: Unchecked Operations</h1>
+    <h1>第9.5章: 非检查操作</h1>
     <p class="lang-switch"><a href="/docs/09.seqcontainers/05.unchecked/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        Every checked operation has a corresponding <code>_unchecked</code> variant
-        that skips bounds checking. Use these only when you have already verified
-        that the index or condition is valid. Using an unchecked operation with
-        invalid arguments is <strong>undefined behaviour</strong>.
+        每个带检查的操作都有一个对应的 <code>_unchecked</code> 变体，它跳过边界检查。只有在你已经确认下标或条件有效时才使用它们。对非检查操作传入无效参数是<strong>未定义行为</strong>。
       </p>
     </section>
 
     <section>
-      <h2>1. Unchecked Operation Table</h2>
+      <h2>1. 非检查操作对照表</h2>
       <table>
         <thead>
           <tr>
-            <th>Checked (safe)</th>
-            <th>Unchecked (fast)</th>
-            <th>Applies to</th>
+            <th>带检查（安全）</th>
+            <th>非检查（更快）</th>
+            <th>适用于</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>operator[](idx)</code></td>
             <td><code>index_unchecked(idx)</code></td>
-            <td>vector, deque, array, span, index_span, string_view</td>
+            <td>vector、deque、array、span、index_span、string_view</td>
           </tr>
           <tr>
             <td><code>front()</code></td>
             <td><code>front_unchecked()</code></td>
-            <td>All owning containers, span, string_view</td>
+            <td>所有拥有所有权的容器、span、string_view</td>
           </tr>
           <tr>
             <td><code>back()</code></td>
             <td><code>back_unchecked()</code></td>
-            <td>All except forward_list</td>
+            <td>除 forward_list 之外的所有容器</td>
           </tr>
           <tr>
             <td><code>pop_back()</code></td>
             <td><code>pop_back_unchecked()</code></td>
-            <td>vector, deque, list, bitvec</td>
+            <td>vector、deque、list、bitvec</td>
           </tr>
           <tr>
             <td><code>pop_front()</code></td>
             <td><code>pop_front_unchecked()</code></td>
-            <td>deque, list, forward_list</td>
+            <td>deque、list、forward_list</td>
           </tr>
           <tr>
             <td><code>push_back()</code></td>
             <td><code>push_back_unchecked()</code></td>
-            <td>vector, bitvec</td>
+            <td>vector、bitvec</td>
           </tr>
           <tr>
             <td><code>emplace_back()</code></td>
@@ -75,7 +71,7 @@
     </section>
 
     <section>
-      <h2>2. Example: reserve + push_back_unchecked</h2>
+      <h2>2. 示例：reserve + push_back_unchecked</h2>
 <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/vector.h&gt;
 #include &lt;fast_io.h&gt;
@@ -95,28 +91,23 @@ int main() {
 </code></pre>
 
       <div class="tip">
-        <strong>Tip:</strong> Use <code>reserve()</code> + <code>push_back_unchecked()</code>
-        in tight loops where you know the final size. This avoids repeated capacity
-        checks and is significantly faster than calling <code>push_back()</code>
-        in a loop.
+        <strong>提示：</strong>当你已知最终大小时，在紧凑的循环中使用 <code>reserve()</code> + <code>push_back_unchecked()</code>。这样可以避免反复检查容量，明显快于在循环里调用 <code>push_back()</code>。
       </div>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>Every checked operation has an <code>_unchecked</code> counterpart.</li>
-        <li>Unchecked operations skip bounds/capacity checks &mdash; undefined behaviour on invalid input.</li>
-        <li>Use <code>reserve()</code> + <code>push_back_unchecked()</code> for fast bulk insertion.</li>
-        <li>Only use unchecked operations when you can prove the preconditions hold.</li>
+        <li>每个带检查的操作都有对应的 <code>_unchecked</code> 版本。</li>
+        <li>非检查操作跳过边界/容量检查 &mdash; 输入无效时是未定义行为。</li>
+        <li>批量插入时用 <code>reserve()</code> + <code>push_back_unchecked()</code> 更快。</li>
+        <li>只有在你能够证明前置条件成立时才使用非检查操作。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/09.seqcontainers/04.iterators/" class="prev-button">&larr; Ch9.4: Iterators</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/09.seqcontainers/06.forwardlist/" class="next-button">Ch9.6: forward_list &rarr;</a>
+      <a href="/zhcn/docs/09.seqcontainers/04.iterators/" class="prev-button">&larr; 第9.4章: 迭代器</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/09.seqcontainers/06.forwardlist/" class="next-button">第9.6章: forward_list &rarr;</a>
     </div>
   </main>
 </body>

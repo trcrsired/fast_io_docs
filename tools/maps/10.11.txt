@@ -1,0 +1,60 @@
+1|第10.11章: 元素类型、错误规格与有效性 - 使用 fast_io 学习 C++ 教程
+2|第10.11章: 元素类型、错误规格与有效性
+3|1. 键可以是什么
+4|键的类型参数被约束为整型字符类型。实践中就是别名所覆盖的那五种：
+5|类型
+6|别名前缀
+7|<code>char</code>
+8|<code>str_</code>
+9|<code>wchar_t</code>
+10|<code>wstr_</code>
+11|<code>char8_t</code>
+12|<code>u8str_</code>
+13|<code>char16_t</code>
+14|<code>u16str_</code>
+15|<code>char32_t</code>
+16|<code>u32str_</code>
+17|键就是这些单元的序列，按字节比较。它不感知任何编码：<code>u32str_btree_map</code> 比较码点，<code>str_</code> 容器比较 UTF-8 字节。对 UTF-8 来说，逐字节的顺序恰好与码点顺序一致，这就是为什么即使是 UTF-8 文本，<code>str_</code> 家族也是正确的默认选择。
+18|2. 映射值可以是什么
+19|映射的值必须是<strong>移动构造不抛异常</strong>且<strong>移动赋值不抛异常</strong>的。这是类级别的约束，在你写出这个类型的那一刻就会被检查：
+20|理由与 <code>fast_io</code> 所有容器背后的理由相同：结点分裂时值要被搬移。会失败的搬移会让容器处于“挪了一半”的状态且无法描述它，因此这个要求被挪到了编译期。带 <code>noexcept</code> 移动的类型 &mdash; <code>::std::size_t</code>、<code>::fast_io::string</code>、<code>::fast_io::vector</code>，也就是你会存放的绝大多数东西 &mdash; 自动满足它。
+21|<strong>复制仍然可能抛异常。</strong>这个约束只针对移动。复制构造函数会抛的值类型是可以的，它只会让“复制式插入”的重载变成 <code>throws</code> &mdash; 见第3节。
+22|3. 错误规格
+23|在默认分配器下，存放“移动不抛”的值的容器<strong>完全是 <code>noexcept</code></strong>：每次插入、每次删除、每次查找、每个迭代器操作。你可以在编译期验证这一点，而不必相信文档：
+24|在这种配置下分配失败会<em>终止</em>程序，而不是抛异常。这是刻意的默认：内存耗尽不是字符串容器能够恢复的状况，所以运行时也不会假装可以。
+25|有两样东西能让某个成员变成 <code>throws</code>，而两者都体现在类型里，而不是注释里：
+26|<strong>值类型在该操作构造它的地方可能抛。</strong>会抛的复制构造函数让 <code>insert_key(key, lvalue)</code> 成为 <code>throws</code> 函数；会抛的构造函数让它所调用的那个 <code>emplace_key</code> 重载成为 <code>throws</code>。
+27|<strong>你选择了会抛异常的分配器。</strong>用标志包装分配器会把分配失败与契约违反变成赫布异常。
+28|有意思的是<em>带检查</em>的操作报告什么。读取空容器的 <code>front()</code> 是你程序里的 bug，不是一种运行时状况 &mdash; 但如果你要求错误可被报告，它会在 POSIX 域中以 <code>::std::errc::invalid_argument</code> 报告：
+29|<strong>你不需要处理任何东西。</strong>在默认分配器下 &mdash; 也就是 <code>::fast_io::str_btree_map</code> 及其伙伴所使用的 &mdash; 容器是 <code>noexcept</code> 的，你的代码里任何地方都不需要 <code>try</code>/<code>catch throws</code>。会抛异常的分配器是给需要可恢复路径的程序准备的，必须显式选择。
+30|4. 自己写函数签名
+31|由于这些规格是有条件的，<a href="/docs/06.function/16.noexceptthrows/">第6.16章</a>里的规则就替你干了活：只从容器读取的函数是 <code>noexcept</code>，而插入的函数也是 <code>noexcept</code> &mdash; 除非容器能抛。
+32|当映射类型能抛时，编译器会拒绝第二种写法并告诉你原因：
+33|把那个函数标成 <code>throws</code>，错误就消失了 &mdash; 从来没有理由退回传统异常或 <code>catch (...)</code>。
+34|5. 什么会保持有效
+35|迭代器、键视图和映射值引用都指向容器自己的存储。下面的规则很短，照着做就覆盖了使用这些类型时的全部内存安全。
+36|操作
+37|对迭代器和视图的影响
+38|查找（<code>contains</code>、<code>find</code>、<code>lower_bound</code>、遍历）
+39|什么都不失效。查找只读。
+40|插入（B 树家族）
+41|被插入元素自己的迭代器是新的；已有键保持各自的标识，因此指向其他元素的视图仍然有效。
+42|插入（Swiss 表家族）
+43|增长会重新哈希每个键。一旦表增长，就把所有迭代器和视图视为失效。
+44|删除
+45|所有指向被删元素的东西都失效。只有返回的迭代器是已知可用的。
+46|<code>clear()</code>、<code>clear_destroy()</code>、析构
+47|一切都失效。
+48|移动、复制赋值、swap
+49|指向被移出容器的迭代器失效；重新查一次键。
+50|实践上就是：<strong>不要跨一次修改持有迭代器或键视图</strong>。重新查一次键 &mdash; 查找很便宜，而这正是你当初选这个容器的原因。
+51|当然，被<em>复制出来</em>的键永远是安全的 &mdash; 由 <code>e.key()</code> 构造出的 <code>::fast_io::string</code> 是你自己的存储，已经与容器无关了。
+52|要点
+53|键是整型字符类型：<code>char</code>、<code>wchar_t</code>、<code>char8_t</code>、<code>char16_t</code>、<code>char32_t</code>；比较按字节进行。
+54|映射值必须是移动构造与移动赋值都不抛异常的，由类的约束强制执行。
+55|在默认分配器下，每个容器操作都是 <code>noexcept</code>；分配失败会终止程序。
+56|会抛的值操作、或会抛的分配器适配器，只会让相应的那些成员变成 <code>throws</code> &mdash; 从不会让整个容器变成 <code>throws</code>。
+57|契约违反（对空容器调用 <code>front()</code>、越界的 <code>nth_element</code>）会终止程序，或者在会抛异常的配置中抛出 <code>::std::errc::invalid_argument</code>。
+58|只读的函数是 <code>noexcept</code>；插入函数也是 <code>noexcept</code>，除非值类型或分配器能抛，那时它们就是 <code>throws</code>。
+59|绝不要跨一次修改保留迭代器或键视图；重新查一次键。
+60|<a href="/docs/10.associativecontainers/10.choose/" class="prev-button">&larr; 第10.10章: 如何选择容器</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/" class="next-button">第11章: I/O &rarr;</a>

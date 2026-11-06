@@ -1,0 +1,26 @@
+1|第11.7章: 随机访问 I/O - 使用 fast_io 学习 C++ 教程
+2|第11.7章: 随机访问 I/O
+3|定位操作
+4|<code>fast_io</code> 在 <code>::fast_io::operations</code> 命名空间中提供移动文件位置的定位操作。用哪一个取决于文件的方向：
+5|<code>::fast_io::operations::input_stream_seek</code> &mdash; 用于输入文件（<code>ibuf_file</code>）。
+6|<code>::fast_io::operations::output_stream_seek</code> &mdash; 用于输出文件（<code>obuf_file</code>）。
+7|<code>::fast_io::operations::io_stream_seek</code> &mdash; 用于双向文件（<code>iobuf_file</code>）。
+8|此外还有 <code>_rewind</code> 变体用于回到开头，以及直接接受字节偏移的 <code>_seek_bytes</code> 变体。
+9|按位置 I/O（pwrite/pread）
+10|按位置 I/O 让你读写文件中某个特定偏移处的内容，<strong>而不改变</strong>文件当前的位置。它等价于 POSIX 的 <code>pread(2)</code> 与 <code>pwrite(2)</code>。
+11|在 <code>fast_io</code> 中，使用 operations 命名空间：
+12|<code>::fast_io::operations::pwrite_some</code> / <code>pwrite_all</code> &mdash; 按位置写入。
+13|<code>::fast_io::operations::pread_some</code> / <code>pread_all</code> &mdash; 按位置读取。
+14|<code>::fast_io::operations::pwrite_some_bytes</code> / <code>pwrite_all_bytes</code> &mdash; 针对 <code>::std::byte</code> 的按位置写入。
+15|<code>::fast_io::operations::pread_some_bytes</code> / <code>pread_all_bytes</code> &mdash; 针对 <code>::std::byte</code> 的按位置读取。
+16|调用之后文件位置保持不变。
+17|用 pwrite 做随机写
+18|这个程序运行结束后，文件在偏移 0 处是 <code>"AAAA"</code>，偏移 100 处是 <code>"BBBB"</code>，偏移 200 处是 <code>"CCCC"</code>。文件位置不受 <code>pwrite</code> 调用影响。
+19|用 pread 做随机读
+20|线程安全
+21|如果多个线程需要并发写同一个文件，请使用像 <code>::fast_io::obuf_file_lockable</code> 这样的可加锁文件类型。锁定它、取得未加锁的句柄，然后使用该句柄以获得更好的性能。见<a href="/docs/11.io/06.mutex/">第11.6章</a>。
+22|要点
+23|用 <code>::fast_io::operations::input_stream_seek</code>、<code>output_stream_seek</code> 或 <code>io_stream_seek</code> 移动文件位置。
+24|按位置写入用 <code>::fast_io::operations::pwrite_all</code> &mdash; 在指定偏移处写，且不改变文件位置。
+25|按位置读取用 <code>::fast_io::operations::pread_all</code>。
+26|<a href="/docs/11.io/06.mutex/" class="prev-button">&larr; 第11.6章: 互斥 I/O</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/08.fileloader/" class="next-button">第11.8章: 文件加载器 &rarr;</a>

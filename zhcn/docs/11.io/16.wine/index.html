@@ -3,63 +3,50 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.16: Wine File APIs - C++ Tutorial with fast_io</title>
+  <title>第11.16章: Wine 文件 API - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.16: Wine File APIs</h1>
+    <h1>第11.16章: Wine 文件 API</h1>
     <p class="lang-switch"><a href="/docs/11.io/16.wine/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        <a href="https://www.winehq.org/" target="_blank" rel="noopener noreferrer">Wine</a>
-        (&ldquo;Wine Is Not an Emulator&rdquo;) lets Windows binaries run on POSIX systems
-        such as Linux and FreeBSD. Wine implements the Win32 and NT APIs by translating them
-        into host system calls &mdash; and those host system calls ultimately use POSIX file
-        descriptors.
+        <a href="https://www.winehq.org/" target="_blank" rel="noopener noreferrer">Wine</a>（“Wine Is Not an Emulator”）让 Windows 二进制程序能在 Linux、FreeBSD 等 POSIX 系统上运行。Wine 通过把 Win32 与 NT API 翻译成宿主系统调用来实现它们 &mdash; 而那些宿主系统调用最终使用的就是 POSIX 文件描述符。
       </p>
       <p>
-        When <code>fast_io</code> is built as part of Wine itself (or for code running under
-        Wine that needs to talk to the host directly), it exposes this layer through:
+        当 <code>fast_io</code> 作为 Wine 自身的一部分构建时（或者用于在 Wine 下运行、需要直接与宿主打交道的代码时），它通过下面这些类型暴露这一层：
       </p>
       <ul>
         <li>
-          <code>::fast_io::wine_file</code> &mdash; an RAII owning wrapper over a Wine host
-          file descriptor.
+          <code>::fast_io::wine_file</code> &mdash; 对 Wine 宿主文件描述符的 RAII 拥有式包装。
         </li>
         <li>
-          <code>::fast_io::wine_io_observer</code> &mdash; a non-owning view over an existing
-          Wine host file descriptor.
+          <code>::fast_io::wine_io_observer</code> &mdash; 对已有 Wine 宿主文件描述符的非拥有视图。
         </li>
       </ul>
       <div class="callout">
-        <p>
-          <strong>Note:</strong> The Wine layer is not yet finished in upstream
-          <code>fast_io</code>. This section describes the design as it is intended to land.
-          The concepts, however, follow exactly the same RAII / observer pattern you have
-          already seen for POSIX, Win32, and NT.
-        </p>
+        <p> <strong>注意：</strong>上游 <code>fast_io</code> 中的 Wine 层尚未完成。本节描述的是它按计划落地时的设计。不过这些概念与你在 POSIX、Win32、NT 上已经见过的 RAII / observer 模式完全一致。 </p>
       </div>
     </section>
 
     <section>
-      <h2>The Pattern Is the Same</h2>
+      <h2>模式是一样的</h2>
       <p>
-        Every layer in <code>fast_io</code> follows the same shape:
+        <code>fast_io</code> 中的每一层都遵循同样的形状：
       </p>
       <ol>
-        <li>An owning RAII type named <code>xxx_file</code>.</li>
-        <li>A non-owning observer type named <code>xxx_io_observer</code>.</li>
-        <li>Full support for <code>print</code>, <code>println</code>, and <code>scan</code>.</li>
-        <li>The ability to wrap raw handles from outside code.</li>
+        <li>一个名为 <code>xxx_file</code> 的拥有式 RAII 类型。</li>
+        <li>一个名为 <code>xxx_io_observer</code> 的非拥有观察者类型。</li>
+        <li>对 <code>print</code>、<code>println</code> 与 <code>scan</code> 的完整支持。</li>
+        <li>能够包裹来自外部代码的原始句柄。</li>
       </ol>
       <p>
-        <code>wine_file</code> is no exception. Conceptually it looks like this:
+        <code>wine_file</code> 也不例外。概念上它长这样：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -81,11 +68,9 @@ int main()
     </section>
 
     <section>
-      <h2>Wrapping a Wine Host File Descriptor</h2>
+      <h2>包裹 Wine 宿主文件描述符</h2>
       <p>
-        When Wine translates a Windows <code>CreateFileW</code> call, it eventually produces
-        a host POSIX file descriptor. You can wrap that descriptor in a
-        <code>wine_io_observer</code> to continue working with it through <code>fast_io</code>:
+        当 Wine 翻译一次 Windows <code>CreateFileW</code> 调用时，它最终会产生一个宿主 POSIX 文件描述符。你可以把这个描述符包进 <code>wine_io_observer</code>，从而通过 <code>fast_io</code> 继续使用它：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -104,80 +89,65 @@ void write_via_wine(int host_fd)
     </section>
 
     <section>
-      <h2>Why Does This Layer Exist?</h2>
+      <h2>为什么需要这一层？</h2>
       <p>
-        Wine is a complex piece of infrastructure. Code that lives inside Wine (for example,
-        Wine's own implementation of <code>ntdll.dll</code> or <code>kernel32.dll</code>)
-        needs to:
+        Wine 是一套复杂的基础设施。位于 Wine 内部的代码（例如 Wine 自己的 <code>ntdll.dll</code> 或 <code>kernel32.dll</code> 实现）需要：
       </p>
       <ul>
         <li>
-          Receive a Windows <code>HANDLE</code> from guest code.
+          从客户代码那里接收一个 Windows <code>HANDLE</code>。
         </li>
         <li>
-          Translate it into a host <code>int fd</code> via Wine's internal table.
+          通过 Wine 的内部表把它翻译成宿主 <code>int fd</code>。
         </li>
         <li>
-          Perform host I/O on that <code>fd</code> while still being able to surface errors
-          back to the guest as NTSTATUS codes.
+          在那个 <code>fd</code> 上执行宿主 I/O，同时仍能把错误以 NTSTATUS 码的形式呈现给客户。
         </li>
       </ul>
       <p>
-        <code>wine_file</code> gives Wine developers the same RAII / observer ergonomics
-        they get from the other layers, without having to write manual resource management
-        for every call site.
+        <code>wine_file</code> 让 Wine 开发者获得与其他层一样的 RAII / observer 使用体验，而不必在每个调用点手写资源管理。
       </p>
     </section>
 
     <section>
-      <h2>Relationship to the Other Layers</h2>
+      <h2>与其他层的关系</h2>
       <p>
-        On a POSIX host running Wine, the full layering looks like this:
+        在运行 Wine 的 POSIX 宿主上，完整的分层是这样的：
       </p>
       <ul>
         <li>
-          A guest Windows binary calls <code>WriteFile</code>. That resolves, inside Wine,
-          to <code>ntdll!NtWriteFile</code>.
+          客户的 Windows 二进制程序调用 <code>WriteFile</code>，这在 Wine 内部解析为 <code>ntdll!NtWriteFile</code>。
         </li>
         <li>
-          Wine's <code>ntdll</code> translates that to a host POSIX <code>write(2)</code>
-          call on a host fd &mdash; and that fd is what <code>wine_file</code> wraps.
+          Wine 的 <code>ntdll</code> 把它翻译成对宿主 fd 的一次 POSIX <code>write(2)</code> 调用 &mdash; 而 <code>wine_file</code> 包裹的正是这个 fd。
         </li>
       </ul>
       <p>
-        So from the guest's point of view, the I/O went through the NT layer. From the
-        host's point of view, it went through POSIX. <code>wine_file</code> lives at the
-        seam between the two.
+        因此从客户的角度，I/O 走的是 NT 层；从宿主的角度，走的是 POSIX。<code>wine_file</code> 就住在两者之间的接缝上。
       </p>
     </section>
 
     <section>
-      <h2>Summary</h2>
+      <h2>小结</h2>
       <ul>
         <li>
-          <code>::fast_io::wine_file</code> is the RAII wrapper for Wine host file
-          descriptors.
+          <code>::fast_io::wine_file</code> 是 Wine 宿主文件描述符的 RAII 包装。
         </li>
         <li>
-          <code>::fast_io::wine_io_observer</code> is the non-owning view.
+          <code>::fast_io::wine_io_observer</code> 是非拥有视图。
         </li>
         <li>
-          The Wine layer is still a work in progress, but its design follows the exact
-          same pattern as <code>posix_file</code>, <code>win32_file</code>, and
-          <code>nt_file</code>.
+          Wine 层仍在开发中，但它的设计与 <code>posix_file</code>、<code>win32_file</code>、<code>nt_file</code> 完全同构。
         </li>
         <li>
-          It lives at the boundary between a Windows guest and the POSIX host that Wine
-          runs on.
+          它位于 Windows 客户与 Wine 所运行的 POSIX 宿主之间的边界上。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/15.nt/" class="prev-button">&larr; Ch11.15: NT File APIs</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/17.layers/" class="next-button">Ch11.17: Relationship Between File Layers &rarr;</a>
+      <a href="/zhcn/docs/11.io/15.nt/" class="prev-button">&larr; 第11.15章: NT 文件 API</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/17.layers/" class="next-button">第11.17章: 文件各层之间的关系 &rarr;</a>
     </div>
   </main>
 </body>

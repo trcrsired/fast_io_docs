@@ -3,33 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.18: Filesystem APIs - C++ Tutorial with fast_io</title>
+  <title>第11.18章: 文件系统 API - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.18: Filesystem APIs</h1>
+    <h1>第11.18章: 文件系统 API</h1>
     <p class="lang-switch"><a href="/docs/11.io/18.filesystem/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        <code>::fast_io::dir_file</code> opens a directory handle for enumeration. Combined
-        with <code>at()</code>, <code>current()</code>, and <code>recursive()</code>, it provides
-        a powerful, type-safe way to traverse the filesystem. Each iteration yields a
-        <code>directory_entry</code> with functions to query the filename, extension, and file type.
+        <code>::fast_io::dir_file</code> 打开一个用于枚举的目录句柄。与 <code>at()</code>、<code>current()</code> 和 <code>recursive()</code> 结合使用时，它提供了一种强大且类型安全的文件系统遍历方式。每次迭代产生一个 <code>directory_entry</code>，带有查询文件名、扩展名和文件类型的函数。
       </p>
     </section>
 
     <section>
-      <h2>Opening a Directory</h2>
+      <h2>打开目录</h2>
       <p>
-        Construct a <code>dir_file</code> from a path. The constructor accepts anything convertible
-        to a C string &mdash; C strings, <code>string_view</code>, <code>u8string</code>, or wrapped
-        with <code>os_c_str</code>.
+        由路径构造一个 <code>dir_file</code>。构造函数接受任何能转换成 C 字符串的东西 &mdash; C 字符串、<code>string_view</code>、<code>u8string</code>，或者用 <code>os_c_str</code> 包装过的对象。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -48,12 +42,9 @@ int main(int argc, char** argv) {
     </section>
 
     <section>
-      <h2>The <code>at()</code> Function</h2>
+      <h2><code>at()</code> 函数</h2>
       <p>
-        Call <code>at(df)</code> to get an <code>at_entry</code> &mdash; a lightweight handle anchored
-        at the directory. This handle is used by <code>current()</code> and <code>recursive()</code> to
-        enumerate entries, and can also be used to open files relative to the directory (as shown in
-        Ch11.1).
+        调用 <code>at(df)</code> 得到一个 <code>at_entry</code> &mdash; 锚定在该目录上的轻量句柄。<code>current()</code> 与 <code>recursive()</code> 用这个句柄枚举目录项，它也可以用来相对于该目录打开文件（如第11.1章所示）。
       </p>
 <pre><code class="language-cpp">
 ::fast_io::dir_file df(u8"my_directory");
@@ -62,10 +53,9 @@ auto entry = at(df);  // at_entry anchored at my_directory
     </section>
 
     <section>
-      <h2>Iterating Immediate Children: <code>current()</code></h2>
+      <h2>遍历直接子项：<code>current()</code></h2>
       <p>
-        <code>current(at(df))</code> returns a range that yields each immediate child of the directory
-        (non-recursive). Use it in a range-for loop:
+        <code>current(at(df))</code> 返回一个 range，依次给出该目录的每个直接子项（不递归）。在 range-for 循环中使用它：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -83,9 +73,9 @@ int main() {
         switch (type(ent)) {
             using enum ::fast_io::file_type;
         case directory: print("[DIR]  "); break;
-        case symlink: print("[LINK] "); break;
-        case regular: print("[FILE] "); break;
-        default: print("[OTHER]");
+        case symlink:   print("[LINK] "); break;
+        case regular:   print("[FILE] "); break;
+        default:        print("[OTHER]");
         }
         println(::fast_io::mnp::code_cvt(u8filename(ent)));
     }
@@ -94,10 +84,9 @@ int main() {
     </section>
 
     <section>
-      <h2>Recursive Traversal: <code>recursive()</code></h2>
+      <h2>递归遍历：<code>recursive()</code></h2>
       <p>
-        <code>recursive(at(df))</code> walks all descendants of the directory, yielding every file
-        and subdirectory it contains. This is ideal for searching or processing entire directory trees.
+        <code>recursive(at(df))</code> 走遍该目录的所有后代，给出其中每一个文件与子目录。这非常适合搜索或处理整棵目录树。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -135,96 +124,91 @@ int main() {
     </section>
 
     <section>
-      <h2>Directory Entry Functions</h2>
+      <h2>目录项函数</h2>
       <p>
-        Each <code>directory_entry</code> yielded by <code>current()</code> or <code>recursive()</code>
-        exposes these functions:
+        <code>current()</code> 或 <code>recursive()</code> 给出的每个 <code>directory_entry</code> 都暴露这些函数：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Function</th>
-            <th>Returns</th>
-            <th>Description</th>
+            <th>函数</th>
+            <th>返回</th>
+            <th>说明</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>u8filename(ent)</code></td>
-            <td><code>char8_t</code> string_view</td>
-            <td>Filename in UTF-8.</td>
+            <td><code>char8_t</code> 的 string_view</td>
+            <td>UTF-8 形式的文件名。</td>
           </tr>
           <tr>
             <td><code>u8extension(ent)</code></td>
-            <td><code>char8_t</code> string_view</td>
-            <td>Extension (from last <code>.</code> onward) in UTF-8.</td>
+            <td><code>char8_t</code> 的 string_view</td>
+            <td>UTF-8 形式的扩展名（从最后一个 <code>.</code> 开始）。</td>
           </tr>
           <tr>
             <td><code>u8stem(ent)</code></td>
-            <td><code>char8_t</code> string_view</td>
-            <td>Filename without extension in UTF-8.</td>
+            <td><code>char8_t</code> 的 string_view</td>
+            <td>UTF-8 形式的不含扩展名的文件名。</td>
           </tr>
           <tr>
             <td><code>type(ent)</code></td>
             <td><code>file_type</code></td>
-            <td>File type (see below).</td>
+            <td>文件类型（见下文）。</td>
           </tr>
           <tr>
             <td><code>is_dot(ent)</code></td>
             <td><code>bool</code></td>
-            <td>True if the name is <code>.</code> or <code>..</code>.</td>
+            <td>名字是 <code>.</code> 或 <code>..</code> 时为真。</td>
           </tr>
           <tr>
             <td><code>drt(ent)</code></td>
             <td><code>fs_dirent</code></td>
-            <td>A (fd, name) pair &mdash; pass to file constructors or loaders to open the entry.</td>
+            <td>一个 (fd, name) 对 &mdash; 传给文件构造函数或加载器即可打开该项。</td>
           </tr>
           <tr>
             <td><code>at(ent)</code></td>
             <td><code>at_entry</code></td>
-            <td>Anchor <code>*at</code>-style operations relative to this entry.</td>
+            <td>把 <code>*at</code> 风格的操作锚定到该目录项上。</td>
           </tr>
         </tbody>
       </table>
       <p>
-        There are also <code>native_filename()</code>, <code>native_extension()</code>, and
-        <code>native_stem()</code> variants that return the filename in the native encoding
-        (which may not be UTF-8 on all platforms).
+        此外还有 <code>native_filename()</code>、<code>native_extension()</code> 和 <code>native_stem()</code> 变体，返回原生编码形式的文件名（在所有平台上未必是 UTF-8）。
       </p>
     </section>
 
     <section>
-      <h2>The <code>file_type</code> Enum</h2>
+      <h2><code>file_type</code> 枚举</h2>
       <p>
-        <code>::fast_io::file_type</code> categorizes filesystem entries:
+        <code>::fast_io::file_type</code> 对文件系统项分类：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Value</th>
-            <th>Description</th>
+            <th>取值</th>
+            <th>说明</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td><code>regular</code></td><td>Regular file.</td></tr>
-          <tr><td><code>directory</code></td><td>Directory.</td></tr>
-          <tr><td><code>symlink</code></td><td>Symbolic link.</td></tr>
-          <tr><td><code>block</code></td><td>Block device.</td></tr>
-          <tr><td><code>character</code></td><td>Character device.</td></tr>
-          <tr><td><code>fifo</code></td><td>FIFO (named pipe).</td></tr>
-          <tr><td><code>socket</code></td><td>Socket.</td></tr>
-          <tr><td><code>unknown</code></td><td>Unknown type.</td></tr>
-          <tr><td><code>not_found</code></td><td>File does not exist.</td></tr>
+          <tr><td><code>regular</code></td><td>普通文件。</td></tr>
+          <tr><td><code>directory</code></td><td>目录。</td></tr>
+          <tr><td><code>symlink</code></td><td>符号链接。</td></tr>
+          <tr><td><code>block</code></td><td>块设备。</td></tr>
+          <tr><td><code>character</code></td><td>字符设备。</td></tr>
+          <tr><td><code>fifo</code></td><td>FIFO（命名管道）。</td></tr>
+          <tr><td><code>socket</code></td><td>套接字。</td></tr>
+          <tr><td><code>unknown</code></td><td>未知类型。</td></tr>
+          <tr><td><code>not_found</code></td><td>文件不存在。</td></tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>Opening Files Relative to Directory Entries</h2>
+      <h2>相对于目录项打开文件</h2>
       <p>
-        Use <code>drt(ent)</code> to get a (fd, name) pair that file constructors and loaders can
-        open directly. This is more efficient than building a full path, and avoids race conditions
-        from path resolution.
+        用 <code>drt(ent)</code> 得到一个 (fd, name) 对，文件构造函数和加载器可以直接打开它。这比拼接完整路径更高效，也避免了路径解析带来的竞态。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -248,23 +232,21 @@ int main() {
     </section>
 
     <section>
-      <h2>Key Takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>Use <code>::fast_io::dir_file</code> to open a directory handle.</li>
-        <li>Call <code>at(df)</code> to get an <code>at_entry</code> for enumeration.</li>
-        <li>Use <code>current(at(df))</code> for immediate children (non-recursive).</li>
-        <li>Use <code>recursive(at(df))</code> to walk all descendants.</li>
-        <li>Each entry exposes <code>u8filename()</code>, <code>u8extension()</code>, <code>type()</code>, <code>is_dot()</code>, <code>drt()</code>, and <code>at()</code>.</li>
-        <li>Use <code>drt(ent)</code> to open files relative to directory entries efficiently.</li>
-        <li>Use <code>type(ent)</code> with the <code>file_type</code> enum to filter by file type.</li>
+        <li>用 <code>::fast_io::dir_file</code> 打开目录句柄。</li>
+        <li>调用 <code>at(df)</code> 得到用于枚举的 <code>at_entry</code>。</li>
+        <li>用 <code>current(at(df))</code> 遍历直接子项（不递归）。</li>
+        <li>用 <code>recursive(at(df))</code> 遍历所有后代。</li>
+        <li>每个目录项暴露 <code>u8filename()</code>、<code>u8extension()</code>、<code>type()</code>、<code>is_dot()</code>、<code>drt()</code> 和 <code>at()</code>。</li>
+        <li>用 <code>drt(ent)</code> 高效地相对于目录项打开文件。</li>
+        <li>把 <code>type(ent)</code> 与 <code>file_type</code> 枚举配合，按文件类型过滤。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/17.layers/" class="prev-button">&larr; Ch11.17: File Layers</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/19.temp/" class="next-button">Ch11.19: Temporary Files &rarr;</a>
+      <a href="/zhcn/docs/11.io/17.layers/" class="prev-button">&larr; 第11.17章: 文件各层</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/19.temp/" class="next-button">第11.19章: 临时文件 &rarr;</a>
     </div>
   </main>
 </body>

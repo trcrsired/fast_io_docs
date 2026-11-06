@@ -3,79 +3,75 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch9.7: list - C++ Tutorial with fast_io</title>
+  <title>第9.7章: list - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch9.7: list</h1>
+    <h1>第9.7章: list</h1>
     <p class="lang-switch"><a href="/docs/09.seqcontainers/07.listspecialops/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        <code>::fast_io::list</code> provides several operations that manipulate
-        the list structure directly without copying elements. These are more
-        efficient than the equivalent operations on a vector because they only
-        adjust pointers.
+        <code>::fast_io::list</code> 提供若干直接操作链表结构、不复制元素的操作。它们比 vector 上的等价操作更高效，因为只需调整指针。
       </p>
     </section>
 
     <section>
-      <h2>1. Special Operations Table</h2>
+      <h2>1. 特有操作表</h2>
       <table>
         <thead>
           <tr>
-            <th>Operation</th>
-            <th>Description</th>
+            <th>操作</th>
+            <th>说明</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>splice(pos, it)</code></td>
-            <td>Move the element pointed to by <code>it</code> to before <code>pos</code></td>
+            <td>把 <code>it</code> 所指元素移动到 <code>pos</code> 之前</td>
           </tr>
           <tr>
             <td><code>splice(pos, first, last)</code></td>
-            <td>Move range <code>[first, last)</code> to before <code>pos</code></td>
+            <td>把范围 <code>[first, last)</code> 移动到 <code>pos</code> 之前</td>
           </tr>
           <tr>
             <td><code>splice(pos, other)</code></td>
-            <td>Move all elements from <code>other</code> to before <code>pos</code></td>
+            <td>把 <code>other</code> 中的所有元素移动到 <code>pos</code> 之前</td>
           </tr>
           <tr>
             <td><code>sort()</code> / <code>sort(cmp)</code></td>
-            <td>Sort the entire list in-place</td>
+            <td>就地排序整个链表</td>
           </tr>
           <tr>
             <td><code>sort(first, last)</code></td>
-            <td>Sort a subrange in-place</td>
+            <td>就地排序一个子范围</td>
           </tr>
           <tr>
             <td><code>merge(other)</code> / <code>merge(other, cmp)</code></td>
-            <td>Merge sorted <code>other</code> into this sorted list</td>
+            <td>把已排序的 <code>other</code> 合并进这个已排序的链表</td>
           </tr>
           <tr>
             <td><code>reverse()</code></td>
-            <td>Reverse the order of all elements</td>
+            <td>反转所有元素的顺序</td>
           </tr>
           <tr>
             <td><code>is_single()</code></td>
-            <td>Returns <code>true</code> if exactly one element</td>
+            <td>恰有一个元素时返回 <code>true</code></td>
           </tr>
           <tr>
             <td><code>has_multiple()</code></td>
-            <td>Returns <code>true</code> if two or more elements</td>
+            <td>有两个或更多元素时返回 <code>true</code></td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>2. Complete Example</h2>
+      <h2>2. 完整示例</h2>
 <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/list.h&gt;
 #include &lt;fast_io.h&gt;
@@ -108,105 +104,81 @@ int main() {
     </section>
 
     <section>
-      <h2>3. Why list Is Often Much Slower Than vector and deque</h2>
+      <h2>3. 为什么 list 往往比 vector 和 deque 慢得多</h2>
       <p>
-        Despite its theoretical &Theta;(1) insertion and removal,
-        <code>list</code> is often <strong>10&times; to 100&times; slower</strong>
-        than <code>vector</code> or <code>deque</code> in real-world workloads.
-        The reason is <strong>data locality</strong> &mdash; how well the
-        container&rsquo;s memory layout matches the CPU cache architecture.
+        尽管在理论上插入与删除是 &Theta;(1)，<code>list</code> 在真实工作负载中往往比 <code>vector</code> 或 <code>deque</code> <strong>慢 10&times; 到 100&times;</strong>。原因在于<strong>数据局部性</strong>&mdash;&mdash;容器的内存布局与 CPU 缓存体系结构的契合程度。
       </p>
 
-      <h3>Cache line utilisation</h3>
+      <h3>缓存行利用率</h3>
       <p>
-        Modern CPUs fetch memory in <strong>cache lines</strong> of typically 64
-        bytes. When any byte in a line is accessed, the entire 64 bytes are
-        loaded into the L1 cache. The question is: how much of that cache line
-        is actually useful data?
+        现代 CPU 按<strong>缓存行</strong>取内存，通常一行 64 字节。只要访问到某行中的任意一个字节，整行 64 字节都会被载入 L1 缓存。问题在于：这一行里有多少是真正有用的数据？
       </p>
       <table>
         <thead>
           <tr>
-            <th>Container</th>
-            <th>Layout</th>
-            <th>Useful bytes per 64-byte cache line (for <code>size_t</code>)</th>
-            <th>Efficiency</th>
+            <th>容器</th>
+            <th>布局</th>
+            <th>每 64 字节缓存行中的有用字节数（以 <code>size_t</code> 为例）</th>
+            <th>效率</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>vector</code></td>
-            <td>Contiguous: <code>[e0][e1][e2]...[e7]</code></td>
-            <td>64 / 64 = <strong>64 bytes</strong> (8 elements)</td>
+            <td>连续：<code>[e0][e1][e2]...[e7]</code></td>
+            <td>64 / 64 = <strong>64 字节</strong>（8 个元素）</td>
             <td>100%</td>
           </tr>
           <tr>
             <td><code>deque</code></td>
-            <td>Block-chunked: each block is contiguous</td>
-            <td>64 / 64 = <strong>64 bytes</strong> (8 elements per block)</td>
-            <td>~100% within a block</td>
+            <td>按块分块：每个块内部连续</td>
+            <td>64 / 64 = <strong>64 字节</strong>（每块 8 个元素）</td>
+            <td>块内约 100%</td>
           </tr>
           <tr>
             <td><code>list</code></td>
-            <td>Scattered nodes: each node is a separate heap allocation</td>
-            <td>8 / 64 = <strong>8 bytes</strong> (1 element per cache line)</td>
+            <td>结点散布：每个结点都是一次独立的堆分配</td>
+            <td>8 / 64 = <strong>8 字节</strong>（每缓存行 1 个元素）</td>
             <td>~12%</td>
           </tr>
         </tbody>
       </table>
       <p>
-        A <code>list&lt;::std::size_t&gt;</code> node contains the 8-byte value
-        plus two 8-byte pointers (prev/next), totalling ~24&ndash;32 bytes with
-        alignment padding. But each node lives at a <em>different</em> heap
-        address, so each access likely triggers a <strong>cache miss</strong>.
-        The CPU must wait for main memory (~100&nbsp;ns) instead of L1 cache
-        (~1&nbsp;ns).
+        一个 <code>list&lt;::std::size_t&gt;</code> 结点除了 8 字节的值，还有两个 8 字节指针（prev/next），加上对齐填充总共约 24&ndash;32 字节。但每个结点位于<em>不同</em>的堆地址，所以每次访问都可能触发<strong>缓存未命中</strong>。CPU 必须等待主存（约 100&nbsp;ns），而不是 L1 缓存（约 1&nbsp;ns）。
       </p>
 
-      <h3>Pointer chasing defeats prefetchers</h3>
+      <h3>指针追逐使预取器失效</h3>
       <p>
-        Modern CPUs use <strong>hardware prefetchers</strong> that detect
-        sequential access patterns and load upcoming cache lines before they are
-        needed. This works perfectly for <code>vector</code> (contiguous,
-        predictable) and reasonably well for <code>deque</code> (sequential
-        blocks). But <code>list</code> requires <strong>pointer chasing</strong>:
-        each node&rsquo;s address is only known after reading the previous
-        node&rsquo;s <code>next</code> pointer. The prefetcher cannot predict
-        these addresses, so every access is a potential cache miss.
+        现代 CPU 使用<strong>硬件预取器</strong>，它能识别顺序访问模式，并在需要之前把将要使用的缓存行载入。这对 <code>vector</code>（连续、可预测）效果完美，对 <code>deque</code>（顺序的块）效果尚可。但 <code>list</code> 需要<strong>指针追逐</strong>：每个结点的地址只有在读完前一个结点的 <code>next</code> 指针之后才知道。预取器无法预测这些地址，因此每次访问都可能缓存未命中。
       </p>
 
-      <h3>The constant factor overwhelms the asymptotic advantage</h3>
+      <h3>常数因子压倒了渐近优势</h3>
       <p>
-        List offers &Theta;(1) insertion/removal vs <code>vector</code>&rsquo;s
-        O(n) (for mid-sequence operations). But the constant factors differ
-        enormously:
+        链表提供 &Theta;(1) 的插入/删除，而 <code>vector</code> 是 O(n)（针对序列中间的操作）。但两者的常数因子差异巨大：
       </p>
       <ul>
-        <li><code>vector</code> insertion: move ~n elements via
-          <code>memcpy</code> at ~10&ndash;50 GB/s &mdash; a few
-          microseconds for a million elements.</li>
-        <li><code>list</code> insertion: adjust 4 pointers, but each pointer
-          access may be a cache miss at ~100&nbsp;ns &mdash; tens of
-          microseconds even for a modest number of elements.</li>
+        <li>
+          <code>vector</code> 插入：以约 10&ndash;50 GB/s 的速度用 <code>memcpy</code> 搬移约 n 个元素 &mdash; 一百万个元素只需几微秒。
+        </li>
+        <li>
+          <code>list</code> 插入：调整 4 个指针，但每次指针访问都可能是一次约 100&nbsp;ns 的缓存未命中 &mdash; 即使是中等数量的元素也要几十微秒。
+        </li>
       </ul>
       <p>
-        In practice, <code>vector</code> wins for almost any workload except
-        when you need <strong>stable iterators</strong> (iterators that are not
-        invalidated by insertions/erasures at other positions).
+        在实践中，除了需要<strong>稳定的迭代器</strong>（不会因为别处的插入/删除而失效的迭代器）之外，几乎任何工作负载下 <code>vector</code> 都会胜出。
       </p>
 
-      <h3>Benchmark: list vs vector vs deque</h3>
+      <h3>基准测试：list 对 vector 对 deque</h3>
       <p>
-        Pushing 10&nbsp;million <code>::std::size_t</code> elements, then
-        iterating to compute a sum:
+        压入 1000 万个 <code>::std::size_t</code> 元素，然后遍历求和：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Container</th>
+            <th>容器</th>
             <th>push_back</th>
-            <th>loop (sum)</th>
-            <th>Total</th>
+            <th>遍历（求和）</th>
+            <th>总计</th>
           </tr>
         </thead>
         <tbody>
@@ -243,60 +215,44 @@ int main() {
         </tbody>
       </table>
       <p>
-        <code>list</code> is <strong>9&times; slower</strong> than
-        <code>vector</code> without reserve (1.686&nbsp;s vs 0.185&nbsp;s), and
-        <strong>15&times; slower</strong> than <code>vector</code> with
-        <code>reserve</code> (1.686&nbsp;s vs 0.114&nbsp;s). Even the iteration
-        alone is <strong>9&times; slower</strong> than <code>vector</code>
-        (0.121&nbsp;s vs 0.014&nbsp;s) because of cache misses on every node.
+        <code>list</code> 比不带 reserve 的 <code>vector</code> <strong>慢 9&times;</strong>（1.686&nbsp;s 对 0.185&nbsp;s），比带 <code>reserve</code> 的 <code>vector</code> <strong>慢 15&times;</strong>（1.686&nbsp;s 对 0.114&nbsp;s）。甚至单纯遍历也比 <code>vector</code> <strong>慢 9&times;</strong>（0.121&nbsp;s 对 0.014&nbsp;s），因为每访问一个结点都会缓存未命中。
       </p>
       <p>
-        <strong>The gap grows dramatically with data size.</strong> When the
-        dataset exceeds RAM, the operating system swaps pages to disk. Each
-        <code>list</code> node access becomes a <strong>page fault</strong>
-        requiring disk I/O &mdash; roughly 10&nbsp;ms per access, or
-        100,000&times; slower than an L1 cache hit (~100&nbsp;ns). A
-        <code>vector</code>, by contrast, benefits from the OS&rsquo;s
-        <strong>read-ahead</strong>: when it faults on one page, the OS
-        prefetches adjacent pages in bulk, amortising the disk latency across
-        hundreds of elements. For <code>list</code>, each random address is
-        unlikely to be in a prefetched page, so nearly every access pays the
-        full disk penalty. At network-storage latencies (milliseconds per
-        access), <code>list</code> becomes completely impractical.
+        <strong>数据规模越大，差距越悬殊。</strong>当数据集超出 RAM 时，操作系统会把页面换到磁盘。每次访问 <code>list</code> 结点都可能变成<strong>缺页</strong>，需要磁盘 I/O &mdash; 每次访问约 10&nbsp;ms，比 L1 缓存命中（约 100&nbsp;ns）慢 100,000&times;。相比之下，<code>vector</code> 能受益于操作系统的<strong>预读</strong>：当一个页面缺页时，操作系统会批量预取相邻页面，把磁盘延迟分摊到数百个元素上。对 <code>list</code> 来说，每个随机地址都不太可能落在已预取的页面里，于是几乎每次访问都要付出完整的磁盘代价。在网络存储的延迟下（每次访问数毫秒），<code>list</code> 完全不可用。
       </p>
 
-      <h3>When to actually use list</h3>
+      <h3>什么时候真的该用 list</h3>
       <ul>
-        <li>You need iterators or references to remain valid across
-          insertions and erasures at other positions.</li>
-        <li>You frequently splice elements between containers.</li>
-        <li>The elements are large (so copying is expensive) and you need
-          frequent mid-sequence insertion.</li>
-        <li>You are implementing algorithms that fundamentally require
-          linked structure (e.g., certain graph algorithms).</li>
+        <li>
+          你需要迭代器或引用在别处插入、删除之后依然有效。
+        </li>
+        <li>你需要频繁地在容器之间 splice 元素。</li>
+        <li>
+          元素很大（复制昂贵），并且你需要频繁地在中部插入。
+        </li>
+        <li>
+          你实现的算法在本质上需要链式结构（例如某些图算法）。
+        </li>
       </ul>
       <p>
-        For almost everything else &mdash; especially iteration-heavy workloads
-        &mdash; prefer <code>vector</code> or <code>deque</code>.
+        除此之外几乎所有场合 &mdash; 尤其是遍历密集的工作负载 &mdash; 请优先使用 <code>vector</code> 或 <code>deque</code>。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li><code>splice()</code> moves elements between lists without copying.</li>
-        <li><code>sort()</code>, <code>merge()</code>, and <code>reverse()</code> only adjust pointers.</li>
-        <li><code>is_single()</code> and <code>has_multiple()</code> are list-specific queries.</li>
-        <li>List operations never invalidate iterators to elements that are not moved or erased.</li>
-        <li><code>list</code> is ~9&times; slower than <code>vector</code> and ~15&times; slower than <code>vector</code> + <code>reserve()</code> &mdash; prefer <code>vector</code> unless you need stable iterators.</li>
+        <li><code>splice()</code> 在链表之间搬移元素而不复制。</li>
+        <li><code>sort()</code>、<code>merge()</code> 和 <code>reverse()</code> 只调整指针。</li>
+        <li><code>is_single()</code> 和 <code>has_multiple()</code> 是链表特有的查询。</li>
+        <li>链表操作从不会使未被移动或删除的元素的迭代器失效。</li>
+        <li><code>list</code> 比 <code>vector</code> 慢约 9&times;，比 <code>vector</code> + <code>reserve()</code> 慢约 15&times; &mdash; 除非你需要稳定的迭代器，否则用 <code>vector</code>。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/09.seqcontainers/06.forwardlist/" class="prev-button">&larr; Ch9.6: forward_list</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/09.seqcontainers/08.vectorcapacity/" class="next-button">Ch9.8: vector &rarr;</a>
+      <a href="/zhcn/docs/09.seqcontainers/06.forwardlist/" class="prev-button">&larr; 第9.6章: forward_list</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/09.seqcontainers/08.vectorcapacity/" class="next-button">第9.8章: vector &rarr;</a>
     </div>
   </main>
 </body>

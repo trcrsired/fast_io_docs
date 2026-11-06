@@ -3,63 +3,59 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch8.4: Iterator Algorithms - C++ Tutorial with fast_io</title>
+  <title>第8.4章: 迭代器算法 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch8.4: Iterator Algorithms</h1>
+    <h1>第8.4章: 迭代器算法</h1>
     <p class="lang-switch"><a href="/docs/08.algorithm/04.iteratoralgorithms/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
 
       <p>
-        Algorithms operate on iterators.  
-        They do not know or care about the underlying container; they only require
-        certain iterator capabilities.
+        算法作用于迭代器。算法既不知道也不关心底层容器，只要求迭代器具备某些能力。
       </p>
 
       <p>
-        In this chapter, you will learn:
+        本章将介绍：
       </p>
 
       <ul>
-        <li>how algorithms depend on iterator categories</li>
-        <li>which algorithms require which iterator strengths</li>
-        <li>how to reason about algorithm preconditions</li>
-        <li>how contiguous iterators enable fast paths</li>
-        <li>how to detect iterator and range capabilities with <code>if constexpr</code></li>
-        <li>how iterator algorithms and ranges algorithms relate</li>
+        <li>算法如何依赖迭代器类别</li>
+        <li>哪些算法需要多强的迭代器</li>
+        <li>如何推理算法的前置条件</li>
+        <li>连续迭代器如何带来快速路径</li>
+        <li>如何用 <code>if constexpr</code> 探测迭代器与 range 的能力</li>
+        <li>迭代器算法与 ranges 算法之间的关系</li>
       </ul>
     </section>
 
     <section>
-      <h2>1. Algorithms depend on iterator capabilities</h2>
+      <h2>1. 算法依赖迭代器的能力</h2>
 
       <p>
-        Every algorithm has <strong>minimum iterator requirements</strong>.
-        These requirements determine whether the algorithm can:
+        每个算法都有<strong>最低的迭代器要求</strong>。这些要求决定了算法能否：
       </p>
 
       <ul>
-        <li>read elements</li>
-        <li>write elements</li>
-        <li>traverse multiple times</li>
-        <li>move backward</li>
-        <li>jump to arbitrary positions</li>
+        <li>读取元素</li>
+        <li>写入元素</li>
+        <li>多次遍历</li>
+        <li>向后移动</li>
+        <li>跳到任意位置</li>
       </ul>
 
       <p>
-        Stronger iterator categories enable stronger algorithms.
+        更强的迭代器类别能支撑更强的算法。
       </p>
     </section>
 
     <section>
-      <h2>2. The capability ladder for algorithms</h2>
+      <h2>2. 算法能力的阶梯</h2>
 
 <pre><code>
 input_iterator
@@ -74,19 +70,19 @@ contiguous_iterator
 </code></pre>
 
       <p>
-        Each step adds new algorithmic possibilities.
+        每上升一级都会带来新的算法可能性。
       </p>
     </section>
 
     <section>
-      <h2>3. Algorithms requiring input_iterator</h2>
+      <h2>3. 需要 input_iterator 的算法</h2>
 
       <p>
-        These algorithms only need to read elements once, moving forward:
+        这些算法只需要向前移动并读取元素一次：
       </p>
 
       <ul>
-        <li><code>find</code></li>
+        <li>它们作用于最弱的可读迭代器。</li>
         <li><code>count</code></li>
         <li><code>for_each</code></li>
       </ul>
@@ -97,10 +93,10 @@ contiguous_iterator
     </section>
 
     <section>
-      <h2>4. Algorithms requiring forward_iterator</h2>
+      <h2>4. 需要 forward_iterator 的算法</h2>
 
       <p>
-        These algorithms require multiple passes over the same elements:
+        这些算法要求对同一批元素进行多次遍历：
       </p>
 
       <ul>
@@ -110,15 +106,15 @@ contiguous_iterator
       </ul>
 
       <p>
-        A forward_iterator guarantees multi-pass traversal.
+        forward_iterator 保证可以多遍遍历。
       </p>
     </section>
 
     <section>
-      <h2>5. Algorithms requiring bidirectional_iterator</h2>
+      <h2>5. 需要 bidirectional_iterator 的算法</h2>
 
       <p>
-        These algorithms require backward movement:
+        这些算法要求能够向后移动：
       </p>
 
       <ul>
@@ -128,10 +124,10 @@ contiguous_iterator
     </section>
 
     <section>
-      <h2>6. Algorithms requiring random_access_iterator</h2>
+      <h2>6. 需要 random_access_iterator 的算法</h2>
 
       <p>
-        These algorithms require constant-time jumps:
+        这些算法要求常数时间跳跃：
       </p>
 
       <ul>
@@ -141,13 +137,13 @@ contiguous_iterator
       </ul>
 
       <p>
-        Random access enables indexing and partitioning.
+        随机访问使得下标访问和划分成为可能。
       </p>
 
-      <h3>Iterator algorithms</h3>
+      <h3>迭代器算法</h3>
 
       <p>
-        Iterator algorithms operate directly on iterator pairs:
+        迭代器算法直接作用于迭代器对：
       </p>
 
 <pre><code class="language-cpp">
@@ -155,13 +151,13 @@ contiguous_iterator
 </code></pre>
 
       <p>
-        This form requires a <code>random_access_iterator</code>.
+        这种形式要求 <code>random_access_iterator</code>。
       </p>
 
-      <h3>Ranges algorithms</h3>
+      <h3>ranges 算法</h3>
 
       <p>
-        Ranges algorithms can also accept iterator pairs:
+        ranges 算法也可以接受迭代器对：
       </p>
 
 <pre><code class="language-cpp">
@@ -169,7 +165,7 @@ contiguous_iterator
 </code></pre>
 
       <p>
-        Or the entire range directly:
+        也可以直接接受整个 range：
       </p>
 
 <pre><code class="language-cpp">
@@ -177,83 +173,76 @@ contiguous_iterator
 </code></pre>
 
       <p>
-        Both forms require the same iterator category.
+        两种形式要求相同的迭代器类别。
       </p>
 
-      <h3>Algorithms with comparison objects</h3>
+      <h3>带比较对象的算法</h3>
 
       <p>
-        Algorithms can accept comparison objects from <code>&lt;functional&gt;</code>.
-        These work with both iterator algorithms and ranges algorithms.
+        算法可以接受来自 <code>&lt;functional&gt;</code> 的比较对象。这些对象在迭代器算法与 ranges 算法中都可用。
       </p>
 
-      <p>Iterator algorithm form:</p>
+      <p>迭代器算法形式：</p>
 
 <pre><code class="language-cpp">
 ::std::sort(vec.begin(), vec.end(), ::std::greater&lt;&gt;{});
 </code></pre>
 
-      <p>Ranges algorithm form (iterator pair):</p>
+      <p>ranges 算法形式（迭代器对）：</p>
 
 <pre><code class="language-cpp">
 ::std::ranges::sort(vec.begin(), vec.end(), ::std::ranges::greater{});
 </code></pre>
 
-      <p>Ranges algorithm form (entire range):</p>
+      <p>ranges 算法形式（整个 range）：</p>
 
 <pre><code class="language-cpp">
 ::std::ranges::sort(vec, ::std::ranges::greater{});
 </code></pre>
 
       <p>
-        The comparison object does not change the iterator category requirements.
+        比较对象不会改变对迭代器类别的要求。
       </p>
     </section>
 
     <section>
-      <h2>7. Algorithms benefiting from contiguous_iterator</h2>
+      <h2>7. 受益于 contiguous_iterator 的算法</h2>
 
       <p>
-        A contiguous_iterator allows the compiler to reason about memory layout.
-        This enables optimizations such as:
+        contiguous_iterator 让编译器能够推理内存布局，从而带来这些优化：
       </p>
 
       <ul>
-        <li>vectorized operations</li>
-        <li>memcpy-class fast paths</li>
-        <li>loop unrolling</li>
+        <li>向量化操作</li>
+        <li>类似 memcpy 的快速路径</li>
+        <li>循环展开</li>
       </ul>
 
       <p>
-        Pointers to object types and <code>::fast_io::vector&lt;T&gt;</code> iterators
-        are contiguous_iterators.
+        指向对象类型的指针和 <code>::fast_io::vector&lt;T&gt;</code> 的迭代器都是 contiguous_iterator。
       </p>
     </section>
 
     <section>
-      <h2>8. fast_io containers and iterator algorithms</h2>
+      <h2>8. fast_io 容器与迭代器算法</h2>
 
       <p>
-        <code>::fast_io::vector&lt;T&gt;</code> provides contiguous iterators.
-        Algorithms that require random access or benefit from contiguity
-        will use the strongest available path.
+        <code>::fast_io::vector&lt;T&gt;</code> 提供连续迭代器。需要随机访问或能从连续性中获益的算法会走最强的那条路径。
       </p>
 
       <p>
-        Other fast_io containers follow the same iterator rules as their STL counterparts.
+        fast_io 的其他容器遵循与 STL 对应容器相同的迭代器规则。
       </p>
     </section>
 
     <section>
-      <h2>9. Detecting algorithm applicability with <code>if constexpr</code></h2>
+      <h2>9. 用 <code>if constexpr</code> 探测算法是否适用</h2>
 
       <p>
-        You can write algorithms that adapt to iterator or range strength. The type is
-        deduced from the function parameter, and <code>if constexpr</code> selects the
-        appropriate path at compile time.
+        你可以写出随迭代器或 range 强弱自动调整的算法。类型由函数参数推导，<code>if constexpr</code> 在编译期选择对应的路径。
       </p>
 
-      <h3>Iterator version</h3>
+      <h3>迭代器版本</h3>
 
 <pre><code class="language-cpp">
 template &lt;typename It&gt;
@@ -266,7 +255,7 @@ void analyze(It first, It last)
 }
 </code></pre>
 
-      <p>Calling it is straightforward:</p>
+      <p>调用方式很直接：</p>
 
 <pre><code class="language-cpp">
 int arr[]{1,2,3,4};
@@ -278,10 +267,10 @@ analyze(arr, arr + 4);                 // arr decays to int*
 analyze(vec.begin(), vec.end());       // deduces ::fast_io::vector&lt;int&gt;::iterator
 </code></pre>
 
-      <h3>Range version</h3>
+      <h3>range 版本</h3>
 
       <p>
-        You can also write an overload that accepts an entire range:
+        你也可以写一个接受整个 range 的重载：
       </p>
 
 <pre><code class="language-cpp">
@@ -295,46 +284,44 @@ void analyze(T&amp; r)
 }
 </code></pre>
 
-      <p>Calling the range version:</p>
+      <p>调用 range 版本：</p>
 
 <pre><code class="language-cpp">
 analyze(vec);                          // detects random_access_range
 </code></pre>
 
       <p>
-        Both overloads adapt automatically based on iterator or range category.
+        两个重载都会根据迭代器或 range 的类别自动调整。
       </p>
     </section>
 
     <section>
-      <h2>10. Common pitfalls</h2>
+      <h2>10. 常见陷阱</h2>
 
       <ul>
-        <li>using multi-pass algorithms on input_iterators</li>
-        <li>using random-access algorithms on bidirectional_iterators</li>
-        <li>invalidating iterators during modification</li>
-        <li>passing overlapping ranges to algorithms that forbid them</li>
+        <li>在 input_iterator 上使用多遍算法</li>
+        <li>在 bidirectional_iterator 上使用随机访问算法</li>
+        <li>在修改过程中使迭代器失效</li>
+        <li>把相互重叠的 range 传给禁止重叠的算法</li>
       </ul>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
 
       <ul>
-        <li>Algorithms depend on iterator categories.</li>
-        <li>Stronger iterators enable stronger algorithms.</li>
-        <li>Contiguous iterators allow the fastest optimizations.</li>
-        <li>Iterator algorithms and ranges algorithms both operate on iterators.</li>
-        <li>Comparison objects from &lt;functional&gt; work with both forms.</li>
-        <li><code>if constexpr</code> allows algorithms to adapt to iterator or range strength.</li>
+        <li>算法依赖迭代器类别。</li>
+        <li>更强的迭代器能支撑更强的算法。</li>
+        <li>连续迭代器带来最快的优化。</li>
+        <li>迭代器算法与 ranges 算法都作用于迭代器本身。</li>
+        <li>来自 &lt;functional&gt; 的比较对象在两种形式中都可用。</li>
+        <li><code>if constexpr</code> 让算法能根据迭代器或 range 的强弱自动调整。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/08.algorithm/03.iteratorcategories/" class="prev-button">← Ch8.3: Iterator Categories</a>
-      <a href="/zhcn/" class="main-button">↑ 主页</a>
-      <a href="/zhcn/docs/08.algorithm/05.projections/" class="next-button">Ch8.5: Projections →</a>
+      <a href="/zhcn/docs/08.algorithm/03.iteratorcategories/" class="prev-button">← 第8.3章: 迭代器类别</a> <a href="/zhcn/" class="main-button">↑ 主页</a> <a href="/zhcn/docs/08.algorithm/05.projections/" class="next-button">第8.5章: 投影 →</a>
     </div>
 
   </main>

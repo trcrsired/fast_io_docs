@@ -3,31 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.7: Random Access I/O - C++ Tutorial with fast_io</title>
+  <title>第11.7章: 随机访问 I/O - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
 </head>
 <body>
   <main>
-    <h1>Ch11.7: Random Access I/O</h1>
+    <h1>第11.7章: 随机访问 I/O</h1>
     <p class="lang-switch"><a href="/docs/11.io/07.randomaccess/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Seek Operations</h2>
+      <h2>定位操作</h2>
       <p>
-        <code>fast_io</code> provides seek operations in the <code>::fast_io::operations</code>
-        namespace to move the file position. The operation you use depends on the direction of
-        the file:
+        <code>fast_io</code> 在 <code>::fast_io::operations</code> 命名空间中提供移动文件位置的定位操作。用哪一个取决于文件的方向：
       </p>
       <ul>
-        <li><code>::fast_io::operations::input_stream_seek</code> &mdash; for input files (<code>ibuf_file</code>).</li>
-        <li><code>::fast_io::operations::output_stream_seek</code> &mdash; for output files (<code>obuf_file</code>).</li>
-        <li><code>::fast_io::operations::io_stream_seek</code> &mdash; for bidirectional files (<code>iobuf_file</code>).</li>
+        <li><code>::fast_io::operations::input_stream_seek</code> &mdash; 用于输入文件（<code>ibuf_file</code>）。</li>
+        <li><code>::fast_io::operations::output_stream_seek</code> &mdash; 用于输出文件（<code>obuf_file</code>）。</li>
+        <li><code>::fast_io::operations::io_stream_seek</code> &mdash; 用于双向文件（<code>iobuf_file</code>）。</li>
       </ul>
       <p>
-        There are also <code>_rewind</code> variants to seek back to the beginning, and
-        <code>_seek_bytes</code> variants that take a byte offset directly.
+        此外还有 <code>_rewind</code> 变体用于回到开头，以及直接接受字节偏移的 <code>_seek_bytes</code> 变体。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -51,28 +47,26 @@ int main()
     </section>
 
     <section>
-      <h2>Positional I/O (pwrite/pread)</h2>
+      <h2>按位置 I/O（pwrite/pread）</h2>
       <p>
-        Positional I/O lets you read from or write to a specific offset in a file
-        <strong>without changing</strong> the file's current position. This is the
-        equivalent of POSIX <code>pread(2)</code> and <code>pwrite(2)</code>.
+        按位置 I/O 让你读写文件中某个特定偏移处的内容，<strong>而不改变</strong>文件当前的位置。它等价于 POSIX 的 <code>pread(2)</code> 与 <code>pwrite(2)</code>。
       </p>
       <p>
-        In <code>fast_io</code>, use the operations namespace:
+        在 <code>fast_io</code> 中，使用 operations 命名空间：
       </p>
       <ul>
-        <li><code>::fast_io::operations::pwrite_some</code> / <code>pwrite_all</code> &mdash; positional write.</li>
-        <li><code>::fast_io::operations::pread_some</code> / <code>pread_all</code> &mdash; positional read.</li>
-        <li><code>::fast_io::operations::pwrite_some_bytes</code> / <code>pwrite_all_bytes</code> &mdash; positional write for <code>::std::byte</code>.</li>
-        <li><code>::fast_io::operations::pread_some_bytes</code> / <code>pread_all_bytes</code> &mdash; positional read for <code>::std::byte</code>.</li>
+        <li><code>::fast_io::operations::pwrite_some</code> / <code>pwrite_all</code> &mdash; 按位置写入。</li>
+        <li><code>::fast_io::operations::pread_some</code> / <code>pread_all</code> &mdash; 按位置读取。</li>
+        <li><code>::fast_io::operations::pwrite_some_bytes</code> / <code>pwrite_all_bytes</code> &mdash; 针对 <code>::std::byte</code> 的按位置写入。</li>
+        <li><code>::fast_io::operations::pread_some_bytes</code> / <code>pread_all_bytes</code> &mdash; 针对 <code>::std::byte</code> 的按位置读取。</li>
       </ul>
       <p>
-        The file position remains unchanged after the call.
+        调用之后文件位置保持不变。
       </p>
     </section>
 
     <section>
-      <h2>Using pwrite for Random Writes</h2>
+      <h2>用 pwrite 做随机写</h2>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
@@ -89,14 +83,12 @@ int main()
 }
       </code></pre>
       <p>
-        After this program runs, the file contains <code>"AAAA"</code> at offset 0,
-        <code>"BBBB"</code> at offset 100, and <code>"CCCC"</code> at offset 200.
-        The file position is unaffected by the <code>pwrite</code> calls.
+        这个程序运行结束后，文件在偏移 0 处是 <code>"AAAA"</code>，偏移 100 处是 <code>"BBBB"</code>，偏移 200 处是 <code>"CCCC"</code>。文件位置不受 <code>pwrite</code> 调用影响。
       </p>
     </section>
 
     <section>
-      <h2>Using pread for Random Reads</h2>
+      <h2>用 pread 做随机读</h2>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
@@ -113,35 +105,31 @@ int main()
     ::fast_io::operations::pread_all(ibf, ::fast_io::as_bytes(::fast_io::span{buf1, 4uz}), 0uz);
     ::fast_io::operations::pread_all(ibf, ::fast_io::as_bytes(::fast_io::span{buf2, 4uz}), 100uz);
 
-    println("At offset 0: ", ::fast_io::mnp::os_c_str(buf1));
+    println("At offset 0:   ", ::fast_io::mnp::os_c_str(buf1));
     println("At offset 100: ", ::fast_io::mnp::os_c_str(buf2));
 }
       </code></pre>
     </section>
 
     <section>
-      <h2>Thread Safety</h2>
+      <h2>线程安全</h2>
       <p>
-        If multiple threads need to write to the same file concurrently, use a lockable
-        file type like <code>::fast_io::obuf_file_lockable</code>. Lock it, get the unlocked handle,
-        then use that for better performance. See <a href="/zhcn/docs/11.io/06.mutex/">Ch11.6</a>.
+        如果多个线程需要并发写同一个文件，请使用像 <code>::fast_io::obuf_file_lockable</code> 这样的可加锁文件类型。锁定它、取得未加锁的句柄，然后使用该句柄以获得更好的性能。见<a href="/zhcn/docs/11.io/06.mutex/">第11.6章</a>。
       </p>
     </section>
 
     <section>
-      <h2>Key Takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>Use <code>::fast_io::operations::input_stream_seek</code>, <code>output_stream_seek</code>, or <code>io_stream_seek</code> to move the file position.</li>
-        <li>Use <code>::fast_io::operations::pwrite_all</code> for positional writes &mdash; writes at a specific offset without changing the file position.</li>
-        <li>Use <code>::fast_io::operations::pread_all</code> for positional reads.</li>
+        <li>用 <code>::fast_io::operations::input_stream_seek</code>、<code>output_stream_seek</code> 或 <code>io_stream_seek</code> 移动文件位置。</li>
+        <li>按位置写入用 <code>::fast_io::operations::pwrite_all</code> &mdash; 在指定偏移处写，且不改变文件位置。</li>
+        <li>按位置读取用 <code>::fast_io::operations::pread_all</code>。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/06.mutex/" class="prev-button">&larr; Ch11.6: Mutex I/O</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/08.fileloader/" class="next-button">Ch11.8: File Loader &rarr;</a>
+      <a href="/zhcn/docs/11.io/06.mutex/" class="prev-button">&larr; 第11.6章: 互斥 I/O</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/08.fileloader/" class="next-button">第11.8章: 文件加载器 &rarr;</a>
     </div>
   </main>
 </body>

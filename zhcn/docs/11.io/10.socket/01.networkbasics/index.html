@@ -3,208 +3,196 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.10.1: Network Basics - C++ Tutorial with fast_io</title>
+  <title>第11.10.1章: 网络基础 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.10.1: Network Basics</h1>
+    <h1>第11.10.1章: 网络基础</h1>
     <p class="lang-switch"><a href="/docs/11.io/10.socket/01.networkbasics/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>The OSI Model (Open Systems Interconnection)</h2>
+      <h2>OSI 模型（开放系统互连）</h2>
       <p>
-        The OSI model is a conceptual framework that standardizes the functions of a communication
-        system into seven abstraction layers:
+        OSI 模型是一个概念框架，它把通信系统的功能标准化成七个抽象层：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Layer</th>
-            <th>Name</th>
-            <th>Description</th>
-            <th>Examples</th>
+            <th>层</th>
+            <th>名称</th>
+            <th>说明</th>
+            <th>例子</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td>7</td>
-            <td>Application</td>
-            <td>High-level protocols for user applications</td>
-            <td>HTTP, FTP, SMTP, DNS, SSH</td>
+            <td>应用层</td>
+            <td>面向用户应用的高层协议</td>
+            <td>HTTP、FTP、SMTP、DNS、SSH</td>
           </tr>
           <tr>
             <td>6</td>
-            <td>Presentation</td>
-            <td>Data representation, encryption, compression</td>
-            <td>SSL/TLS, JPEG, MPEG</td>
+            <td>表示层</td>
+            <td>数据表示、加密、压缩</td>
+            <td>SSL/TLS、JPEG、MPEG</td>
           </tr>
           <tr>
             <td>5</td>
-            <td>Session</td>
-            <td>Managing sessions between applications</td>
-            <td>NetBIOS, RPC</td>
+            <td>会话层</td>
+            <td>管理应用之间的会话</td>
+            <td>NetBIOS、RPC</td>
           </tr>
           <tr>
             <td>4</td>
-            <td>Transport</td>
-            <td>Reliable data transfer between hosts</td>
-            <td>TCP, UDP</td>
+            <td>传输层</td>
+            <td>主机之间可靠的数据传输</td>
+            <td>TCP、UDP</td>
           </tr>
           <tr>
             <td>3</td>
-            <td>Network</td>
-            <td>Routing and forwarding of packets</td>
-            <td>IP, ICMP, ARP</td>
+            <td>网络层</td>
+            <td>数据包的路由与转发</td>
+            <td>IP、ICMP、ARP</td>
           </tr>
           <tr>
             <td>2</td>
-            <td>Data Link</td>
-            <td>Node-to-node data transfer</td>
-            <td>Ethernet, Wi-Fi, PPP</td>
+            <td>数据链路层</td>
+            <td>结点到结点的数据传输</td>
+            <td>以太网、Wi-Fi、PPP</td>
           </tr>
           <tr>
             <td>1</td>
-            <td>Physical</td>
-            <td>Physical transmission of raw bits</td>
-            <td>Ethernet cables, fiber optics, radio waves</td>
+            <td>物理层</td>
+            <td>原始比特的物理传输</td>
+            <td>以太网线缆、光纤、无线电波</td>
           </tr>
         </tbody>
       </table>
       <p>
-        In practice, the TCP/IP model (a simpler 4-layer model) is more commonly used:
+        实践中更常用的是 TCP/IP 模型（更简单的四层模型）：
       </p>
       <ul>
-        <li><strong>Application Layer</strong> (combines OSI layers 5&ndash;7): HTTP, FTP, DNS, SMTP</li>
-        <li><strong>Transport Layer</strong>: TCP, UDP</li>
-        <li><strong>Internet Layer</strong>: IP, ICMP</li>
-        <li><strong>Network Access Layer</strong> (combines OSI layers 1&ndash;2): Ethernet, Wi-Fi</li>
+        <li><strong>应用层</strong>（合并 OSI 的第 5&ndash;7 层）：HTTP、FTP、DNS、SMTP</li>
+        <li><strong>传输层</strong>：TCP、UDP</li>
+        <li><strong>互联网层</strong>：IP、ICMP</li>
+        <li><strong>网络接入层</strong>（合并 OSI 的第 1&ndash;2 层）：以太网、Wi-Fi</li>
       </ul>
     </section>
 
     <section>
-      <h2>IP Addresses: IPv4 and IPv6</h2>
+      <h2>IP 地址：IPv4 与 IPv6</h2>
       <p>
-        An IP address uniquely identifies a device on a network. There are two versions:
+        IP 地址唯一标识网络中的一台设备。有两个版本：
       </p>
       <h3>IPv4</h3>
       <ul>
-        <li>32-bit address, written as four decimal numbers separated by dots</li>
-        <li>Example: <code>192.168.1.1</code>, <code>8.8.8.8</code></li>
-        <li>Address space: ~4.3 billion addresses (2<sup>32</sup>)</li>
-        <li>Running out of addresses due to Internet growth</li>
-        <li>Special ranges:
-          <ul>
-            <li><code>127.0.0.1</code> &mdash; localhost (loopback)</li>
-            <li><code>10.0.0.0/8</code>, <code>172.16.0.0/12</code>, <code>192.168.0.0/16</code> &mdash; private networks</li>
-            <li><code>0.0.0.0</code> &mdash; any address</li>
-            <li><code>255.255.255.255</code> &mdash; broadcast</li>
-          </ul>
+        <li>32 位地址，写成用点分隔的四个十进制数</li>
+        <li>例子：<code>192.168.1.1</code>、<code>8.8.8.8</code></li>
+        <li>地址空间：约 43 亿个地址（2<sup>32</sup>）</li>
+        <li>由于互联网的增长已接近耗尽</li>
+        <li>
+          特殊范围： <ul> <li><code>127.0.0.1</code> &mdash; 本机（回环）</li> <li><code>10.0.0.0/8</code>、<code>172.16.0.0/12</code>、<code>192.168.0.0/16</code> &mdash; 私有网络</li> <li><code>0.0.0.0</code> &mdash; 任意地址</li> <li><code>255.255.255.255</code> &mdash; 广播</li> </ul>
         </li>
       </ul>
       <h3>IPv6</h3>
       <ul>
-        <li>128-bit address, written as eight groups of four hexadecimal digits separated by colons</li>
-        <li>Example: <code>2001:0db8:85a3:0000:0000:8a2e:0370:7334</code></li>
-        <li>Can omit leading zeros and consecutive zero groups: <code>2001:db8:85a3::8a2e:370:7334</code></li>
-        <li>Address space: ~3.4&times;10<sup>38</sup> addresses (enough for every atom on Earth)</li>
-        <li>Special addresses:
-          <ul>
-            <li><code>::1</code> &mdash; localhost (loopback)</li>
-            <li><code>::</code> &mdash; any address</li>
-            <li><code>fe80::/10</code> &mdash; link-local addresses</li>
-          </ul>
+        <li>128 位地址，写成用冒号分隔的八组四位十六进制数</li>
+        <li>例子：<code>2001:0db8:85a3:0000:0000:8a2e:0370:7334</code></li>
+        <li>可以省略前导零和连续的零组：<code>2001:db8:85a3::8a2e:370:7334</code></li>
+        <li>地址空间：约 3.4&times;10<sup>38</sup> 个地址（足够给地球上每个原子一个）</li>
+        <li>
+          特殊地址： <ul> <li><code>::1</code> &mdash; 本机（回环）</li> <li><code>::</code> &mdash; 任意地址</li> <li><code>fe80::/10</code> &mdash; 链路本地地址</li> </ul>
         </li>
       </ul>
     </section>
 
     <section>
-      <h2>Common Ports</h2>
+      <h2>常用端口</h2>
       <p>
-        A port is a 16-bit number (0&ndash;65535) that identifies a specific service on a host.
-        Well-known ports (0&ndash;1023) are assigned by IANA:
+        端口是一个 16 位数字（0&ndash;65535），标识主机上的某个具体服务。知名端口（0&ndash;1023）由 IANA 分配：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Port</th>
-            <th>Protocol</th>
-            <th>Service</th>
+            <th>端口</th>
+            <th>协议</th>
+            <th>服务</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td>20&ndash;21</td>
             <td>TCP</td>
-            <td>FTP (File Transfer Protocol)</td>
+            <td>FTP（文件传输协议）</td>
           </tr>
           <tr>
             <td>22</td>
             <td>TCP</td>
-            <td>SSH (Secure Shell)</td>
+            <td>SSH（安全外壳）</td>
           </tr>
           <tr>
             <td>23</td>
             <td>TCP</td>
-            <td>Telnet (unencrypted, avoid)</td>
+            <td>Telnet（不加密，避免使用）</td>
           </tr>
           <tr>
             <td>25</td>
             <td>TCP</td>
-            <td>SMTP (Simple Mail Transfer Protocol)</td>
+            <td>SMTP（简单邮件传输协议）</td>
           </tr>
           <tr>
             <td>53</td>
             <td>TCP/UDP</td>
-            <td>DNS (Domain Name System)</td>
+            <td>DNS（域名系统）</td>
           </tr>
           <tr>
             <td>67&ndash;68</td>
             <td>UDP</td>
-            <td>DHCP (Dynamic Host Configuration Protocol)</td>
+            <td>DHCP（动态主机配置协议）</td>
           </tr>
           <tr>
             <td>80</td>
             <td>TCP</td>
-            <td>HTTP (Hypertext Transfer Protocol)</td>
+            <td>HTTP（超文本传输协议）</td>
           </tr>
           <tr>
             <td>110</td>
             <td>TCP</td>
-            <td>POP3 (Post Office Protocol v3)</td>
+            <td>POP3（邮局协议第 3 版）</td>
           </tr>
           <tr>
             <td>143</td>
             <td>TCP</td>
-            <td>IMAP (Internet Message Access Protocol)</td>
+            <td>IMAP（互联网消息访问协议）</td>
           </tr>
           <tr>
             <td>443</td>
             <td>TCP</td>
-            <td>HTTPS (HTTP Secure)</td>
+            <td>HTTPS（HTTP 安全版）</td>
           </tr>
           <tr>
             <td>465</td>
             <td>TCP</td>
-            <td>SMTPS (SMTP over SSL)</td>
+            <td>SMTPS（基于 SSL 的 SMTP）</td>
           </tr>
           <tr>
             <td>587</td>
             <td>TCP</td>
-            <td>SMTP (submission, with STARTTLS)</td>
+            <td>SMTP（提交端口，配合 STARTTLS）</td>
           </tr>
           <tr>
             <td>993</td>
             <td>TCP</td>
-            <td>IMAPS (IMAP over SSL)</td>
+            <td>IMAPS（基于 SSL 的 IMAP）</td>
           </tr>
           <tr>
             <td>995</td>
             <td>TCP</td>
-            <td>POP3S (POP3 over SSL)</td>
+            <td>POP3S（基于 SSL 的 POP3）</td>
           </tr>
           <tr>
             <td>3306</td>
@@ -214,7 +202,7 @@
           <tr>
             <td>3389</td>
             <td>TCP</td>
-            <td>RDP (Remote Desktop Protocol)</td>
+            <td>RDP（远程桌面协议）</td>
           </tr>
           <tr>
             <td>5432</td>
@@ -224,7 +212,7 @@
           <tr>
             <td>5900</td>
             <td>TCP</td>
-            <td>VNC (Virtual Network Computing)</td>
+            <td>VNC（虚拟网络计算）</td>
           </tr>
           <tr>
             <td>6379</td>
@@ -234,12 +222,12 @@
           <tr>
             <td>8080</td>
             <td>TCP</td>
-            <td>HTTP alternate (often used for proxies)</td>
+            <td>HTTP 备用端口（常用作代理）</td>
           </tr>
           <tr>
             <td>8443</td>
             <td>TCP</td>
-            <td>HTTPS alternate</td>
+            <td>HTTPS 备用端口</td>
           </tr>
           <tr>
             <td>27017</td>
@@ -249,17 +237,13 @@
         </tbody>
       </table>
       <p>
-        <strong>Note:</strong> Ports 0&ndash;1023 are <em>well-known ports</em> (require root/admin to bind).
-        Ports 1024&ndash;49151 are <em>registered ports</em>. Ports 49152&ndash;65535 are
-        <em>dynamic/ephemeral ports</em> (used for client-side connections).
+        <strong>注意：</strong>端口 0&ndash;1023 是<em>知名端口</em>（绑定需要 root/管理员权限）。端口 1024&ndash;49151 是<em>注册端口</em>。端口 49152&ndash;65535 是<em>动态/临时端口</em>（用于客户端连接）。
       </p>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/10.socket/" class="prev-button">&larr; Ch11.10: Socket Files</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/10.socket/02.dns/" class="next-button">Ch11.10.2: DNS &rarr;</a>
+      <a href="/zhcn/docs/11.io/10.socket/" class="prev-button">&larr; 第11.10章: socket 文件</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/10.socket/02.dns/" class="next-button">第11.10.2章: DNS &rarr;</a>
     </div>
   </main>
 </body>

@@ -1,0 +1,73 @@
+1|第9.16章: C++ 标准库容器 - 使用 fast_io 学习 C++ 教程
+2|第9.16章: C++ 标准库容器
+3|概述
+4|C++ 标准库在 <code>std::</code> 命名空间中自带一套容器。如果你来自其他语言，或者以前没用过 C++，可能会在现有代码库里遇到它们。本节介绍它们，并说明它们与 <code>fast_io</code> 有何不同。
+5|<strong>一句话：优先使用 <code>fast_io</code> 容器。</strong>它们更安全、更快、更一致。但你仍应能认出 <code>std::</code> 中的对应物，以便读懂别人的代码、理解整个生态。
+6|1. 可用的容器
+7|<code>std::</code> 容器
+8|<code>fast_io::</code> 中的对应物
+9|说明
+12|动态连续数组。
+15|双端队列（块映射布局）。
+18|双向链表。
+21|单向链表。
+24|固定大小数组。
+27|动态的、以空字符结尾的字符序列。
+30|对字符的非拥有视图。
+33|对连续序列的非拥有视图。
+36|LIFO 适配器。
+39|FIFO 适配器。
+42|基于优先级的适配器。
+43|2. 基本用法
+44|<code>std::</code> 容器的用法与 <code>fast_io</code> 的容器大体相同。主要差别在于头文件路径，以及缺少一些 <code>fast_io</code> 特有的功能：
+45|<strong>注意：</strong>本教程通篇使用 <code>fast_io</code>。你不需要为了跟上进度而去学习 <code>std::</code> 容器 &mdash; 我们讲的所有内容都用 <code>fast_io</code>。
+46|3. 关键差异
+47|如果你确实遇到 <code>std::</code> 容器，请注意这些差异：
+48|方面
+49|<code>std::</code> 容器
+50|<code>fast_io::</code> 容器
+51|<strong>边界检查</strong>
+52|<code>operator[]</code> 不做检查 &mdash; 越界是未定义行为。<code>at()</code> 会抛出 <code>std::out_of_range</code>，但边界检查本身带来可观的开销。更糟的是，越界访问本身就已经是 bug &mdash; 在那一刻捕获异常并不能修正底层问题。试图从程序 bug 中恢复，比直接终止并重启更糟。
+53|<code>operator[]</code> 带边界检查。越界会立刻调用 <code>fast_terminate()</code> &mdash; 行为确定、没有异常开销、也不会给人错误的“已恢复”幻觉。
+54|<strong>分配失败</strong>
+55|抛出 <code>std::bad_alloc</code>。堆分配失败意味着抽象机已经损坏 &mdash; 没有有意义的方式可以继续。抛异常只会招来那些试图在已经损坏的堆上勉强前行的错误恢复代码。
+56|调用 <code>fast_terminate()</code> &mdash; 不展开异常，也不试图从不可恢复的状态中恢复。程序已经损坏了，就让它确定性地崩溃。
+57|<strong>逻辑 bug（空的 front/back、越界）</strong>
+58|未定义行为。在发行版构建中会悄悄破坏内存。
+59|确定性地终止。bug 立刻被发现。
+60|<strong>增长时的搬移</strong>
+61|使用移动构造函数。对移动非平凡的类型来说，这可能很慢。
+62|当类型可平凡搬移时使用 <code>memcpy</code> &mdash; 快得多。
+63|<strong>基于下标的操作</strong>
+64|没有 <code>insert_index</code> / <code>erase_index</code>，必须使用迭代器。
+65|在所有适用的容器上都提供带边界检查的 <code>insert_index</code> / <code>erase_index</code>。
+66|<strong>字符串格式化</strong>
+67|<code>std::format</code>（C++20）或 <code>std::stringstream</code> &mdash; 相对较慢。
+68|<code>concat_fast_io</code> + <code>to&lt;T&gt;</code> &mdash; 在编译期优化。
+69|<strong>非检查变体</strong>
+70|没有。只有 <code>operator[]</code> 是非检查的，其余都通过异常做检查。
+71|为性能关键的代码提供显式的 <code>_unchecked</code> 变体。
+72|<strong>位向量</strong>
+73|<code>std::vector&lt;bool&gt;</code> 是一个打包了位、但接口很糟糕的特化（代理引用）。
+74|<code>::fast_io::bitvec</code> 是一个独立、干净的位级类型，具有正确的按位操作。
+75|4. 关于 C++26 的加固
+76|C++26 为标准库容器引入了<strong>加固</strong> &mdash; 对 <code>operator[]</code>、<code>front()</code>、<code>back()</code> 做边界检查，并增加迭代器有效性断言。然而这些容器在设计之初<em>并不是</em>为了被加固的。把安全检查补丁打到几十年的既有 ABI 上会带来问题：
+77|<strong>ODR 违规</strong> &mdash; 以不同加固级别编译的翻译单元看到不同的类布局，违反单一定义规则（ODR）。
+78|<strong>覆盖不一致</strong> &mdash; 有些检查是可选的，有些由实现定义，具体检查集合在不同标准库供应商之间并不相同。
+79|<strong>仍然没有基于下标的 API</strong> &mdash; 加固只增加检查，并不增加 <code>insert_index</code> / <code>erase_index</code>。基于下标的操作仍然需要迭代器。
+80|<code>fast_io</code> 容器从一开始就把安全设计进去 &mdash; 没有 ODR 问题，没有“可选”带来的混乱，并且在所有构建下都一致地确定性终止。
+81|5. 代码对比
+82|下面是同一个程序分别用两个库写的版本：
+83|使用 <code>fast_io</code>（推荐）
+84|使用 <code>std::</code>
+85|6. 延伸阅读
+86|<code>std::</code> 容器的完整文档见 <a href="https://en.cppreference.com/cpp/container" target="_blank" rel="noopener"> cppreference &mdash; Container library</a>。它对每个 <code>std::</code> 类型、方法和重载都给出详尽参考。
+87|不过，在本教程项目的新代码里，请总是优先使用 <code>fast_io</code> 的对应物。
+88|要点
+89|C++ 在 <code>std::</code> 中自带一套容器：<code>vector</code>、<code>deque</code>、<code>list</code>、<code>forward_list</code>、<code>array</code>、<code>string</code>、<code>stack</code>、<code>queue</code>、<code>priority_queue</code> 等。
+90|它们的用法与 <code>fast_io</code> 类似 &mdash; 但缺少边界检查、下标操作和确定性终止。
+91|<code>std::vector&lt;bool&gt;</code> 是一个糟糕的特化；请改用 <code>::fast_io::bitvec</code>。
+92|C++26 为 <code>std::</code> 容器增加了加固，但把安全补丁打到既有 ABI 上会造成 ODR 违规和覆盖不一致。<code>fast_io</code> 从一开始就是按安全设计的。
+93|为了安全、性能和一致性，请优先使用 <code>fast_io</code> 容器。
+94|<code>std::</code> 容器的文档见 <a href="https://en.cppreference.com/cpp/container" target="_blank" rel="noopener">cppreference</a>。
+95|<a href="/docs/09.seqcontainers/15.algorithms/" class="prev-button">&larr; 第9.15章: 算法</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/10.associativecontainers/" class="next-button">第10章: 关联容器 &rarr;</a>

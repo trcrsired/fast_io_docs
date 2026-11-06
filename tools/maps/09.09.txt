@@ -1,0 +1,117 @@
+1|第9.9章: deque - 使用 fast_io 学习 C++ 教程
+2|第9.9章: deque
+3|概述
+4|<code>::fast_io::deque&lt;T&gt;</code>（读作“deck”）能在<strong>两端</strong>高效地插入与删除，同时仍支持用 <code>operator[]</code> 进行随机访问。
+5|1. 内部结构
+6|vector 把所有元素存放在一个连续的块里，deque 则不同，它采用<strong>块映射</strong>设计：
+7|元素存放在大小固定的<strong>块</strong>（chunk）中。
+8|一个居中的<strong>控制器</strong>维护着一张指向这些块的指针数组。
+9|每个块容纳 <code>block_size</code> 个元素（由实现定义，通常大到足以填满一个缓存行或一个页）。
+10|当 deque 需要在前端增长时，它分配一个新块并把指针加到控制器前端，不需要搬移任何已有元素，后端同理。这正是它相对 <code>vector</code> 的关键优势——vector 在前端增长时必须复制所有元素。
+11|2. deque 特有的容量
+12|由于 deque 在两端增长，它的每一端都有独立的容量：
+13|3. 什么时候 deque 优于 vector？
+14|场景
+15|选择
+16|理由
+17|最一般的使用
+18|<code>vector</code>
+19|缓存局部性更好、更简单、遍历更快
+20|需要在前端增长
+21|<code>deque</code>
+22|vector 不能 push_front；deque 可以摊还 &Theta;(1) 地做到
+23|需要栈或队列
+24|<code>deque</code>
+25|<code>stack</code> 与 <code>queue</code> 的默认底层容器
+26|非常大的数据集并不断 push_back
+27|<code>deque</code>
+28|vector 重新分配时要复制所有元素；deque 只需分配一个新块
+29|迭代性能要求很高
+30|<code>vector</code>
+31|连续内存对预取友好
+32|为什么 deque 的分配更高效
+33|<code>vector</code> 的增长方式是<strong>把整块缓冲区翻倍</strong>：容量耗尽时，它分配一块 2&times; 当前容量的新缓冲区，并<em>复制每一个已有元素</em>。对 1000 万个元素来说，最后一次重新分配要搬移约 500 万个元素，前一次约 250 万个，依此类推。所有重新分配中元素搬移的总次数大致等于最终的大小。
+34|<code>deque</code> 的增长方式是<strong>分配一个新块</strong>（通常相当于 4&nbsp;KB 的元素），并往控制器里加一个指针。<strong>永远不会搬移任何已有元素。</strong>每个块都是一次独立的小分配。这意味着：
+35|<strong>没有复制代价</strong> &mdash; 每次插入的工作量就是一次构造函数调用，与已有多少元素无关。
+36|<strong>没有大块分配</strong> &mdash; 分配器永远不需要找到一块足以容纳整个数据集的连续区域。许多小分配比一次巨大分配更容易满足。
+37|<strong>不会超量占用内存</strong> &mdash; <code>vector</code> 在刚重新分配之后可能占用多达所需内存的 2&times;（size&nbsp;=&nbsp;N，capacity&nbsp;=&nbsp;2N）。<code>deque</code> 只分配它真正会用到的块。
+38|这种效果在基准测试中看得见。压入 1000 万个 <code>::std::size_t</code> 元素：
+39|容器
+40|push_back 耗时
+41|总耗时
+43|0.187&nbsp;s
+44|0.233&nbsp;s
+46|0.095&nbsp;s
+47|0.126&nbsp;s
+49|0.095&nbsp;s
+50|0.146&nbsp;s
+52|0.080&nbsp;s
+53|0.120&nbsp;s
+54|普通 <code>deque</code>（0.095&nbsp;s）已经比不带 <code>reserve</code> 的 <code>vector</code>（0.187&nbsp;s）<strong>快 2&times;</strong>，因为它没有复制代价。而预分配的 <code>deque</code>（0.080&nbsp;s）甚至比带 <code>reserve</code> 的 <code>vector</code>（0.095&nbsp;s）更快，因为 deque 避免了 <code>reserve</code> 所要求的那一次大分配。
+55|deque 的缺点
+56|尽管在分配上有优势，<code>deque</code> 有两个显著缺点，使得 <code>vector</code> 在很多场合仍是更好的选择：
+57|1. 不连续
+58|deque 的元素散布在多个堆分配的块上，<strong>没有单一连续的缓冲区</strong>可以交给 C API、<code>memcpy</code>、SIMD intrinsic，或者任何期望“<code>T*</code> 加元素个数”的库。正因如此，deque 上没有 <code>data()</code> 方法。
+59|如果你需要把元素交给要求连续内存的 API，就必须把它们复制到临时的 <code>vector</code> 里，或者使用 segments API 一块一块地处理。
+60|2. 最小占用很大
+61|每个 deque 至少分配一个完整的块，即使它只有一个元素。块大小通常是 <strong>4&nbsp;KB</strong>（4096 字节，选择这个值是为了对齐页或缓存行边界）。所以一个只装有一个 <code>::std::size_t</code>（8 字节）的 deque，仍然要耗用约 4&nbsp;KB 内存外加控制器开销。
+62|这使得 <code>deque</code> 成为嵌套容器中<strong>内层维度的糟糕选择</strong>：
+63|作为经验法则：
+64|当你需要两端快速增长时，把 <code>deque</code> 用作<strong>顶层</strong>容器。
+65|在嵌套容器中把 <code>vector</code> 用作<strong>内层维度</strong>（<code>vector&lt;vector&lt;T&gt;&gt;</code>、<code>vector&lt;array&lt;T, N&gt;&gt;</code> 等），以避免每个实例的块开销。
+66|4. 用 segments API 快速遍历
+67|常规的 deque 迭代器在<strong>每次</strong>元素自增时都要检查块边界：
+68|这个分支通常能被正确预测（对 8 字节类型，每块约 500 个元素），但它妨碍编译器自动向量化循环，并带来延迟。<strong>segments API</strong> 让你按块遍历，从而彻底消除逐元素检查。
+69|segment 方法
+70|方法
+71|返回
+72|说明
+74|<code>size_type</code>
+75|当前正在使用的块数。
+77|<code>span&lt;T&gt;</code>
+78|覆盖第 <code>pos</code> 个块中有效元素的可变 span。
+80|<code>span&lt;T const&gt;</code>
+81|覆盖第 <code>pos</code> 个块中有效元素的 const span。
+83|<code>size_type</code>（静态）
+84|每块最大元素个数（= <code>block_size</code>）。
+86|<code>size_type</code>（静态）
+87|一个完整块的字节容量。
+88|返回的 <code>span</code> 带有 <code>.data()</code> 和 <code>.size()</code>，因此内层循环会编译成一次普通的指针遍历 &mdash; 可自动向量化、可用 <code>memcpy</code>、热路径上无分支。只有第一个和最后一个 segment 可能是不满的，中间的 segment 总是恰好包含 <code>block_size</code> 个元素。
+89|只读遍历
+90|可变遍历
+91|为 memcpy / SIMD 直接取指针
+92|什么时候用 segments 而不是常规迭代
+93|写法
+94|用法
+96|常规迭代器：<code>for (auto const&amp; e : dq)</code>
+98|segments API：按块遍历
+100|segments API：<code>seg.data()</code> / <code>seg.size()</code>
+101|5. 迭代器失效与指针/引用稳定性的区别
+102|deque 的块映射设计带来了一个与 <code>vector</code> 不同的独特失效性质：
+103|操作
+104|迭代器
+105|指向元素的指针 / 引用
+107|<strong>全部失效。</strong>控制器可能被重新分配，而迭代器里编码了块的位置。
+108|<strong>仍然有效</strong>（除非该元素被删除）。在两端增长时元素从不搬移 &mdash; 只是分配新块。
+110|<strong>全部失效。</strong>
+111|<strong>仍然有效</strong> &mdash; 原因同 <code>push_*</code>。
+113|<strong>全部失效。</strong>
+114|指向<em>被删除</em>元素的指针/引用失效，其余<strong>仍然有效</strong>。
+116|<strong>全部失效。</strong>
+117|指向<em>被删除</em>元素的指针/引用失效。其余元素是否仍然有效，取决于元素是否在块之间被搬移。
+119|<strong>全部失效。</strong>
+120|<strong>全部失效。</strong>
+121|<strong>为什么迭代器总会失效：</strong>deque 迭代器内部持有指向控制器（块指针数组）的指针。当控制器增长时 &mdash; 任何前端或后端插入都可能引发 &mdash; 旧的控制器被释放、新的被分配。所有指向旧控制器的迭代器因此悬空，尽管元素本身并没有移动。
+122|<strong>为什么指针与引用在尾部插入后仍然有效：</strong>当 deque 在某一端增长时，它要么填满现有端块中的剩余容量，要么分配一个全新的块。不会复制或搬移任何已有元素。因此插入之前取得的指针或引用仍然指向同一处内存。
+123|<strong>与 <code>vector</code> 的对比：</strong><code>vector</code> 把所有元素存放在一个连续数组里。当它增长超过容量时，会分配一个新数组并<em>搬移每一个元素</em>，这会使<strong>所有</strong>迭代器、指针和引用失效 &mdash; 不存在部分稳定。
+124|要点
+125|<code>deque</code> 使用由大小固定的块组成的映射，而不是一个连续数组。
+126|它在前端和后端的插入都是摊还 &Theta;(1)，且不复制元素。
+127|<code>deque</code> 不连续 &mdash; 没有 <code>data()</code>，也不能直接用于 C API 或 SIMD。
+128|每个 <code>deque</code> 至少分配一个约 4 KB 的块，即使只有一个元素。在嵌套容器中不要把它用作内层维度。
+129|<code>reserve_front()</code> 与 <code>reserve_back()</code> 分别控制两端的容量。
+130|<code>deque</code> 支持随机访问，但缓存局部性比 <code>vector</code> 略差。
+131|默认优先用 <code>vector</code>；需要前端插入时用 <code>deque</code>。
+132|对 deque 做无分支、可自动向量化的遍历时，使用 <strong>segments API</strong>（<code>segments_count()</code>、<code>nth_segment()</code>、<code>const_nth_segment()</code>）。
+133|<code>deque</code> 的迭代器在插入时总会失效，但指向已有元素的指针和引用在 <code>push_front()</code> / <code>push_back()</code> 之后仍然有效 &mdash; 这与 <code>vector</code> 不同，vector 在重新分配时会使一切失效。
+134|<a href="/docs/09.seqcontainers/08.vectorcapacity/" class="prev-button">&larr; 第9.8章: vector</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/09.seqcontainers/10.span/" class="next-button">第9.10章: span &rarr;</a>

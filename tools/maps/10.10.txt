@@ -1,0 +1,74 @@
+1|第10.10章: 如何选择容器 - 使用 fast_io 学习 C++ 教程
+2|第10.10章: 如何选择容器
+3|1. 三个问题
+4|选容器是问三个关于<em>你的</em>程序的问题，而不是关于实现的问题。
+5|<strong>你需要顺序吗？</strong>有序输出、前缀扫描、最小的键、“这个之后的下一个”。如果需要，你就需要 B 树，Swiss 表出局。
+6|<strong>你需要计数还是排名？</strong>“一共有多少个键？”还是“中位数是多少？”。如果需要，你需要 <code>str_ranked_btree_*</code>（两者都支持）或 <code>str_swiss_*</code>（只支持 <code>size()</code>）。
+7|<strong>你需要预先定好表大小吗？</strong>已知大小的批量装载，在能一次调用 <code>reserve()</code> 时最便宜，而这是 Swiss 表家族提供的。
+8|2. 决策表
+9|你的程序需要
+10|使用
+11|只要成员判断：“这个字符串我见过吗？”
+12|<code>str_swiss_set</code>
+13|每个键有一个值，按精确键查找
+14|<code>str_swiss_map&lt;M&gt;</code>
+15|按键有序打印
+16|<code>str_btree_set</code> / <code>str_btree_map&lt;M&gt;</code>
+17|范围查询：某前缀的所有键、两个键之间的所有键
+18|<code>str_btree_set</code> / <code>str_btree_map&lt;M&gt;</code>
+19|最小 / 最大的键
+20|<code>str_btree_*</code>（<code>front()</code>、<code>back()</code>）
+21|对每个键计数或累加一个值
+22|报告需要有序时用 <code>str_btree_map&lt;M&gt;</code>，否则用 <code>str_swiss_map&lt;M&gt;</code>
+23|便宜地取得元素个数
+24|<code>str_ranked_btree_*</code> 或 <code>str_swiss_*</code>
+25|第 n 小的键、中位数、百分位
+26|<code>str_ranked_btree_set</code> / <code>str_ranked_btree_map&lt;M&gt;</code>
+27|批量装载前预先定好大小
+28|<code>str_swiss_*</code>（<code>reserve(n)</code>）
+29|非 <code>char</code> 的键
+30|上面任一项的 <code>wstr_</code> / <code>u8str_</code> / <code>u16str_</code> / <code>u32str_</code> 变体
+31|<strong>默认是 <code>str_swiss_set</code> / <code>str_swiss_map</code>。</strong>大多数代码只问“这个键在吗？”或“它的值是什么？”。从这里开始，等你发现确实需要顺序时再换到 B 树 &mdash; 而不是提前换。
+32|3. 把选择集中在一个地方
+33|你不必在每个调用处都绑定某个具体容器。给这个类型起一次名字，然后针对六个家族共有的操作写程序其余部分：
+34|这样改成 <code>::fast_io::str_btree_set</code> 就只是一行编辑。上面的代码原样编译，因为 <code>insert_key</code>、<code>contains</code>、<code>erase_key</code>、<code>find</code>/<code>find_key</code>、<code>is_empty</code>、<code>clear</code> 以及遍历在每个家族上都有相同的名字和含义。
+35|这样切换时坏掉的，正是本章警告过的那些：<code>size()</code>（普通 B 树上没有）、<code>nth_element()</code>（只有有序统计 B 树有）、<code>reserve()</code> / <code>capacity()</code>（只有 Swiss 表有）、以及 <code>lower_bound</code> / <code>upper_bound</code> / <code>front</code> / <code>back</code>（只有 B 树家族有）。那些就是容器特有的能力 &mdash; 如果你用到它们，说明你有意选定了一个家族。
+36|4. 六个容器都成立的事实
+37|键是 <code>::std::integral</code> 的字符序列；容器为每个键保存自己那份以空字符结尾的副本。
+38|查找接受视图，因此查找永不分配。
+39|遍历给出键视图（<code>::fast_io::cstring_view</code>），对映射则是带 <code>key()</code> 与 <code>mapped()</code> 的元素。
+40|不可能出现重复键：插入已存在的键要么什么都不做，要么覆盖，绝不重复。
+41|它们都可复制、可移动、可 <code>clear</code>，并且都支持 <code>wstr_</code>/<code>u8str_</code>/<code>u16str_</code>/<code>u32str_</code> 别名。
+42|增长与收缩都通过分配器分配；分配失败会终止程序，除非你选择了会抛异常的分配器（第10.11章）。
+43|映射的值必须是移动构造与移动赋值都不抛异常的（第10.11章）。
+44|5. 常见错误
+45|错误
+46|实际会发生什么
+47|应该这样做
+48|用循环在一个 <code>::fast_io::vector&lt;::fast_io::string&gt;</code> 里查找
+49|每次查找都要完整扫一遍。
+50|把字符串插进集合，然后调用 <code>contains</code>。
+51|依赖 Swiss 表的遍历顺序
+52|那是哈希顺序；换一组键、表增长或一次删除都会打乱它。
+53|需要顺序就用 B 树。
+54|在一次 Swiss 映射插入前后一直持有迭代器
+55|增长会重新哈希，迭代器悬空。
+56|需要时重新查一次键。
+56b|
+57|对 <code>str_btree_set</code> 写 <code>s.size()</code>
+58|不能编译：没有 <code>size()</code>。
+59|<code>::std::ranges::distance(s)</code>、<code>str_ranked_btree_set</code>，或者 <code>str_swiss_set</code>。
+60|为了查一个键而先构造一个 <code>::fast_io::string</code>
+61|每次查找都多一次分配和复制。
+62|把你已经有的视图传进去，例如 <code>line.subview(pos, len)</code>。
+63|在 <code>insert_key</code> 之前用 <code>contains</code> 做预检查
+64|本来一次查找就够，却查了两次。
+65|使用 <code>insert_key</code> 返回的 <code>bool</code>。
+66|要点
+67|需要顺序或范围？B 树。只需要精确键？Swiss 表。需要计数或排名？有序统计 B 树。
+68|默认用 <code>str_swiss_set</code> / <code>str_swiss_map</code>；当顺序成为需求时再换到 B 树。
+69|计数就是一次查找加一次赋值；映射家族只影响报告是否有序。
+70|<code>size()</code> 在有序统计 B 树和 Swiss 表上有，普通 B 树上没有。
+71|用 <code>using</code> 把容器类型命名一次，然后一行编辑就能切换整个程序。
+72|六个容器共享同一套 insert / contains / find_key / erase / 遍历接口，所以大部分代码与容器无关。
+73|<a href="/docs/10.associativecontainers/09.swiss/" class="prev-button">&larr; 第10.9章: Swiss 表</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/10.associativecontainers/11.typespecs/" class="next-button">第10.11章: 类型与规格 &rarr;</a>

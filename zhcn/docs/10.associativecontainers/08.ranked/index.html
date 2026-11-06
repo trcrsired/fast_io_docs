@@ -3,42 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch10.8: Ranked B-trees: size() and nth_element() - C++ Tutorial with fast_io</title>
+  <title>第10.8章: 有序统计 B 树：size() 与 nth_element() - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch10.8: Ranked B-trees: <code>size()</code> and <code>nth_element()</code></h1>
+    <h1>第10.8章: 有序统计 B 树：<code>size()</code> 与 <code>nth_element()</code></h1>
     <p class="lang-switch"><a href="/docs/10.associativecontainers/08.ranked/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. A B-tree That Counts</h2>
+      <h2>1. 会计数的 B 树</h2>
       <p>
-        <code>str_ranked_btree_set</code> and <code>str_ranked_btree_map</code> are
-        the B-tree containers from Ch10.4&ndash;10.6 plus one extra piece of
-        bookkeeping: every subtree remembers how many keys it holds. That buys you
-        two things the plain B-tree does not have.
+        <code>str_ranked_btree_set</code> 与 <code>str_ranked_btree_map</code> 就是第10.4&ndash;10.6章里的 B 树容器，外加一份额外的记账：每棵子树都记住自己含有多少个键。这换来普通 B 树没有的两样东西。
       </p>
       <ul>
         <li>
-          <strong><code>size()</code></strong> &mdash; the number of elements, in
-          constant time. No iteration needed (compare Ch10.5).
+          <strong><code>size()</code></strong> &mdash; 常数时间得到元素个数，不需要遍历（对比第10.5章）。
         </li>
         <li>
-          <strong><code>nth_element(n)</code></strong> &mdash; an iterator to the
-          element at rank <code>n</code> in sorted order, without walking the
-          <code>n</code> elements before it.
+          <strong><code>nth_element(n)</code></strong> &mdash; 指向有序顺序中排名第 <code>n</code> 的元素的迭代器，而不必走过它前面那 <code>n</code> 个元素。
         </li>
       </ul>
       <p>
-        Everything else is identical: same headers shape, same
-        <code>insert_key</code> / <code>contains</code> / <code>find_key</code> /
-        <code>erase_key</code> / ordered iteration.
-        You only pay for the rank bookkeeping, so use the ranked variant when you
-        need ranks and the plain one otherwise.
+        其他一切完全相同：同样的头文件组织形式，同样的 <code>insert_key</code> / <code>contains</code> / <code>find_key</code> / <code>erase_key</code> / 有序遍历。你只为排名记账付代价，所以需要排名时用带排名的版本，否则用普通版本。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/str_ranked_btree_set.h&gt;
@@ -71,11 +60,9 @@ size: 5
     </section>
 
     <section>
-      <h2>2. Ranks Are Zero-Based Positions in Sorted Order</h2>
+      <h2>2. 排名是有序顺序中从 0 开始的位置</h2>
       <p>
-        <code>nth_element(0)</code> is the smallest key, <code>nth_element(1)</code>
-        the second smallest, and <code>nth_element(size() - 1)</code> the largest.
-        It is a position in the sorted sequence, not an insertion order:
+        <code>nth_element(0)</code> 是最小的键，<code>nth_element(1)</code> 是第二小的，<code>nth_element(size() - 1)</code> 是最大的。它是排序序列中的位置，不是插入顺序：
       </p>
       <pre><code class="language-cpp">
 println(s.nth_element(0));   // alpha
@@ -88,16 +75,10 @@ charlie
 echo
 </code></pre>
       <p>
-        The cost is the height of the tree, not the rank: at every node the
-        container compares <code>n</code> against the size of each child subtree and
-        descends into only one of them. Asking for the 900,000th key out of a
-        million does not walk 900,000 keys.
+        代价是树的高度，而不是排名：在每个结点上，容器把 <code>n</code> 与各个子树的规模比较，然后只下降到其中一棵。在一百万个键里问第 900,000 个，并不需要走过 900,000 个键。
       </p>
       <p>
-        Asking for a rank that does not exist is a contract violation. On an empty
-        container, or with <code>n &gt;= size()</code>, the program terminates &mdash;
-        or, if you opted into throwing allocators, throws
-        <code>::std::errc::invalid_argument</code>:
+        询问一个不存在的排名是违反契约。在空容器上，或者 <code>n &gt;= size()</code> 时，程序会终止 &mdash; 如果你选择了会抛异常的分配器，则抛出 <code>::std::errc::invalid_argument</code>：
       </p>
       <pre><code class="language-cpp">
 try
@@ -111,17 +92,14 @@ catch throws (::std::error e)
 }
 </code></pre>
       <p>
-        That is the same checked/`_unchecked` split you know from vectors
-        (Ch9.5): <code>nth_element(n)</code> checks, and
-        <code>nth_element_unchecked(n)</code> does not.
+        这就是你在 vector 上熟悉的“带检查/`_unchecked`”之分（第9.5章）：<code>nth_element(n)</code> 做检查，<code>nth_element_unchecked(n)</code> 不做。
       </p>
     </section>
 
     <section>
-      <h2>3. The Median, and Other Quantiles</h2>
+      <h2>3. 中位数与其他分位数</h2>
       <p>
-        The classic use is the median. With <code>size()</code> and
-        <code>nth_element</code> it is two lines:
+        经典用法是中位数。有了 <code>size()</code> 和 <code>nth_element</code>，只要两行：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/str_ranked_btree_map.h&gt;
@@ -145,15 +123,10 @@ int main()
 median key: c value: 3
 </code></pre>
       <p>
-        With an even number of elements there is no single middle, so
-        <code>size() / 2</code> picks the upper of the two candidates. That is a
-        choice, not a law: pick whichever convention your problem wants.
+        元素个数为偶数时没有唯一的中间元素，所以 <code>size() / 2</code> 取两个候选中的靠后者。这是一种选择，不是定律：按你的问题需要挑一种约定。
       </p>
       <p>
-        Any quantile is the same shape &mdash; the 90th percentile of a million
-        elements is
-        <code>nth_element(size() * 90u / 100u)</code>. Because you get an iterator
-        back, you can also read the neighbours, or start iterating from there:
+        任何分位数都是同样的形状 &mdash; 一百万个元素的第 90 百分位是 <code>nth_element(size() * 90u / 100u)</code>。因为返回的是迭代器，你还可以读它的邻居，或者从那里开始遍历：
       </p>
       <pre><code class="language-cpp">
 auto p90{m.nth_element(m.size() * 90u / 100u)};
@@ -165,59 +138,52 @@ for (auto it{p90}; it != m.cend(); ++it)
     </section>
 
     <section>
-      <h2>4. When Not to Use It</h2>
+      <h2>4. 什么时候不该用它</h2>
       <p>
-        Rank tracking is not free: every insert and erase has to fix up the counts
-        along the path it touched, and every node carries the extra field. If you
-        never ask for <code>size()</code> or <code>nth_element()</code>, the plain
-        <code>str_btree_*</code> does the same job with less work per operation.
+        排名记账不是免费的：每次插入和删除都要修正所经路径上的计数，而且每个结点都多带一个字段。如果你从不需要 <code>size()</code> 或 <code>nth_element()</code>，普通的 <code>str_btree_*</code> 用每次操作更少的工作量就能干同样的活。
       </p>
       <table>
         <thead>
           <tr>
-            <th>You need</th>
-            <th>Use</th>
+            <th>你需要</th>
+            <th>使用</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Sorted iteration, range queries, smallest/largest key</td>
+            <td>有序遍历、范围查询、最小/最大的键</td>
             <td><code>str_btree_set</code> / <code>str_btree_map</code></td>
           </tr>
           <tr>
-            <td>Sorted iteration plus element count, or the n-th key by rank</td>
+            <td>有序遍历再加上元素计数，或按排名取第 n 个键</td>
             <td><code>str_ranked_btree_set</code> / <code>str_ranked_btree_map</code></td>
           </tr>
           <tr>
-            <td>Only membership and value lookup, no order</td>
-            <td><code>str_swiss_set</code> / <code>str_swiss_map</code> (Ch10.9)</td>
+            <td>只要成员判断和值查找，不需要顺序</td>
+            <td><code>str_swiss_set</code> / <code>str_swiss_map</code>（第10.9章）</td>
           </tr>
         </tbody>
       </table>
       <div class="note">
-        <strong><code>size()</code> on a ranked B-tree is exact and cheap.</strong>
-        Unlike the plain B-tree, you can call it in a loop condition without turning
-        the loop quadratic.
+        <strong>有序统计 B 树上的 <code>size()</code> 既精确又便宜。</strong>与普通 B 树不同，你可以把它写在循环条件里，而不会让循环变成平方级。
       </div>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li><code>str_ranked_btree_*</code> is the B-tree family with subtree sizes tracked.</li>
-        <li><code>size()</code> is constant time; the plain B-tree has no <code>size()</code> at all.</li>
-        <li><code>nth_element(n)</code> returns an iterator to the n-th smallest key (0-based), in time proportional to the tree height.</li>
-        <li><code>nth_element(n)</code> is checked (terminates / throws <code>errc::invalid_argument</code>); <code>nth_element_unchecked(n)</code> is not.</li>
-        <li>Median and percentile queries are one call each.</li>
-        <li>Use the plain B-tree when you do not need ranks &mdash; the bookkeeping is not free.</li>
+        <li><code>str_ranked_btree_*</code> 是记录子树规模的 B 树家族。</li>
+        <li><code>size()</code> 是常数时间；普通 B 树根本没有 <code>size()</code>。</li>
+        <li><code>nth_element(n)</code> 返回指向第 n 小键（从 0 开始）的迭代器，时间与树高成正比。</li>
+        <li><code>nth_element(n)</code> 带检查（终止 / 抛出 <code>errc::invalid_argument</code>）；<code>nth_element_unchecked(n)</code> 不带。</li>
+        <li>中位数和百分位查询各只需一次调用。</li>
+        <li>不需要排名时就用普通 B 树 &mdash; 那份记账不是免费的。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/10.associativecontainers/07.maps/" class="prev-button">&larr; Ch10.7: Maps</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/10.associativecontainers/09.swiss/" class="next-button">Ch10.9: Swiss Tables &rarr;</a>
+      <a href="/zhcn/docs/10.associativecontainers/07.maps/" class="prev-button">&larr; 第10.7章: 映射</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/10.associativecontainers/09.swiss/" class="next-button">第10.9章: Swiss 表 &rarr;</a>
     </div>
   </main>
 </body>

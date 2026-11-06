@@ -3,278 +3,224 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch9.1: Overview of Sequential Containers - C++ Tutorial with fast_io</title>
+  <title>第9.1章: 序列容器概览 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch9.1: Overview of Sequential Containers</h1>
+    <h1>第9.1章: 序列容器概览</h1>
     <p class="lang-switch"><a href="/docs/09.seqcontainers/01.overview/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        This section introduces all sequential containers available in
-        <code>fast_io_dsal</code>. Sequential containers store elements in order
-        &mdash; the first element added is at position 0, the second at position 1,
-        and so on. We present every container, explain data locality, and give
-        rules of thumb for choosing the right container.
+        本节介绍 <code>fast_io_dsal</code> 中提供的所有序列容器。序列容器按顺序存放元素——第一个加入的元素位于位置 0，第二个位于位置 1，依此类推。我们会逐一介绍每种容器，解释数据局部性，并给出选择合适容器的经验法则。
       </p>
     </section>
 
     <section>
-      <h2>1. Container Catalogue</h2>
+      <h2>1. 容器目录</h2>
       <p>
-        The following tables list every container. The <em>IPA</em> column shows
-        how each name is pronounced using the International Phonetic Alphabet.
+        下面的表格列出了全部容器。<em>IPA</em> 一列给出每个名字的国际音标读音。
       </p>
 
-      <h3>Owning Containers</h3>
+      <h3>拥有所有权的容器</h3>
       <table>
         <thead>
           <tr>
-            <th>Container</th>
+            <th>容器</th>
             <th>IPA</th>
-            <th>Memory Layout</th>
-            <th>Description</th>
+            <th>内存布局</th>
+            <th>说明</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::array&lt;T, N&gt;</code></td>
             <td>/əˈreɪ/</td>
-            <td>Contiguous (stack or static)</td>
-            <td>Fixed-size, compile-time known number of elements.</td>
+            <td>连续（栈上或静态存储区）</td>
+            <td>大小固定，元素个数在编译期已知。</td>
           </tr>
           <tr>
             <td><code>::fast_io::vector&lt;T&gt;</code></td>
             <td>/ˈvɛktər/</td>
-            <td>Contiguous (heap)</td>
-            <td><strong>Default container.</strong> Dynamic-size, contiguous storage.</td>
+            <td>连续（堆上）</td>
+            <td><strong>默认容器。</strong>大小动态，存储连续。</td>
           </tr>
           <tr>
             <td><code>::fast_io::string</code></td>
             <td>/strɪŋ/</td>
-            <td>Contiguous (heap)</td>
-            <td>Dynamic character sequence. Alias for <code>basic_string&lt;char&gt;</code>.</td>
+            <td>连续（堆上）</td>
+            <td>动态字符序列。是 <code>basic_string&lt;char&gt;</code> 的别名。</td>
           </tr>
           <tr>
             <td><code>::fast_io::deque&lt;T&gt;</code></td>
             <td>/dɛk/</td>
-            <td>Chunked blocks (heap)</td>
-            <td>Double-ended queue. Fast insertion/removal at both ends, with random access.</td>
+            <td>分块（堆上）</td>
+            <td>双端队列。两端插入/删除都很快，并支持随机访问。</td>
           </tr>
           <tr>
             <td><code>::fast_io::list&lt;T&gt;</code></td>
             <td>/lɪst/</td>
-            <td>Doubly-linked nodes (heap)</td>
-            <td>Doubly-linked list. &Theta;(1) insertion/removal anywhere once positioned.</td>
+            <td>双向链表结点（堆上）</td>
+            <td>双向链表。一旦定位到位置，任意处的插入/删除都是 &Theta;(1)。</td>
           </tr>
           <tr>
             <td><code>::fast_io::forward_list&lt;T&gt;</code></td>
             <td>/ˈfɔɹwəɹd lɪst/</td>
-            <td>Singly-linked nodes (heap)</td>
-            <td>Singly-linked list. Minimal per-element overhead, forward iteration only.</td>
+            <td>单向链表结点（堆上）</td>
+            <td>单向链表。每元素额外开销最小，但只能向前遍历。</td>
           </tr>
           <tr>
             <td><code>::fast_io::bitvec</code></td>
             <td>/bɪt vɛk/</td>
-            <td>Packed bits (heap)</td>
-            <td>Dynamic bit vector. Stores individual bits, not <code>bool</code> values.</td>
+            <td>紧凑位存储（堆上）</td>
+            <td>动态位向量。它存放的是单个位，而不是 <code>bool</code> 值。</td>
           </tr>
         </tbody>
       </table>
 
-      <h3>View Types (Non-owning)</h3>
+      <h3>视图类型（不拥有所有权）</h3>
       <table>
         <thead>
           <tr>
-            <th>View Type</th>
+            <th>视图类型</th>
             <th>IPA</th>
-            <th>Description</th>
+            <th>说明</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>::fast_io::span&lt;T&gt;</code></td>
             <td>/spæn/</td>
-            <td>Non-owning view over contiguous memory with dynamic size.</td>
+            <td>对连续内存的非拥有视图，大小动态。</td>
           </tr>
           <tr>
             <td><code>::fast_io::index_span&lt;T, N&gt;</code></td>
             <td>/ˈɪndɛks spæn/</td>
-            <td>Non-owning view with compile-time fixed size <em>N</em>.</td>
+            <td>非拥有视图，大小在编译期固定为 <em>N</em>。</td>
           </tr>
           <tr>
             <td><code>::fast_io::string_view</code></td>
             <td>/strɪŋ vjuː/</td>
-            <td>Non-owning view over a character sequence.</td>
+            <td>对字符序列的非拥有视图。</td>
           </tr>
           <tr>
             <td><code>::fast_io::cstring_view</code></td>
             <td>/ˈsiː strɪŋ vjuː/</td>
-            <td>Non-owning view with a null-termination guarantee.</td>
+            <td>带空字符结尾保证的非拥有视图。</td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>2. Data Locality and Performance</h2>
+      <h2>2. 数据局部性与性能</h2>
       <p>
-        The way a container stores its elements in memory has a profound effect on
-        performance. Modern CPUs rely heavily on <strong>caches</strong> (L1, L2, L3).
-        When elements are stored contiguously, accessing one element typically brings
-        its neighbours into cache, making subsequent accesses nearly free.
+        容器在内存中存放元素的方式对性能有深远影响。现代 CPU 严重依赖<strong>缓存</strong>（L1、L2、L3）。当元素连续存放时，访问一个元素通常会把它的邻居一起带进缓存，后续访问几乎不花代价。
       </p>
 
       <table>
         <thead>
           <tr>
-            <th>Layout</th>
-            <th>Containers</th>
-            <th>Cache Behaviour</th>
-            <th>Iteration Speed</th>
+            <th>布局</th>
+            <th>容器</th>
+            <th>缓存行为</th>
+            <th>遍历速度</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>Contiguous</strong></td>
-            <td><code>array</code>, <code>vector</code>, <code>string</code></td>
-            <td>Excellent &mdash; hardware prefetcher works perfectly</td>
-            <td>Fastest</td>
+            <td><strong>连续</strong></td>
+            <td><code>array</code>、<code>vector</code>、<code>string</code></td>
+            <td>极佳 &mdash; 硬件预取器可以完美工作</td>
+            <td>最快</td>
           </tr>
           <tr>
-            <td><strong>Chunked</strong></td>
+            <td><strong>分块</strong></td>
             <td><code>deque</code></td>
-            <td>Good within a block, occasional cache miss at block boundaries</td>
-            <td>Near-contiguous for large containers</td>
+            <td>块内良好，块边界处偶有缓存未命中</td>
+            <td>对大型容器而言接近连续</td>
           </tr>
           <tr>
-            <td><strong>Linked nodes</strong></td>
-            <td><code>list</code>, <code>forward_list</code></td>
-            <td>Poor &mdash; each node is a separate heap allocation</td>
-            <td>Slowest &mdash; pointer chasing</td>
+            <td><strong>链表结点</strong></td>
+            <td><code>list</code>、<code>forward_list</code></td>
+            <td>差 &mdash; 每个结点都是一次独立的堆分配</td>
+            <td>最慢 &mdash; 指针追逐</td>
           </tr>
           <tr>
-            <td><strong>Packed bits</strong></td>
+            <td><strong>紧凑位</strong></td>
             <td><code>bitvec</code></td>
-            <td>Excellent &mdash; 64&times; more compact than <code>vector&lt;bool&gt;</code></td>
-            <td>Fast, but individual bits require masking</td>
+            <td>极佳 &mdash; 比 <code>vector&lt;bool&gt;</code> 紧凑 64&times;</td>
+            <td>快，但访问单个位需要掩码</td>
           </tr>
         </tbody>
       </table>
 
       <p>
-        For most workloads, <strong>contiguous storage wins</strong>. The CPU cache
-        line is typically 64 bytes. A <code>vector&lt;::std::size_t&gt;</code> brings 16 elements
-        per cache line. A <code>list&lt;::std::size_t&gt;</code> brings only 1 element per cache
-        line (and wastes memory on pointers). So even though a list offers &Theta;(1)
-        insertion, the constant factor for traversal can be 10&ndash;50&times; worse.
+        对大多数工作负载来说，<strong>连续存储胜出</strong>。CPU 缓存行通常是 64 字节。一个 <code>vector&lt;::std::size_t&gt;</code> 每缓存行能带来 16 个元素，而 <code>list&lt;::std::size_t&gt;</code> 每缓存行只带来 1 个元素（还要在指针上浪费内存）。因此，尽管链表提供 &Theta;(1) 插入，遍历的常数因子却可能差 10&ndash;50&times;。
       </p>
     </section>
 
     <section>
-      <h2>3. Choosing a Container</h2>
+      <h2>3. 如何选择容器</h2>
       <p>
-        Here are rules of thumb for selecting which container to use:
+        以下是选择容器时的经验法则：
       </p>
 
       <div class="tip">
-        <strong>Avoid containers entirely if you can.</strong> If you can accomplish
-        the task with I/O operations (e.g. printing &ldquo;Hello, World!&rdquo;),
-        do that instead. I/O provides an abstraction for processing an unbounded
-        amount of data without dynamic allocation. I/O buffers are often more
-        efficient than both stack and heap allocations.
+        <strong>能不用容器就不用。</strong>如果可以用 I/O 操作完成任务（例如打印 &ldquo;Hello, World!&rdquo;），那就这么做。I/O 提供了一种无需动态分配就能处理无界数据的抽象。I/O 缓冲区往往比栈分配和堆分配都更高效。
       </div>
 
       <ol>
         <li>
-          <strong>Unless you have a reason to use another container, use
-          <code>::fast_io::vector</code>.</strong>
-          It offers the best cache locality and is the fastest for almost all
-          operations.
+          <strong>除非有理由使用别的容器，就用 <code>::fast_io::vector</code>。</strong>它的缓存局部性最好，几乎在所有操作上都是最快的。
         </li>
         <li>
-          <strong>If your program has lots of small elements and space overhead
-          matters, don&rsquo;t use <code>list</code> or <code>forward_list</code>.</strong>
-          Each node in a linked list carries at least one pointer (8 bytes on
-          64-bit systems) of overhead.
+          <strong>如果程序包含大量小元素，而空间开销很重要，就不要用 <code>list</code> 或 <code>forward_list</code>。</strong>链表中的每个结点至少要带一个指针（64 位系统上是 8 字节）的额外开销。
         </li>
         <li>
-          <strong>If the program requires random access to elements, use a
-          <code>vector</code> or a <code>deque</code>.</strong>
-          Both provide &Theta;(1) <code>operator[]</code>. Linked lists do not.
+          <strong>如果程序需要随机访问元素，就用 <code>vector</code> 或 <code>deque</code>。</strong>两者都提供 &Theta;(1) 的 <code>operator[]</code>，链表则没有。
         </li>
         <li>
-          <strong>If the program needs to insert or delete elements in the middle
-          of the container, use a <code>list</code> or <code>forward_list</code>.</strong>
-          Once an iterator is positioned, insertion and removal are &Theta;(1).
+          <strong>如果程序需要在容器中间插入或删除元素，就用 <code>list</code> 或 <code>forward_list</code>。</strong>一旦迭代器定位好，插入与删除都是 &Theta;(1)。
         </li>
         <li>
-          <strong>If the program needs to insert or delete elements at the front
-          and the back, but not in the middle, use a <code>deque</code>.</strong>
-          A <code>vector</code> can only efficiently grow at the back.
+          <strong>如果程序需要在前端和后端插入或删除元素，但不需要在中间操作，就用 <code>deque</code>。</strong><code>vector</code> 只能在尾部高效增长。
         </li>
         <li>
-          <strong>If the program needs to insert elements in the middle only while
-          reading input, and subsequently needs random access:</strong>
-          <ul>
-            <li>
-              First, consider whether you actually need middle insertion. It is
-              often easier to append to a <code>vector</code> and then call
-              <code>::std::ranges::sort</code> afterwards.
-            </li>
-            <li>
-              If you must insert into the middle, consider using a <code>list</code>
-              during the input phase. Once input is complete, copy the list into a
-              <code>vector</code>.
-            </li>
-          </ul>
+          <strong>如果程序只需要在读取输入时向中间插入元素，之后又需要随机访问：</strong> <ul> <li> 首先想一想，你是否真的需要中间插入。通常更简单的做法是先往 <code>vector</code> 里追加，之后再调用 <code>::std::ranges::sort</code>。 </li> <li> 如果确实必须往中间插入，可以考虑在输入阶段使用 <code>list</code>，输入完成后再把链表复制到 <code>vector</code> 中。 </li> </ul>
         </li>
       </ol>
 
       <div class="tip">
-        <strong>Best Practice:</strong> If you are not sure which container to use,
-        write your code so that it uses only operations common to both vectors and
-        lists: use iterators (or <code>_index</code> operations) and avoid assuming
-        random access. That way it will be easy to switch to either a
-        <code>vector</code> or a <code>list</code> as necessary.
+        <strong>最佳实践：</strong>如果你不确定该用哪个容器，就把代码写成只使用 vector 和 list 共有的操作：使用迭代器（或 <code>_index</code> 系列操作），并且不要假定存在随机访问。这样在需要时就能轻松切换到 <code>vector</code> 或 <code>list</code>。
       </div>
 
       <p>
-        What if the program needs random access <em>and</em> needs to insert or
-        delete elements in the middle? The answer depends on the relative cost of
-        accessing elements in a linked list versus the cost of inserting or deleting
-        in a vector or deque. In general, the predominant operation of the
-        application (whether it does more access or more insertion/deletion) will
-        determine the choice. In such cases, performance testing with both containers
-        will probably be necessary.
+        如果程序既需要随机访问<em>又</em>需要在中间插入或删除元素呢？答案取决于链表访问元素的相对代价与 vector 或 deque 中插入/删除的代价之间的对比。一般说来，应用的主要操作（是访问更多还是插入/删除更多）会决定选择。在这种情况下，通常需要针对两种容器都做性能测试。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>Sequential containers store elements in insertion order.</li>
-        <li>The default container is <code>::fast_io::vector</code>.</li>
-        <li>Contiguous containers (<code>vector</code>, <code>array</code>, <code>string</code>) have the best cache locality.</li>
-        <li>Linked containers (<code>list</code>, <code>forward_list</code>) have poor cache locality but &Theta;(1) insertion/removal.</li>
-        <li><code>deque</code> sits in the middle: chunked blocks with random access and fast growth at both ends.</li>
-        <li>Avoid containers entirely when I/O operations can do the job.</li>
-        <li>Start with <code>vector</code>; switch only when profiling shows a bottleneck.</li>
-        <li>View types (<code>span</code>, <code>string_view</code>) do not own memory.</li>
+        <li>序列容器按插入顺序存放元素。</li>
+        <li>默认容器是 <code>::fast_io::vector</code>。</li>
+        <li>连续容器（<code>vector</code>、<code>array</code>、<code>string</code>）具有最好的缓存局部性。</li>
+        <li>链式容器（<code>list</code>、<code>forward_list</code>）缓存局部性差，但插入/删除是 &Theta;(1)。</li>
+        <li><code>deque</code> 居于中间：分块存储，支持随机访问，两端都能快速增长。</li>
+        <li>当 I/O 操作就能完成任务时，完全不必使用容器。</li>
+        <li>从 <code>vector</code> 开始；只有当性能剖析显示瓶颈时才更换。</li>
+        <li>视图类型（<code>span</code>、<code>string_view</code>）不拥有内存。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/09.seqcontainers/" class="prev-button">&larr; Ch9: Sequential Containers</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/09.seqcontainers/02.commonops/" class="next-button">Ch9.2: Common Operations &rarr;</a>
+      <a href="/zhcn/docs/09.seqcontainers/" class="prev-button">&larr; 第9章: 序列容器</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/09.seqcontainers/02.commonops/" class="next-button">第9.2章: 通用操作 &rarr;</a>
     </div>
   </main>
 </body>

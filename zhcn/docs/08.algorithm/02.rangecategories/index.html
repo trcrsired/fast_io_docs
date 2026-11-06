@@ -3,50 +3,44 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch8.2: Range Categories - C++ Tutorial with fast_io</title>
+  <title>第8.2章: range 类别 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch8.2: Range Categories</h1>
+    <h1>第8.2章: range 类别</h1>
     <p class="lang-switch"><a href="/docs/08.algorithm/02.rangecategories/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
 
       <p>
-        Ranges differ in what operations they support. Some can only be read once,
-        some allow multiple passes, some allow backward movement, and some allow
-        constant‑time jumps or direct access to memory addresses.
+        不同的 range 支持的操作并不相同。有些只能被读取一次，有些允许多次遍历，有些允许向后移动，还有一些允许常数时间跳跃或直接访问内存地址。
       </p>
 
       <p>
-        A clear way to understand these differences is to view range categories as a
-        <strong>capability hierarchy</strong>. Each level includes everything from the
-        previous one, plus additional abilities.
+        理解这些差异的一个清晰方式，是把 range 类别看作一条<strong>能力层级</strong>。每一级都包含上一级的全部能力，并在此基础上增加新的能力。
       </p>
 
       <p>
-        In this chapter, you will learn:
+        本章将介绍：
       </p>
 
       <ul>
-        <li>the full range category hierarchy</li>
-        <li>the readable chain from <code>input_range</code> to <code>contiguous_range</code></li>
-        <li>the separate writable branch <code>output_range</code></li>
-        <li>how to detect categories using <code>if constexpr</code></li>
+        <li>range 类别的完整层级</li>
+        <li>从 <code>input_range</code> 到 <code>contiguous_range</code> 的可读链条</li>
+        <li>独立的可写分支 <code>output_range</code></li>
+        <li>如何用 <code>if constexpr</code> 探测类别</li>
       </ul>
     </section>
 
     <section>
-      <h2>1. The full range hierarchy</h2>
+      <h2>1. 完整的 range 层级</h2>
 
       <p>
-        All range categories refine the base concept <code>range</code>.
-        From there, the hierarchy splits into a readable chain and a separate writable branch:
+        所有 range 类别都是对基础概念 <code>range</code> 的细化。由此，层级分成一条可读链条和一个独立的可写分支：
       </p>
 
 <pre><code>
@@ -66,7 +60,7 @@ range
 </code></pre>
 
       <p>
-        This chapter focuses on the readable hierarchy (the left branch).
+        本章关注可读层级（图中左侧分支）。
       </p>
     </section>
 
@@ -74,13 +68,13 @@ range
       <h2>2. input_range</h2>
 
       <p>
-        The smallest readable category. An input_range supports:
+        最小的可读类别。input_range 支持：
       </p>
 
       <ul>
-        <li>reading elements once</li>
-        <li>moving forward only</li>
-        <li>single‑pass traversal</li>
+        <li>只能读取元素一次</li>
+        <li>只能向前移动</li>
+        <li>单遍遍历</li>
       </ul>
     </section>
 
@@ -88,16 +82,16 @@ range
       <h2>3. forward_range</h2>
 
       <p>
-        A forward_range has all capabilities of an input_range and additionally supports:
+        forward_range 具有 input_range 的全部能力，并额外支持：
       </p>
 
       <ul>
-        <li>multiple passes over the same elements</li>
-        <li>revisiting elements in the same order</li>
+        <li>对同一批元素进行多次遍历</li>
+        <li>按相同顺序重新访问元素</li>
       </ul>
 
       <p>
-        A forward_range is also an input_range.
+        forward_range 同时也是 input_range。
       </p>
     </section>
 
@@ -105,15 +99,15 @@ range
       <h2>4. bidirectional_range</h2>
 
       <p>
-        A bidirectional_range has all capabilities of a forward_range and additionally supports:
+        bidirectional_range 具有 forward_range 的全部能力，并额外支持：
       </p>
 
       <ul>
-        <li>moving backward as well as forward</li>
+        <li>既能向前也能向后移动</li>
       </ul>
 
       <p>
-        A bidirectional_range is also a forward_range.
+        bidirectional_range 同时也是 forward_range。
       </p>
     </section>
 
@@ -121,16 +115,16 @@ range
       <h2>5. random_access_range</h2>
 
       <p>
-        A random_access_range has all capabilities of a bidirectional_range and additionally supports:
+        random_access_range 具有 bidirectional_range 的全部能力，并额外支持：
       </p>
 
       <ul>
-        <li>constant‑time jumps to any position</li>
-        <li>indexing with <code>r[i]</code></li>
+        <li>常数时间跳到任意位置</li>
+        <li>用 <code>r[i]</code> 做下标访问</li>
       </ul>
 
       <p>
-        A random_access_range is also a bidirectional_range.
+        random_access_range 同时也是 bidirectional_range。
       </p>
     </section>
 
@@ -138,14 +132,11 @@ range
       <h2>6. contiguous_range</h2>
 
       <p>
-        A contiguous_range has all capabilities of a random_access_range and additionally
-        guarantees that its elements occupy adjacent addresses in the program’s abstract
-        address space.
+        contiguous_range 具有 random_access_range 的全部能力，并额外保证它的元素在程序的抽象地址空间中占据相邻的地址。
       </p>
 
       <p>
-        When the range is <strong>not empty</strong>, and for any iterator <code>it</code>
-        that refers to a real element (not <code>end()</code>), the following holds:
+        当 range <strong>非空</strong>时，对任何指向真实元素（而不是 <code>end()</code>）的迭代器 <code>it</code>，下面的等式成立：
       </p>
 
 <pre><code class="language-cpp">
@@ -153,38 +144,35 @@ range
 </code></pre>
 
       <p>
-        This expresses contiguity using iterators, without dereferencing.
+        这一表述用迭代器刻画连续性，而且不需要解引用。
       </p>
 
       <p>
-        A contiguous_range is also a random_access_range.
-      </p>
-    </section>
-
-    <section>
-      <h2>7. output_range (separate branch)</h2>
-
-      <p>
-        An output_range is the writable counterpart of an input_range.
-        It allows writing elements but does not require reading from the range.
-      </p>
-
-      <p>
-        It is <strong>not part of the readable hierarchy</strong>.
-        It forms its own branch under <code>range</code>.
-      </p>
-
-      <p>
-        Some ranges are readable only, some writable only, and some support both.
+        contiguous_range 同时也是 random_access_range。
       </p>
     </section>
 
     <section>
-      <h2>8. Detecting range categories with <code>if constexpr</code></h2>
+      <h2>7. output_range（独立分支）</h2>
 
       <p>
-        Range categories are compile‑time properties.
-        You can detect them using <code>if constexpr</code> and the standard concepts.
+        output_range 是 input_range 的可写对应物。它允许写入元素，但不要求从 range 读取。
+      </p>
+
+      <p>
+        它<strong>不属于可读层级</strong>，而是在 <code>range</code> 之下自成一支。
+      </p>
+
+      <p>
+        有些 range 只可读，有些只可写，还有一些两者都支持。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 用 <code>if constexpr</code> 探测 range 类别</h2>
+
+      <p>
+        range 类别是编译期属性，可以用 <code>if constexpr</code> 和标准概念来探测。
       </p>
 
 <pre><code class="language-cpp">
@@ -211,16 +199,15 @@ void analyze_vector(::fast_io::vector<int>& v)
 </code></pre>
 
       <p>
-        Because a contiguous_range satisfies all weaker readable categories,
-        multiple lines will print.
+        由于 contiguous_range 满足所有更弱的可读类别，因此会打印出多行。
       </p>
     </section>
 
     <section>
-      <h2>9. Category summary for the ranges introduced so far</h2>
+      <h2>9. 目前已介绍的 range 所属的类别</h2>
 
       <p>
-        All ranges introduced so far behave as <strong>contiguous ranges</strong>:
+        目前介绍过的所有 range 都属于<strong>连续 range</strong>：
       </p>
 
       <ul>
@@ -231,32 +218,30 @@ void analyze_vector(::fast_io::vector<int>& v)
         <li><code>::fast_io::string_view</code></li>
         <li><code>::fast_io::cstring_view</code></li>
         <li><code>::fast_io::index_span</code></li>
-        <li>C‑style arrays</li>
+        <li>C 风格数组</li>
       </ul>
 
       <p>
-        Later chapters will introduce ranges that are not contiguous.
+        后续章节会介绍不连续的 range。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
 
       <ul>
-        <li><code>range</code> is the root concept.</li>
-        <li>The readable hierarchy goes from <code>input_range</code> up to <code>contiguous_range</code>.</li>
-        <li><code>output_range</code> is a <strong>separate writable branch</strong>.</li>
-        <li>Each stronger readable category includes all weaker ones.</li>
-        <li>Contiguous ranges guarantee adjacent addresses in the abstract address space.</li>
-        <li>All ranges introduced so far are contiguous.</li>
+        <li><code>range</code> 是根概念。</li>
+        <li>可读层级从 <code>input_range</code> 一直上升到 <code>contiguous_range</code>。</li>
+        <li><code>output_range</code> 是一个<strong>独立的可写分支</strong>。</li>
+        <li>每个更强的可读类别都包含所有更弱的类别。</li>
+        <li>连续 range 保证在抽象地址空间中地址相邻。</li>
+        <li>目前介绍过的所有 range 都是连续的。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/08.algorithm/01.ranges/" class="prev-button">← Ch8.1: Ranges & Range‑Based Algorithms</a>
-      <a href="/zhcn/" class="main-button">↑ 主页</a>
-      <a href="/zhcn/docs/08.algorithm/03.iteratorcategories/" class="next-button">Ch8.3: Iterator Categories →</a>
+      <a href="/zhcn/docs/08.algorithm/01.ranges/" class="prev-button">← 第8.1章: ranges 与基于范围的算法</a> <a href="/zhcn/" class="main-button">↑ 主页</a> <a href="/zhcn/docs/08.algorithm/03.iteratorcategories/" class="next-button">第8.3章: 迭代器类别 →</a>
     </div>
 
   </main>

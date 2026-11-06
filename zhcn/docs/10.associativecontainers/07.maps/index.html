@@ -3,23 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch10.7: Maps: Keys With Values - C++ Tutorial with fast_io</title>
+  <title>第10.7章: 映射：带值的键 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch10.7: Maps: Keys With Values</h1>
+    <h1>第10.7章: 映射：带值的键</h1>
     <p class="lang-switch"><a href="/docs/10.associativecontainers/07.maps/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. Reading a Map Element</h2>
+      <h2>1. 读取映射元素</h2>
       <p>
-        A map element has two halves: the key, which never changes, and the mapped
-        value, which is yours to read and write. Both are reached through named
-        members:
+        映射元素有两半：永不改变的键，以及属于你的、可读可写的映射值。两者都通过具名成员访问：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/str_btree_map.h&gt;
@@ -49,9 +46,7 @@ b = 2
   c = 3
 </code></pre>
       <p>
-        <code>key()</code> returns a <code>::fast_io::cstring_view</code> into the
-        container&rsquo;s own copy of the key. <code>mapped()</code> returns a
-        reference to the value, so it is also how you <em>write</em> it:
+        <code>key()</code> 返回指向容器自己那份键副本的 <code>::fast_io::cstring_view</code>。<code>mapped()</code> 返回对值的引用，因此它也是你<em>写入</em>值的方式：
       </p>
       <pre><code class="language-cpp">
 for (auto e : m)
@@ -61,20 +56,14 @@ for (auto e : m)
 println(m.find("c")->mapped());   // 30
 </code></pre>
       <div class="note">
-        <strong>B-tree maps hand out a small proxy; Swiss maps hand out a reference.</strong>
-        That is why the B-tree loop above says <code>for (auto e : m)</code> while the
-        Swiss equivalent says <code>for (auto &amp;e : sm)</code> (Ch10.9). Both let
-        you write through <code>e.mapped()</code>; the proxy is simply a
-        <code>(node, position)</code> pair, so it is copied by value.
+        <strong>B 树映射给出的是一个小代理对象；Swiss 映射给出的是引用。</strong>这就是为什么上面 B 树的循环写 <code>for (auto e : m)</code>，而 Swiss 的对应写法是 <code>for (auto &amp;e : sm)</code>（第10.9章）。两者都允许你通过 <code>e.mapped()</code> 写入；代理对象只是一个 <code>(node, position)</code> 对，所以按值复制。
       </div>
     </section>
 
     <section>
-      <h2>2. Writing a Value</h2>
+      <h2>2. 写入一个值</h2>
       <p>
-        A read never changes the map, so it is <code>find</code> plus
-        <code>mapped()</code>. A write says what it means with one of the assign
-        functions:
+        读永远不会改变映射，所以就是 <code>find</code> 加 <code>mapped()</code>。写则用一个赋值函数明确表达意图：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_btree_map&lt;::std::size_t&gt; m{{"a", 1zu}};
@@ -90,71 +79,57 @@ println(m.find("b")-&gt;mapped());       // 2
 2
 </code></pre>
       <p>
-        The call site says &ldquo;insert or assign&rdquo;, so there is no question
-        about whether a missing key gets created: it does, and the value you passed
-        is the value it gets. When you need to know which of the two happened, the
-        return value tells you &mdash; <code>true</code> means the map grew,
-        <code>false</code> means an existing value was replaced:
+        调用处写着“插入或赋值”，所以不存在“键不存在时会不会被创建”的疑问：会创建，而且你传的值就是它得到的值。当你需要知道发生的是哪一种时，返回值告诉你 &mdash; <code>true</code> 表示映射变大了，<code>false</code> 表示已有的值被替换了：
       </p>
       <pre><code class="language-cpp">
 println(m.insert_key_or_assign("b", 3zu));   // 0 — replaced
 println(m.insert_key_or_assign("c", 4zu));   // 1 — inserted
 </code></pre>
       <p>
-        If you want to insert only when the key is absent and leave an existing value
-        untouched, that is <code>insert_key</code>, which does exactly one thing:
+        如果你只想在键不存在时插入、而保留已有值不动，那就是 <code>insert_key</code>，它只做一件事：
       </p>
       <pre><code class="language-cpp">
 m.insert_key("c", 999zu);      // ignored: "c" is already there
 println(m.find("c")-&gt;mapped()); // 4
 </code></pre>
       <div class="warning">
-        <strong>There is no shorthand that reads and inserts at the same time.</strong>
-        Every read is a <code>find</code>/<code>find_key</code>, and every write is an
-        <code>insert_key</code> / <code>insert_key_or_assign</code> /
-        <code>emplace_key</code>. One call does one thing, so a typo in a key can
-        never silently grow your map, and nothing is ever built that you did not ask
-        for.
+        <strong>没有那种一边读一边插入的简写。</strong>每次读都是 <code>find</code>/<code>find_key</code>，每次写都是 <code>insert_key</code> / <code>insert_key_or_assign</code> / <code>emplace_key</code>。一次调用只做一件事，所以键写错了也绝不会悄悄把你的映射变大，也不会构造出你没要求的东西。
       </div>
     </section>
 
     <section>
-      <h2>3. The Insert Family</h2>
+      <h2>3. 插入函数家族</h2>
       <p>
-        Three functions cover every combination of &ldquo;what should happen if the
-        key is already there&rdquo;:
+        三个函数覆盖了“键已存在时该怎么办”的所有组合：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Call</th>
-            <th>Key exists</th>
-            <th>Key is new</th>
+            <th>调用</th>
+            <th>键已存在</th>
+            <th>键是新的</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>insert_key(k, v)</code></td>
-            <td>Keeps the old value, does nothing.</td>
-            <td>Inserts <code>v</code>.</td>
+            <td>保留旧值，什么都不做。</td>
+            <td>插入 <code>v</code>。</td>
           </tr>
           <tr>
             <td><code>insert_key_or_assign(k, v)</code></td>
-            <td>Overwrites with <code>v</code>.</td>
-            <td>Inserts <code>v</code>.</td>
+            <td>用 <code>v</code> 覆盖。</td>
+            <td>插入 <code>v</code>。</td>
           </tr>
           <tr>
             <td><code>emplace_key(k, args...)</code></td>
-            <td>Keeps the old value, does nothing.</td>
-            <td>Constructs the value from <code>args</code> in place.</td>
+            <td>保留旧值，什么都不做。</td>
+            <td>用 <code>args</code> 就地构造值。</td>
           </tr>
         </tbody>
       </table>
       <p>
-        <code>emplace_key</code> matters when the value is expensive to build: the
-        value is constructed only if the key turns out to be new, whereas
-        <code>insert_key(k, make_value())</code> builds the temporary first and throws
-        it away on a duplicate.
+        当值的构造成本很高时，<code>emplace_key</code> 才有意义：只有当键确实是新的时才构造值；而 <code>insert_key(k, make_value())</code> 会先构造临时量，遇到重复再把它丢掉。
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_swiss_map&lt;::std::size_t&gt; sm;
@@ -165,12 +140,9 @@ println(sm.find_key("a")-&gt;mapped());      // 100
     </section>
 
     <section>
-      <h2>4. Modifying Values</h2>
+      <h2>4. 就地修改值</h2>
       <p>
-        When the value is not being replaced wholesale but updated in place
-        (<code>+=</code>, <code>push_back</code>, a counter), iterate. A B-tree map
-        hands out a small proxy, so the loop binds by value and still writes through
-        <code>mapped()</code>:
+        当值不是被整体替换、而是就地更新时（<code>+=</code>、<code>push_back</code>、计数器），就用遍历。B 树映射给出的是小代理对象，所以循环按值绑定，仍然通过 <code>mapped()</code> 写入：
       </p>
       <pre><code class="language-cpp">
 for (auto e : m)
@@ -180,7 +152,7 @@ for (auto e : m)
 println(m.find("c")-&gt;mapped());   // 40
 </code></pre>
       <p>
-        A Swiss map hands out a reference, so the loop binds by reference:
+        Swiss 映射给出的是引用，所以循环按引用绑定：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_swiss_map&lt;::std::size_t&gt; sm;
@@ -193,17 +165,14 @@ for (auto &amp;e : sm)
 println(sm.find_key("a")-&gt;mapped());   // 42
 </code></pre>
       <p>
-        Outside an iteration, a Swiss map value is written by assigning a new one:
-        <code>sm.insert_key_or_assign("a", 100zu)</code>. Reading it is
-        <code>sm.find_key("a")-&gt;mapped()</code>.
+        在遍历之外，Swiss 映射的值通过赋一个新值来写：<code>sm.insert_key_or_assign("a", 100zu)</code>。读它则是 <code>sm.find_key("a")-&gt;mapped()</code>。
       </p>
     </section>
 
     <section>
-      <h2>5. Counting</h2>
+      <h2>5. 计数</h2>
       <p>
-        Counting occurrences is the classic map loop: look the key up, then either
-        insert the first count or bump the value you already found.
+        统计出现次数是经典的映射循环：先把键查出来，然后要么插入第一次的计数，要么把已经找到的值加一。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/str_btree_map.h&gt;
@@ -242,16 +211,10 @@ green appears 1 time(s)
 red appears 3 time(s)
 </code></pre>
       <p>
-        Because <code>str_btree_map</code> iterates in sorted order, the report comes
-        out sorted by key without a second pass. Two properties of the B-tree map
-        make the loop this short: <code>find</code> gives an iterator whose
-        <code>mapped()</code> is writable, so the second occurrence is just
-        <code>++it-&gt;mapped()</code>.
+        由于 <code>str_btree_map</code> 按有序顺序遍历，报告不用第二遍就自然按键排序。B 树映射有两个性质让这个循环这么短：<code>find</code> 给出的迭代器的 <code>mapped()</code> 可写，所以第二次出现只需 <code>++it-&gt;mapped()</code>。
       </p>
       <p>
-        On a Swiss map <code>find_key</code> returns a <code>const_iterator</code>, so
-        the same loop has to pick the element to bump by iterating (Ch10.9), or the
-        value is replaced through <code>insert_key_or_assign</code>:
+        在 Swiss 映射上 <code>find_key</code> 返回的是 <code>const_iterator</code>，所以同样的循环要么靠遍历找到要加一的元素（第10.9章），要么通过 <code>insert_key_or_assign</code> 替换值：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_swiss_map&lt;::std::size_t&gt; scounts;
@@ -275,23 +238,21 @@ for (auto w : {::fast_io::cstring_view("red"), ::fast_io::cstring_view("blue"),
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>Map elements expose <code>key()</code> (read-only view) and <code>mapped()</code> (reference) &mdash; never <code>first</code>/<code>second</code>.</li>
-        <li>Write through <code>e.mapped()</code>; B-tree maps iterate by proxy value, Swiss maps by reference.</li>
-        <li>Reads are <code>find</code>/<code>find_key</code>; writes are <code>insert_key</code>, <code>insert_key_or_assign</code> or <code>emplace_*</code> &mdash; one call does one thing.</li>
-        <li><code>insert_key</code> keeps the old value, <code>insert_key_or_assign</code> overwrites, <code>emplace_*</code> constructs in place.</li>
-        <li><code>insert_key_or_assign</code> returns <code>true</code> only when it inserted, so it also answers &ldquo;was this key new?&rdquo;.</li>
-        <li><code>find_key</code> gives a <code>const_iterator</code>, so it only reads.</li>
-        <li><code>::fast_io::zu_str_btree_map</code> / <code>zu_str_swiss_map</code> save typing when the value is <code>::std::size_t</code>.</li>
+        <li>映射元素暴露 <code>key()</code>（只读视图）和 <code>mapped()</code>（引用）&mdash; 从不是 <code>first</code>/<code>second</code>。</li>
+        <li>通过 <code>e.mapped()</code> 写入；B 树映射按代理对象的值遍历，Swiss 映射按引用遍历。</li>
+        <li>读用 <code>find</code>/<code>find_key</code>；写用 <code>insert_key</code>、<code>insert_key_or_assign</code> 或 <code>emplace_*</code> &mdash; 一次调用只做一件事。</li>
+        <li><code>insert_key</code> 保留旧值，<code>insert_key_or_assign</code> 覆盖，<code>emplace_*</code> 就地构造。</li>
+        <li><code>insert_key_or_assign</code> 只在真正插入时返回 <code>true</code>，所以它同时回答了“这个键原本是新的吗？”。</li>
+        <li><code>find_key</code> 给出 <code>const_iterator</code>，所以它只能读。</li>
+        <li>当值是 <code>::std::size_t</code> 时，<code>::fast_io::zu_str_btree_map</code> / <code>zu_str_swiss_map</code> 能省去打字。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/10.associativecontainers/06.erase/" class="prev-button">&larr; Ch10.6: Erasing</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/10.associativecontainers/08.ranked/" class="next-button">Ch10.8: Ranked B-trees &rarr;</a>
+      <a href="/zhcn/docs/10.associativecontainers/06.erase/" class="prev-button">&larr; 第10.6章: 删除</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/10.associativecontainers/08.ranked/" class="next-button">第10.8章: 有序统计 B 树 &rarr;</a>
     </div>
   </main>
 </body>

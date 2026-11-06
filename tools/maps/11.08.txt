@@ -1,0 +1,65 @@
+1|第11.8章: 文件加载器（内存映射） - 使用 fast_io 学习 C++ 教程
+2|第11.8章: 文件加载器（内存映射）
+3|概述
+4|<code>fast_io</code> 提供两种文件加载器类型，它们把整个文件装入内存，并通过类似容器的接口暴露出来。它们都是只可移动、由 RAII 管理的对象，离开作用域时会自动释放底层内存。
+5|<code>::fast_io::native_file_loader</code> &mdash; 在可用时使用内存映射（POSIX 上的 <code>mmap()</code>，Windows 上的 <code>CreateFileMapping</code>/<code>MapViewOfFile</code>）。这是零复制的方式：操作系统把文件直接映射进进程的虚拟地址空间。<strong>重要：</strong>在不支持内存映射的平台（例如 WASM、newlib）上，<code>native_file_loader</code> 会自动别名到 <code>allocation_file_loader</code>。
+6|<code>::fast_io::allocation_file_loader</code> &mdash; 用 <code>malloc()</code> 加 <code>read()</code> 把整个文件读进堆内存。这在所有平台上都可用，包括不支持内存映射的平台。
+7|两种加载器提供相同的接口，因此你可以根据平台能力在它们之间切换，而不必改动代码的其余部分。大多数情况下，你应该使用 <code>native_file_loader</code>，让它为你的平台自动选择最佳实现。
+8|公共接口
+9|<code>native_file_loader</code> 与 <code>allocation_file_loader</code> 都提供类似连续容器的接口：
+10|<code>data()</code> &mdash; 返回指向已加载文件数据的指针。
+11|<code>size()</code> &mdash; 以 <code>::std::size_t</code> 返回文件的字节大小。
+12|<code>begin()</code> / <code>end()</code> &mdash; 遍历文件字节的随机访问迭代器。
+13|<code>operator[](i)</code> &mdash; 访问下标 <code>i</code> 处的字节。
+14|<code>empty()</code> &mdash; 文件大小为零时返回 <code>true</code>。
+15|它们也可以直接打印：把加载器传给 <code>print()</code> 或 <code>println()</code>，文件内容就会被写到输出上。
+16|native_file_loader
+17|<code>::fast_io::native_file_loader</code> 使用操作系统的内存映射设施。在 POSIX 系统上它调用 <code>mmap()</code>；在 Windows NT 上使用 <code>NtCreateSection</code> 与 <code>NtMapViewOfSection</code>。文件不会被读进另一块缓冲区 &mdash; 而是把文件内容直接映射进虚拟内存。对映射区域的访问由操作系统的缺页机制处理，从而获得零复制语义。
+18|<strong>重要：</strong>内存映射默认使用<strong>写时复制（COW）</strong>页。这意味着：
+19|你<strong>可以</strong>修改映射内存中的字节。
+20|这些修改<strong>不会</strong>改变磁盘上的实际文件。
+21|你<strong>不能</strong>通过映射改变文件的大小。
+22|这些修改只存在于你进程的虚拟内存中，加载器销毁时就会丢失。
+23|如果你需要把修改写回磁盘，必须显式地用文件 I/O 操作写回。如果你需要修改文件并写回，请改用 <code>allocation_file_loader</code>（见下文）。
+24|加载器是只可移动的。你可以用 <code>::std::move</code> 转移所有权，但不能复制它。加载器销毁时，内存映射被自动释放。
+25|allocation_file_loader
+26|<code>::fast_io::allocation_file_loader</code> 提供同样的接口，但用 <code>malloc()</code> 分配缓冲区、用 <code>read()</code> 填充它。这用于不支持内存映射的平台，例如 WASM（WebAssembly），或者使用 newlib 的环境。当你需要文件数据位于你自己掌控的堆内存中时，它也有用。
+27|在两者之间选择
+28|特性
+29|<code>native_file_loader</code>
+30|<code>allocation_file_loader</code>
+31|底层机制
+32|<code>mmap()</code> / <code>MapViewOfFile</code>（在不支持内存映射的平台上则是 <code>malloc()</code> + <code>read()</code>）
+33|<code>malloc()</code> + <code>read()</code>
+34|是否复制到用户缓冲区
+35|在支持内存映射的平台上不复制（零复制）；其他平台上复制
+36|复制
+37|平台支持
+38|所有平台（无内存映射时别名到 <code>allocation_file_loader</code>）
+39|所有平台
+40|在 WASM / newlib 上可用
+41|可用（别名到 <code>allocation_file_loader</code>）
+42|可用
+43|接口
+44|data(), size(), begin(), end(), operator[]
+45|data(), size(), begin(), end(), operator[]
+46|只可移动、RAII
+47|是
+48|是
+49|如果你的目标平台支持内存映射，优先用 <code>native_file_loader</code> 以获得最佳性能。如果你需要最大的可移植性（例如交叉编译到 WASM），就用 <code>allocation_file_loader</code>。
+50|<strong>重要：</strong>如果你需要加载文件、在内存中大量修改其内容，甚至整个重建文件，请使用 <code>allocation_file_loader</code> 而不是 <code>native_file_loader</code>。内存映射式加载器会一直保持文件打开直到自己被销毁，这使你无法重新以写方式打开该文件或重建它。<code>allocation_file_loader</code> 把整个文件读进堆内存并立即关闭它，从而使你能安全地修改数据并写回（或者写入完全不同的内容）到同一个文件。
+51|如果在上面的例子里用了 <code>native_file_loader</code>，文件会保持内存映射并被锁定，导致 <code>obuf_file</code> 构造失败，或者写入破坏映射。
+52|移动语义与 RAII
+53|两种加载器都是只可移动类型。它们的析构函数释放底层资源（解除映射或释放缓冲区）。你可以通过 <code>::std::move</code> 转移所有权：
+54|相对于某个目录加载文件
+55|你可以把 <code>::fast_io::dir_file</code> 与文件加载器结合，相对于某个目录加载文件。对目录项调用 <code>drt(ent)</code>，得到一个加载器可以直接打开的 (fd, name) 对。
+56|这种写法很高效，因为 <code>drt(ent)</code> 复用了目录的文件描述符 &mdash; 解析路径不需要额外的 <code>open()</code> 调用。
+57|要点
+58|<strong>优先用文件加载器而不是随机访问 I/O。</strong>当你需要读取整个文件或进行大量随机访问时，使用 <code>::fast_io::native_file_loader</code>（或 <code>allocation_file_loader</code>）而不是定位操作。文件加载器更简单、更快、更不易出错。
+59|<strong>定位操作难用而且慢。</strong><a href="/docs/11.io/07.randomaccess/">第11.7章</a>里的定位操作要求你手动跟踪文件位置、处理不完整的读写、并发起多次系统调用。对大多数用例来说，把整个文件装入内存更高效。
+60|<strong>按位置 I/O（pwrite/pread）同样复杂。</strong>虽然按位置 I/O 避免了改变文件位置，但它仍然需要手动管理偏移和缓冲区指针。文件加载器给你一个干净的容器接口，带 <code>operator[]</code>、<code>begin()</code>/<code>end()</code>，以及标准库的算法。
+61|<strong>文件加载器并非总是可行。</strong>对没有固定大小的流（网络 socket、管道、终端），你无法使用文件加载器。那些情况下，就按需退回带缓冲 I/O（<code>ibuf_file</code>、<code>obuf_file</code>）或不带缓冲 I/O（<code>native_file</code>）。
+62|<strong>在可用时使用 <code>native_file_loader</code>。</strong>它通过内存映射提供零复制访问。在不支持内存映射的平台上，它会自动别名到 <code>allocation_file_loader</code>。注意映射使用写时复制页：你可以修改内存中的字节，但这些改动不影响磁盘上的文件，并且加载器销毁时就丢失了。
+63|<strong>读-改-写循环或重建文件时使用 <code>allocation_file_loader</code>。</strong>如果你需要加载文件、大量修改其内容，或完全重建文件，请使用 <code>allocation_file_loader</code>。<code>native_file_loader</code> 会让文件保持内存映射并被锁定，使你无法写入或重建它。<code>allocation_file_loader</code> 把文件读进堆内存并立即关闭，使你能够安全地修改数据并写回，或者创建一个全新的文件。
+64|<strong>配合 <code>dir_file</code> 做相对于目录的加载。</strong>对目录项使用 <code>drt(ent)</code>，就能在没有额外路径解析的情况下高效地加载文件。
+65|<a href="/docs/11.io/07.randomaccess/" class="prev-button">&larr; 第11.7章: 随机访问 I/O</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/09.stringrelation/" class="next-button">第11.9章: 与字符串的关系 &rarr;</a>

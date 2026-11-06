@@ -1,0 +1,58 @@
+1|第11.10章: socket 文件 - 使用 fast_io 学习 C++ 教程
+2|第11.10章: socket 文件
+3|概述
+4|<code>fast_io</code> 把 socket 当作文件。一旦你有了 socket 文件对象，就用熟悉的 <code>print</code>、<code>println</code> 和 <code>scan</code> API 收发数据 &mdash; 不需要单独的 socket 库。本节介绍两个主要的 socket 类型，以及创建它们的自由函数。
+5|::fast_io::native_socket_file
+6|<code>::fast_io::native_socket_file</code> 是平台原始 socket 句柄之上的一层薄包装：
+7|<strong>POSIX</strong>（Linux、macOS、FreeBSD 等）：就是普通的文件描述符。在 POSIX 系统上 socket <em>就是</em>文件描述符，所以它只是一个 <code>int</code> 包装。<strong>重要：</strong>在 POSIX 系统上（包括 Cygwin 与 MSYS2），<code>::fast_io::native_socket_file</code> 实际上与 <code>::fast_io::native_file</code> 是同一个类型。这是因为 POSIX 把 socket 当作文件描述符，在类型层面并不区分“socket 文件”和“普通文件”。
+8|<strong>Windows</strong>：<code>SOCKET</code> 句柄包装。Windows 的 socket 不是文件描述符，所以这个类型携带的是原生 <code>SOCKET</code> 值。只有在原生 Windows（Win32）上，<code>native_socket_file</code> 才与 <code>native_file</code> 不同。
+9|<code>native_socket_file</code> 给你不带缓冲的原始访问。对典型的 TCP I/O，你会想要下面那个带缓冲的变体。
+10|::fast_io::iobuf_socket_file
+11|<code>::fast_io::iobuf_socket_file</code> 把一个 <code>native_socket_file</code> 包进 <code>basic_iobuf</code>，加上用户态缓冲。这是 <strong>TCP I/O 的标准类型</strong>。
+12|<strong>重要：</strong>在非 Windows 平台上（包括 POSIX、Cygwin 和 MSYS2），<code>::fast_io::iobuf_socket_file</code> 实际上与 <code>::fast_io::iobuf_file</code> 是同一个类型。这与 <code>native_socket_file</code> 和 <code>native_file</code> 的关系一致 &mdash; 在 POSIX 系统上 socket 就是文件描述符，因此类型层面没有区别。
+13|由于 socket 是带缓冲的，许多小的 <code>print</code> 调用会被合并成更少的系统调用，与 <code>iobuf_file</code> 完全一样。
+14|::fast_io::u8http_header_buffer
+15|<code>::fast_io::u8http_header_buffer</code> 是专门用于解析 HTTP 响应（或请求）头的缓冲区。它可以被 <code>scan_context_define</code> <strong>扫描</strong>，所以你可以直接把它喂进普通的 <code>scan</code> 流水线：
+16|<code>header_length</code> &mdash; 头部消耗的总字节数。
+17|<code>request()</code> &mdash; 请求方法（用于请求头）。
+18|<code>code()</code> &mdash; HTTP 状态码（用于响应头）。
+19|<code>reason()</code> &mdash; 原因短语（例如 <code>"OK"</code>、<code>"Not Found"</code>）。
+20|默认内部缓冲区大小是 <strong>4096 字节</strong>，足以应付现实世界中绝大多数 HTTP 头。
+21|socket 相关的自由函数
+22|下面这些自由函数用于创建和配置 socket 连接。它们返回的句柄可用于构造 <code>native_socket_file</code> 或 <code>iobuf_socket_file</code> 对象。
+23|函数
+24|说明
+26|打开到 <code>host:port</code> 的 TCP 连接，返回 <code>native_socket_file</code>。
+28|在给定 <code>port</code> 上创建 TCP 监听 socket。
+30|把 POSIX socket 绑定到指定地址。
+32|把已绑定的 POSIX socket 标记为监听状态，<code>backlog</code> 为队列长度。
+34|在监听中的 POSIX socket 上接受一个到来的连接，为被接受的连接返回一个新的 <code>native_socket_file</code>。
+35|TCP 服务器示例
+36|把这些串起来，下面是一个最小的 TCP 服务器：监听 8080 端口，接受一个连接，发送一句问候，然后关闭：
+37|::fast_io::net_service
+38|在 Windows 上，任何 socket 操作之前都必须先初始化网络子系统。这通过在程序开始时调用 <code>WSAStartup()</code>、在退出时调用 <code>WSACleanup()</code> 完成。<code>::fast_io::net_service</code> 是一个自动处理这件事的 RAII 包装：
+39|<strong>Windows（Win32）</strong>：构造时调用 <code>WSAStartup()</code>，析构时调用 <code>WSACleanup()</code>。在 <code>main()</code> 开头创建一个实例，以保证网络子系统在你的程序整个生命周期内都已初始化。
+40|<strong>POSIX 及其他系统</strong>：<code>::fast_io::net_service</code> 是一个空操作类型，构造和析构都没有开销。为了可移植性你仍可以创建实例，但它什么也不做。
+41|如果你的程序使用 socket，请总是在 <code>main()</code> 开头创建一个 <code>::fast_io::net_service</code> 对象。这保证了跨平台可移植性 &mdash; 在 Windows 上它初始化网络子系统，在 POSIX 上它只是无害的空操作。
+42|DNS 解析
+43|当你需要按名字（而不是 IP 地址）连接主机时，必须先解析主机名到 IP 地址。<code>fast_io</code> 为此提供 <code>::fast_io::native_dns_file</code>。它包装操作系统的 DNS 解析设施（POSIX 上的 <code>getaddrinfo()</code>，Windows NT 上的 <code>GetAddrInfoW()</code>）。
+44|<code>native_dns_file</code> 可迭代 &mdash; 它可能解析出多个 IP 地址（IPv4 与 IPv6 都有）。你可以遍历全部，或者用 <code>::fast_io::to_ip()</code> 取第一个结果，得到一个带端口号、可直接交给 <code>tcp_connect()</code> 的 IP 地址。
+45|关键函数有：
+46|<code>::fast_io::native_dns_file(hostname)</code> &mdash; 把主机名解析为 IP 地址
+47|<code>::fast_io::to_ip(dns_entry, port)</code> &mdash; 把一条 DNS 记录转换为带端口的 IP 地址
+48|<code>::fast_io::to_ip_address(dns_entry)</code> &mdash; 把一条 DNS 记录转换为纯 IP 地址（不带端口）
+49|附录
+50|下列附录提供额外的参考资料：
+51|<a href="01.networkbasics/">第11.10.1章: 网络基础</a> &mdash; OSI 模型、IP 地址、常用端口
+52|<a href="02.dns/">第11.10.2章: DNS</a> &mdash; DNS 记录、DoH、DoT
+53|<a href="03.modernprotocols/">第11.10.3章: 现代网络协议</a> &mdash; HTTP/1.1/2/3、QUIC、WebSocket
+54|<a href="04.protocolsupport/">第11.10.4章: fast_io 中的协议支持</a> &mdash; TCP、UDP、Unix socket 等
+55|要点
+56|<code>::fast_io::native_socket_file</code> 包装原始 socket 句柄 &mdash; POSIX 上是文件描述符，Windows 上是 <code>SOCKET</code>。在非 Windows 平台（包括 Cygwin/MSYS2）上，它与 <code>::fast_io::native_file</code> 是同一个类型。
+57|<code>::fast_io::iobuf_socket_file</code> 加上用户态缓冲，是 TCP I/O 的标准类型。在非 Windows 平台上，它与 <code>::fast_io::iobuf_file</code> 是同一个类型。
+58|用 <code>::fast_io::native_dns_file</code> 把主机名解析为 IP 地址。配合 <code>::fast_io::to_ip(dns, port)</code> 与 <code>tcp_connect()</code> 即可按主机名连接。
+59|<code>::fast_io::u8http_header_buffer</code> 通过 <code>scan</code> 解析 HTTP 头。它暴露 <code>header_length</code>、<code>request()</code>、<code>code()</code> 和 <code>reason()</code>。默认缓冲区大小为 4096 字节。
+60|自由函数有：<code>tcp_connect()</code>、<code>tcp_listen()</code>、<code>posix_bind()</code>、<code>posix_listen()</code>、<code>posix_accept()</code>。
+61|<code>::fast_io::net_service</code> 是初始化 Windows 网络子系统（<code>WSAStartup</code>/<code>WSACleanup</code>）的 RAII 类型。在 POSIX 系统上它是空操作。为了可移植性，总是在 <code>main()</code> 开头创建一个。
+62|在 <code>fast_io</code> 中 socket 就是文件 &mdash; 你已经熟悉的 <code>print</code>、<code>scan</code> 和定制点同样适用于 socket。
+63|<a href="/docs/11.io/09.stringrelation/" class="prev-button">&larr; 第11.9章: 与字符串的关系</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/11.cstyle/" class="next-button">第11.11章: C 风格 I/O &rarr;</a>

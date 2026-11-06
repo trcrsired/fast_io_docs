@@ -1,0 +1,63 @@
+1|第10.3章: contains()：成员测试 - 使用 fast_io 学习 C++ 教程
+2|第10.3章: <code>contains()</code>：成员测试
+3|1. 你最常用的函数
+4|<code>contains(key)</code> 只回答一个问题：<em>这个键在容器里吗？</em>它返回 <code>bool</code>，从不分配内存，并且在默认分配器下是 <code>noexcept</code>。六个容器全都有它，名字相同、行为也相同。
+5|在真实程序里，接触集合的大部分代码都长这样：一个过滤器、一个守卫、一步校验。这就是为什么先讲 <code>contains</code>，其他都放在后面。
+6|2. 它接受视图，所以什么都不复制
+7|参数是 <code>::fast_io::string_view</code> &mdash; 一个指针加一个长度。没有分配、没有复制、没有临时字符串。任何能产生视图的东西都可以用：
+8|你手里有
+9|你这样写
+10|一个字符串字面量
+11|<code>s.contains("alpha")</code>
+12|一个 <code>::fast_io::string</code>
+13|<code>s.contains(::fast_io::string_view(k.c_str(), k.size()))</code>
+14|一个 <code>::fast_io::cstring_view</code> / <code>string_view</code> 变量
+15|<code>s.contains(v)</code>
+16|一个以空字符结尾的 <code>char const *</code>
+17|<code>s.contains(::fast_io::mnp::os_c_str(p))</code>
+18|一个更大字符串中的片段
+19|<code>s.contains(line.subview(pos, len))</code>
+20|最后一行正是“字符串集合上值得有 <code>contains</code>”的理由。你可以在不构造 <code>::fast_io::string</code> 的情况下，测试正在扫描的缓冲区中的<em>一小段</em> &mdash; 一个 token、分隔符之间的一段字段、去掉换行的一行：
+21|<strong>这就是查表与复制的区别。</strong>如果容器接受 <code>::fast_io::string</code>，那么每次测试都要分配、复制字符、再释放。而在这里，上面整个扫描过程零分配。
+22|3. <code>contains</code>、<code>find</code> 与 <code>count</code> 的分工
+23|这三者回答相关的问题。选对那个能让代码的意图更清楚：
+24|调用
+25|结果
+26|何时使用
+27|<code>contains(k)</code>
+28|<code>bool</code>
+29|你只需要“有/没有”。<strong>这是默认选择。</strong>
+30|<code>find(k)</code> / <code>find_key(k)</code>
+31|迭代器，与 <code>cend()</code> 比较
+32|你需要元素本身 &mdash; 它的键视图、它映射的值，或者用于继续遍历/删除的位置（第10.4章）。
+33|<code>count(k)</code>
+34|<code>::std::size_t</code>，永远是 0 或 1
+35|几乎从不需要。它就是写成一个数字的 <code>contains</code>；请用 <code>contains</code>。
+36|<code>find</code> 没有办法“悄悄地”失败：迭代器要么指向某个元素，要么等于 <code>cend()</code>。如果你只需要一个“有/没有”的答案，<code>if (s.find(k) != s.cend())</code> 就是更容易出错的 <code>if (s.contains(k))</code>。
+37|4. 常见模式
+38|输入去重
+39|只保留第一次出现，有两种写法。要么先查一下：
+40|要么让插入过程告诉你，这样只查一次而不是两次：
+41|两种都对；如果你反正要插入，就选第二种。当容器不能被修改时，<code>contains</code> 才是正确的工具。
+42|用提前返回来做守卫
+43|注意参数：<code>::fast_io::str_swiss_set const &amp;</code> 加一个视图。函数调用时没有复制任何东西，而 const 引用表明“这次调用只读取这个集合”。
+44|映射的成员判断
+45|在映射上，<code>contains</code> 只问<strong>键</strong>，从不问值。当你不确定某个键是否存在、却又想读它的值时，这正是你需要的检查：
+46|5. “包含”的确切含义
+47|比较的是键的字节，完全按原样：区分大小写、不修剪、不做 Unicode 折叠。<code>"Alpha"</code> 与 <code>"alpha"</code> 是两个不同的键。
+48|空字符串也是普通的键。它<em>不</em>在空容器里，但可以像其他键一样被插入：
+49|<strong>把视图与 <code>char const *</code> 比较是编译错误，而且是刻意的。</strong>指针不携带长度，所以 <code>s.contains(p)</code> 无法知道要查什么。把它包起来：<code>s.contains(::fast_io::mnp::os_c_str(p))</code>。这个错误是语言在保护你免于被悄悄截断或越界读取的键，不是吹毛求疵。
+50|6. 代价与错误规格
+51|在默认分配器下，六个容器上的 <code>contains</code> 都是 <code>noexcept</code>，而且这一点是在编译期测量的：
+52|查找不可能分配（它只接受视图），也不可能失败（键不存在是一个答案，不是错误），所以没有需要报告的东西，也没有需要处理的东西。这就是为什么成员测试可以从任何 <code>noexcept</code> 函数里调用，包括析构函数和 <code>constexpr</code> 代码。
+53|从算法角度说，B 树家族沿一条从根到叶的路径比较键，Swiss 表家族则把键哈希一次并做探测。两者都不遍历元素，这正是集合之所以为集合的原因。
+54|要点
+55|<code>contains(key)</code> 返回 <code>bool</code>；这是询问成员关系的默认方式。
+56|它接受视图，因此不分配、不复制任何字符串 &mdash; 即使是从更大缓冲区里切出的一个 token 也一样。
+57|只有当你需要元素本身（而不只是答案）时才用 <code>find</code>/<code>find_key</code>。
+58|<code>count</code> 就是写成数字的 <code>contains</code>；请用 <code>contains</code>。
+59|当你反正要插入时，插入返回的 <code>bool</code> 就给出了答案，无需第二次查找。
+60|键按精确字节比较：区分大小写、不做规范化；空字符串是合法的键。
+61|<code>char const *</code> 必须包成 <code>::fast_io::mnp::os_c_str(p)</code> &mdash; 这是刻意设计的编译错误。
+62|在默认分配器下 <code>contains</code> 是 <code>noexcept</code>，因此在 <code>noexcept</code> 函数和编译期代码中都安全。
+63|<a href="/docs/10.associativecontainers/02.create/" class="prev-button">&larr; 第10.2章: 创建与插入</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/10.associativecontainers/04.lookup/" class="next-button">第10.4章: 按键查找 &rarr;</a>

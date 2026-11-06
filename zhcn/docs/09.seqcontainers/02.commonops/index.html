@@ -3,42 +3,34 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch9.2: Common Operations - C++ Tutorial with fast_io</title>
+  <title>第9.2章: 通用操作 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch9.2: Common Operations</h1>
+    <h1>第9.2章: 通用操作</h1>
     <p class="lang-switch"><a href="/docs/09.seqcontainers/02.commonops/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        All sequential containers share a large set of common operations. This
-        section presents comprehensive tables showing what each operation does,
-        how to use it, and which containers support it. A
-        <strong>&#10003;</strong> means supported;
-        <strong>&mdash;</strong> means not available; a note means the operation
-        exists but with different semantics.
+        所有序列容器共享一大套通用操作。本节用完整的表格说明每项操作做什么、怎么用，以及哪些容器支持它。<strong>&#10003;</strong> 表示支持；<strong>&mdash;</strong> 表示不可用；加了注释则表示该操作存在，但语义有所不同。
       </p>
     </section>
 
     <section>
-      <h2>1. Type Aliases</h2>
+      <h2>1. 类型别名</h2>
       <p>
-        Every container exposes a standard set of nested type aliases. These let
-        you write generic code that adapts to the container&rsquo;s element type,
-        size type, and iterator category.
+        每个容器都提供一组标准的嵌套类型别名。有了它们，你就能写出随容器的元素类型、大小类型和迭代器类别自动调整的泛型代码。
       </p>
       <table>
         <thead>
           <tr>
-            <th>Type Alias</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>类型别名</th>
+            <th>说明</th>
+            <th>示例</th>
             <th>vector</th>
             <th>deque</th>
             <th>list</th>
@@ -52,23 +44,23 @@
         <tbody>
           <tr>
             <td><code>value_type</code></td>
-            <td>The type of elements stored in the container.</td>
+            <td>容器中存放的元素类型。</td>
             <td><code>::std::vector&lt;T&gt;::value_type x;</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>bool</td><td>&#10003;</td><td>char_type</td>
           </tr>
           <tr>
             <td><code>size_type</code></td>
-            <td>Unsigned integer type for sizes and indices. Always <code>::std::size_t</code>.</td>
+            <td>用于大小和下标的无符号整数类型。始终是 <code>::std::size_t</code>。</td>
             <td><code>using Sz = C::size_type;</code></td>
-            <td><code>size_t</code></td><td><code>size_t</code></td>
-            <td><code>size_t</code></td><td><code>size_t</code></td>
-            <td><code>size_t</code></td><td><code>size_t</code></td>
-            <td><code>size_t</code></td><td><code>size_t</code></td>
+            <td>size_t</td><td>size_t</td>
+            <td>size_t</td><td>size_t</td>
+            <td>size_t</td><td>size_t</td>
+            <td>size_t</td><td>size_t</td>
           </tr>
           <tr>
             <td><code>difference_type</code></td>
-            <td>Signed integer type for iterator differences. Always <code>::std::ptrdiff_t</code>.</td>
+            <td>用于迭代器差值的带符号整数类型。始终是 <code>::std::ptrdiff_t</code>。</td>
             <td><code>auto d = it2 - it1;</code></td>
             <td><code>ptrdiff_t</code></td><td><code>ptrdiff_t</code></td>
             <td><code>ptrdiff_t</code></td><td><code>ptrdiff_t</code></td>
@@ -77,37 +69,37 @@
           </tr>
           <tr>
             <td><code>reference</code></td>
-            <td>Type returned when dereferencing an iterator. For <code>bitvec</code> this is a proxy, not a real reference.</td>
+            <td>解引用迭代器时返回的类型。对 <code>bitvec</code> 来说它是一个代理对象，而不是真正的引用。</td>
             <td><code>T&amp; r = v[0];</code></td>
             <td>T&amp;</td><td>T&amp;</td><td>T&amp;</td><td>T&amp;</td>
             <td>T&amp;</td><td>&mdash;</td><td>T&amp;</td><td>ch const&amp;</td>
           </tr>
           <tr>
             <td><code>const_reference</code></td>
-            <td>A const-qualified reference to an element.</td>
+            <td>对元素的 const 限定引用。</td>
             <td><code>T const&amp; r = v[0];</code></td>
             <td>T const&amp;</td><td>T const&amp;</td><td>T const&amp;</td><td>T const&amp;</td>
             <td>T const&amp;</td><td>&mdash;</td><td>T const&amp;</td><td>ch const&amp;</td>
           </tr>
           <tr>
             <td><code>pointer</code></td>
-            <td>Pointer to <code>value_type</code>. For <code>bitvec</code> this is a proxy iterator, not a raw pointer.</td>
+            <td>指向 <code>value_type</code> 的指针。对 <code>bitvec</code> 来说它是代理迭代器，不是裸指针。</td>
             <td><code>T* p = v.data();</code></td>
             <td>T*</td><td>T*</td><td>T*</td><td>T*</td>
             <td>T*</td><td>&mdash;</td><td>T*</td><td>ch const*</td>
           </tr>
           <tr>
-            <td><code>iterator</code> category</td>
-            <td>The iterator concept the container supports. Determines which algorithms can be used.</td>
+            <td>迭代器类别</td>
+            <td>容器所支持的迭代器概念，它决定了能使用哪些算法。</td>
             <td><code>using ItCat = typename C::iterator_category;</code></td>
-            <td>Contiguous</td><td>Random access</td>
-            <td>Bidirectional</td><td>Forward</td>
-            <td>Contiguous</td><td>&mdash;</td>
-            <td>Contiguous</td><td>Contiguous (const)</td>
+            <td>连续</td><td>随机访问</td>
+            <td>双向</td><td>向前</td>
+            <td>连续</td><td>&mdash;</td>
+            <td>连续</td><td>连续（const）</td>
           </tr>
           <tr>
             <td><code>reverse_iterator</code></td>
-            <td>Whether the container supports reverse iteration via <code>rbegin()</code> / <code>rend()</code>.</td>
+            <td>容器是否支持通过 <code>rbegin()</code> / <code>rend()</code> 进行反向遍历。</td>
             <td><code>for (auto it = v.rbegin(); it != v.rend(); ++it)</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&mdash;</td><td>&#10003;</td><td>&mdash;</td>
@@ -118,17 +110,16 @@
     </section>
 
     <section>
-      <h2>2. Capacity Operations</h2>
+      <h2>2. 容量操作</h2>
       <p>
-        These operations query or adjust the number of elements a container can
-        hold without reallocating.
+        这些操作用于查询或调整容器在不重新分配的情况下能容纳的元素个数。
       </p>
       <table>
         <thead>
           <tr>
-            <th>Operation</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操作</th>
+            <th>说明</th>
+            <th>示例</th>
             <th>vector</th>
             <th>deque</th>
             <th>list</th>
@@ -142,53 +133,53 @@
         <tbody>
           <tr>
             <td><code>empty()</code> / <code>is_empty()</code></td>
-            <td>Returns <code>true</code> if the container has no elements.</td>
+            <td>容器中没有元素时返回 <code>true</code>。</td>
             <td><code>if (v.is_empty()) { ... }</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>size()</code></td>
-            <td>Returns the number of elements currently stored.</td>
+            <td>返回当前存放的元素个数。</td>
             <td><code>auto n = v.size();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
-            <td>&mdash; (see note)</td>
-            <td>&#10003; (static)</td><td>&#10003;</td>
+            <td>&mdash;（见注释）</td>
+            <td>&#10003;（静态）</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>size_bytes()</code></td>
-            <td>Returns the total number of bytes occupied by the elements (<code>size() * sizeof(T)</code>).</td>
+            <td>返回元素占用的总字节数（<code>size() * sizeof(T)</code>）。</td>
             <td><code>auto bytes = v.size_bytes();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>max_size()</code></td>
-            <td>Returns the maximum number of elements the container could theoretically hold.</td>
+            <td>返回容器理论上最多能容纳的元素个数。</td>
             <td><code>auto m = v.max_size();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>capacity()</code></td>
-            <td>Returns the number of elements that can be stored before a reallocation is needed.</td>
+            <td>返回在需要重新分配之前还能存放的元素个数。</td>
             <td><code>auto c = v.capacity();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&mdash;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
           </tr>
           <tr>
             <td><code>reserve()</code></td>
-            <td>Requests that capacity be at least <code>n</code> elements. Does not change <code>size()</code>.</td>
+            <td>请求容量至少为 <code>n</code> 个元素，不改变 <code>size()</code>。</td>
             <td><code>v.reserve(100zu);</code></td>
             <td>&#10003;</td>
-            <td>&mdash; (see <code>reserve_back</code>)</td>
+            <td>&mdash;（见 <code>reserve_back</code>）</td>
             <td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&#10003;</td>
             <td>&mdash;</td><td>&mdash;</td>
           </tr>
           <tr>
             <td><code>shrink_to_fit()</code></td>
-            <td>Requests removal of unused capacity, reducing memory usage. May invalidate iterators.</td>
+            <td>请求释放未使用的容量以减少内存占用。可能使迭代器失效。</td>
             <td><code>v.shrink_to_fit();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&mdash;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
@@ -196,32 +187,24 @@
         </tbody>
       </table>
       <p>
-        <strong>Note:</strong> Neither <code>list</code> nor
-        <code>forward_list</code> provides <code>size()</code>. Counting
-        elements in a linked list requires &Theta;(n) traversal, so the size is
-        intentionally omitted to avoid hiding the cost. Use
-        <code>::std::ranges::distance()</code> if you need it.
+        <strong>注意：</strong><code>list</code> 和 <code>forward_list</code> 都不提供 <code>size()</code>。统计链表中的元素需要 &Theta;(n) 的遍历，因此刻意不提供 size，以免隐藏这笔代价。如果确实需要，请使用 <code>::std::ranges::distance()</code>。
       </p>
       <p>
-        <strong>deque note:</strong> Instead of <code>reserve()</code>, a deque
-        provides <code>reserve_back(n)</code> and <code>reserve_front(n)</code>
-        for reserving capacity at each end independently. It also provides
-        <code>front_capacity()</code> and <code>back_capacity()</code>.
+        <strong>deque 说明：</strong>deque 不提供 <code>reserve()</code>，而是提供 <code>reserve_back(n)</code> 和 <code>reserve_front(n)</code>，分别用于在两端独立预留容量。它还提供 <code>front_capacity()</code> 和 <code>back_capacity()</code>。
       </p>
     </section>
 
     <section>
-      <h2>3. Element Access</h2>
+      <h2>3. 元素访问</h2>
       <p>
-        These operations provide direct access to individual elements by index
-        or position.
+        这些操作按下标或位置直接访问单个元素。
       </p>
       <table>
         <thead>
           <tr>
-            <th>Operation</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操作</th>
+            <th>说明</th>
+            <th>示例</th>
             <th>vector</th>
             <th>deque</th>
             <th>list</th>
@@ -234,49 +217,49 @@
         <tbody>
           <tr>
             <td><code>operator[]</code></td>
-            <td>Access element at index. Bounds-checked: calls <code>fast_terminate()</code> if out of range.</td>
+            <td>访问下标处的元素。带边界检查：越界时调用 <code>fast_terminate()</code>。</td>
             <td><code>auto x = v[2zu];</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>index_unchecked()</code></td>
-            <td>Access element at index without bounds checking. Faster but undefined behaviour if out of range.</td>
+            <td>访问下标处的元素，不做边界检查。更快，但越界时是未定义行为。</td>
             <td><code>auto x = v.index_unchecked(2zu);</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>front()</code></td>
-            <td>Returns a reference to the first element. Undefined behaviour if empty.</td>
+            <td>返回第一个元素的引用。容器为空时是未定义行为。</td>
             <td><code>auto x = v.front();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>back()</code></td>
-            <td>Returns a reference to the last element. Undefined behaviour if empty.</td>
+            <td>返回最后一个元素的引用。容器为空时是未定义行为。</td>
             <td><code>auto x = v.back();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>data()</code></td>
-            <td>Returns a raw pointer to the underlying contiguous storage.</td>
+            <td>返回指向底层连续存储的裸指针。</td>
             <td><code>T* p = v.data();</code></td>
             <td>&#10003;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>front_unchecked()</code></td>
-            <td>Returns a reference to the first element without checking if the container is empty.</td>
+            <td>返回第一个元素的引用，但不检查容器是否为空。</td>
             <td><code>auto x = v.front_unchecked();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>back_unchecked()</code></td>
-            <td>Returns a reference to the last element without checking if the container is empty.</td>
+            <td>返回最后一个元素的引用，但不检查容器是否为空。</td>
             <td><code>auto x = v.back_unchecked();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
@@ -286,19 +269,16 @@
     </section>
 
     <section>
-      <h2>4. Iterator Operations</h2>
+      <h2>4. 迭代器操作</h2>
       <p>
-        These operations return iterators that delimit the elements of the
-        container. All iterators follow the left-inclusive convention: the range
-        <code>[begin(), end())</code> includes the first element but excludes
-        the past-the-end element.
+        这些操作返回用于界定容器元素范围的迭代器。所有迭代器都遵循左闭约定：范围 <code>[begin(), end())</code> 包含第一个元素，但不包含末尾之后的位置。
       </p>
       <table>
         <thead>
           <tr>
-            <th>Operation</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操作</th>
+            <th>说明</th>
+            <th>示例</th>
             <th>vector</th>
             <th>deque</th>
             <th>list</th>
@@ -311,28 +291,28 @@
         <tbody>
           <tr>
             <td><code>begin()</code> / <code>end()</code></td>
-            <td>Returns an iterator to the first element / to the position past the last element.</td>
+            <td>返回指向第一个元素的迭代器 / 指向最后一个元素之后位置的迭代器。</td>
             <td><code>for (auto it = v.begin(); it != v.end(); ++it)</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>cbegin()</code> / <code>cend()</code></td>
-            <td>Returns a <em>const</em> iterator. The elements cannot be modified through this iterator.</td>
+            <td>返回 <em>const</em> 迭代器。通过该迭代器无法修改元素。</td>
             <td><code>for (auto it = v.cbegin(); it != v.cend(); ++it)</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>rbegin()</code> / <code>rend()</code></td>
-            <td>Returns a reverse iterator. Iterates from last element to first.</td>
+            <td>返回反向迭代器，从最后一个元素遍历到第一个元素。</td>
             <td><code>for (auto it = v.rbegin(); it != v.rend(); ++it)</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
           </tr>
           <tr>
             <td><code>before_begin()</code></td>
-            <td>Returns an iterator to the position before the first element. Only <code>forward_list</code> provides this, for insertion at the front.</td>
+            <td>返回指向第一个元素之前位置的迭代器。只有 <code>forward_list</code> 提供它，用于在头部插入。</td>
             <td><code>fl.insert_after(fl.before_begin(), val);</code></td>
             <td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&#10003;</td>
             <td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
@@ -342,16 +322,16 @@
     </section>
 
     <section>
-      <h2>5. Modifiers</h2>
+      <h2>5. 修改器</h2>
       <p>
-        These operations add, remove, or replace elements in the container.
+        这些操作在容器中添加、删除或替换元素。
       </p>
       <table>
         <thead>
           <tr>
-            <th>Operation</th>
-            <th>Description</th>
-            <th>Example</th>
+            <th>操作</th>
+            <th>说明</th>
+            <th>示例</th>
             <th>vector</th>
             <th>deque</th>
             <th>list</th>
@@ -362,84 +342,84 @@
         <tbody>
           <tr>
             <td><code>clear()</code></td>
-            <td>Removes all elements. Memory is <em>not</em> deallocated; capacity is preserved for reuse.</td>
+            <td>删除所有元素。内存<em>不会</em>被释放；容量保留下来以备复用。</td>
             <td><code>v.clear();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td>
           </tr>
           <tr>
             <td><code>clear_destroy()</code></td>
-            <td>Removes all elements <em>and</em> deallocates all memory. Equivalent to <code>clear()</code> followed by <code>shrink_to_fit()</code>.</td>
+            <td>删除所有元素<em>并</em>释放全部内存。等价于先 <code>clear()</code> 再 <code>shrink_to_fit()</code>。</td>
             <td><code>v.clear_destroy();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td>
           </tr>
           <tr>
             <td><code>push_back()</code></td>
-            <td>Adds a copy of <code>val</code> to the end of the container.</td>
+            <td>在容器尾部添加 <code>val</code> 的副本。</td>
             <td><code>v.push_back(42zu);</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
             <td>&#10003;</td>
           </tr>
           <tr>
             <td><code>push_front()</code></td>
-            <td>Adds a copy of <code>val</code> to the front of the container.</td>
+            <td>在容器头部添加 <code>val</code> 的副本。</td>
             <td><code>v.push_front(42zu);</code></td>
             <td>&mdash;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&mdash;</td>
           </tr>
           <tr>
             <td><code>pop_back()</code></td>
-            <td>Removes the last element. Undefined behaviour if the container is empty.</td>
+            <td>删除最后一个元素。容器为空时是未定义行为。</td>
             <td><code>v.pop_back();</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
             <td>&#10003;</td>
           </tr>
           <tr>
             <td><code>pop_front()</code></td>
-            <td>Removes the first element. Undefined behaviour if the container is empty.</td>
+            <td>删除第一个元素。容器为空时是未定义行为。</td>
             <td><code>v.pop_front();</code></td>
             <td>&mdash;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&mdash;</td>
           </tr>
           <tr>
             <td><code>emplace_back()</code></td>
-            <td>Constructs an element in-place at the end, forwarding <code>args...</code> to the constructor.</td>
+            <td>在尾部就地构造元素，把 <code>args...</code> 转发给构造函数。</td>
             <td><code>v.emplace_back(1zu, 2zu);</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
             <td>&mdash;</td>
           </tr>
           <tr>
             <td><code>emplace_front()</code></td>
-            <td>Constructs an element in-place at the front, forwarding <code>args...</code> to the constructor.</td>
+            <td>在头部就地构造元素，把 <code>args...</code> 转发给构造函数。</td>
             <td><code>v.emplace_front(42zu);</code></td>
             <td>&mdash;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&mdash;</td>
           </tr>
           <tr>
             <td><code>resize()</code></td>
-            <td>Changes the number of elements. If growing, new elements are value-initialised. If shrinking, elements at the end are removed.</td>
+            <td>改变元素个数。若在增长，新元素会被值初始化；若在收缩，末尾的元素会被删除。</td>
             <td><code>v.resize(10zu);</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&#10003;</td>
           </tr>
           <tr>
             <td><code>assign()</code></td>
-            <td>Replaces the entire contents. Overloads: <code>assign(count, val)</code> or <code>assign(first, last)</code>.</td>
+            <td>替换整个内容。重载形式：<code>assign(count, val)</code> 或 <code>assign(first, last)</code>。</td>
             <td><code>v.assign(5zu, 42zu);</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&mdash;</td>
           </tr>
           <tr>
             <td><code>append_range()</code></td>
-            <td>Appends all elements from a range <code>[first, last)</code> to the end of the container.</td>
+            <td>把范围 <code>[first, last)</code> 中的所有元素追加到容器尾部。</td>
             <td><code>v.append_range(other.begin(), other.end());</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
             <td>&#10003;</td>
           </tr>
           <tr>
             <td><code>swap()</code></td>
-            <td>Exchanges the contents of two containers of the same type. &Theta;(1) for most containers.</td>
+            <td>交换两个同类型容器的内容。对大多数容器是 &Theta;(1)。</td>
             <td><code>v.swap(w);</code></td>
             <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
             <td>&#10003;</td>
@@ -449,22 +429,20 @@
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>All containers share a common interface for size, iteration, and element access.</li>
-        <li><code>list</code> and <code>forward_list</code> do not provide <code>size()</code>. <code>forward_list</code> also lacks <code>back()</code>.</li>
-        <li><code>list</code> and <code>forward_list</code> do not support <code>operator[]</code> or random access.</li>
-        <li>Only <code>vector</code>, <code>deque</code>, <code>array</code>, and contiguous views provide <code>data()</code>.</li>
-        <li><code>clear()</code> keeps capacity; <code>clear_destroy()</code> deallocates memory.</li>
-        <li><code>deque</code> is the only container with <code>push_front()</code> and capacity at both ends.</li>
+        <li>所有容器在大小、遍历与元素访问方面共享一套通用接口。</li>
+        <li><code>list</code> 和 <code>forward_list</code> 不提供 <code>size()</code>；<code>forward_list</code> 还没有 <code>back()</code>。</li>
+        <li><code>list</code> 和 <code>forward_list</code> 不支持 <code>operator[]</code>，也不支持随机访问。</li>
+        <li>只有 <code>vector</code>、<code>deque</code>、<code>array</code> 以及连续视图提供 <code>data()</code>。</li>
+        <li><code>clear()</code> 保留容量；<code>clear_destroy()</code> 释放内存。</li>
+        <li><code>deque</code> 是唯一同时具备 <code>push_front()</code> 和双端容量的容器。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/09.seqcontainers/01.overview/" class="prev-button">&larr; Ch9.1: Overview</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/09.seqcontainers/03.inserteraseindex/" class="next-button">Ch9.3: Insert/Erase by Index &rarr;</a>
+      <a href="/zhcn/docs/09.seqcontainers/01.overview/" class="prev-button">&larr; 第9.1章: 概览</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/09.seqcontainers/03.inserteraseindex/" class="next-button">第9.3章: 按下标插入/删除 &rarr;</a>
     </div>
   </main>
 </body>

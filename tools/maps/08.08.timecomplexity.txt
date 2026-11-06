@@ -1,0 +1,80 @@
+1|第8.8章: 时间与空间复杂度 - 使用 fast_io 学习 C++ 教程
+2|第8.8章: 时间与空间复杂度
+3|概述
+4|时间复杂度和空间复杂度描述的是：随着输入规模的增长，算法的运行时间和内存占用如何增长。本章重点讲<strong>时间复杂度</strong>，同时也会解释为什么空间复杂度通常给出时间的<strong>下界</strong>。
+5|你将学到：
+6|RAM 计算模型的高层视角
+7|为什么空间复杂度通常是时间复杂度的下界
+8|<code>O</code>、<code>&Omega;</code> 与 <code>&Theta;</code> 的含义
+9|基本的 &Theta; 计算
+10|如何分析简单的循环
+11|如何分析 ranges 算法
+12|为什么投影的开销很重要
+13|为什么递归版斐波那契具有指数时间复杂度
+14|为什么围棋这类游戏对计算机来说非常困难
+15|如何用主定理计算递归时间复杂度（附录）
+16|0. 计算模型
+17|当我们谈论时间复杂度时，谈的始终是某个特定抽象机器模型上算法的运行时间。最常见的模型是 <strong>RAM 模型</strong>（随机访问机）。
+18|RAM 模型假设：
+19|每个基本操作（加法、比较、赋值）耗时常数时间
+20|访问任意元素的内存耗时常数时间
+21|机器拥有无限内存
+22|这些假设使得我们能用 <code>&Theta;(n)</code>、<code>O(n&nbsp;ln&nbsp;n)</code> 这样简洁的记号来描述算法。
+23|1. 空间复杂度作为下界
+24|空间复杂度衡量算法使用的内存量随输入规模 <code>n</code> 变化的函数关系；时间复杂度衡量它运行多久。
+25|空间复杂度通常是时间复杂度的<strong>下界</strong>。如果一个算法使用了 <code>S(n)</code> 的空间，那么它至少要花 <code>&Omega;(S(n))</code> 的时间去分配、初始化、读取或操作这块空间。
+26|例子：
+27|如果一个算法存放了 <code>n</code> 个元素 → 时间至少是 <code>&Omega;(n)</code>。
+28|如果一个算法使用 <code>&Theta;(1)</code> 空间 → 时间可能更大，但绝不会小于 <code>&Omega;(1)</code>。
+29|2. 三种基本记号
+30|时间复杂度使用三种相互关联的记号：
+31|<strong>O(f(n))</strong>：上界
+32|<strong>&Omega;(f(n))</strong>：下界
+33|<strong>&Theta;(f(n))</strong>：紧界
+34|我们要严格地使用它们：
+35|只在界是紧的时用 <strong>&Theta;</strong>
+36|只知道上界时用 <strong>O</strong>（例如 <code>std::ranges::sort</code>）
+37|只知道下界时用 <strong>&Omega;</strong>
+38|3. 基本的 &Theta; 计算
+39|只有最高阶项起作用。
+40|4. 简单循环的复杂度
+41|<strong>&Theta;(n)</strong>
+42|<strong>&Theta;(n^2)</strong>
+43|5. 线性时间算法
+44|例子：
+50|<strong>&Theta;(n)</strong>
+51|6. 二分查找：O(ln&nbsp;n)
+52|每次迭代把搜索空间减半 → <strong>O(ln&nbsp;n)</strong>。
+53|7. 排序：O(n&nbsp;ln&nbsp;n)
+54|C++ 标准只保证上界 → <strong>O(n&nbsp;ln&nbsp;n)</strong>。
+55|8. 为什么投影的开销很重要
+56|昂贵的投影会主导运行时间。
+57|9. 数值算法
+58|<strong>&Theta;(n)</strong>
+59|10. 递归斐波那契：指数时间
+60|<strong>&Theta;(2^n)</strong>
+61|11. NP 问题与困难的搜索空间
+62|现实世界中的许多问题拥有指数规模的搜索空间，并且人们认为它们无法在指数时间内被精确求解。
+63|12. 为什么围棋对计算机极其困难
+64|围棋的博弈树是指数级的 → 穷举不可能。
+65|13. 为什么 AlphaGo 能成功
+66|AlphaGo 并没有精确地求解围棋，它使用了：
+67|深度神经网络
+68|策略网络
+69|蒙特卡洛树搜索
+70|它用近似的方式找出好棋，而不是遍历整棵指数级的树。
+71|14. 附录：第8.8.1章 —— 主定理
+72|许多递归算法的时间复杂度可以用如下形式的递推式来描述：
+73|附录将教你如何用<strong>主定理</strong>求解这类递推式，并给出归并排序和快速排序等例子。
+74|你可以在这里阅读完整附录：
+75|<a href="/docs/08.algorithm/08.timecomplexity/01.master/" class="next-button"> 打开第8.8.1章: 主定理 → </a>
+76|要点
+77|<strong>&Theta;(n)</strong>：线性扫描
+78|<strong>&Theta;(n^2)</strong>：嵌套循环
+79|<strong>O(ln&nbsp;n)</strong>：二分查找
+80|<strong>O(n&nbsp;ln&nbsp;n)</strong>：排序
+81|<strong>&Theta;(2^n)</strong>：朴素斐波那契
+82|围棋和许多类 NP 问题具有指数级搜索空间
+83|AlphaGo 靠近似而非精确求解获得成功
+84|主定理（附录）帮助分析递归算法
+85|<a href="/docs/08.algorithm/07.numeric/" class="prev-button">← 第8.7章: 数值算法</a> <a href="/" class="main-button">↑ 主页</a> <a href="/docs/08.algorithm/09.rammachine/" class="next-button">第8.9章: RAM 模型及其局限 →</a>

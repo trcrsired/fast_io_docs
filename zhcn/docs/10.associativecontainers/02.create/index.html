@@ -3,22 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch10.2: Creating a Container and Inserting Keys - C++ Tutorial with fast_io</title>
+  <title>第10.2章: 创建容器并插入键 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch10.2: Creating a Container and Inserting Keys</h1>
+    <h1>第10.2章: 创建容器并插入键</h1>
     <p class="lang-switch"><a href="/docs/10.associativecontainers/02.create/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. Creating One</h2>
+      <h2>1. 创建一个容器</h2>
       <p>
-        A default-constructed container is empty and costs nothing beyond a few
-        null pointers &mdash; no allocation happens until you insert something:
+        默认构造出来的容器是空的，除了几个空指针之外不花任何代价 &mdash; 在你插入东西之前不会发生分配：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/str_btree_set.h&gt;
@@ -36,15 +34,12 @@ int main()
 empty: 1
 </code></pre>
       <p>
-        <code>is_empty()</code> exists on all six containers. Note that it is
-        <code>is_empty()</code>, not <code>empty()</code>.
+        六个容器上都有 <code>is_empty()</code>。注意它是 <code>is_empty()</code>，不是 <code>empty()</code>。
       </p>
 
-      <h3>From a list of keys</h3>
+      <h3>从一组键构造</h3>
       <p>
-        A set accepts an initializer list of views. Because the element type is
-        <code>::fast_io::string_view</code>, you write each key as its own braced
-        element:
+        集合接受一个视图的初始化列表。因为元素类型是 <code>::fast_io::string_view</code>，所以每个键都要写成各自的花括号元素：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_btree_set s{{::fast_io::string_view("gamma"),
@@ -56,16 +51,15 @@ alpha
 gamma
 </code></pre>
       <p>
-        A map takes key/value pairs, and here string literals work directly because
-        the pair type is constructed for you:
+        映射接受键/值对，这里字符串字面量可以直接用，因为 pair 类型会为你构造：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_btree_map&lt;::std::size_t&gt; m{{"b", 2}, {"a", 1}};
 </code></pre>
 
-      <h3>From any range</h3>
+      <h3>从任何范围构造</h3>
       <p>
-        <code>from_range</code> takes anything with <code>begin()</code>/<code>end()</code>:
+        <code>from_range</code> 接受任何带 <code>begin()</code>/<code>end()</code> 的东西：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::vector&lt;::fast_io::cstring_view&gt; words{
@@ -74,7 +68,7 @@ gamma
 ::fast_io::str_btree_set s(::std::from_range, words);
 </code></pre>
       <p>
-        On an existing container, <code>insert_range</code> does the same job:
+        在已有容器上，<code>insert_range</code> 做同样的事：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_btree_set s;
@@ -83,12 +77,9 @@ s.insert_range(words);
     </section>
 
     <section>
-      <h2>2. <code>insert_key</code> and What It Returns</h2>
+      <h2>2. <code>insert_key</code> 及其返回值</h2>
       <p>
-        <code>insert_key</code> adds one key. A key that is already present is
-        <strong>not</strong> an error and does not produce a duplicate element.
-        The return value tells you which of the two happened, which is why it is
-        not <code>void</code>:
+        <code>insert_key</code> 添加一个键。已经存在的键<strong>不是</strong>错误，也不会产生重复元素。返回值告诉你发生的是哪一种情况，这就是它不返回 <code>void</code> 的原因：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_btree_set s;
@@ -104,14 +95,10 @@ println(s.contains("beta"));      // 1
 1
 </code></pre>
       <div class="note">
-        <strong>Read the boolean as &ldquo;did the container grow?&rdquo;</strong>
-        That single rule covers every insert function in this chapter:
-        <code>true</code> means a new element appeared, <code>false</code> means the
-        key was already present.
+        <strong>把这个布尔值读作“容器变大了吗？”</strong>这一条规则覆盖本章所有插入函数：<code>true</code> 表示出现了新元素，<code>false</code> 表示键本来就在。
       </div>
       <p>
-        The Swiss-table containers return a small struct instead, because they can
-        also give you the position of the element:
+        Swiss 表容器返回的是一个小的结构体，因为它们还能把元素的位置给你：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_swiss_set ss;
@@ -120,44 +107,42 @@ println(r.inserted);          // 1
 println(*r.position);         // alpha — r.position is an iterator
 </code></pre>
       <p>
-        Ignoring the return value is fine and common:
-        <code>s.insert_key(k);</code>. It is <code>[[nodiscard]]</code>-free on
-        purpose &mdash; membership is usually not interesting at the call site.
+        忽略返回值完全可以，也很常见：<code>s.insert_key(k);</code>。它故意没有 <code>[[nodiscard]]</code> &mdash; 调用处通常并不关心“是否本来就在”。
       </p>
     </section>
 
     <section>
-      <h2>3. Inserting Into a Map</h2>
+      <h2>3. 往映射中插入</h2>
       <p>
-        A map needs a value along with the key. Three functions, three meanings:
+        映射除了键还需要一个值。三个函数，三种含义：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Call</th>
-            <th>Key exists</th>
-            <th>Key is new</th>
-            <th>Returns</th>
+            <th>调用</th>
+            <th>键已存在</th>
+            <th>键是新的</th>
+            <th>返回</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>insert_key(k, v)</code></td>
-            <td>Does nothing, keeps old value.</td>
-            <td>Inserts <code>v</code>.</td>
-            <td><code>bool</code>: did it insert?</td>
+            <td>什么都不做，保留旧值。</td>
+            <td>插入 <code>v</code>。</td>
+            <td><code>bool</code>：是否插入了？</td>
           </tr>
           <tr>
             <td><code>insert_key_or_assign(k, v)</code></td>
-            <td>Overwrites the old value.</td>
-            <td>Inserts <code>v</code>.</td>
-            <td><code>bool</code>: did it insert (rather than assign)?</td>
+            <td>覆盖旧值。</td>
+            <td>插入 <code>v</code>。</td>
+            <td><code>bool</code>：是插入（而不是赋值）吗？</td>
           </tr>
           <tr>
             <td><code>emplace_key(k, args...)</code></td>
-            <td>Does nothing.</td>
-            <td>Constructs the value in place from <code>args</code>.</td>
-            <td><code>bool</code>: did it insert?</td>
+            <td>什么都不做。</td>
+            <td>用 <code>args</code> 就地构造值。</td>
+            <td><code>bool</code>：是否插入了？</td>
           </tr>
         </tbody>
       </table>
@@ -174,26 +159,17 @@ m.emplace_key("bee", 42zu);            // constructs the value in place
 println(m.find("bee")->mapped());      // 42
 </code></pre>
       <div class="warning">
-        <strong>&ldquo;Key exists&rdquo; compares the <em>bytes</em> of the key</strong>,
-        not a pointer and not a hash of the object identity. Keys are compared
-        exactly: case-sensitive, no Unicode normalisation, no trimming. If you want
-        case-insensitive keys, normalise the string before inserting and before
-        every lookup.
+        <strong>“键已存在”比较的是键的<em>字节</em></strong>，不是指针，也不是对象标识的哈希。键按精确字节比较：区分大小写、不做 Unicode 规范化、不修剪空白。如果你想要不区分大小写的键，就在插入之前和每次查找之前把字符串规范化。
       </div>
     </section>
 
     <section>
-      <h2>4. Bulk Insertion and Hints</h2>
+      <h2>4. 批量插入与提示</h2>
       <p>
-        <code>insert_range</code> inserts a whole range. For the B-tree family there
-        is also <code>insert_key_hint(hint, key)</code>: if you already know roughly
-        where the key belongs, the hint lets the container start its search there
-        instead of at the root.
+        <code>insert_range</code> 插入整个范围。对 B 树家族还有 <code>insert_key_hint(hint, key)</code>：如果你已经大致知道键该放在哪里，提示能让容器从那里开始搜索，而不是从根开始。
       </p>
       <p>
-        The common special case is appending keys that arrive <em>in sorted
-        order</em> &mdash; reading a sorted file, for instance. Passing
-        <code>cend()</code> as the hint is the fast path for that:
+        常见的特例是追加<em>按有序顺序到来</em>的键 &mdash; 例如读一个已排序的文件。把 <code>cend()</code> 作为提示就是这种情形下的快速路径：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_btree_set s;
@@ -208,20 +184,14 @@ b
 c
 </code></pre>
       <p>
-        <code>insert_range</code> already uses this hint internally, so filling a
-        B-tree from a sorted source through <code>insert_range</code> gets the same
-        benefit without you writing anything special. A hint that turns out to be
-        wrong is never an error &mdash; the container simply falls back to a normal
-        insertion.
+        <code>insert_range</code> 内部已经使用了这个提示，所以通过 <code>insert_range</code> 从有序来源填充 B 树能自动获得同样的好处，你不需要额外写什么。提示给错了也从不是错误 &mdash; 容器只是退回普通插入。
       </p>
     </section>
 
     <section>
-      <h2>5. Copying, Moving, Clearing</h2>
+      <h2>5. 复制、移动、清空</h2>
       <p>
-        All six containers are copyable and movable. Copying deep-copies every key
-        (each key gets its own allocation); moving transfers the internal pointers
-        and leaves the source empty:
+        六个容器都可复制、可移动。复制会深拷贝每个键（每个键各自分配内存）；移动则转移内部指针，把源容器留空：
       </p>
       <pre><code class="language-cpp">
 ::fast_io::str_btree_set a{{::fast_io::string_view("x"), ::fast_io::string_view("y")}};
@@ -231,11 +201,7 @@ c
 println(a.contains("x"), b.contains("x"), c.contains("x"));  // 1 0 1
 </code></pre>
       <p>
-        <code>clear()</code> removes every element and keeps the object usable;
-        <code>clear_destroy()</code> does the same but additionally releases the
-        container&rsquo;s own storage so the next insert starts from scratch. Both
-        are <code>noexcept</code>. For a container you are about to refill, prefer
-        <code>clear()</code>.
+        <code>clear()</code> 删除所有元素并保持对象可用；<code>clear_destroy()</code> 做同样的事，但还会释放容器自身的存储，使下一次插入从头开始。两者都是 <code>noexcept</code>。对马上要重新填充的容器，优先用 <code>clear()</code>。
       </p>
       <pre><code class="language-cpp">
 s.clear();
@@ -245,24 +211,22 @@ s.insert_key("again");   // works as before
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>Default construction is free: no allocation until the first insert.</li>
-        <li>Use <code>is_empty()</code> to test for emptiness.</li>
-        <li>Sets can be built from an initializer list of <code>string_view</code>s, maps from <code>{key, value}</code> pairs.</li>
-        <li><code>from_range</code> / <code>insert_range</code> accept any range of views.</li>
-        <li><code>insert_key</code> never creates duplicates; its <code>bool</code> says whether the container grew.</li>
-        <li>Maps: <code>insert_key</code> keeps the old value, <code>insert_key_or_assign</code> overwrites, <code>emplace_key</code> constructs in place.</li>
-        <li>B-tree containers accept <code>insert_key_hint(cend(), key)</code> for in-order bulk filling.</li>
-        <li>Copying deep-copies keys; moving transfers ownership; <code>clear()</code> empties but keeps the object usable.</li>
+        <li>默认构造是免费的：第一次插入之前不会分配。</li>
+        <li>用 <code>is_empty()</code> 判断是否为空。</li>
+        <li>集合可以用 <code>string_view</code> 的初始化列表构造，映射可以用 <code>{key, value}</code> 对构造。</li>
+        <li><code>from_range</code> / <code>insert_range</code> 接受任何视图范围。</li>
+        <li><code>insert_key</code> 从不产生重复；它的 <code>bool</code> 说明容器是否变大。</li>
+        <li>映射：<code>insert_key</code> 保留旧值，<code>insert_key_or_assign</code> 覆盖，<code>emplace_key</code> 就地构造。</li>
+        <li>B 树容器接受 <code>insert_key_hint(cend(), key)</code>，用于按序批量填充。</li>
+        <li>复制会深拷贝键；移动转移所有权；<code>clear()</code> 清空但保持对象可用。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/10.associativecontainers/01.overview/" class="prev-button">&larr; Ch10.1: Overview</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/10.associativecontainers/03.contains/" class="next-button">Ch10.3: contains() &rarr;</a>
+      <a href="/zhcn/docs/10.associativecontainers/01.overview/" class="prev-button">&larr; 第10.1章: 概览</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/10.associativecontainers/03.contains/" class="next-button">第10.3章: contains() &rarr;</a>
     </div>
   </main>
 </body>

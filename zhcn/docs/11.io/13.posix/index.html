@@ -3,47 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch11.13: POSIX File APIs - C++ Tutorial with fast_io</title>
+  <title>第11.13章: POSIX 文件 API - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch11.13: POSIX File APIs</h1>
+    <h1>第11.13章: POSIX 文件 API</h1>
     <p class="lang-switch"><a href="/docs/11.io/13.posix/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
       <p>
-        On every POSIX compliant system (Linux, FreeBSD, macOS, etc.), files are accessed through
-        a small set of system calls: <code>open</code>, <code>openat</code>, <code>read</code>,
-        <code>write</code>, <code>close</code>, and friends. These calls operate on a raw integer
-        file descriptor (<code>int</code>).
+        在每个符合 POSIX 的系统上（Linux、FreeBSD、macOS 等），文件都是通过一小批系统调用来访问的：<code>open</code>、<code>openat</code>、<code>read</code>、<code>write</code>、<code>close</code> 等等。这些调用作用于一个原始的整数文件描述符（<code>int</code>）。
       </p>
       <p>
-        <code>fast_io</code> wraps these system calls behind two types:
+        <code>fast_io</code> 把这些系统调用包装在两个类型背后：
       </p>
       <ul>
         <li>
-          <code>::fast_io::posix_file</code> &mdash; an RAII owning wrapper. It opens the file via
-          <code>open</code> (or <code>openat</code>) and guarantees <code>close</code> is called
-          when the object goes out of scope.
+          <code>::fast_io::posix_file</code> &mdash; RAII 拥有式包装。它通过 <code>open</code>（或 <code>openat</code>）打开文件，并保证对象离开作用域时调用 <code>close</code>。
         </li>
         <li>
-          <code>::fast_io::posix_io_observer</code> &mdash; a non-owning view over an existing
-          file descriptor. It is trivially copyable, has no destructor, and is safe to pass
-          around by value.
+          <code>::fast_io::posix_io_observer</code> &mdash; 对已有文件描述符的非拥有视图。它可平凡复制、没有析构函数，按值传递是安全的。
         </li>
       </ul>
     </section>
 
     <section>
-      <h2>Opening a File with posix_file</h2>
+      <h2>用 posix_file 打开文件</h2>
       <p>
-        The most common case: open a file by name and read/write with <code>print</code> and
-        <code>println</code>.
+        最常见的情形：按名字打开文件，然后用 <code>print</code> 和 <code>println</code> 读写。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -64,17 +55,14 @@ int main()
 }
       </code></pre>
       <p>
-        <code>posix_file</code>'s constructor forwards to <code>open</code> with flags derived
-        from <code>::fast_io::open_mode</code>. The destructor calls <code>close</code> if the
-        file descriptor is valid.
+        <code>posix_file</code> 的构造函数会以由 <code>::fast_io::open_mode</code> 推导出的标志转发到 <code>open</code>。析构函数在文件描述符有效时调用 <code>close</code>。
       </p>
     </section>
 
     <section>
-      <h2>Wrapping an Existing File Descriptor</h2>
+      <h2>包裹已有的文件描述符</h2>
       <p>
-        Sometimes you receive an <code>int fd</code> from legacy code, a library, or a system
-        call you made directly. You can wrap it without duplicating or taking ownership:
+        有时你会从遗留代码、某个库，或者你自己直接发起的系统调用那里拿到一个 <code>int fd</code>。你可以在不复制、不接管所有权的情况下把它包起来：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -98,16 +86,14 @@ int main()
 }
       </code></pre>
       <p>
-        Choose <code>posix_io_observer</code> when the file descriptor's lifetime is managed
-        elsewhere. Choose <code>posix_file</code> when you want RAII cleanup.
+        当文件描述符的生命周期由别处管理时，选择 <code>posix_io_observer</code>；当你想要 RAII 清理时，选择 <code>posix_file</code>。
       </p>
     </section>
 
     <section>
-      <h2>Reading with posix_file</h2>
+      <h2>用 posix_file 读取</h2>
       <p>
-        Input works through <code>scan</code>, which reads from the underlying file descriptor
-        using <code>read</code>:
+        输入通过 <code>scan</code> 完成，它用 <code>read</code> 从底层文件描述符读取：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -128,11 +114,9 @@ int main()
     </section>
 
     <section>
-      <h2>Open-at Relative to a Directory</h2>
+      <h2>相对于某个目录 open-at</h2>
       <p>
-        Just like <code>obuf_file</code> from earlier chapters, <code>posix_file</code> works
-        with <code>at(dir)</code> to open files relative to a directory file descriptor,
-        using <code>openat</code> under the hood:
+        与前面章节的 <code>obuf_file</code> 一样，<code>posix_file</code> 可以配合 <code>at(dir)</code> 相对于某个目录文件描述符打开文件，底层使用 <code>openat</code>：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -151,68 +135,60 @@ int main(int argc, char** argv)
     </section>
 
     <section>
-      <h2>The Raw POSIX I/O System Calls</h2>
+      <h2>原始的 POSIX I/O 系统调用</h2>
       <p>
-        Before using <code>fast_io</code>'s wrappers, it helps to understand the underlying POSIX
-        system calls. These are the actual kernel entry points (section 2 of the manual):
+        在使用 <code>fast_io</code> 的包装之前，先了解底层的 POSIX 系统调用会有帮助。它们是真正的内核入口（手册第 2 节）：
       </p>
       <table>
         <thead>
           <tr>
-            <th>System Call</th>
-            <th>Purpose</th>
+            <th>系统调用</th>
+            <th>用途</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>open(path, flags, mode)</code></td>
-            <td>Open a file by path, returns an <code>int</code> file descriptor.</td>
+            <td>按路径打开文件，返回一个 <code>int</code> 文件描述符。</td>
           </tr>
           <tr>
             <td><code>openat(dirfd, path, flags, mode)</code></td>
-            <td>Open a file relative to a directory file descriptor. Safer than <code>open</code> because it avoids race conditions from path resolution.</td>
+            <td>相对于某个目录文件描述符打开文件。比 <code>open</code> 更安全，因为它避免了路径解析带来的竞态。</td>
           </tr>
           <tr>
             <td><code>read(fd, buf, count)</code></td>
-            <td>Read up to <code>count</code> bytes from <code>fd</code> into <code>buf</code>. Returns the number of bytes actually read, or -1 on error.</td>
+            <td>从 <code>fd</code> 最多读取 <code>count</code> 个字节到 <code>buf</code>。返回实际读取的字节数，出错时返回 -1。</td>
           </tr>
           <tr>
             <td><code>write(fd, buf, count)</code></td>
-            <td>Write <code>count</code> bytes from <code>buf</code> to <code>fd</code>. Returns the number of bytes actually written, or -1 on error.</td>
+            <td>把 <code>buf</code> 中的 <code>count</code> 个字节写到 <code>fd</code>。返回实际写入的字节数，出错时返回 -1。</td>
           </tr>
           <tr>
             <td><code>close(fd)</code></td>
-            <td>Close the file descriptor. <strong>Always required</strong> &mdash; file descriptors are a limited resource.</td>
+            <td>关闭文件描述符。<strong>永远需要</strong> &mdash; 文件描述符是有限资源。</td>
           </tr>
           <tr>
             <td><code>lseek(fd, offset, whence)</code></td>
-            <td>Change the file offset. <code>whence</code> is <code>SEEK_SET</code>, <code>SEEK_CUR</code>, or <code>SEEK_END</code>.</td>
+            <td>改变文件偏移。<code>whence</code> 是 <code>SEEK_SET</code>、<code>SEEK_CUR</code> 或 <code>SEEK_END</code>。</td>
           </tr>
           <tr>
             <td><code>fdopen(fd, mode)</code></td>
-            <td>Associate a C <code>FILE*</code> stream with an existing file descriptor. Returns a <code>FILE*</code>.</td>
+            <td>把一个 C 的 <code>FILE*</code> 流关联到已有的文件描述符上，返回 <code>FILE*</code>。</td>
           </tr>
         </tbody>
       </table>
       <p>
-        These system calls are <strong>unbuffered</strong> &mdash; each call goes directly to the kernel.
-        This makes them slow for small or frequent operations. <code>fast_io</code>'s buffered types
-        (like <code>ibuf_file</code> and <code>obuf_file</code>) wrap these calls with user-space buffering
-        for much better performance.
+        这些系统调用<strong>不带缓冲</strong> &mdash; 每次调用都直接进入内核。这使得它们在操作很小或很频繁时很慢。<code>fast_io</code> 的带缓冲类型（如 <code>ibuf_file</code> 与 <code>obuf_file</code>）用用户态缓冲包装这些调用，性能好得多。
       </p>
     </section>
 
     <section>
-      <h2>Using posix_file for RAII Even Without fast_io I/O</h2>
+      <h2>即使不用 fast_io 的 I/O，也可以用 posix_file 做 RAII</h2>
       <p>
-        Even if you prefer to call the raw POSIX APIs directly (e.g., <code>read</code> and
-        <code>write</code>) instead of using <code>fast_io</code>'s <code>print</code> and <code>scan</code>,
-        you should <strong>still use <code>::fast_io::posix_file</code> for RAII</strong>. The destructor
-        guarantees <code>close</code> is called, so you never forget to close the file descriptor.
+        即使你更愿意直接调用原始 POSIX API（例如 <code>read</code> 与 <code>write</code>）而不使用 <code>fast_io</code> 的 <code>print</code> 与 <code>scan</code>，你<strong>仍然应该用 <code>::fast_io::posix_file</code> 来做 RAII</strong>。它的析构函数保证调用 <code>close</code>，所以你永远不会忘记关闭文件描述符。
       </p>
       <p>
-        This is especially important when exceptions or early returns are involved &mdash; without RAII,
-        you must manually call <code>close</code> on every exit path, which is error-prone.
+        当涉及异常或提前返回时，这一点尤其重要 &mdash; 没有 RAII，你必须在每一条退出路径上手动调用 <code>close</code>，这很容易出错。
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -240,7 +216,7 @@ int main()
 }
 </code></pre>
       <p>
-        The same principle applies to reading:
+        同样的原则也适用于读取：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -263,7 +239,7 @@ int main()
 }
 </code></pre>
       <p>
-        For seeking, use <code>lseek</code> on the native handle:
+        要定位，就在原生句柄上使用 <code>lseek</code>：
       </p>
 <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -288,47 +264,35 @@ int main()
     </section>
 
     <section>
-      <h2>Summary</h2>
+      <h2>小结</h2>
       <ul>
         <li>
-          <code>::fast_io::posix_file</code> is an RAII wrapper around POSIX <code>open</code> /
-          <code>close</code>.
+          <code>::fast_io::posix_file</code> 是对 POSIX <code>open</code> / <code>close</code> 的 RAII 包装。
         </li>
         <li>
-          <code>::fast_io::posix_io_observer</code> is a lightweight, non-owning view over an
-          existing file descriptor.
+          <code>::fast_io::posix_io_observer</code> 是对已有文件描述符的轻量、非拥有视图。
         </li>
         <li>
-          Both types plug directly into <code>::fast_io::io::print</code>, <code>::fast_io::io::println</code>,
-          and <code>::fast_io::io::scan</code>.
+          两个类型都能直接接入 <code>::fast_io::io::print</code>、<code>::fast_io::io::println</code> 与 <code>::fast_io::io::scan</code>。
         </li>
         <li>
-          You can wrap any raw <code>int fd</code> without changing the rest of your code.
+          你可以包裹任何原始的 <code>int fd</code>，而不用改动代码的其他部分。
         </li>
         <li>
-          The raw POSIX system calls are <code>open</code>, <code>openat</code>, <code>read</code>,
-          <code>write</code>, <code>close</code>, <code>lseek</code>, and <code>fdopen</code>.
-          These are unbuffered and go directly to the kernel.
+          原始 POSIX 系统调用有 <code>open</code>、<code>openat</code>、<code>read</code>、<code>write</code>、<code>close</code>、<code>lseek</code> 和 <code>fdopen</code>。它们不带缓冲，直接进入内核。
         </li>
         <li>
-          <strong>Even if you call the raw POSIX APIs directly</strong> (e.g., <code>read</code> and
-          <code>write</code>), <strong>still use <code>::fast_io::posix_file</code> for RAII</strong>
-          to guarantee <code>close</code> is called automatically. This prevents resource leaks,
-          especially with exceptions or early returns.
+          <strong>即使你直接调用原始 POSIX API</strong>（例如 <code>read</code> 与 <code>write</code>），<strong>也仍然要用 <code>::fast_io::posix_file</code> 做 RAII</strong>，以保证 <code>close</code> 被自动调用。这能防止资源泄漏，在有异常或提前返回时尤其如此。
         </li>
         <li>
-          For more details on POSIX APIs, see the
-          <a href="https://linux.die.net/man/" target="_blank" rel="noopener noreferrer">Linux man pages</a>
-          or your system's documentation.
+          关于 POSIX API 的更多细节，见 <a href="https://linux.die.net/man/" target="_blank" rel="noopener noreferrer">Linux man pages</a> 或你的系统文档。
         </li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/12.iostream/" class="prev-button">&larr; Ch11.12: iostream</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/11.io/14.win32/" class="next-button">Ch11.14: Win32 File APIs &rarr;</a>
+      <a href="/zhcn/docs/11.io/12.iostream/" class="prev-button">&larr; 第11.12章: iostream</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/14.win32/" class="next-button">第11.14章: Win32 文件 API &rarr;</a>
     </div>
   </main>
 </body>

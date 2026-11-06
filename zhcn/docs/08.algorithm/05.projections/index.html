@@ -3,43 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch8.5: Projections - C++ Tutorial</title>
+  <title>第8.5章: 投影 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch8.5: Projections</h1>
+    <h1>第8.5章: 投影</h1>
     <p class="lang-switch"><a href="/docs/08.algorithm/05.projections/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
 
       <p>
-        A <strong>projection</strong> is a function applied to each element before
-        an algorithm uses it. Instead of operating on the element directly, the
-        algorithm operates on the projected value. This allows algorithms to work
-        with derived fields or computed values without modifying the underlying
-        data structure.
+        <strong>投影</strong>是在算法使用某个元素之前，先对作用于该元素的一个函数。算法不直接处理元素，而是处理投影后的值。这样一来，算法就可以基于派生字段或计算出来的值工作，而不必修改底层的数据结构。
       </p>
 
       <p>
-        Projections are conceptually simple: the algorithm sees
-        <code>proj(x)</code> instead of <code>x</code>. But understanding how
-        projections interact with iterators, references, and algorithm semantics
-        is essential for writing correct and efficient code.
+        投影在概念上很简单：算法看到的是 <code>proj(x)</code> 而不是 <code>x</code>。但要写出正确且高效的代码，理解投影如何与迭代器、引用以及算法语义相互作用是必不可少的。
       </p>
     </section>
 
     <section>
-      <h2>1. What is a projection?</h2>
+      <h2>1. 什么是投影？</h2>
 
       <p>
-        A projection is a unary function applied to each element before the
-        algorithm processes it. For example, if we have a struct with two numeric
-        fields, we can sort by one of them using a projection.
+        投影是一个一元函数，在算法处理每个元素之前先作用于该元素。例如，如果有一个含两个数值字段的结构体，我们可以用投影按其中一个字段排序。
       </p>
 
       <pre><code class="language-cpp">
@@ -59,37 +49,33 @@ struct Record {
       </code></pre>
 
       <p>
-        The algorithm never compares <code>Record</code> objects directly. It
-        compares the projected values returned by <code>&Record::offset</code>.
+        算法从不直接比较 <code>Record</code> 对象，它比较的是 <code>&Record::offset</code> 返回的投影值。
       </p>
     </section>
 
     <section>
-      <h2>2. Why projections exist</h2>
+      <h2>2. 为什么需要投影</h2>
 
       <p>
-        Without projections, customizing algorithms often required:
+        在没有投影的时候，定制算法通常需要：
       </p>
 
       <ul>
-        <li>writing custom comparison lambdas</li>
-        <li>repeating field names everywhere</li>
-        <li>rewriting algorithms manually</li>
+        <li>编写自定义的比较 lambda</li>
+        <li>到处重复字段名</li>
+        <li>手动重写算法</li>
       </ul>
 
       <p>
-        Projections eliminate this boilerplate. They let you specify <em>what</em>
-        part of the element the algorithm should use, without changing
-        <em>how</em> the algorithm works.
+        投影消除了这些样板代码。它让你能够指定算法该使用元素的<em>哪一部分</em>，而不改变算法<em>如何</em>工作。
       </p>
     </section>
 
     <section>
-      <h2>3. Projections vs comparators</h2>
+      <h2>3. 投影与比较器的区别</h2>
 
       <p>
-        A comparator defines how two projected values are compared.  
-        A projection defines what part of the element is compared.
+        比较器定义两个投影值如何比较；投影定义比较的是元素的哪一部分。
       </p>
 
       <pre><code class="language-cpp">
@@ -103,27 +89,25 @@ struct Record {
       </code></pre>
 
       <p>
-        The projection version is shorter, avoids captures, and avoids duplicating
-        field names. It also reduces binary size compared to lambdas.
+        投影版本更短，不需要捕获，也不会重复字段名。与 lambda 相比，它还能减小二进制体积。
       </p>
     </section>
 
     <section>
-      <h2>4. Projections must be pure and cheap</h2>
+      <h2>4. 投影必须是纯函数且开销低</h2>
 
       <p>
-        Projections are called many times. They must be:
+        投影会被调用很多次，因此它必须：
       </p>
 
       <ul>
-        <li><strong>pure</strong> (no side effects)</li>
-        <li><strong>cheap</strong> (ideally trivial)</li>
-        <li><strong>safe</strong> (no references to temporaries)</li>
+        <li><strong>纯</strong>（没有副作用）</li>
+        <li><strong>低开销</strong>（最好是平凡的）</li>
+        <li><strong>安全</strong>（不返回临时量的引用）</li>
       </ul>
 
       <p>
-        A projection should behave like a field access. Anything more expensive
-        risks destroying algorithmic performance.
+        投影的行为应当和一次字段访问差不多。任何更昂贵的操作都可能破坏算法性能。
       </p>
 
       <pre><code class="language-cpp">
@@ -134,17 +118,15 @@ struct Record {
       </code></pre>
 
       <p>
-        This turns <code>O(n log n)</code> sorting into something much worse.
+        这会把 <code>O(n log n)</code> 的排序变成糟糕得多的东西。
       </p>
     </section>
 
     <section>
-      <h2>5. Projections and references</h2>
+      <h2>5. 投影与引用</h2>
 
       <p>
-        A projection may return a reference, but only if the reference remains
-        valid for the duration of the algorithm. Returning references to
-        temporaries is undefined behavior.
+        投影可以返回引用，但该引用必须在算法整个执行期间保持有效。返回临时量的引用是未定义行为。
       </p>
 
       <pre><code class="language-cpp">
@@ -155,44 +137,40 @@ struct Record {
       </code></pre>
 
       <p>
-        Safe projections return:
+        安全的投影返回：
       </p>
 
       <ul>
-        <li>a field reference</li>
-        <li>a pointer</li>
-        <li>a small value (copied cheaply)</li>
+        <li>字段引用</li>
+        <li>指针</li>
+        <li>小值（复制开销低）</li>
       </ul>
     </section>
 
     <section>
-      <h2>6. Projections and stability</h2>
+      <h2>6. 投影与稳定性</h2>
 
       <p>
-        Projections do not change whether an algorithm is stable. They only change
-        what the algorithm sees. If two elements have equal projected values, a
-        stable algorithm preserves their original order.
+        投影不会改变算法是否稳定，它只改变算法看到的内容。如果两个元素的投影值相等，稳定算法会保留它们的原始顺序。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
 
       <ul>
-        <li>A projection transforms each element before the algorithm sees it.</li>
-        <li>Projections simplify code and reduce boilerplate.</li>
-        <li>They must be pure, cheap, and safe.</li>
-        <li>Returning references to temporaries is undefined behavior.</li>
-        <li>Projections do not change algorithm stability.</li>
-        <li>Using simple POD‑like types keeps projections efficient.</li>
+        <li>投影在算法看到元素之前对每个元素做一次变换。</li>
+        <li>投影能简化代码、减少样板。</li>
+        <li>投影必须是纯的、开销低的、安全的。</li>
+        <li>返回临时量的引用是未定义行为。</li>
+        <li>投影不会改变算法的稳定性。</li>
+        <li>使用简单的 POD 类类型可以让投影保持高效。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/08.algorithm/04.iteratoralgorithms/" class="prev-button">← Ch8.4: Iterator Algorithms</a>
-      <a href="/zhcn/" class="main-button">↑ 主页</a>
-      <a href="/zhcn/docs/08.algorithm/06.typical/" class="next-button">Ch8.6: Typical Algorithms →</a>
+      <a href="/zhcn/docs/08.algorithm/04.iteratoralgorithms/" class="prev-button">← 第8.4章: 迭代器算法</a> <a href="/zhcn/" class="main-button">↑ 主页</a> <a href="/zhcn/docs/08.algorithm/06.typical/" class="next-button">第8.6章: 典型算法 →</a>
     </div>
 
   </main>

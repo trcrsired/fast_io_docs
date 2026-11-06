@@ -1,0 +1,75 @@
+1|第8.4章: 迭代器算法 - 使用 fast_io 学习 C++ 教程
+2|第8.4章: 迭代器算法
+3|概述
+4|算法作用于迭代器。算法既不知道也不关心底层容器，只要求迭代器具备某些能力。
+5|本章将介绍：
+6|算法如何依赖迭代器类别
+7|哪些算法需要多强的迭代器
+8|如何推理算法的前置条件
+9|连续迭代器如何带来快速路径
+10|如何用 <code>if constexpr</code> 探测迭代器与 range 的能力
+11|迭代器算法与 ranges 算法之间的关系
+12|1. 算法依赖迭代器的能力
+13|每个算法都有<strong>最低的迭代器要求</strong>。这些要求决定了算法能否：
+14|读取元素
+15|写入元素
+16|多次遍历
+17|向后移动
+18|跳到任意位置
+19|更强的迭代器类别能支撑更强的算法。
+20|2. 算法能力的阶梯
+21|每上升一级都会带来新的算法可能性。
+22|3. 需要 input_iterator 的算法
+23|这些算法只需要向前移动并读取元素一次：
+24|它们作用于最弱的可读迭代器。
+28|4. 需要 forward_iterator 的算法
+29|这些算法要求对同一批元素进行多次遍历：
+33|forward_iterator 保证可以多遍遍历。
+34|5. 需要 bidirectional_iterator 的算法
+35|这些算法要求能够向后移动：
+38|6. 需要 random_access_iterator 的算法
+39|这些算法要求常数时间跳跃：
+43|随机访问使得下标访问和划分成为可能。
+44|迭代器算法
+45|迭代器算法直接作用于迭代器对：
+46|这种形式要求 <code>random_access_iterator</code>。
+47|ranges 算法
+48|ranges 算法也可以接受迭代器对：
+49|也可以直接接受整个 range：
+50|两种形式要求相同的迭代器类别。
+51|带比较对象的算法
+52|算法可以接受来自 <code>&lt;functional&gt;</code> 的比较对象。这些对象在迭代器算法与 ranges 算法中都可用。
+53|迭代器算法形式：
+54|ranges 算法形式（迭代器对）：
+55|ranges 算法形式（整个 range）：
+56|比较对象不会改变对迭代器类别的要求。
+57|7. 受益于 contiguous_iterator 的算法
+58|contiguous_iterator 让编译器能够推理内存布局，从而带来这些优化：
+59|向量化操作
+60|类似 memcpy 的快速路径
+61|循环展开
+62|指向对象类型的指针和 <code>::fast_io::vector&lt;T&gt;</code> 的迭代器都是 contiguous_iterator。
+63|8. fast_io 容器与迭代器算法
+64|<code>::fast_io::vector&lt;T&gt;</code> 提供连续迭代器。需要随机访问或能从连续性中获益的算法会走最强的那条路径。
+65|fast_io 的其他容器遵循与 STL 对应容器相同的迭代器规则。
+66|9. 用 <code>if constexpr</code> 探测算法是否适用
+67|你可以写出随迭代器或 range 强弱自动调整的算法。类型由函数参数推导，<code>if constexpr</code> 在编译期选择对应的路径。
+68|迭代器版本
+69|调用方式很直接：
+70|range 版本
+71|你也可以写一个接受整个 range 的重载：
+72|调用 range 版本：
+73|两个重载都会根据迭代器或 range 的类别自动调整。
+74|10. 常见陷阱
+75|在 input_iterator 上使用多遍算法
+76|在 bidirectional_iterator 上使用随机访问算法
+77|在修改过程中使迭代器失效
+78|把相互重叠的 range 传给禁止重叠的算法
+79|要点
+80|算法依赖迭代器类别。
+81|更强的迭代器能支撑更强的算法。
+82|连续迭代器带来最快的优化。
+83|迭代器算法与 ranges 算法都作用于迭代器本身。
+84|来自 &lt;functional&gt; 的比较对象在两种形式中都可用。
+85|<code>if constexpr</code> 让算法能根据迭代器或 range 的强弱自动调整。
+86|<a href="/docs/08.algorithm/03.iteratorcategories/" class="prev-button">← 第8.3章: 迭代器类别</a> <a href="/" class="main-button">↑ 主页</a> <a href="/docs/08.algorithm/05.projections/" class="next-button">第8.5章: 投影 →</a>

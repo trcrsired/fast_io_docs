@@ -1,0 +1,76 @@
+1|第11.1章: 文件 I/O - 使用 fast_io 学习 C++ 教程
+2|第11.1章: 文件 I/O
+3|概述
+4|<code>fast_io</code> 通过若干带缓冲的文件类型提供高性能文件 I/O。它们在原生文件句柄之上加了用户态缓冲区，以获得最大吞吐量。
+5|1. 文件类型
+6|每种带缓冲的文件类型都有五种字符类型变体。默认使用 <code>char</code>；其余分别带 <code>u8</code>、<code>u16</code>、<code>u32</code> 前缀，或者带 <code>w</code> 前缀（表示 <code>wchar_t</code>）。
+7|方向
+8|<code>char</code>
+9|<code>char8_t</code>
+10|<code>char16_t</code>
+11|<code>char32_t</code>
+12|<code>wchar_t</code>
+13|输入
+14|<code>ibuf_file</code>
+15|<code>u8ibuf_file</code>
+16|<code>u16ibuf_file</code>
+17|<code>u32ibuf_file</code>
+18|<code>wibuf_file</code>
+19|输出
+20|<code>obuf_file</code>
+21|<code>u8obuf_file</code>
+22|<code>u16obuf_file</code>
+23|<code>u32obuf_file</code>
+24|<code>wobuf_file</code>
+25|输入/输出
+26|<code>iobuf_file</code>
+27|<code>u8iobuf_file</code>
+28|<code>u16iobuf_file</code>
+29|<code>u32iobuf_file</code>
+30|<code>wiobuf_file</code>
+31|所有文件类型都由 RAII 管理：对象离开作用域时文件会自动关闭。
+32|2. Hello World 示例
+33|这里是一个完整的文件 I/O 示例：
+34|3. 打开模式
+35|用 <code>::fast_io::open_mode</code> 控制文件如何打开。最常用的跨平台标志有：
+36|标志
+37|说明
+38|<code>open_mode::in</code>
+39|以读方式打开。
+40|<code>open_mode::out</code>
+41|以写方式打开。
+42|<code>open_mode::app</code>
+43|追加模式（写入落到末尾）。
+44|<code>open_mode::trunc</code>
+45|把已有文件截断为零长度。
+46|<code>open_mode::creat</code>
+47|文件不存在时创建它。
+48|<code>open_mode::excl</code>
+49|文件已存在则失败（也叫 <code>noreplace</code>）。
+50|<code>open_mode::direct</code>
+51|绕过操作系统页缓存（POSIX 的 <code>O_DIRECT</code>）。
+52|<code>open_mode::sync</code>
+53|同步 I/O &mdash; 每次写入后刷新。
+54|<code>open_mode::no_block</code>
+55|非阻塞模式。
+56|<code>open_mode::text</code>
+57|文本模式（换行转换）。在 DOS/Windows 上（不含 Cygwin），这会启用 CRLF 与 LF 之间的转换。在纯 POSIX 系统上被 <code>native_file</code> 忽略，但在 Windows 上可能被 POSIX 层兑现。只对 <code>c_file</code> 与 <code>filebuf_file</code> 有意义。
+58|<code>open_mode::temporary</code>
+59|创建一个关闭时即被删除的临时文件。
+60|此外还有针对 Windows 属性的平台专用标志（例如 <code>hidden</code>、<code>archive</code>、<code>compressed</code>、<code>encrypted</code>），以及 Linux 专用标志（例如 <code>no_atime</code>、<code>path</code>）。
+61|用 <code>|</code> 组合标志：
+62|4. UTF-8 文件 I/O
+63|对 UTF-8 文本文件，使用 <code>u8</code> 变体。注意 <code>u8string</code> 使用 <code>char8_t</code>，它与标准输出所用的 <code>char</code> 是不同的字符类型。要把 UTF-8 文本打印到控制台，可以用包住 <code>stdout</code> 的 <code>u8obuf_file</code>，或者用 <code>::fast_io::mnp::code_cvt</code> 在字符类型之间转换。
+64|5. 相对于某个目录打开文件
+65|<code>::fast_io::dir_file</code> 打开一个目录句柄。用 <code>at(df)</code> 相对于该目录打开文件 &mdash; 这比拼接完整路径更安全、更高效，也避免了路径解析带来的竞态。
+66|完整的目录遍历 API（<code>current(at(df))</code>、<code>recursive(at(df))</code> 以及目录项相关函数）在文件系统一章（第11.18章）中介绍。
+67|要点
+68|读用 <code>ibuf_file</code>，写用 <code>obuf_file</code>，两者都用用 <code>iobuf_file</code>。
+69|每种类型有五个字符变体：<code>char</code>、<code>u8</code>（<code>char8_t</code>）、<code>u16</code>（<code>char16_t</code>）、<code>u32</code>（<code>char32_t</code>）以及 <code>w</code>（<code>wchar_t</code>）。
+70|文件由 RAII 管理 &mdash; 离开作用域时自动关闭。
+71|用 <code>open_mode</code> 标志控制打开行为。没有 <code>open_mode::binary</code> &mdash; 原生文件永远是二进制模式。<code>open_mode::text</code> 在 DOS/Windows（不含 Cygwin）上启用 CRLF 与 LF 的转换；在纯 POSIX 上它被忽略，但在 Windows 上可能被 POSIX 层兑现。
+72|先 <code>using namespace ::fast_io::iomnp;</code>（它包含 <code>::fast_io::io</code>），然后就能直接调用 <code>println</code> / <code>print</code> / <code>scan</code>，以及像 <code>str_line_get</code> 这样的操纵器。
+73|逐行读取时使用 <code>scan</code> 搭配 <code>str_line_get</code> 操纵器：<code>for (::fast_io::string line; scan&lt;true&gt;(ibf, str_line_get(line)); ) { ... }</code>
+74|你不能在不同字符类型之间直接打印。用 <code>::fast_io::mnp::code_cvt</code> 转换，或者写到字符类型匹配的设备上。
+75|用 <code>::fast_io::dir_file</code> 打开目录，再用 <code>at(df)</code> 相对于它打开文件。目录遍历见第11.18章。
+76|<a href="/docs/11.io/" class="prev-button">&larr; 第11章: I/O</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/02.customtypes/" class="next-button">第11.2章: 自定义类型 &rarr;</a>

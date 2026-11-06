@@ -1,0 +1,40 @@
+1|第9.4章: 迭代器、范围与失效 - 使用 fast_io 学习 C++ 教程
+2|第9.4章: 迭代器、左闭范围与失效
+3|概述
+4|本节解释所有 <code>fast_io</code> 容器采用的左闭范围约定，讨论迭代器失效规则，并说明为什么应当尽量优先使用 <code>_index</code> 系列操作。
+5|1. 左闭范围
+6|所有 <code>fast_io</code> 容器都采用<strong>左闭</strong>（也叫<em>半开</em>）范围约定：范围记作 <code>[first, last)</code>，意思是它包含 <code>first</code> 指向的元素，但<em>不包含</em> <code>last</code> 指向的元素。
+7|这个约定有几个好处：
+8|<code>begin()</code> 到 <code>end()</code> 覆盖所有元素。
+9|空范围就是 <code>first == last</code>。
+10|距离 <code>last - first</code> 等于元素个数。
+11|2. 迭代器失效
+12|当你修改容器时，已有的迭代器可能失效（指向已被释放或搬移的内存）。弄清哪些操作会使哪些迭代器失效非常关键：
+13|容器
+14|插入会使这些失效
+15|删除会使这些失效
+16|<code>vector</code>
+17|<strong>所有</strong>迭代器（可能发生重新分配）
+18|指向被删元素及其之后所有元素的迭代器
+19|<code>deque</code>
+20|<strong>所有</strong>迭代器（任一端插入都可能重新分配块索引表）
+21|指向被删元素的迭代器；在头部或尾部删除时是所有迭代器；在中间删除时只有被删的迭代器
+22|<code>list</code>
+23|<strong>不会失效</strong> &mdash; 已有迭代器仍然有效
+24|只有指向被删元素的迭代器
+25|<code>forward_list</code>
+26|<strong>不会失效</strong> &mdash; 已有迭代器仍然有效
+27|只有指向被删元素的迭代器
+28|<code>array</code>
+29|不适用 &mdash; 大小固定，不能插入
+30|不适用 &mdash; 大小固定，不能删除
+31|<strong>危险：</strong>在 <code>vector::push_back()</code> 之后，指向该 vector 的<em>每一个</em>迭代器、引用和指针都可能失效，因为 vector 可能已经重新分配了存储。绝不要在 <code>vector</code> 上跨插入操作缓存迭代器。
+32|3. 优先使用 _index 操作
+33|由于迭代器可能在意想不到的时候失效，在 <code>vector</code> 和 <code>deque</code> 上操作时请优先使用基于下标的操作（<code>insert_index</code>、<code>erase_index</code> 和 <code>operator[]</code>）。它们带边界检查，也不会有失效问题：
+34|要点
+35|所有容器都使用左闭的 <code>[first, last)</code> 范围。
+36|<code>vector</code> 和 <code>deque</code> 在插入时会使所有迭代器失效。
+37|<code>list</code> 和 <code>forward_list</code> 在插入时从不会使已有迭代器失效。
+38|绝不要在连续容器上跨插入操作缓存迭代器。
+39|在 <code>vector</code> 和 <code>deque</code> 上，为了安全请优先使用 <code>_index</code> 系列操作。
+40|<a href="/docs/09.seqcontainers/03.inserteraseindex/" class="prev-button">&larr; 第9.3章: 按下标插入/删除</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/09.seqcontainers/05.unchecked/" class="next-button">第9.5章: 非检查操作 &rarr;</a>

@@ -3,37 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch10.4: Looking Keys Up - C++ Tutorial with fast_io</title>
+  <title>第10.4章: 按键查找 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch10.4: Looking Keys Up</h1>
+    <h1>第10.4章: 按键查找</h1>
     <p class="lang-switch"><a href="/docs/10.associativecontainers/04.lookup/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. The Two Questions</h2>
+      <h2>1. 两个问题</h2>
       <p>
-        Every lookup answers one of two questions, and there is a function for each:
+        每次查找都在回答两个问题中的一个，各有一个函数对应：
       </p>
       <ul>
         <li>
-          <strong>&ldquo;Is this key present?&rdquo;</strong> &mdash;
-          <code>contains(key)</code> returns <code>bool</code>. This is the
-          function you want most of the time.
+          <strong>“这个键在不在？”</strong> &mdash; <code>contains(key)</code> 返回 <code>bool</code>。大多数时候你要的就是这个。
         </li>
         <li>
-          <strong>&ldquo;Where is this key?&rdquo;</strong> &mdash;
-          <code>find(key)</code> returns an iterator, which you compare against
-          <code>cend()</code>.
+          <strong>“这个键在哪里？”</strong> &mdash; <code>find(key)</code> 返回一个迭代器，你拿它与 <code>cend()</code> 比较。
         </li>
       </ul>
       <p>
-        Both take a <strong>view</strong>, so nothing is allocated and nothing is
-        copied on a lookup. A string literal works directly:
+        两者都接受<strong>视图</strong>，所以查找时既不分配也不复制。字符串字面量可以直接用：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io_dsal/str_btree_set.h&gt;
@@ -58,28 +52,17 @@ int main()
 1
 </code></pre>
       <p>
-        <code>count</code> exists because the same code shape is written with other
-        containers where a key may repeat; here it is exactly
-        <code>contains</code> with a size as the result. Prefer
-        <code>contains</code> for a yes/no answer.
+        <code>count</code> 之所以存在，是因为同样的代码形状也会用在键可能重复的其他容器上；在这里它就是结果类型为大小的 <code>contains</code>。只要“有/没有”，就用 <code>contains</code>。
       </p>
       <div class="note">
-        <strong><code>find_key</code> is a synonym for <code>find</code>.</strong>
-        The B-tree containers provide both names. The Swiss-table containers provide
-        only <code>find_key</code>, because <code>find</code> would collide with the
-        plain-container convention of finding an <em>element</em> by value. Since
-        you always know what you are searching for, use <code>find_key</code> and the
-        code stays portable across all six containers.
+        <strong><code>find_key</code> 是 <code>find</code> 的同义词。</strong>B 树容器两个名字都提供。Swiss 表容器只提供 <code>find_key</code>，因为 <code>find</code> 会与“按值查找<em>元素</em>”的普通容器约定冲突。既然你总是知道自己找的是什么，那就用 <code>find_key</code>，代码就能在六个容器之间通用。
       </div>
     </section>
 
     <section>
-      <h2>2. <code>find</code> and the Iterator You Get Back</h2>
+      <h2>2. <code>find</code> 和它返回的迭代器</h2>
       <p>
-        <code>find</code> returns an iterator that is either the element or
-        <code>cend()</code>. Dereferencing the element gives you a
-        <code>::fast_io::cstring_view</code> &mdash; the container&rsquo;s own copy of
-        the key:
+        <code>find</code> 返回的迭代器要么指向该元素，要么是 <code>cend()</code>。解引用元素得到 <code>::fast_io::cstring_view</code> &mdash; 容器自己那份键的副本：
       </p>
       <pre><code class="language-cpp">
 auto it{s.find("beta")};
@@ -96,43 +79,37 @@ else
 found: beta
 </code></pre>
       <p>
-        Comparing against <code>cend()</code> is the idiom. There is no
-        <code>npos</code>, no index, no nullable pointer: an iterator that equals
-        <code>cend()</code> is the &ldquo;not found&rdquo; result.
+        与 <code>cend()</code> 比较就是惯用法。没有 <code>npos</code>、没有下标、没有可空指针：等于 <code>cend()</code> 的迭代器就是“未找到”的结果。
       </p>
       <div class="warning">
-        <strong>Do not dereference <code>cend()</code>.</strong> The usual
-        <code>if (it == s.cend())</code> check is not optional politeness &mdash; an
-        iterator that is not pointing at an element has nothing to give you.
+        <strong>不要解引用 <code>cend()</code>。</strong>那句 <code>if (it == s.cend())</code> 检查不是可有可无的礼貌 &mdash; 没有指向元素的迭代器什么也给不了你。
       </div>
     </section>
 
     <section>
-      <h2>3. Range Queries (B-tree Family Only)</h2>
+      <h2>3. 范围查询（仅 B 树家族）</h2>
       <p>
-        Because the B-tree keeps its keys sorted, it can answer questions about
-        <em>ranges</em> of keys. The Swiss-table containers cannot, which is the main
-        reason to pick a B-tree.
+        因为 B 树保持键有序，它能回答关于键的<em>范围</em>的问题。Swiss 表容器做不到，这也是选择 B 树的主要理由。
       </p>
       <table>
         <thead>
           <tr>
-            <th>Call</th>
-            <th>Returns the position of</th>
+            <th>调用</th>
+            <th>返回什么的位置</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>lower_bound(k)</code></td>
-            <td>the first key that is <strong>not less than</strong> <code>k</code></td>
+            <td>第一个<strong>不小于</strong> <code>k</code> 的键</td>
           </tr>
           <tr>
             <td><code>upper_bound(k)</code></td>
-            <td>the first key that is <strong>greater than</strong> <code>k</code></td>
+            <td>第一个<strong>大于</strong> <code>k</code> 的键</td>
           </tr>
           <tr>
             <td><code>equal_range(k)</code></td>
-            <td>both, packaged as <code>.first</code> and <code>.second</code></td>
+            <td>两者，打包在 <code>.first</code> 与 <code>.second</code> 中</td>
           </tr>
         </tbody>
       </table>
@@ -154,19 +131,12 @@ lower_bound(user:42) = user:42
 upper_bound(user:42) = user:7
 </code></pre>
       <p>
-        Keys are compared as plain byte strings, so <code>"user:101"</code> sorts
-        <strong>before</strong> <code>"user:42"</code>: <code>'1'</code> &lt;
-        <code>'4'</code>. Sort order is lexicographic, not numeric. If you need
-        numbers to sort numerically, pad them to a fixed width or store the numeric
-        part somewhere else.
+        键按纯字节串比较，所以 <code>"user:101"</code> 排在 <code>"user:42"</code> <strong>之前</strong>：<code>'1'</code> &lt; <code>'4'</code>。排序是字典序，不是数值序。如果你需要数字按数值排序，就把它们补齐到固定宽度，或者把数值部分存到别处。
       </p>
 
-      <h3>Scanning a prefix</h3>
+      <h3>扫描前缀</h3>
       <p>
-        &ldquo;All keys starting with <code>user:</code>&rdquo; is
-        <code>lower_bound</code> plus a loop with an early exit. <code>lower_bound</code>
-        puts you at the first candidate; you keep going while the prefix still
-        matches:
+        “所有以 <code>user:</code> 开头的键”就是 <code>lower_bound</code> 加一个带提前退出的循环。<code>lower_bound</code> 把你放到第一个候选处；只要前缀仍然匹配就继续：
       </p>
       <pre><code class="language-cpp">
 for (auto it{s.lower_bound("user:")}; it != s.cend(); ++it)
@@ -185,15 +155,14 @@ for (auto it{s.lower_bound("user:")}; it != s.cend(); ++it)
   user:7
 </code></pre>
       <p>
-        The cost of this scan is the lookup plus one step per matching key &mdash;
-        you never walk the keys that do not match.
+        这次扫描的代价是查找加上每个匹配键一步 &mdash; 你永远不会走过不匹配的键。
       </p>
     </section>
 
     <section>
-      <h2>4. Complete Recipe</h2>
+      <h2>4. 完整配方</h2>
       <p>
-        Put together, a lookup with a sensible fallback looks like this:
+        把上面组合起来，一次带合理兜底的查找长这样：
       </p>
       <pre><code class="language-cpp">
 bool has_user(::fast_io::str_btree_set const &db, ::fast_io::string_view name) noexcept
@@ -202,42 +171,30 @@ bool has_user(::fast_io::str_btree_set const &db, ::fast_io::string_view name) n
 }
 </code></pre>
       <p>
-        Two things are worth noticing. First, the parameter is a
-        <code>::fast_io::string_view</code>, not a <code>::fast_io::string</code> and
-        not <code>::fast_io::cstring_view</code>: a lookup never needs ownership, and
-        a plain view is the weakest requirement, so every caller can pass what they
-        have. Second, the function is <code>noexcept</code> &mdash; with the default
-        allocators every lookup in all six containers is <code>noexcept</code>,
-        because a lookup cannot allocate and cannot fail (Ch10.11).
+        有两点值得注意。第一，参数是 <code>::fast_io::string_view</code>，不是 <code>::fast_io::string</code>，也不是 <code>::fast_io::cstring_view</code>：查找从不需要所有权，而普通视图是要求最弱的形式，任何调用者都能把手里有的东西传进来。第二，函数是 <code>noexcept</code> &mdash; 在默认分配器下，六个容器中的所有查找都是 <code>noexcept</code>，因为查找既不能分配也不能失败（第10.11章）。
       </p>
       <p>
-        When the container is <code>const</code>, the iterators you get are
-        <code>const_iterator</code> &mdash; which is also what you get from a non-const
-        set, because a set&rsquo;s keys are immutable. For a map, a non-const
-        container gives you an <code>iterator</code> whose <code>mapped()</code> can
-        be written to (Ch10.7).
+        当容器是 <code>const</code> 时，你得到的是 <code>const_iterator</code> &mdash; 从非 const 的集合上得到的也是它，因为集合的键是不可变的。对映射来说，非 const 容器给出的 <code>iterator</code> 的 <code>mapped()</code> 是可以写入的（第10.7章）。
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
       <ul>
-        <li>Lookups take a view: no allocation, no copy, literals work directly.</li>
-        <li><code>contains(key)</code> is the yes/no answer; <code>count(key)</code> is 0 or 1.</li>
-        <li><code>find</code> / <code>find_key</code> return an iterator; compare with <code>cend()</code>, dereference to get a <code>cstring_view</code>.</li>
-        <li>Swiss containers have <code>find_key</code> only; use that name everywhere for portable code.</li>
-        <li><code>lower_bound</code> / <code>upper_bound</code> / <code>equal_range</code> exist only on the B-tree family.</li>
-        <li>Prefix scans are <code>lower_bound(prefix)</code> plus a loop that stops when the prefix stops matching.</li>
-        <li>Keys sort byte-wise: <code>"user:101"</code> comes before <code>"user:42"</code>.</li>
-        <li>All lookups are <code>noexcept</code> with the default allocators.</li>
+        <li>查找接受视图：不分配、不复制，字面量可直接使用。</li>
+        <li><code>contains(key)</code> 回答“有/没有”；<code>count(key)</code> 是 0 或 1。</li>
+        <li><code>find</code> / <code>find_key</code> 返回迭代器；与 <code>cend()</code> 比较，解引用得到 <code>cstring_view</code>。</li>
+        <li>Swiss 容器只有 <code>find_key</code>；为了代码通用，请处处使用这个名字。</li>
+        <li><code>lower_bound</code> / <code>upper_bound</code> / <code>equal_range</code> 只存在于 B 树家族。</li>
+        <li>前缀扫描就是 <code>lower_bound(prefix)</code> 加一个在前缀不再匹配时停止的循环。</li>
+        <li>键按字节排序：<code>"user:101"</code> 在 <code>"user:42"</code> 之前。</li>
+        <li>在默认分配器下所有查找都是 <code>noexcept</code>。</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/10.associativecontainers/03.contains/" class="prev-button">&larr; Ch10.3: contains()</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/10.associativecontainers/05.iterate/" class="next-button">Ch10.5: Iterating &rarr;</a>
+      <a href="/zhcn/docs/10.associativecontainers/03.contains/" class="prev-button">&larr; 第10.3章: contains()</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/10.associativecontainers/05.iterate/" class="next-button">第10.5章: 遍历 &rarr;</a>
     </div>
   </main>
 </body>

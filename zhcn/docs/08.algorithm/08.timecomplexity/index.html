@@ -3,115 +3,104 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch8.8: Time &amp; Space Complexity - C++ Tutorial</title>
+  <title>第8.8章: 时间与空间复杂度 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch8.8: Time &amp; Space Complexity</h1>
+    <h1>第8.8章: 时间与空间复杂度</h1>
     <p class="lang-switch"><a href="/docs/08.algorithm/08.timecomplexity/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>Overview</h2>
+      <h2>概述</h2>
 
       <p>
-        Time and space complexity describe how the running time and memory usage
-        of an algorithm grow as the input size grows. In this chapter we focus
-        on <strong>time complexity</strong>, but we also explain how space
-        complexity usually gives a <strong>lower bound</strong> on time.
+        时间复杂度和空间复杂度描述的是：随着输入规模的增长，算法的运行时间和内存占用如何增长。本章重点讲<strong>时间复杂度</strong>，同时也会解释为什么空间复杂度通常给出时间的<strong>下界</strong>。
       </p>
 
-      <p>You will learn:</p>
+      <p>你将学到：</p>
 
       <ul>
-        <li>a high-level view of the RAM model of computation</li>
-        <li>why space complexity is usually a lower bound on time complexity</li>
-        <li>the meaning of <code>O</code>, <code>&Omega;</code>, and <code>&Theta;</code></li>
-        <li>basic &Theta; computations</li>
-        <li>how to analyze simple loops</li>
-        <li>how to analyze ranges algorithms</li>
-        <li>why projection cost matters</li>
-        <li>why recursive Fibonacci has exponential time complexity</li>
-        <li>why games like Go are very hard for computers</li>
-        <li>how to compute recursive time complexity using the Master Theorem (appendix)</li>
+        <li>RAM 计算模型的高层视角</li>
+        <li>为什么空间复杂度通常是时间复杂度的下界</li>
+        <li><code>O</code>、<code>&Omega;</code> 与 <code>&Theta;</code> 的含义</li>
+        <li>基本的 &Theta; 计算</li>
+        <li>如何分析简单的循环</li>
+        <li>如何分析 ranges 算法</li>
+        <li>为什么投影的开销很重要</li>
+        <li>为什么递归版斐波那契具有指数时间复杂度</li>
+        <li>为什么围棋这类游戏对计算机来说非常困难</li>
+        <li>如何用主定理计算递归时间复杂度（附录）</li>
       </ul>
     </section>
 
     <section>
-      <h2>0. The model of computation</h2>
+      <h2>0. 计算模型</h2>
 
       <p>
-        When we talk about time complexity, we are always talking about the
-        running time of an algorithm on a particular abstract machine model.
-        The most common model is the <strong>RAM model</strong> (Random Access Machine).
+        当我们谈论时间复杂度时，谈的始终是某个特定抽象机器模型上算法的运行时间。最常见的模型是 <strong>RAM 模型</strong>（随机访问机）。
       </p>
 
-      <p>The RAM model assumes:</p>
+      <p>RAM 模型假设：</p>
 
       <ul>
-        <li>each basic operation (addition, comparison, assignment) takes constant time</li>
-        <li>memory access to any element takes constant time</li>
-        <li>the machine has unlimited memory</li>
+        <li>每个基本操作（加法、比较、赋值）耗时常数时间</li>
+        <li>访问任意元素的内存耗时常数时间</li>
+        <li>机器拥有无限内存</li>
       </ul>
 
       <p>
-        These assumptions make it possible to describe algorithms using simple
-        notations like <code>&Theta;(n)</code> and <code>O(n&nbsp;ln&nbsp;n)</code>.
+        这些假设使得我们能用 <code>&Theta;(n)</code>、<code>O(n&nbsp;ln&nbsp;n)</code> 这样简洁的记号来描述算法。
       </p>
     </section>
 
     <section>
-      <h2>1. Space complexity as a lower bound</h2>
+      <h2>1. 空间复杂度作为下界</h2>
 
       <p>
-        Space complexity measures how much memory an algorithm uses as a function
-        of the input size <code>n</code>. Time complexity measures how long it runs.
+        空间复杂度衡量算法使用的内存量随输入规模 <code>n</code> 变化的函数关系；时间复杂度衡量它运行多久。
       </p>
 
       <p>
-        Space complexity is usually a <strong>lower bound</strong> on time complexity.
-        If an algorithm uses <code>S(n)</code> space, it must spend at least
-        <code>&Omega;(S(n))</code> time to allocate, initialize, read, or manipulate
-        that space.
+        空间复杂度通常是时间复杂度的<strong>下界</strong>。如果一个算法使用了 <code>S(n)</code> 的空间，那么它至少要花 <code>&Omega;(S(n))</code> 的时间去分配、初始化、读取或操作这块空间。
       </p>
 
-      <p>Examples:</p>
+      <p>例子：</p>
 
       <ul>
-        <li>If an algorithm stores <code>n</code> elements → at least <code>&Omega;(n)</code> time.</li>
-        <li>If an algorithm uses <code>&Theta;(1)</code> space → time may be larger, but never smaller than <code>&Omega;(1)</code>.</li>
+        <li>如果一个算法存放了 <code>n</code> 个元素 → 时间至少是 <code>&Omega;(n)</code>。</li>
+        <li>如果一个算法使用 <code>&Theta;(1)</code> 空间 → 时间可能更大，但绝不会小于 <code>&Omega;(1)</code>。</li>
       </ul>
     </section>
 
     <section>
-      <h2>2. The three basic notations</h2>
+      <h2>2. 三种基本记号</h2>
 
       <p>
-        Time complexity uses three related notations:
+        时间复杂度使用三种相互关联的记号：
       </p>
 
       <ul>
-        <li><strong>O(f(n))</strong>: an upper bound</li>
-        <li><strong>&Omega;(f(n))</strong>: a lower bound</li>
-        <li><strong>&Theta;(f(n))</strong>: a tight bound</li>
+        <li><strong>O(f(n))</strong>：上界</li>
+        <li><strong>&Omega;(f(n))</strong>：下界</li>
+        <li><strong>&Theta;(f(n))</strong>：紧界</li>
       </ul>
 
       <p>
-        We use them precisely:
+        我们要严格地使用它们：
       </p>
 
       <ul>
-        <li><strong>&Theta;</strong> only when the bound is tight</li>
-        <li><strong>O</strong> when only an upper bound is known (e.g., <code>std::ranges::sort</code>)</li>
-        <li><strong>&Omega;</strong> when only a lower bound is known</li>
+        <li>只在界是紧的时用 <strong>&Theta;</strong></li>
+        <li>只知道上界时用 <strong>O</strong>（例如 <code>std::ranges::sort</code>）</li>
+        <li>只知道下界时用 <strong>&Omega;</strong></li>
       </ul>
     </section>
 
     <section>
-      <h2>3. Basic &Theta; computations</h2>
+      <h2>3. 基本的 &Theta; 计算</h2>
 
       <pre><code class="language-cpp">
 Θ(3n^3) = Θ(n^3)
@@ -122,12 +111,12 @@
       </code></pre>
 
       <p>
-        Only the highest-order term matters.
+        只有最高阶项起作用。
       </p>
     </section>
 
     <section>
-      <h2>4. Complexity of simple loops</h2>
+      <h2>4. 简单循环的复杂度</h2>
 
       <pre><code class="language-cpp">
 for (::std::size_t i{}; i != n; ++i) {
@@ -147,9 +136,9 @@ for (::std::size_t i{}; i != n; ++i)
     </section>
 
     <section>
-      <h2>5. Linear-time algorithms</h2>
+      <h2>5. 线性时间算法</h2>
 
-      <p>Examples:</p>
+      <p>例子：</p>
 
       <ul>
         <li><code>find</code>, <code>find_if</code></li>
@@ -167,31 +156,31 @@ for (::std::size_t i{}; i != n; ++i)
     </section>
 
     <section>
-      <h2>6. Binary search: O(ln&nbsp;n)</h2>
+      <h2>6. 二分查找：O(ln&nbsp;n)</h2>
 
       <pre><code class="language-cpp">
 auto it = ::std::ranges::lower_bound(v, value);
       </code></pre>
 
       <p>
-        Each iteration halves the search space → <strong>O(ln&nbsp;n)</strong>.
+        每次迭代把搜索空间减半 → <strong>O(ln&nbsp;n)</strong>。
       </p>
     </section>
 
     <section>
-      <h2>7. Sorting: O(n&nbsp;ln&nbsp;n)</h2>
+      <h2>7. 排序：O(n&nbsp;ln&nbsp;n)</h2>
 
       <pre><code class="language-cpp">
 ::std::ranges::sort(v, {}, &amp;Item::key);
       </code></pre>
 
       <p>
-        The C++ standard guarantees only an upper bound → <strong>O(n&nbsp;ln&nbsp;n)</strong>.
+        C++ 标准只保证上界 → <strong>O(n&nbsp;ln&nbsp;n)</strong>。
       </p>
     </section>
 
     <section>
-      <h2>8. Why projection cost matters</h2>
+      <h2>8. 为什么投影的开销很重要</h2>
 
       <pre><code class="language-cpp">
 ::std::ranges::sort(v, {}, &amp;Item::key);
@@ -204,12 +193,12 @@ auto it = ::std::ranges::lower_bound(v, value);
       </code></pre>
 
       <p>
-        Expensive projections dominate runtime.
+        昂贵的投影会主导运行时间。
       </p>
     </section>
 
     <section>
-      <h2>9. Numeric algorithms</h2>
+      <h2>9. 数值算法</h2>
 
       <pre><code class="language-cpp">
 ::std::size_t total = ::std::transform_reduce(
@@ -224,7 +213,7 @@ auto it = ::std::ranges::lower_bound(v, value);
     </section>
 
     <section>
-      <h2>10. Recursive Fibonacci: exponential time</h2>
+      <h2>10. 递归斐波那契：指数时间</h2>
 
       <pre><code class="language-cpp">
 ::std::size_t fib(::std::size_t n) {
@@ -237,41 +226,40 @@ auto it = ::std::ranges::lower_bound(v, value);
     </section>
 
     <section>
-      <h2>11. NP problems and hard search spaces</h2>
+      <h2>11. NP 问题与困难的搜索空间</h2>
 
       <p>
-        Many real-world problems have exponential search spaces and are believed
-        to require exponential time to solve exactly.
+        现实世界中的许多问题拥有指数规模的搜索空间，并且人们认为它们无法在指数时间内被精确求解。
       </p>
     </section>
 
     <section>
-      <h2>12. Why Go is extremely hard for computers</h2>
+      <h2>12. 为什么围棋对计算机极其困难</h2>
 
       <pre><code class="language-cpp">
 200^200
       </code></pre>
 
       <p>
-        Go has an exponential game tree → brute force is impossible.
+        围棋的博弈树是指数级的 → 穷举不可能。
       </p>
     </section>
 
     <section>
-      <h2>13. Why AlphaGo succeeded</h2>
+      <h2>13. 为什么 AlphaGo 能成功</h2>
 
       <p>
-        AlphaGo did not solve Go exactly. It used:
+        AlphaGo 并没有精确地求解围棋，它使用了：
       </p>
 
       <ul>
-        <li>deep neural networks</li>
-        <li>policy networks</li>
-        <li>Monte Carlo Tree Search</li>
+        <li>深度神经网络</li>
+        <li>策略网络</li>
+        <li>蒙特卡洛树搜索</li>
       </ul>
 
       <p>
-        It approximated good moves instead of exploring the full exponential tree.
+        它用近似的方式找出好棋，而不是遍历整棵指数级的树。
       </p>
 
       <div class="video-container">
@@ -288,11 +276,10 @@ auto it = ::std::ranges::lower_bound(v, value);
     </section>
 
     <section>
-      <h2>14. Appendix: Ch8.8.1 — Master Theorem</h2>
+      <h2>14. 附录：第8.8.1章 —— 主定理</h2>
 
       <p>
-        Many recursive algorithms have time complexity described by a recurrence
-        of the form:
+        许多递归算法的时间复杂度可以用如下形式的递推式来描述：
       </p>
 
       <pre><code class="language-cpp">
@@ -300,42 +287,36 @@ T(n) = a · T(n / b) + f(n)
       </code></pre>
 
       <p>
-        The appendix teaches you how to solve such recurrences using the
-        <strong>Master Theorem</strong>, with examples including mergesort and
-        quicksort.
+        附录将教你如何用<strong>主定理</strong>求解这类递推式，并给出归并排序和快速排序等例子。
       </p>
 
       <p>
-        You can read the full appendix here:
+        你可以在这里阅读完整附录：
       </p>
 
       <p>
-        <a href="/zhcn/docs/08.algorithm/08.timecomplexity/01.master/" class="next-button">
-          Open Ch8.8.1: Master Theorem →
-        </a>
+        <a href="/zhcn/docs/08.algorithm/08.timecomplexity/01.master/" class="next-button"> 打开第8.8.1章: 主定理 → </a>
       </p>
     </section>
 
     <section>
-      <h2>Key takeaways</h2>
+      <h2>要点</h2>
 
       <ul>
-        <li><strong>&Theta;(n)</strong>: linear scans</li>
-        <li><strong>&Theta;(n^2)</strong>: nested loops</li>
-        <li><strong>O(ln&nbsp;n)</strong>: binary search</li>
-        <li><strong>O(n&nbsp;ln&nbsp;n)</strong>: sorting</li>
-        <li><strong>&Theta;(2^n)</strong>: naive Fibonacci</li>
-        <li>Go and many NP-like problems have exponential search spaces</li>
-        <li>AlphaGo succeeds by approximating, not solving exactly</li>
-        <li>The Master Theorem (appendix) helps analyze recursive algorithms</li>
+        <li><strong>&Theta;(n)</strong>：线性扫描</li>
+        <li><strong>&Theta;(n^2)</strong>：嵌套循环</li>
+        <li><strong>O(ln&nbsp;n)</strong>：二分查找</li>
+        <li><strong>O(n&nbsp;ln&nbsp;n)</strong>：排序</li>
+        <li><strong>&Theta;(2^n)</strong>：朴素斐波那契</li>
+        <li>围棋和许多类 NP 问题具有指数级搜索空间</li>
+        <li>AlphaGo 靠近似而非精确求解获得成功</li>
+        <li>主定理（附录）帮助分析递归算法</li>
       </ul>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/08.algorithm/07.numeric/" class="prev-button">← Ch8.7: Numeric Algorithms</a>
-      <a href="/zhcn/" class="main-button">↑ 主页</a>
-      <a href="/zhcn/docs/08.algorithm/09.rammachine/" class="next-button">Ch8.9: The RAM Model &amp; Its Limits →</a>
+      <a href="/zhcn/docs/08.algorithm/07.numeric/" class="prev-button">← 第8.7章: 数值算法</a> <a href="/zhcn/" class="main-button">↑ 主页</a> <a href="/zhcn/docs/08.algorithm/09.rammachine/" class="next-button">第8.9章: RAM 模型及其局限 →</a>
     </div>
   </main>
 </body>
