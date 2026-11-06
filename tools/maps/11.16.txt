@@ -1,34 +1,86 @@
 1|第11.16章: Wine 文件 API - 使用 fast_io 学习 C++ 教程
 2|第11.16章: Wine 文件 API
 3|概述
-4|<a href="https://www.winehq.org/" target="_blank" rel="noopener noreferrer">Wine</a>（“Wine Is Not an Emulator”）让 Windows 二进制程序能在 Linux、FreeBSD 等 POSIX 系统上运行。Wine 通过把 Win32 与 NT API 翻译成宿主系统调用来实现它们 &mdash; 而那些宿主系统调用最终使用的就是 POSIX 文件描述符。
-5|当 <code>fast_io</code> 作为 Wine 自身的一部分构建时（或者用于在 Wine 下运行、需要直接与宿主打交道的代码时），它通过下面这些类型暴露这一层：
-6|<code>::fast_io::wine_file</code> &mdash; 对 Wine 宿主文件描述符的 RAII 拥有式包装。
-7|<code>::fast_io::wine_io_observer</code> &mdash; 对已有 Wine 宿主文件描述符的非拥有视图。
-8|<p> <strong>注意：</strong>上游 <code>fast_io</code> 中的 Wine 层尚未完成。本节描述的是它按计划落地时的设计。不过这些概念与你在 POSIX、Win32、NT 上已经见过的 RAII / observer 模式完全一致。 </p>
-9|模式是一样的
-10|<code>fast_io</code> 中的每一层都遵循同样的形状：
-11|一个名为 <code>xxx_file</code> 的拥有式 RAII 类型。
-12|一个名为 <code>xxx_io_observer</code> 的非拥有观察者类型。
-13|对 <code>print</code>、<code>println</code> 与 <code>scan</code> 的完整支持。
-14|能够包裹来自外部代码的原始句柄。
-15|<code>wine_file</code> 也不例外。概念上它长这样：
-16|包裹 Wine 宿主文件描述符
-17|当 Wine 翻译一次 Windows <code>CreateFileW</code> 调用时，它最终会产生一个宿主 POSIX 文件描述符。你可以把这个描述符包进 <code>wine_io_observer</code>，从而通过 <code>fast_io</code> 继续使用它：
-18|为什么需要这一层？
-19|Wine 是一套复杂的基础设施。位于 Wine 内部的代码（例如 Wine 自己的 <code>ntdll.dll</code> 或 <code>kernel32.dll</code> 实现）需要：
-20|从客户代码那里接收一个 Windows <code>HANDLE</code>。
-21|通过 Wine 的内部表把它翻译成宿主 <code>int fd</code>。
-22|在那个 <code>fd</code> 上执行宿主 I/O，同时仍能把错误以 NTSTATUS 码的形式呈现给客户。
-23|<code>wine_file</code> 让 Wine 开发者获得与其他层一样的 RAII / observer 使用体验，而不必在每个调用点手写资源管理。
-24|与其他层的关系
-25|在运行 Wine 的 POSIX 宿主上，完整的分层是这样的：
-26|客户的 Windows 二进制程序调用 <code>WriteFile</code>，这在 Wine 内部解析为 <code>ntdll!NtWriteFile</code>。
-27|Wine 的 <code>ntdll</code> 把它翻译成对宿主 fd 的一次 POSIX <code>write(2)</code> 调用 &mdash; 而 <code>wine_file</code> 包裹的正是这个 fd。
-28|因此从客户的角度，I/O 走的是 NT 层；从宿主的角度，走的是 POSIX。<code>wine_file</code> 就住在两者之间的接缝上。
-29|小结
-30|<code>::fast_io::wine_file</code> 是 Wine 宿主文件描述符的 RAII 包装。
-31|<code>::fast_io::wine_io_observer</code> 是非拥有视图。
-32|Wine 层仍在开发中，但它的设计与 <code>posix_file</code>、<code>win32_file</code>、<code>nt_file</code> 完全同构。
-33|它位于 Windows 客户与 Wine 所运行的 POSIX 宿主之间的边界上。
-34|<a href="/docs/11.io/15.nt/" class="prev-button">&larr; 第11.15章: NT 文件 API</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/17.layers/" class="next-button">第11.17章: 文件各层之间的关系 &rarr;</a>
+4|<a href="https://www.winehq.org/" target="_blank" rel="noopener noreferrer">Wine</a>（“Wine Is Not an Emulator”）让 Windows 二进制程序运行在 Linux、FreeBSD 等 POSIX 系统上。Wine 通过把 Win32 与 NT API 翻译成宿主的系统调用来实现它们 &mdash; 而那些系统调用最终使用的是 POSIX 文件描述符。
+5|Windows 二进制程序无法调用 <code>write(2)</code>：它只认识 <code>HANDLE</code>。所以当以 <em>Windows</em> 模块身份运行的 <code>fast_io</code> 代码需要用到 Wine 藏在 <code>HANDLE</code> 底下的那个宿主文件描述符时，仅靠 <code>&lt;windows.h&gt;</code> 是拿不到的 &mdash; 它需要一座位于宿主一侧、说固定 C ABI 的桥。那座桥就是 <a href="https://github.com/trcrsired/libwineunix" target="_blank" rel="noopener noreferrer"><code>libwineunix</code></a>，<code>fast_io</code> 通过下面两个类型把它暴露出来：
+6|<code>::fast_io::wine_file</code> &mdash; 对 Wine 宿主文件描述符的 RAII 所有权包装。
+7|<code>::fast_io::wine_io_observer</code> &mdash; 对已有 Wine 宿主文件描述符的非所有权视图。
+8|<p> <strong>重要 &mdash; <code>wineunix.dll</code> 并不随 <code>fast_io</code> 一起发布。</strong><code>fast_io</code> 只包含它自己那份该桥 ABI 的私有视图，位于 <code>include/fast_io_hosted/platforms/wine/</code>：其中的导入声明用 <code>__asm__</code> 标签绑定到 DLL 的导出名上，因此同时包含 <code>fast_io</code> 与 Wine 自带的 <code>&lt;__wine_unix/__wine_unix.h&gt;</code> 的翻译单元不会发生冲突，也不需要任何 winelibc 头文件。<strong>DLL 本身必须由你自己构建</strong>，源码在 <a href="https://github.com/trcrsired/libwineunix" target="_blank" rel="noopener noreferrer">https://github.com/trcrsired/libwineunix</a>。在你构建它之前，<code>::fast_io::wine_file</code> 在链接期无函数可调，在运行期也无模块可加载。</p>
+9|自己构建 <code>wineunix.dll</code>
+10|实现是一个独立项目：<a href="https://github.com/trcrsired/libwineunix" target="_blank" rel="noopener noreferrer">https://github.com/trcrsired/libwineunix</a>。把它克隆下来、构建、然后把产物放在你自己的 <code>.exe</code> 旁边。它最多产出三个构建产物，你需要哪些取决于程序将在哪里运行：
+11|产物
+12|类型
+13|用途
+14|<code>wineunix.dll</code>
+15|PE 动态库
+16|Windows 一侧链接的那座桥。导出 <code>__wine_unix_*</code> C ABI。
+17|<code>libwineunix.so</code>
+18|宿主共享对象
+19|unix 那一半。DLL <em>在 Wine 下</em>运行时调用的就是它；没有它，DLL 只能走 NT 路径。
+20|<code>libwineunix.a</code>
+21|PE 导入库
+22|由 <code>llvm-dlltool</code> 从 <code>def/wineunix.def</code> 生成。你的 <code>.exe</code> 链接它一次即可。
+23|CMake 构建由下面这些选项驱动：
+24|选项
+25|默认值
+26|含义
+27|<code>LIBWINEUNIX_UNIXLIB</code>
+28|<code>ON</code>
+29|用宿主编译器构建 <code>libwineunix.so</code>。需要非 Windows 宿主。
+30|<code>LIBWINEUNIX_WINEUNIX_DLL</code>
+31|<code>OFF</code>
+32|构建 PE 版 <code>wineunix.dll</code>。
+33|<code>LIBWINEUNIX_WINEUNIX_IMPL</code>
+34|<code>bundled</code>
+35|<code>bundled</code>、<code>unixcall</code> 或 <code>nt</code> &mdash; 见下文。
+36|<code>LIBWINEUNIX_IMPORT_LIB</code>
+37|<code>ON</code>
+38|用 <code>llvm-dlltool</code> 生成 <code>libwineunix.a</code>。
+39|<code>LIBWINEUNIX_PE_CXX</code>
+40|<code>clang++</code>
+41|面向 PE 的编译器驱动。PE 一侧由独立的、以 Windows 为目标的编译器编译，而不是由项目编译器编译。
+42|<code>LIBWINEUNIX_PE_CXXFLAGS</code>
+43|空
+44|传给该驱动的额外选项（例如 <code>--target=x86_64-w64-windows-gnu</code>、<code>--sysroot=...</code>）。
+45|<code>LIBWINEUNIX_PE_MACHINE</code>
+46|自动推导
+47|导入库使用的 <code>llvm-dlltool -m</code> 机器类型（<code>i386:x86-64</code>、<code>arm64</code> 等）。留空时由 <code>CMAKE_SYSTEM_PROCESSOR</code> 推导。
+48|<code>LIBWINEUNIX_FAST_IO_TEST</code>
+49|<code>OFF</code>
+50|构建一个测试 <code>.exe</code>，用来驱动本页讲的这一层。把 <code>LIBWINEUNIX_FAST_IO_INCLUDE</code> 指向 <code>fast_io/include</code> 目录。
+51|在 Wine 下完整跑通整条链路的一次构建大致是这样：
+52|<code>bundled</code> 实现通常就是你想要的那个：一个 DLL 同时携带<em>两条</em>路径，在运行期决定走哪条。在 Wine 下它会解析 <code>libwineunix.so</code> 并通过它调用；在真正的 Windows 机器上，同一个二进制改为转发给 <code>ntdll</code>。一个 <code>.exe</code>、一个 DLL，两个世界之间无需重新构建、也无需替换 DLL：
+53|在 Wine 下：<code>your.exe &rarr; wineunix.dll &rarr; libwineunix.so &rarr; libc</code>
+54|在 Windows 上：<code>your.exe &rarr; wineunix.dll &rarr; ntdll</code>
+55|<code>unixcall</code> 只构建第一条路径（此时它依赖 <code>libwineunix.so</code>，且只能在 Wine 下运行）；<code>nt</code> 只构建第二条。它们的存在是为了单独测试各自那一半，而不是为了发布。
+56|因为导入库就是一个普通的 PE 导入库，链接方式很平常：链接一次 <code>libwineunix.a</code>，再把 <code>wineunix.dll</code> 放在可执行文件旁边即可。
+57|模式是一样的
+58|<code>fast_io</code> 中的每一层都遵循同样的形状：
+59|一个名为 <code>xxx_file</code> 的所有权 RAII 类型。
+60|一个名为 <code>xxx_io_observer</code> 的非所有权观察者类型。
+61|对 <code>print</code>、<code>println</code> 与 <code>scan</code> 的完整支持。
+62|能够包装来自外部代码的原始句柄。
+63|<code>wine_file</code> 也不例外。概念上它长这样：
+64|包装一个 Wine 宿主文件描述符
+65|当 Wine 翻译一个 Windows 的 <code>CreateFileW</code> 调用时，它最终会拿到一个宿主 POSIX 文件描述符，而 DLL 可以把这个数字交给你。用 <code>wine_io_observer</code> 把它包起来，你就能继续用 <code>fast_io</code> 操作它，同时不取得所有权 &mdash; 观察者绝不会关闭不是它打开的描述符：
+66|<code>::fast_io::wine_stdout()</code>、<code>wine_stdin()</code> 与 <code>wine_stderr()</code> 是这一层的标准流观察者，也是两种 DLL 实现唯一肉眼可见的差别：unixcall 路径给出 <code>unix_fd + 1</code>，NT 路径给出进程的 <code>StandardOutput</code> 句柄，两者都被包装成宿主 fd，所以你的其余代码分辨不出它们的区别。
+67|为什么需要这一层？
+68|Wine 是一套复杂的基础设施。生活在 Wine 内部的代码（例如 Wine 自己对 <code>ntdll.dll</code> 或 <code>kernel32.dll</code> 的实现）需要：
+69|从客户机代码那里接收一个 Windows <code>HANDLE</code>。
+70|通过 Wine 内部表把它翻译成宿主 <code>int fd</code>。
+71|在这个 <code>fd</code> 上做宿主 I/O，同时仍能把错误以 NTSTATUS 码的形式抛回客户机。
+72|<code>fast_io</code> 的 Wine 层在不用 winelibc 的前提下做到了这件事：<code>platforms/wine/api.h</code> 自己声明 DLL 的导出符号，用 <code>__asm__</code> 标签绑定到导出名，标志位取值也与 Wine 自己的 ABI 保持一致。因此一个已经在用 <code>fast_io</code> 的 Windows 模块，只需链接一个导入库就获得了宿主 I/O &mdash; 不需要第二套工具链，不需要 winelib，不需要重编整个世界。
+73|与其他层的关系
+74|在运行 Wine 的 POSIX 宿主上，完整的分层是这样的：
+75|客户机上的 Windows 二进制调用 <code>WriteFile</code>。在 Wine 内部它被解析为 <code>ntdll!NtWriteFile</code>。
+76|Wine 的 <code>ntdll</code> 把它翻译成对某个宿主 fd 的 POSIX <code>write(2)</code> 调用 &mdash; 那个 fd 就是 <code>wine_file</code> 所包装的东西。
+77|同一个进程里的 <code>fast_io</code> 代码可以完全绕过这条路径：<code>wine_file</code> 直接向 <code>wineunix.dll</code> 索要宿主描述符并向它写入。
+78|所以从客户机的角度看，这次 I/O 走的是 NT 层；从宿主的角度看，它走的是 POSIX。<code>wine_file</code> 就活在这两者的接缝处。
+79|小结
+80|<code>::fast_io::wine_file</code> 是 Wine 宿主文件描述符的 RAII 包装；<code>::fast_io::wine_io_observer</code> 是非所有权视图。
+81|<code>wine_file</code> 与 <code>wine_io_observer</code> 之外的每一层（POSIX、Win32、NT）都以完全相同的方式工作。
+82|那座桥是 <code>wineunix.dll</code> + <code>libwineunix.so</code>，来自 <a href="https://github.com/trcrsired/libwineunix" target="_blank" rel="noopener noreferrer">github.com/trcrsired/libwineunix</a>。<strong>它必须由你自己构建</strong>：<code>fast_io</code> 只提供 ABI 声明，导入库也要你用 <code>llvm-dlltool</code> 自己生成。
+83|<code>bundled</code> 版 DLL 同时适用于两个世界：在 Wine 下走 unixlib，在真正的 Windows 上走 <code>ntdll</code>。
+84|这里的一切都是 <code>throws</code>：打开、读取、写入与刷新都会把失败以赫布异常的形式报告出来，和 <code>posix_file</code>、<code>win32_file</code>、<code>nt_file</code> 完全一样。
+85|它活在一个 Windows 客户机与其所运行的 POSIX 宿主之间的边界上。
+86|<a href="/docs/11.io/15.nt/" class="prev-button">&larr; 第11.15章: NT 文件 API</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/11.io/17.layers/" class="next-button">第11.17章: 文件层级之间的关系 &rarr;</a>

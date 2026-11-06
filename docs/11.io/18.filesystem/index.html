@@ -34,14 +34,24 @@
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main(int argc, char** argv) {
-    using namespace ::fast_io::iomnp;
+int main(int argc, char** argv)
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    // From a string literal (no wrapping needed)
-    ::fast_io::dir_file df(u8"/home/user/docs");
+        // From a string literal (no wrapping needed)
+        ::fast_io::dir_file df(u8"/home/user/docs");
 
-    // From a runtime C string (must wrap with os_c_str)
-    ::fast_io::dir_file df2(::fast_io::mnp::os_c_str(argv[1]));
+        // From a runtime C string (must wrap with os_c_str)
+        ::fast_io::dir_file df2(::fast_io::mnp::os_c_str(argv[1]));
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -70,24 +80,34 @@ auto entry = at(df);  // at_entry anchored at my_directory
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::dir_file df(u8".");
-
-    for (auto const&amp; ent : current(at(df)))
+int main()
+{
+    try
     {
-        if (is_dot(ent)) continue;  // skip . and ..
+        using namespace ::fast_io::iomnp;
 
-        switch (type(ent)) {
-            using enum ::fast_io::file_type;
-        case directory: print("[DIR]  "); break;
-        case symlink:   print("[LINK] "); break;
-        case regular:   print("[FILE] "); break;
-        default:        print("[OTHER]");
+        ::fast_io::dir_file df(u8".");
+
+        for (auto const&amp; ent : current(at(df)))
+        {
+            if (is_dot(ent)) continue;  // skip . and ..
+
+            switch (type(ent)) {
+                using enum ::fast_io::file_type;
+            case directory: print("[DIR]  "); break;
+            case symlink:   print("[LINK] "); break;
+            case regular:   print("[FILE] "); break;
+            default:        print("[OTHER]");
+            }
+            println(::fast_io::mnp::code_cvt(u8filename(ent)));
         }
-        println(::fast_io::mnp::code_cvt(u8filename(ent)));
     }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -102,33 +122,43 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::dir_file df(u8"src");
-
-    ::std::size_t cpp_count{};
-    ::std::size_t total_lines{};
-
-    for (auto const&amp; ent : recursive(at(df)))
+int main()
+{
+    try
     {
-        if (type(ent) != ::fast_io::file_type::regular) continue;
+        using namespace ::fast_io::iomnp;
 
-        ::std::u8string_view ext{u8extension(ent)};
-        if (ext == u8".cpp" || ext == u8".h")
+        ::fast_io::dir_file df(u8"src");
+
+        ::std::size_t cpp_count{};
+        ::std::size_t total_lines{};
+
+        for (auto const&amp; ent : recursive(at(df)))
         {
-            ++cpp_count;
+            if (type(ent) != ::fast_io::file_type::regular) continue;
 
-            // Load the file and count lines
-            ::fast_io::native_file_loader loader(drt(ent));
-            for (auto ch : loader)
+            ::std::u8string_view ext{u8extension(ent)};
+            if (ext == u8".cpp" || ext == u8".h")
             {
-                if (ch == u8'\n') ++total_lines;
+                ++cpp_count;
+
+                // Load the file and count lines
+                ::fast_io::native_file_loader loader(drt(ent));
+                for (auto ch : loader)
+                {
+                    if (ch == u8'\n') ++total_lines;
+                }
             }
         }
-    }
 
-    println("Found ", cpp_count, " C++ files with ", total_lines, " total lines");
+        println("Found ", cpp_count, " C++ files with ", total_lines, " total lines");
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -229,19 +259,29 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::dir_file df(u8"data");
-
-    for (auto const&amp; ent : current(at(df)))
+int main()
+{
+    try
     {
-        if (type(ent) != ::fast_io::file_type::regular) continue;
+        using namespace ::fast_io::iomnp;
 
-        // Open the entry directly using drt(ent)
-        ::fast_io::native_file_loader loader(drt(ent));
-        println(::fast_io::mnp::code_cvt(u8filename(ent)), ": ", loader.size(), " bytes");
+        ::fast_io::dir_file df(u8"data");
+
+        for (auto const&amp; ent : current(at(df)))
+        {
+            if (type(ent) != ::fast_io::file_type::regular) continue;
+
+            // Open the entry directly using drt(ent)
+            ::fast_io::native_file_loader loader(drt(ent));
+            println(::fast_io::mnp::code_cvt(u8filename(ent)), ": ", loader.size(), " bytes");
+        }
     }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>

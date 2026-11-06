@@ -33,13 +33,22 @@
 #include &lt;fast_io_device.h&gt;
 #include &lt;cstdio&gt;
 
-int main() {
-    // Using c_file for RAII
-    ::fast_io::c_file cf(u8"test.txt", ::fast_io::open_mode::out);
-    std::fprintf(cf.fp, "%s", "Hello, World!\n");
-    std::fflush(cf.fp);  // Force write to disk
-    // File is automatically closed when cf goes out of scope
-    return 0;
+int main()
+{
+    try
+    {
+        // Using c_file for RAII
+        ::fast_io::c_file cf(u8"test.txt", ::fast_io::open_mode::out);
+        std::fprintf(cf.fp, "%s", "Hello, World!\n");
+        std::fflush(cf.fp);  // Force write to disk
+        // File is automatically closed when cf goes out of scope
+        return 0;
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
 }
 </code></pre>
     </section>
@@ -69,25 +78,34 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 #include &lt;cstdio&gt;
 
-int main() {
-    int x{42};
-    double pi{3.14159};
+int main()
+{
+    try
+    {
+        int x{42};
+        double pi{3.14159};
 
-    // printf to stdout (format string has only specifiers, all literals in args)
-    std::printf("%s%d%s%.2f%s", "x = ", x, ", pi = ", pi, "\n");
+        // printf to stdout (format string has only specifiers, all literals in args)
+        std::printf("%s%d%s%.2f%s", "x = ", x, ", pi = ", pi, "\n");
 
-    // fprintf to file (with RAII)
-    ::fast_io::c_file cf(u8"output.txt", ::fast_io::open_mode::out);
-    std::fprintf(cf.fp, "%s%d%s", "x = ", x, "\n");
+        // fprintf to file (with RAII)
+        ::fast_io::c_file cf(u8"output.txt", ::fast_io::open_mode::out);
+        std::fprintf(cf.fp, "%s%d%s", "x = ", x, "\n");
 
-    // sprintf to string buffer
-    char buffer[100];
-    std::sprintf(buffer, "%s%d", "Value: ", x);
+        // sprintf to string buffer
+        char buffer[100];
+        std::sprintf(buffer, "%s%d", "Value: ", x);
 
-    // snprintf with size limit (safer)
-    std::snprintf(buffer, sizeof(buffer), "%s%d", "Value: ", x);
+        // snprintf with size limit (safer)
+        std::snprintf(buffer, sizeof(buffer), "%s%d", "Value: ", x);
 
-    return 0;
+        return 0;
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
 }
 </code></pre>
     </section>
@@ -113,23 +131,32 @@ int main() {
 #include &lt;cstdio&gt;
 #include &lt;memory&gt;
 
-int main() {
-    int x{};
-    double y{};
+int main()
+{
+    try
+    {
+        int x{};
+        double y{};
 
-    // scanf from stdin
-    std::printf("Enter two numbers: ");
-    std::scanf("%d%lf", ::std::addressof(x), ::std::addressof(y));
+        // scanf from stdin
+        std::printf("Enter two numbers: ");
+        std::scanf("%d%lf", ::std::addressof(x), ::std::addressof(y));
 
-    // fscanf from file (with RAII)
-    ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::in);
-    std::fscanf(cf.fp, "%d%lf", ::std::addressof(x), ::std::addressof(y));
+        // fscanf from file (with RAII)
+        ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::in);
+        std::fscanf(cf.fp, "%d%lf", ::std::addressof(x), ::std::addressof(y));
 
-    // sscanf from string
-    char const* str{"42 3.14"};
-    std::sscanf(str, "%d%lf", ::std::addressof(x), ::std::addressof(y));
+        // sscanf from string
+        char const* str{"42 3.14"};
+        std::sscanf(str, "%d%lf", ::std::addressof(x), ::std::addressof(y));
 
-    return 0;
+        return 0;
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
 }
 </code></pre>
     </section>
@@ -158,29 +185,38 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 #include &lt;cstdio&gt;
 
-int main() {
-    // Write characters (with RAII)
-    ::fast_io::c_file cf_out(u8"test.txt", ::fast_io::open_mode::out);
-    std::fputc('A', cf_out.fp);
-    std::fputs("Hello\n", cf_out.fp);
+int main()
+{
+    try
+    {
+        // Write characters (with RAII)
+        ::fast_io::c_file cf_out(u8"test.txt", ::fast_io::open_mode::out);
+        std::fputc('A', cf_out.fp);
+        std::fputs("Hello\n", cf_out.fp);
 
-    // Read characters
-    ::fast_io::c_file cf_in(u8"test.txt", ::fast_io::open_mode::in);
-    int ch{std::fgetc(cf_in.fp)};
-    std::printf("First char: %c\n", ch);
+        // Read characters
+        ::fast_io::c_file cf_in(u8"test.txt", ::fast_io::open_mode::in);
+        int ch{std::fgetc(cf_in.fp)};
+        std::printf("First char: %c\n", ch);
 
-    // Read line
-    char buffer[100];
-    std::fgets(buffer, sizeof(buffer), cf_in.fp);
-    std::printf("Line: %s", buffer);
+        // Read line
+        char buffer[100];
+        std::fgets(buffer, sizeof(buffer), cf_in.fp);
+        std::printf("Line: %s", buffer);
 
-    // Push back
-    std::ungetc(ch, cf_in.fp);
+        // Push back
+        std::ungetc(ch, cf_in.fp);
 
-    // puts to stdout
-    std::puts("Hello, World!");  // Adds newline automatically
+        // puts to stdout
+        std::puts("Hello, World!");  // Adds newline automatically
 
-    return 0;
+        return 0;
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
 }
 </code></pre>
     </section>
@@ -209,21 +245,30 @@ struct Point {
     int y;
 };
 
-int main() {
-    Point p1{10, 20};
-    Point p2{};
+int main()
+{
+    try
+    {
+        Point p1{10, 20};
+        Point p2{};
 
-    // Write binary data (with RAII)
-    ::fast_io::c_file cf_out(u8"points.bin", ::fast_io::open_mode::out | ::fast_io::open_mode::binary);
-    std::fwrite(&amp;p1, sizeof(Point), 1, cf_out.fp);
+        // Write binary data (with RAII)
+        ::fast_io::c_file cf_out(u8"points.bin", ::fast_io::open_mode::out | ::fast_io::open_mode::binary);
+        std::fwrite(&amp;p1, sizeof(Point), 1, cf_out.fp);
 
-    // Read binary data
-    ::fast_io::c_file cf_in(u8"points.bin", ::fast_io::open_mode::in | ::fast_io::open_mode::binary);
-    std::fread(&amp;p2, sizeof(Point), 1, cf_in.fp);
+        // Read binary data
+        ::fast_io::c_file cf_in(u8"points.bin", ::fast_io::open_mode::in | ::fast_io::open_mode::binary);
+        std::fread(&amp;p2, sizeof(Point), 1, cf_in.fp);
 
-    std::printf("Read point: (%d, %d)\n", p2.x, p2.y);
+        std::printf("Read point: (%d, %d)\n", p2.x, p2.y);
 
-    return 0;
+        return 0;
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
 }
 </code></pre>
     </section>
@@ -250,30 +295,39 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 #include &lt;cstdio&gt;
 
-int main() {
-    // File positioning (with RAII)
-    ::fast_io::c_file cf(u8"test.txt", ::fast_io::open_mode::in | ::fast_io::open_mode::out);
-    std::fputs("Hello, World!", cf.fp);
+int main()
+{
+    try
+    {
+        // File positioning (with RAII)
+        ::fast_io::c_file cf(u8"test.txt", ::fast_io::open_mode::in | ::fast_io::open_mode::out);
+        std::fputs("Hello, World!", cf.fp);
 
-    // Get current position
-    long pos{std::ftell(cf.fp)};
-    std::printf("Current position: %ld\n", pos);
+        // Get current position
+        long pos{std::ftell(cf.fp)};
+        std::printf("Current position: %ld\n", pos);
 
-    // Seek to beginning
-    std::rewind(cf.fp);
+        // Seek to beginning
+        std::rewind(cf.fp);
 
-    // Or use fseek
-    std::fseek(cf.fp, 0, SEEK_SET);  // Beginning
-    std::fseek(cf.fp, 0, SEEK_END);  // End
-    std::fseek(cf.fp, 5, SEEK_SET);  // Position 5
+        // Or use fseek
+        std::fseek(cf.fp, 0, SEEK_SET);  // Beginning
+        std::fseek(cf.fp, 0, SEEK_END);  // End
+        std::fseek(cf.fp, 5, SEEK_SET);  // Position 5
 
-    // Portable positioning
-    std::fpos_t position;
-    std::fgetpos(cf.fp, &amp;position);
-    // ... do something ...
-    std::fsetpos(cf.fp, &amp;position);  // Restore position
+        // Portable positioning
+        std::fpos_t position;
+        std::fgetpos(cf.fp, &amp;position);
+        // ... do something ...
+        std::fsetpos(cf.fp, &amp;position);  // Restore position
 
-    return 0;
+        return 0;
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
 }
 </code></pre>
     </section>
@@ -299,23 +353,32 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 #include &lt;cstdio&gt;
 
-int main() {
-    ::fast_io::c_file cf(u8"test.txt", ::fast_io::open_mode::in);
+int main()
+{
+    try
+    {
+        ::fast_io::c_file cf(u8"test.txt", ::fast_io::open_mode::in);
 
-    int ch;
-    while ((ch = std::fgetc(cf.fp)) != EOF) {
-        std::putchar(ch);
-    }
+        int ch;
+        while ((ch = std::fgetc(cf.fp)) != EOF) {
+            std::putchar(ch);
+        }
 
-    if (std::feof(cf.fp)) {
-        std::printf("\nEnd of file reached\n");
-    }
-    if (std::ferror(cf.fp)) {
-        std::printf("\nError occurred\n");
-    }
+        if (std::feof(cf.fp)) {
+            std::printf("\nEnd of file reached\n");
+        }
+        if (std::ferror(cf.fp)) {
+            std::printf("\nError occurred\n");
+        }
 
-    std::clearerr(cf.fp);  // Clear error/EOF flags
-    return 0;
+        std::clearerr(cf.fp);  // Clear error/EOF flags
+        return 0;
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
 }
 </code></pre>
       <p>
@@ -356,19 +419,28 @@ while ((ch = std::fgetc(fp)) != EOF)  // Works
 #include &lt;fast_io_device.h&gt;
 #include &lt;cstdio&gt;
 
-int main() {
-    // Rename a file
-    std::rename("old.txt", "new.txt");
+int main()
+{
+    try
+    {
+        // Rename a file
+        std::rename("old.txt", "new.txt");
 
-    // Delete a file
-    std::remove("unwanted.txt");
+        // Delete a file
+        std::remove("unwanted.txt");
 
-    // Create temporary file using fast_io's io_temp (RAII)
-    ::fast_io::c_file tmp(::fast_io::io_temp);
-    std::fprintf(tmp.fp, "%s", "Temporary data\n");
-    // File is automatically deleted when tmp goes out of scope
+        // Create temporary file using fast_io's io_temp (RAII)
+        ::fast_io::c_file tmp(::fast_io::io_temp);
+        std::fprintf(tmp.fp, "%s", "Temporary data\n");
+        // File is automatically deleted when tmp goes out of scope
 
-    return 0;
+        return 0;
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
 }
 </code></pre>
     </section>
@@ -392,21 +464,30 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 #include &lt;cstdio&gt;
 
-int main() {
-    ::fast_io::c_file cf(u8"test.txt", ::fast_io::open_mode::out);
+int main()
+{
+    try
+    {
+        ::fast_io::c_file cf(u8"test.txt", ::fast_io::open_mode::out);
 
-    char buffer[1024];
+        char buffer[1024];
 
-    // Set custom buffer
-    std::setvbuf(cf.fp, buffer, _IOFBF, sizeof(buffer));  // Full buffering
-    std::setvbuf(cf.fp, nullptr, _IOLBF, 0);  // Line buffering
-    std::setvbuf(cf.fp, nullptr, _IONBF, 0);  // No buffering
+        // Set custom buffer
+        std::setvbuf(cf.fp, buffer, _IOFBF, sizeof(buffer));  // Full buffering
+        std::setvbuf(cf.fp, nullptr, _IOLBF, 0);  // Line buffering
+        std::setvbuf(cf.fp, nullptr, _IONBF, 0);  // No buffering
 
-    // Simpler interface
-    std::setbuf(cf.fp, buffer);  // Equivalent to setvbuf(cf.fp, buffer, _IOFBF, BUFSIZ)
-    std::setbuf(cf.fp, nullptr);    // Unbuffered
+        // Simpler interface
+        std::setbuf(cf.fp, buffer);  // Equivalent to setvbuf(cf.fp, buffer, _IOFBF, BUFSIZ)
+        std::setbuf(cf.fp, nullptr);    // Unbuffered
 
-    return 0;
+        return 0;
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
 }
 </code></pre>
     </section>

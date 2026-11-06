@@ -86,19 +86,29 @@
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    // Unbuffered: every write is a syscall
-    ::fast_io::native_file obf{"bulk.bin",
-        ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
+int main()
+{
+    try
+    {
+        // Unbuffered: every write is a syscall
+        ::fast_io::native_file obf{"bulk.bin",
+            ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
 
-    // Good: one big syscall for a large block
-    char const big_buffer[65536]{};
-    ::fast_io::operations::write_all(obf, big_buffer, big_buffer + 65536uz);
+        // Good: one big syscall for a large block
+        char const big_buffer[65536]{};
+        ::fast_io::operations::write_all(obf, big_buffer, big_buffer + 65536uz);
 
-    // BAD: 65536 individual syscalls!
-    for (::std::size_t i{}; i &lt; 65536uz; ++i) {
-        ::fast_io::operations::char_put(obf, 'A');
+        // BAD: 65536 individual syscalls!
+        for (::std::size_t i{}; i &lt; 65536uz; ++i) {
+            ::fast_io::operations::char_put(obf, 'A');
+        }
     }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -122,16 +132,26 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    // Buffered: writes accumulate in user space
-    ::fast_io::obuf_file obf{"fast.bin"};
+int main()
+{
+    try
+    {
+        // Buffered: writes accumulate in user space
+        ::fast_io::obuf_file obf{"fast.bin"};
 
-    // Even 65536 char_puts are cheap &mdash; they hit the user buffer,
-    // not the kernel. The buffer flushes automatically when full.
-    for (::std::size_t i{}; i &lt; 65536uz; ++i) {
-        ::fast_io::operations::char_put(obf, 'A');
+        // Even 65536 char_puts are cheap &mdash; they hit the user buffer,
+        // not the kernel. The buffer flushes automatically when full.
+        for (::std::size_t i{}; i &lt; 65536uz; ++i) {
+            ::fast_io::operations::char_put(obf, 'A');
+        }
+        // Buffer is flushed here when `obf` goes out of scope.
     }
-    // Buffer is flushed here when `obf` goes out of scope.
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -187,52 +207,62 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    // ----- Unbuffered: native_file -----
-    // Use this when you already have large buffers in hand.
+int main()
+{
+    try
     {
-        ::fast_io::native_file src{"big_input.bin", ::fast_io::open_mode::in};
-        ::fast_io::native_file dst{"big_output.bin",
-            ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
+        // ----- Unbuffered: native_file -----
+        // Use this when you already have large buffers in hand.
+        {
+            ::fast_io::native_file src{"big_input.bin", ::fast_io::open_mode::in};
+            ::fast_io::native_file dst{"big_output.bin",
+                ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
 
-        char buffer[131072]; // 128 KiB
-        while (true) {
-            char const* read_end = ::fast_io::operations::read_some(src, buffer, buffer + 131072uz);
-            if (read_end == buffer) break; // EOF
-            ::fast_io::operations::write_all(dst, buffer, read_end);
+            char buffer[131072]; // 128 KiB
+            while (true) {
+                char const* read_end = ::fast_io::operations::read_some(src, buffer, buffer + 131072uz);
+                if (read_end == buffer) break; // EOF
+                ::fast_io::operations::write_all(dst, buffer, read_end);
+            }
+        }
+
+        // ----- Buffered: ibuf_file / obuf_file -----
+        // Use this when operating on many small items (lines, integers, etc.)
+        {
+            ::fast_io::ibuf_file ibf{"numbers.txt"};
+            ::fast_io::obuf_file obf{"sum.txt"};
+
+            using namespace ::fast_io::iomnp;
+            ::std::int64_t sum{};
+            ::std::int64_t value{};
+            while (scan(ibf, value)) {
+                sum += value;
+            }
+            println(obf, "Sum: ", sum);
+        }
+
+        // ----- Buffered bidirectional: iobuf_file -----
+        // Use when you need both reading and writing on the same file.
+        {
+            ::fast_io::iobuf_file iof{"patched.bin",
+                ::fast_io::open_mode::in | ::fast_io::open_mode::out};
+
+            // Read a header
+            ::std::uint32_t magic{};
+            using namespace ::fast_io::iomnp;
+            scan(iof, magic);
+
+            // Jump to offset 1024 and patch a field
+            ::fast_io::operations::io_stream_seek(iof, 1024);
+            println(iof, "patched");
         }
     }
-
-    // ----- Buffered: ibuf_file / obuf_file -----
-    // Use this when operating on many small items (lines, integers, etc.)
+    catch throws (::std::error e)
     {
-        ::fast_io::ibuf_file ibf{"numbers.txt"};
-        ::fast_io::obuf_file obf{"sum.txt"};
-
-        using namespace ::fast_io::iomnp;
-        ::std::int64_t sum{};
-        ::std::int64_t value{};
-        while (scan(ibf, value)) {
-            sum += value;
-        }
-        println(obf, "Sum: ", sum);
+        ::fast_io::perrln(e);
+        return 1;
     }
-
-    // ----- Buffered bidirectional: iobuf_file -----
-    // Use when you need both reading and writing on the same file.
-    {
-        ::fast_io::iobuf_file iof{"patched.bin",
-            ::fast_io::open_mode::in | ::fast_io::open_mode::out};
-
-        // Read a header
-        ::std::uint32_t magic{};
-        using namespace ::fast_io::iomnp;
-        scan(iof, magic);
-
-        // Jump to offset 1024 and patch a field
-        ::fast_io::operations::io_stream_seek(iof, 1024);
-        println(iof, "patched");
-    }
+    return 0;
 }
 </code></pre>
     </section>

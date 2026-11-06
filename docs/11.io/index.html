@@ -28,6 +28,115 @@
         environment (e.g., embedded systems without an OS, kernel development), many of the assumptions
         about file I/O break down. We will discuss these special environments in future chapters.
       </p>
+      <p>
+        <strong>Every example in this chapter is a complete program that handles its
+        errors.</strong> I/O is the one part of a program that fails as a matter of
+        routine, so this chapter never pretends otherwise &mdash; read
+        <a href="#io-fails">section&nbsp;0</a> before anything else.
+      </p>
+    </section>
+
+    <section id="io-fails">
+      <h2>0. I/O Fails. Constantly. Handle It.</h2>
+      <p>
+        Every earlier chapter dealt with values you computed, and a computation
+        either produces its result or it does not. I/O is not like that. The file
+        is not there. The disk is full. The directory is not writable. The pipe
+        reader went away. The socket was reset by the peer. The device is busy,
+        the network mount timed out, the quota was exceeded, the descriptor table
+        is full. <strong>None of these are exceptional events on a real system:
+        they are Tuesday.</strong> A chapter that teaches I/O without showing how
+        the failure is reported and handled would be teaching you to write
+        programs that die in the field.
+      </p>
+      <p>
+        So the rule for this whole chapter is the rule from
+        <a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>, applied
+        where it matters most: <strong>anything that talks to a device is a
+        <code>throws</code> operation</strong>, and <strong>every program below
+        catches what it throws</strong>. There is exactly one handler shape, and
+        you will see it in every single example in this chapter:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    try
+    {
+        ::fast_io::obuf_file obf(u8"out.txt");
+        ::fast_io::io::println(obf, "written only if the disk accepted it");
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
+}
+</code></pre>
+      <p>
+        The <code>try</code> covers the <em>whole</em> body, not just the
+        constructor. Opening can fail, writing can fail, and flushing can fail;
+        which one it was is the handler&rsquo;s job to find out, not the
+        program&rsquo;s job to guess. Read <a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>
+        for every member of <code>::std::error</code> and
+        <a href="/docs/07.compiletimeprogramming/07.herbceptions/">Ch7.7</a> for
+        how the same handler works in a <code>constexpr</code> context.
+      </p>
+      <div class="note" style="border:1px solid #cc6600;background:rgba(204,102,0,0.08);padding:0.75em 1em;margin:1em 0;">
+        <strong>IMPORTANT &mdash; the rules for this chapter.</strong>
+        <ul>
+          <li><strong>Never drop a handler.</strong> <code>catch (...)</code> does not
+          catch herbceptions, and <code>catch (::std::error)</code> without
+          <code>throws</code> is not valid C++. The only handler that catches a
+          failure is <code>catch throws (::std::error e)</code>.</li>
+          <li><strong>Put the handler as high as you can.</strong> In a program that
+          does one job, that is <code>main</code>. In a long-running service it is
+          the top of whatever loop supervises the work. Do not sprinkle handlers
+          into every helper: a helper that reports is more useful than a helper
+          that prints and continues.</li>
+          <li><strong>Do not swallow.</strong> The empty handler
+          <code>catch throws (::std::error) { }</code> is legal and occasionally
+          correct (see <a href="/docs/06.function/16.noexceptthrows/">Ch6.16 &sect;4</a>),
+          but it is wrong here: I/O errors are exactly the errors a program can
+          usually do something about.</li>
+          <li><strong>Reporting is I/O too.</strong> <code>::fast_io::perrln(e)</code>
+          writes to <code>stderr</code> and can itself fail. That is why it lives in
+          <code>main</code>: if printing the error fails there is nowhere left to
+          report it, and returning non-zero is the last honest answer.</li>
+          <li><strong>A destination you never flushed has not reported
+          anything.</strong> Buffered writes succeed into a buffer. The <code>write</code>
+          that can fail happens at flush or close &mdash; which is why the
+          <code>try</code> encloses the closing brace of every buffer in this chapter,
+          and why you should scope buffers or call
+          <code>flush()</code>/<code>close()</code> inside the <code>try</code> when
+          the outcome matters.</li>
+        </ul>
+      </div>
+      <p>
+        Two habits follow from this, and both of them are visible in the code on
+        every page of this chapter:
+      </p>
+      <ul>
+        <li>
+          <strong>Handle by meaning, not by number.</strong> An error carries a
+          domain and a code; <code>e.domain()</code> tells you which code space it
+          belongs to and <code>e.code()</code> which failure inside it. A handler
+          that switches on the domain can tell &ldquo;the file is not
+          there&rdquo; from &ldquo;this process may not open it&rdquo; from
+          &ldquo;the device is gone&rdquo;, and do something different about each.
+          A handler that only prints is still far better than none.
+        </li>
+        <li>
+          <strong>Let every step be fallible on paper.</strong> When you read
+          <code>print(f, x)</code> in this chapter, read it as
+          &ldquo;attempt&nbsp;<code>print</code>&rdquo;. Every call to a device is
+          a question with two answers, and the code you are reading is the version
+          that answers both.
+        </li>
+      </ul>
     </section>
 
     <section>

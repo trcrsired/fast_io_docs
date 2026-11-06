@@ -135,10 +135,20 @@ inline constexpr char_type* print_reserve_define(
     return iter;
 }
 
-int main() {
-    using namespace ::fast_io::iomnp;
-    Point p{42, 100};
-    println("Point: ", p); // Output: Point: (42, 100)
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        Point p{42, 100};
+        println("Point: ", p); // Output: Point: (42, 100)
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -195,9 +205,19 @@ print_scatter_define(::fast_io::io_reserve_type_t&lt;char_type, Color&gt;, Color
     }
 }
 
-int main() {
-    using namespace ::fast_io::iomnp;
-    println("Color: ", Color::Green); // Output: Color: Green
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        println("Color: ", Color::Green); // Output: Color: Green
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -226,15 +246,25 @@ struct Person {
 template &lt;::std::integral char_type, typename T&gt;
 inline constexpr void print_define(
     ::fast_io::io_reserve_type_t&lt;char_type, Person&gt;,
-    T&amp; out, Person const&amp; p)
+    T&amp; out, Person const&amp; p) throws
 {
     print_freestanding(out, p.name, " (age: ", p.age, ")");
 }
 
-int main() {
-    using namespace ::fast_io::iomnp;
-    Person alice{::fast_io::string{"Alice"}, 30};
-    println("Person: ", alice); // Output: Person: Alice (age: 30)
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        Person alice{::fast_io::string{"Alice"}, 30};
+        println("Person: ", alice); // Output: Person: Alice (age: 30)
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>

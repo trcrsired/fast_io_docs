@@ -612,10 +612,19 @@ using namespace fast_io::io;
 
 int main()
 {
-    ::fast_io::sha256_context ctx;
-    print(::fast_io::mnp::as_file(ctx), "Hello, fast_io!\n");
-    ctx.do_final();
-    println(::fast_io::mnp::hash_digest(ctx));
+    try
+    {
+        ::fast_io::sha256_context ctx;
+        print(::fast_io::mnp::as_file(ctx), "Hello, fast_io!\n");
+        ctx.do_final();
+        println(::fast_io::mnp::hash_digest(ctx));
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>

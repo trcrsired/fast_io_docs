@@ -53,25 +53,35 @@
 #include &lt;iostream&gt;
 #include &lt;string&gt;
 
-int main() {
-    int x;
-    std::string name;
+int main()
+{
+    try
+    {
+        int x;
+        std::string name;
 
-    // Read from stdin
-    std::cout &lt;&lt; "Enter your name: ";
-    std::cin &gt;&gt; name;
+        // Read from stdin
+        std::cout &lt;&lt; "Enter your name: ";
+        std::cin &gt;&gt; name;
 
-    std::cout &lt;&lt; "Enter a number: ";
-    std::cin &gt;&gt; x;
+        std::cout &lt;&lt; "Enter a number: ";
+        std::cin &gt;&gt; x;
 
-    // Write to stdout
-    std::cout &lt;&lt; "Hello, " &lt;&lt; name &lt;&lt; "!\n";
-    std::cout &lt;&lt; "You entered: " &lt;&lt; x &lt;&lt; "\n";
+        // Write to stdout
+        std::cout &lt;&lt; "Hello, " &lt;&lt; name &lt;&lt; "!\n";
+        std::cout &lt;&lt; "You entered: " &lt;&lt; x &lt;&lt; "\n";
 
-    // Write to stderr
-    if (x &lt; 0) {
-        std::cerr &lt;&lt; "Warning: negative number\n";
+        // Write to stderr
+        if (x &lt; 0) {
+            std::cerr &lt;&lt; "Warning: negative number\n";
+        }
     }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
 
@@ -81,37 +91,47 @@ int main() {
 #include &lt;iostream&gt;
 #include &lt;string&gt;
 
-int main() {
-    // Write to a file
-    std::ofstream fout("output.txt");
-    if (!fout) {
-        std::cerr &lt;&lt; "Failed to open file\n";
+int main()
+{
+    try
+    {
+        // Write to a file
+        std::ofstream fout("output.txt");
+        if (!fout) {
+            std::cerr &lt;&lt; "Failed to open file\n";
+            return 1;
+        }
+
+        fout &lt;&lt; "Hello, World!\n";
+        fout &lt;&lt; "The answer is: " &lt;&lt; 42 &lt;&lt; "\n";
+        fout.close();
+
+        // Read from a file
+        std::ifstream fin("output.txt");
+        if (!fin) {
+            std::cerr &lt;&lt; "Failed to open file\n";
+            return 1;
+        }
+
+        std::string line;
+        while (std::getline(fin, line)) {
+            std::cout &lt;&lt; "Read: " &lt;&lt; line &lt;&lt; "\n";
+        }
+        fin.close();
+
+        // Read and write (bidirectional)
+        std::fstream fio("data.txt", std::ios::in | std::ios::out | std::ios::trunc);
+        fio &lt;&lt; "Initial data\n";
+        fio.seekg(0);  // Go back to beginning
+        std::getline(fio, line);
+        std::cout &lt;&lt; "Read back: " &lt;&lt; line &lt;&lt; "\n";
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
         return 1;
     }
-
-    fout &lt;&lt; "Hello, World!\n";
-    fout &lt;&lt; "The answer is: " &lt;&lt; 42 &lt;&lt; "\n";
-    fout.close();
-
-    // Read from a file
-    std::ifstream fin("output.txt");
-    if (!fin) {
-        std::cerr &lt;&lt; "Failed to open file\n";
-        return 1;
-    }
-
-    std::string line;
-    while (std::getline(fin, line)) {
-        std::cout &lt;&lt; "Read: " &lt;&lt; line &lt;&lt; "\n";
-    }
-    fin.close();
-
-    // Read and write (bidirectional)
-    std::fstream fio("data.txt", std::ios::in | std::ios::out | std::ios::trunc);
-    fio &lt;&lt; "Initial data\n";
-    fio.seekg(0);  // Go back to beginning
-    std::getline(fio, line);
-    std::cout &lt;&lt; "Read back: " &lt;&lt; line &lt;&lt; "\n";
+    return 0;
 }
 </code></pre>
       <p>
@@ -132,27 +152,37 @@ int main() {
 #include &lt;iostream&gt;
 #include &lt;string&gt;
 
-int main() {
-    // Write to a string
-    std::ostringstream oss;
-    oss &lt;&lt; "x = " &lt;&lt; 42 &lt;&lt; ", pi = " &lt;&lt; 3.14159;
-    std::string result = oss.str();
-    std::cout &lt;&lt; "Built string: " &lt;&lt; result &lt;&lt; "\n";
+int main()
+{
+    try
+    {
+        // Write to a string
+        std::ostringstream oss;
+        oss &lt;&lt; "x = " &lt;&lt; 42 &lt;&lt; ", pi = " &lt;&lt; 3.14159;
+        std::string result = oss.str();
+        std::cout &lt;&lt; "Built string: " &lt;&lt; result &lt;&lt; "\n";
 
-    // Read from a string
-    std::istringstream iss("42 3.14 hello");
-    int x;
-    double y;
-    std::string word;
-    iss &gt;&gt; x &gt;&gt; y &gt;&gt; word;
-    std::cout &lt;&lt; "Parsed: " &lt;&lt; x &lt;&lt; ", " &lt;&lt; y &lt;&lt; ", " &lt;&lt; word &lt;&lt; "\n";
+        // Read from a string
+        std::istringstream iss("42 3.14 hello");
+        int x;
+        double y;
+        std::string word;
+        iss &gt;&gt; x &gt;&gt; y &gt;&gt; word;
+        std::cout &lt;&lt; "Parsed: " &lt;&lt; x &lt;&lt; ", " &lt;&lt; y &lt;&lt; ", " &lt;&lt; word &lt;&lt; "\n";
 
-    // Bidirectional string stream
-    std::stringstream ss;
-    ss &lt;&lt; "100 200";
-    int a, b;
-    ss &gt;&gt; a &gt;&gt; b;
-    std::cout &lt;&lt; "Sum: " &lt;&lt; (a + b) &lt;&lt; "\n";
+        // Bidirectional string stream
+        std::stringstream ss;
+        ss &lt;&lt; "100 200";
+        int a, b;
+        ss &gt;&gt; a &gt;&gt; b;
+        std::cout &lt;&lt; "Sum: " &lt;&lt; (a + b) &lt;&lt; "\n";
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
 
@@ -161,23 +191,33 @@ int main() {
 #include &lt;iostream&gt;
 #include &lt;iomanip&gt;
 
-int main() {
-    // Formatting
-    std::cout &lt;&lt; std::hex &lt;&lt; 255 &lt;&lt; "\n";           // ff
-    std::cout &lt;&lt; std::oct &lt;&lt; 255 &lt;&lt; "\n";           // 377
-    std::cout &lt;&lt; std::dec &lt;&lt; 255 &lt;&lt; "\n";           // 255
+int main()
+{
+    try
+    {
+        // Formatting
+        std::cout &lt;&lt; std::hex &lt;&lt; 255 &lt;&lt; "\n";           // ff
+        std::cout &lt;&lt; std::oct &lt;&lt; 255 &lt;&lt; "\n";           // 377
+        std::cout &lt;&lt; std::dec &lt;&lt; 255 &lt;&lt; "\n";           // 255
 
-    // Floating-point precision
-    std::cout &lt;&lt; std::fixed &lt;&lt; std::setprecision(2) &lt;&lt; 3.14159 &lt;&lt; "\n";  // 3.14
-    std::cout &lt;&lt; std::scientific &lt;&lt; 3.14159 &lt;&lt; "\n";  // 3.14e+00
+        // Floating-point precision
+        std::cout &lt;&lt; std::fixed &lt;&lt; std::setprecision(2) &lt;&lt; 3.14159 &lt;&lt; "\n";  // 3.14
+        std::cout &lt;&lt; std::scientific &lt;&lt; 3.14159 &lt;&lt; "\n";  // 3.14e+00
 
-    // Width and alignment
-    std::cout &lt;&lt; "[" &lt;&lt; std::setw(10) &lt;&lt; std::left &lt;&lt; "left" &lt;&lt; "]\n";
-    std::cout &lt;&lt; "[" &lt;&lt; std::setw(10) &lt;&lt; std::right &lt;&lt; "right" &lt;&lt; "]\n";
+        // Width and alignment
+        std::cout &lt;&lt; "[" &lt;&lt; std::setw(10) &lt;&lt; std::left &lt;&lt; "left" &lt;&lt; "]\n";
+        std::cout &lt;&lt; "[" &lt;&lt; std::setw(10) &lt;&lt; std::right &lt;&lt; "right" &lt;&lt; "]\n";
 
-    // Boolean
-    std::cout &lt;&lt; std::boolalpha &lt;&lt; true &lt;&lt; "\n";    // true
-    std::cout &lt;&lt; std::noboolalpha &lt;&lt; true &lt;&lt; "\n";  // 1
+        // Boolean
+        std::cout &lt;&lt; std::boolalpha &lt;&lt; true &lt;&lt; "\n";    // true
+        std::cout &lt;&lt; std::noboolalpha &lt;&lt; true &lt;&lt; "\n";  // 1
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>

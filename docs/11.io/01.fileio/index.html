@@ -82,23 +82,33 @@
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    // Write to a file
+int main()
+{
+    try
     {
-        ::fast_io::obuf_file obf(u8"hello.txt");
-        print(obf, "Hello, File I/O!\n"
-                   "Line 2: ", 42, " + ", 100, " = ", 142);
-    } // file closed automatically here
+        using namespace ::fast_io::iomnp;
 
-    // Read from the file line by line
-    {
-        ::fast_io::ibuf_file ibf(u8"hello.txt");
-        for (::fast_io::string line; scan&lt;true&gt;(ibf, str_line_get(line)); ) {
-            println(line);
+        // Write to a file
+        {
+            ::fast_io::obuf_file obf(u8"hello.txt");
+            print(obf, "Hello, File I/O!\n"
+                       "Line 2: ", 42, " + ", 100, " = ", 142);
+        } // file closed automatically here
+
+        // Read from the file line by line
+        {
+            ::fast_io::ibuf_file ibf(u8"hello.txt");
+            for (::fast_io::string line; scan&lt;true&gt;(ibf, str_line_get(line)); ) {
+                println(line);
+            }
         }
     }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -173,11 +183,14 @@ int main() {
         Combine flags with <code>|</code>:
       </p>
 <pre><code class="language-cpp">
-// Open for writing, create if not exists, truncate if exists
-::fast_io::obuf_file obf(u8"data.bin", ::fast_io::open_mode::out | ::fast_io::open_mode::trunc);
+void open_files() throws
+{
+    // Open for writing, create if not exists, truncate if exists
+    ::fast_io::obuf_file obf(u8"data.bin", ::fast_io::open_mode::out | ::fast_io::open_mode::trunc);
 
-// Open for reading and writing
-::fast_io::iobuf_file iof(u8"data.txt", ::fast_io::open_mode::in | ::fast_io::open_mode::out);
+    // Open for reading and writing
+    ::fast_io::iobuf_file iof(u8"data.txt", ::fast_io::open_mode::in | ::fast_io::open_mode::out);
+}
 </code></pre>
     </section>
 
@@ -196,23 +209,33 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 #include &lt;fast_io_legacy.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    // Write UTF-8 to a file
+int main()
+{
+    try
     {
-        ::fast_io::u8obuf_file u8obf("utf8.txt");
-        print(u8obf, u8"Unicode: 你好世界 🌍\n");
-    }
+        using namespace ::fast_io::iomnp;
 
-    // Read UTF-8 file and print to a UTF-8 stdout
-    {
-        ::fast_io::u8ibuf_file u8ibf("utf8.txt");
-        ::fast_io::u8c_io_observer u8out(stdout);
-        for (::fast_io::u8string line; scan&lt;true&gt;(u8ibf, str_line_get(line)); ) {
-            println(u8out, line);
+        // Write UTF-8 to a file
+        {
+            ::fast_io::u8obuf_file u8obf("utf8.txt");
+            print(u8obf, u8"Unicode: 你好世界 🌍\n");
+        }
+
+        // Read UTF-8 file and print to a UTF-8 stdout
+        {
+            ::fast_io::u8ibuf_file u8ibf("utf8.txt");
+            ::fast_io::u8c_io_observer u8out(stdout);
+            for (::fast_io::u8string line; scan&lt;true&gt;(u8ibf, str_line_get(line)); ) {
+                println(u8out, line);
+            }
         }
     }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -228,15 +251,25 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    // Open a directory
-    ::fast_io::dir_file df(u8"my_directory");
+        // Open a directory
+        ::fast_io::dir_file df(u8"my_directory");
 
-    // Open a file relative to that directory
-    ::fast_io::obuf_file obf(at(df), "hello.txt");
-    print(obf, "Written relative to my_directory\n");
+        // Open a file relative to that directory
+        ::fast_io::obuf_file obf(at(df), "hello.txt");
+        print(obf, "Written relative to my_directory\n");
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>

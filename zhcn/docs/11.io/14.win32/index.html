@@ -65,17 +65,26 @@
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    // The constructor picks CreateFileW or CreateFileA through
-    // ::fast_io::win32_api_family.
-    ::fast_io::win32_file wf(u8"hello_win32.txt", ::fast_io::open_mode::out);
+        // The constructor picks CreateFileW or CreateFileA through
+        // ::fast_io::win32_api_family.
+        ::fast_io::win32_file wf(u8"hello_win32.txt", ::fast_io::open_mode::out);
 
-    print(wf, "Hello from win32_file!\n");
+        print(wf, "Hello from win32_file!\n");
 
-    ::std::size_t const n{42zu};
-    println(wf, "The answer is: ", n);
-    // CloseHandle is invoked automatically when `wf` goes out of scope.
+        ::std::size_t const n{42zu};
+        println(wf, "The answer is: ", n);
+        // CloseHandle is invoked automatically when `wf` goes out of scope.
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
     </section>
@@ -89,7 +98,7 @@ int main()
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-void write_via_handle(void* h)
+void write_via_handle(void* h) throws
 {
     using namespace ::fast_io::iomnp;
 
@@ -101,8 +110,17 @@ void write_via_handle(void* h)
 
 int main()
 {
-    ::fast_io::win32_file wf(u8"legacy_handle.txt", ::fast_io::open_mode::out);
-    write_via_handle(wf.native_handle());
+    try
+    {
+        ::fast_io::win32_file wf(u8"legacy_handle.txt", ::fast_io::open_mode::out);
+        write_via_handle(wf.native_handle());
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
     </section>
@@ -118,14 +136,23 @@ int main()
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    ::fast_io::win32_file inpf(u8"input.txt", ::fast_io::open_mode::in);
-    ::std::size_t value{};
-    ::fast_io::io::scan(inpf, value);
+        ::fast_io::win32_file inpf(u8"input.txt", ::fast_io::open_mode::in);
+        ::std::size_t value{};
+        ::fast_io::io::scan(inpf, value);
 
-    ::fast_io::win32_file outpf(u8"output.txt", ::fast_io::open_mode::out);
-    println(outpf, "Read the value: ", value);
+        ::fast_io::win32_file outpf(u8"output.txt", ::fast_io::open_mode::out);
+        println(outpf, "Read the value: ", value);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
     </section>
@@ -157,24 +184,33 @@ int main()
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    // Windows C runtime file descriptor (not a HANDLE!)
-    int fd{::_open("data.txt", _O_RDONLY)};
-    if (fd == -1) {
-        // handle error
+        // Windows C runtime file descriptor (not a HANDLE!)
+        int fd{::_open("data.txt", _O_RDONLY)};
+        if (fd == -1) {
+            // handle error
+        }
+
+        // Convert file descriptor to Win32 HANDLE
+        void* h{::_get_osfhandle(fd)};
+
+        // Now you can use Win32 APIs on it
+        ::fast_io::win32_io_observer observer{
+            static_cast&lt;::fast_io::win32_io_observer::native_handle_type&gt;(h)};
+        println(observer, "Using Win32 API on a C runtime fd");
+
+        // Close the file descriptor (this also closes the underlying HANDLE)
+        ::_close(fd);
     }
-
-    // Convert file descriptor to Win32 HANDLE
-    void* h{::_get_osfhandle(fd)};
-
-    // Now you can use Win32 APIs on it
-    ::fast_io::win32_io_observer observer{
-        static_cast&lt;::fast_io::win32_io_observer::native_handle_type&gt;(h)};
-    println(observer, "Using Win32 API on a C runtime fd");
-
-    // Close the file descriptor (this also closes the underlying HANDLE)
-    ::_close(fd);
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -245,23 +281,32 @@ int main()
 
 int main()
 {
-    // Open with win32_file for RAII, but use raw Win32 ReadFile/WriteFile
-    ::fast_io::win32_file wf(u8"data.bin", ::fast_io::open_mode::out);
+    try
+    {
+        // Open with win32_file for RAII, but use raw Win32 ReadFile/WriteFile
+        ::fast_io::win32_file wf(u8"data.bin", ::fast_io::open_mode::out);
 
-    // Get the raw HANDLE
-    void* h{wf.native_handle()};
+        // Get the raw HANDLE
+        void* h{wf.native_handle()};
 
-    // Use raw Win32 WriteFile (unbuffered, goes through kernel32.dll)
-    char const buffer[]{"Hello from raw WriteFile\n"};
-    DWORD written{};
-    BOOL ok{::WriteFile(h, buffer, static_cast&lt;DWORD&gt;(sizeof(buffer) - 1), &amp;written, nullptr)};
+        // Use raw Win32 WriteFile (unbuffered, goes through kernel32.dll)
+        char const buffer[]{"Hello from raw WriteFile\n"};
+        DWORD written{};
+        BOOL ok{::WriteFile(h, buffer, static_cast&lt;DWORD&gt;(sizeof(buffer) - 1), &amp;written, nullptr)};
 
-    if (!ok || written != sizeof(buffer) - 1) {
-        // handle error
+        if (!ok || written != sizeof(buffer) - 1) {
+            // handle error
+        }
+
+        // wf's destructor calls CloseHandle(h) automatically when it goes out of scope.
+        // No need to manually call CloseHandle() here, even if we return early or throw.
     }
-
-    // wf's destructor calls CloseHandle(h) automatically when it goes out of scope.
-    // No need to manually call CloseHandle() here, even if we return early or throw.
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -274,18 +319,27 @@ int main()
 
 int main()
 {
-    ::fast_io::win32_file wf(u8"data.bin", ::fast_io::open_mode::in);
-    void* h{wf.native_handle()};
+    try
+    {
+        ::fast_io::win32_file wf(u8"data.bin", ::fast_io::open_mode::in);
+        void* h{wf.native_handle()};
 
-    char buffer[256];
-    DWORD nread{};
-    BOOL ok{::ReadFile(h, buffer, sizeof(buffer), &amp;nread, nullptr)};
+        char buffer[256];
+        DWORD nread{};
+        BOOL ok{::ReadFile(h, buffer, sizeof(buffer), &amp;nread, nullptr)};
 
-    if (ok &amp;&amp; nread &gt; 0) {
-        // Process the buffer
+        if (ok &amp;&amp; nread &gt; 0) {
+            // Process the buffer
+        }
+
+        // CloseHandle(h) is called automatically
     }
-
-    // CloseHandle(h) is called automatically
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -298,20 +352,29 @@ int main()
 
 int main()
 {
-    ::fast_io::win32_file wf(u8"data.bin",
-        ::fast_io::open_mode::in | ::fast_io::open_mode::out);
-    void* h{wf.native_handle()};
+    try
+    {
+        ::fast_io::win32_file wf(u8"data.bin",
+            ::fast_io::open_mode::in | ::fast_io::open_mode::out);
+        void* h{wf.native_handle()};
 
-    LARGE_INTEGER distanceToMove;
-    distanceToMove.QuadPart = 100;
+        LARGE_INTEGER distanceToMove;
+        distanceToMove.QuadPart = 100;
 
-    // Seek to offset 100 from the beginning of the file
-    BOOL ok{::SetFilePointerEx(h, distanceToMove, nullptr, FILE_BEGIN)};
-    if (!ok) {
-        // handle error
+        // Seek to offset 100 from the beginning of the file
+        BOOL ok{::SetFilePointerEx(h, distanceToMove, nullptr, FILE_BEGIN)};
+        if (!ok) {
+            // handle error
+        }
+
+        // Now read or write from the new position
     }
-
-    // Now read or write from the new position
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>

@@ -79,17 +79,27 @@ int main() {
 <pre><code class="language-cpp">
 #include &lt;cstdio&gt;
 
-int main() {
-    // Open a file for writing
-    FILE* fp = std::fopen("output.txt", "w");
-    if (!fp) {
-        return 1;  // Failed to open
+int main()
+{
+    try
+    {
+        // Open a file for writing
+        FILE* fp = std::fopen("output.txt", "w");
+        if (!fp) {
+            return 1;  // Failed to open
+        }
+
+        // ... use the file ...
+
+        // Always close when done
+        std::fclose(fp);
     }
-
-    // ... use the file ...
-
-    // Always close when done
-    std::fclose(fp);
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -109,22 +119,32 @@ int main() {
 <pre><code class="language-cpp">
 #include &lt;cstdio&gt;
 
-int main() {
-    int x = 42;
-    double pi = 3.14159;
-    char const* name = "Alice";
+int main()
+{
+    try
+    {
+        int x = 42;
+        double pi = 3.14159;
+        char const* name = "Alice";
 
-    // printf: write to stdout
-    std::printf("%s%s%s%d%s%.2f%s", "Name: ", name, ", Age: ", x, ", Pi: ", pi, "\n");
+        // printf: write to stdout
+        std::printf("%s%s%s%d%s%.2f%s", "Name: ", name, ", Age: ", x, ", Pi: ", pi, "\n");
 
-    // fprintf: write to a FILE*
-    FILE* fp = std::fopen("data.txt", "w");
-    std::fprintf(fp, "%s%d%s%f%s", "x = ", x, ", pi = ", pi, "\n");
-    std::fclose(fp);
+        // fprintf: write to a FILE*
+        FILE* fp = std::fopen("data.txt", "w");
+        std::fprintf(fp, "%s%d%s%f%s", "x = ", x, ", pi = ", pi, "\n");
+        std::fclose(fp);
 
-    // sprintf: write to a string buffer
-    char buffer[100];
-    std::sprintf(buffer, "%s%d", "Value: ", x);
+        // sprintf: write to a string buffer
+        char buffer[100];
+        std::sprintf(buffer, "%s%d", "Value: ", x);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -149,22 +169,32 @@ int main() {
 #include &lt;cstdio&gt;
 #include &lt;memory&gt;
 
-int main() {
-    int x;
-    double y;
+int main()
+{
+    try
+    {
+        int x;
+        double y;
 
-    // scanf: read from stdin
-    std::fputs("Enter two numbers: ", stdout);
-    std::scanf("%d%lf", ::std::addressof(x), ::std::addressof(y));
+        // scanf: read from stdin
+        std::fputs("Enter two numbers: ", stdout);
+        std::scanf("%d%lf", ::std::addressof(x), ::std::addressof(y));
 
-    // fscanf: read from a FILE* (format string has only specifiers)
-    FILE* fp = std::fopen("data.txt", "r");
-    std::fscanf(fp, "%d%lf", ::std::addressof(x), ::std::addressof(y));  // Input file should contain: 42 3.14
-    std::fclose(fp);
+        // fscanf: read from a FILE* (format string has only specifiers)
+        FILE* fp = std::fopen("data.txt", "r");
+        std::fscanf(fp, "%d%lf", ::std::addressof(x), ::std::addressof(y));  // Input file should contain: 42 3.14
+        std::fclose(fp);
 
-    // sscanf: read from a string
-    char const* input = "42 3.14";
-    std::sscanf(input, "%d%lf", ::std::addressof(x), ::std::addressof(y));
+        // sscanf: read from a string
+        char const* input = "42 3.14";
+        std::sscanf(input, "%d%lf", ::std::addressof(x), ::std::addressof(y));
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -223,23 +253,33 @@ int main() {
 <pre><code class="language-cpp">
 #include &lt;cstdio&gt;
 
-int main() {
-    FILE* fp = std::fopen("example.txt", "r");
+int main()
+{
+    try
+    {
+        FILE* fp = std::fopen("example.txt", "r");
 
-    // Read a single character
-    int ch = std::fgetc(fp);
+        // Read a single character
+        int ch = std::fgetc(fp);
 
-    // Read a line (up to n-1 characters or newline)
-    char buffer[256];
-    std::fgets(buffer, sizeof(buffer), fp);
+        // Read a line (up to n-1 characters or newline)
+        char buffer[256];
+        std::fgets(buffer, sizeof(buffer), fp);
 
-    // Write a single character
-    std::fputc('A', stdout);
+        // Write a single character
+        std::fputc('A', stdout);
 
-    // Write a string
-    std::fputs("Hello, World!\n", stdout);
+        // Write a string
+        std::fputs("Hello, World!\n", stdout);
 
-    std::fclose(fp);
+        std::fclose(fp);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
 
@@ -247,18 +287,28 @@ int main() {
 <pre><code class="language-cpp">
 #include &lt;cstdio&gt;
 
-int main() {
-    // Write binary data
-    FILE* fp = std::fopen("data.bin", "wb");
-    int numbers[] = {1, 2, 3, 4, 5};
-    std::fwrite(numbers, sizeof(int), 5, fp);
-    std::fclose(fp);
+int main()
+{
+    try
+    {
+        // Write binary data
+        FILE* fp = std::fopen("data.bin", "wb");
+        int numbers[] = {1, 2, 3, 4, 5};
+        std::fwrite(numbers, sizeof(int), 5, fp);
+        std::fclose(fp);
 
-    // Read binary data
-    fp = std::fopen("data.bin", "rb");
-    int buffer[5];
-    std::size_t count = std::fread(buffer, sizeof(int), 5, fp);
-    std::fclose(fp);
+        // Read binary data
+        fp = std::fopen("data.bin", "rb");
+        int buffer[5];
+        std::size_t count = std::fread(buffer, sizeof(int), 5, fp);
+        std::fclose(fp);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
 
@@ -274,12 +324,22 @@ int main() {
 <pre><code class="language-cpp">
 #include &lt;cstdio&gt;
 
-int main() {
-    std::fputs("This goes to stdout\n", stdout);
-    std::fputs("This goes to stderr\n", stderr);
+int main()
+{
+    try
+    {
+        std::fputs("This goes to stdout\n", stdout);
+        std::fputs("This goes to stderr\n", stderr);
 
-    // printf() is equivalent to fputs(..., stdout)
-    std::fputs("Same as stdout\n", stdout);
+        // printf() is equivalent to fputs(..., stdout)
+        std::fputs("Same as stdout\n", stdout);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -301,17 +361,27 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    // Open a file for writing (RAII)
-    ::fast_io::c_file cf(u8"output.txt", ::fast_io::open_mode::out);
+        // Open a file for writing (RAII)
+        ::fast_io::c_file cf(u8"output.txt", ::fast_io::open_mode::out);
 
-    // Use fast_io's print/println
-    println(cf, "Hello, " "World!"
-        "The answer is: ", 42);
+        // Use fast_io's print/println
+        println(cf, "Hello, " "World!"
+            "The answer is: ", 42);
 
-    // File is automatically closed when cf goes out of scope
+        // File is automatically closed when cf goes out of scope
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -330,24 +400,34 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    // Open for reading
-    ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::in);
+        // Open for reading
+        ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::in);
 
-    // Read values
-    int x;
-    double y;
-    ::fast_io::string name;
+        // Read values
+        int x;
+        double y;
+        ::fast_io::string name;
 
-    scan(cf, x);
-    scan(cf, y);
-    scan(cf, ::fast_io::mnp::str_line_get(name));  // read a line
+        scan(cf, x);
+        scan(cf, y);
+        scan(cf, ::fast_io::mnp::str_line_get(name));  // read a line
 
-    println("x = ", x, "\n"
-      "y = ", y, "\n"
-      "name = ", name);
+        println("x = ", x, "\n"
+          "y = ", y, "\n"
+          "name = ", name);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
 
@@ -362,20 +442,30 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 #include &lt;cstdio&gt;
 
-void process_file(::fast_io::c_io_observer observer) {
+void process_file(::fast_io::c_io_observer observer) throws {
     using namespace ::fast_io::iomnp;
     // Use fast_io's API without taking ownership
     print(observer, "Processing...\n");
 }
 
-int main() {
-    // Open with C API
-    FILE* fp = std::fopen("data.txt", "w");
-    ::fast_io::c_file cf(fp);
-    // Wrap it in an observer (non-owning)
-    ::fast_io::c_io_observer observer{fp};
+int main()
+{
+    try
+    {
+        // Open with C API
+        FILE* fp = std::fopen("data.txt", "w");
+        ::fast_io::c_file cf(fp);
+        // Wrap it in an observer (non-owning)
+        ::fast_io::c_io_observer observer{fp};
 
-    process_file(observer);
+        process_file(observer);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -392,16 +482,26 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 #include &lt;cstdio&gt;
 
-int main() {
-    ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::out);
+int main()
+{
+    try
+    {
+        ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::out);
 
-    // Use fast_io's API
-    println(cf, "fast_io output");
+        // Use fast_io's API
+        println(cf, "fast_io output");
 
-    // Access the underlying FILE* for C API calls
-    std::fprintf(cf.fp, "%s", "C API output\n");
+        // Access the underlying FILE* for C API calls
+        std::fprintf(cf.fp, "%s", "C API output\n");
 
-    // File is closed automatically
+        // File is closed automatically
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
 
@@ -415,19 +515,29 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
-
-    // Unlocked variant (no internal locking)
-    ::fast_io::c_file_unlocked cf(u8"data.txt", ::fast_io::open_mode::out);
-
-    println(cf, "Fast, but not thread-safe by default");
-
-    // If you need thread safety, use ::fast_io::native_mutex
+int main()
+{
+    try
     {
-        ::fast_io::native_mutex_lock lock(cf);
-        println(cf, "Thread-safe output");
+        using namespace ::fast_io::iomnp;
+
+        // Unlocked variant (no internal locking)
+        ::fast_io::c_file_unlocked cf(u8"data.txt", ::fast_io::open_mode::out);
+
+        println(cf, "Fast, but not thread-safe by default");
+
+        // If you need thread safety, use ::fast_io::native_mutex
+        {
+            ::fast_io::native_mutex_lock lock(cf);
+            println(cf, "Thread-safe output");
+        }
     }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -450,21 +560,31 @@ int main() {
 #include &lt;cstdio&gt;
 
 // C library function
-void c_library_function(FILE* fp) {
+void c_library_function(FILE* fp) throws {
     std::fprintf(fp, "%s", "From C library\n");
 }
 
-int main() {
-    ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::out);
+int main()
+{
+    try
+    {
+        ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::out);
 
-    // Use fast_io
-    println(cf, "From fast_io");
+        // Use fast_io
+        println(cf, "From fast_io");
 
-    // Pass to C library
-    c_library_function(cf.fp);
+        // Pass to C library
+        c_library_function(cf.fp);
 
-    // More fast_io
-    println(cf, "Back to fast_io");
+        // More fast_io
+        println(cf, "Back to fast_io");
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>

@@ -61,22 +61,31 @@
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
-    ::fast_io::obuf_file_lockable obfl(u8"shared_output.txt");
-
-    auto writer = [&amp;obfl](::std::size_t id, ::std::size_t count)
+    try
     {
-        for (::std::size_t i{}; i &lt; count; ++i)
+        using namespace ::fast_io::iomnp;
+        ::fast_io::obuf_file_lockable obfl(u8"shared_output.txt");
+
+        auto writer = [&amp;obfl](::std::size_t id, ::std::size_t count)
         {
-            println(obfl, "Thread ", id, " iteration ", i);
-        }
-    };
+            for (::std::size_t i{}; i &lt; count; ++i)
+            {
+                println(obfl, "Thread ", id, " iteration ", i);
+            }
+        };
 
-    ::std::jthread t1(writer, 1zu, 100zu);
-    ::std::jthread t2(writer, 2zu, 100zu);
-    ::std::jthread t3(writer, 3zu, 100zu);
+        ::std::jthread t1(writer, 1zu, 100zu);
+        ::std::jthread t2(writer, 2zu, 100zu);
+        ::std::jthread t3(writer, 3zu, 100zu);
 
-    // jthread automatically joins at end of scope
+        // jthread automatically joins at end of scope
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
       <p>
@@ -98,26 +107,35 @@ int main()
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
-    ::fast_io::obuf_file obf(u8"manual_lock_output.txt");
-
-    auto writer = [&amp;](::std::size_t id, ::std::size_t count)
+    try
     {
-        for (::std::size_t i{}; i &lt; count; ++i)
+        using namespace ::fast_io::iomnp;
+        ::fast_io::obuf_file obf(u8"manual_lock_output.txt");
+
+        auto writer = [&amp;](::std::size_t id, ::std::size_t count)
         {
-            ::fast_io::io_lock_guard guard(mtx);
-            print(obf, "Thread ");
-            print(obf, id);
-            print(obf, " line ");
-            println(obf, i);
-            // guard releases mutex when it goes out of scope
-        }
-    };
+            for (::std::size_t i{}; i &lt; count; ++i)
+            {
+                ::fast_io::io_lock_guard guard(mtx);
+                print(obf, "Thread ");
+                print(obf, id);
+                print(obf, " line ");
+                println(obf, i);
+                // guard releases mutex when it goes out of scope
+            }
+        };
 
-    ::std::jthread t1(writer, 1zu, 50zu);
-    ::std::jthread t2(writer, 2zu, 50zu);
+        ::std::jthread t1(writer, 1zu, 50zu);
+        ::std::jthread t2(writer, 2zu, 50zu);
 
-    // jthread automatically joins at end of scope
+        // jthread automatically joins at end of scope
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
       <p>

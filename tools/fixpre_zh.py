@@ -8,6 +8,7 @@ import re, sys, glob
 def norm(s):
     return ' '.join(re.sub(r'<[^>]*>', ' ', s).split())
 
+force = '--force' in sys.argv
 fixed = skipped = 0
 for f in sorted(glob.glob('zhcn/docs/**/index.html', recursive=True)):
     en_path = f[len('zhcn/'):]
@@ -20,7 +21,7 @@ for f in sorted(glob.glob('zhcn/docs/**/index.html', recursive=True)):
     pb = re.findall(r'<pre>.*?</pre>', zh, re.S)
     if pa == pb or not pb:
         continue
-    if len(pa) != len(pb) or [norm(x) for x in pa] != [norm(x) for x in pb]:
+    if len(pa) != len(pb) or (not force and [norm(x) for x in pa] != [norm(x) for x in pb]):
         print('SKIP (content differs):', f)
         skipped += 1
         continue

@@ -50,16 +50,25 @@
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
-    // Open a file for writing. The file is closed automatically
-    // when `pf` goes out of scope.
-    ::fast_io::posix_file pf(u8"hello_posix.txt", ::fast_io::open_mode::out);
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        // Open a file for writing. The file is closed automatically
+        // when `pf` goes out of scope.
+        ::fast_io::posix_file pf(u8"hello_posix.txt", ::fast_io::open_mode::out);
 
-    // fast_io's print/println work directly on posix_file.
-    println(pf, u8"Hello from posix_file!");
+        // fast_io's print/println work directly on posix_file.
+        println(pf, u8"Hello from posix_file!");
 
-    ::std::size_t const n{42zu};
-    println(pf, u8"The answer is: ", n);
+        ::std::size_t const n{42zu};
+        println(pf, u8"The answer is: ", n);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
       <p>
@@ -82,18 +91,27 @@ int main()
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
-    // A raw file descriptor from somewhere else in your program.
-    int fd{::open("legacy.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644)};
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        // A raw file descriptor from somewhere else in your program.
+        int fd{::open("legacy.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644)};
 
-    // Non-owning observer: does NOT close the fd on destruction.
-    ::fast_io::posix_io_observer observer{fd};
-    println(observer, u8"Written through a posix_io_observer\n");
+        // Non-owning observer: does NOT close the fd on destruction.
+        ::fast_io::posix_io_observer observer{fd};
+        println(observer, u8"Written through a posix_io_observer\n");
 
-    // If you want ownership, construct a posix_file. It will close
-    // the fd when it goes out of scope.
-    ::fast_io::posix_file owned{::fast_io::from_fd, fd};
-    println(owned, u8"Written through an owning posix_file\n");
+        // If you want ownership, construct a posix_file. It will close
+        // the fd when it goes out of scope.
+        ::fast_io::posix_file owned{::fast_io::from_fd, fd};
+        println(owned, u8"Written through an owning posix_file\n");
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
       <p>
@@ -114,14 +132,23 @@ int main()
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
-    ::fast_io::posix_file inpf(u8"input.txt", ::fast_io::open_mode::in);
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        ::fast_io::posix_file inpf(u8"input.txt", ::fast_io::open_mode::in);
 
-    ::std::size_t value{};
-    scan(inpf, value);
+        ::std::size_t value{};
+        scan(inpf, value);
 
-    ::fast_io::posix_file outpf(u8"output.txt", ::fast_io::open_mode::out);
-    println(outpf, "Read the value: ", value);
+        ::fast_io::posix_file outpf(u8"output.txt", ::fast_io::open_mode::out);
+        println(outpf, "Read the value: ", value);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
     </section>
@@ -139,12 +166,21 @@ int main()
 
 int main(int argc, char** argv)
 {
-    using namespace ::fast_io::iomnp;
-    ::fast_io::posix_file dir{::fast_io::mnp::os_c_str(argv[1]),
-                              ::fast_io::open_mode::directory};
-    ::fast_io::posix_file pf(at(dir), u8"relative.txt",
-                             ::fast_io::open_mode::out);
-    println(pf, u8"This file is opened with openat()\n");
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        ::fast_io::posix_file dir{::fast_io::mnp::os_c_str(argv[1]),
+                                  ::fast_io::open_mode::directory};
+        ::fast_io::posix_file pf(at(dir), u8"relative.txt",
+                                 ::fast_io::open_mode::out);
+        println(pf, u8"This file is opened with openat()\n");
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
     </section>
@@ -220,22 +256,31 @@ int main(int argc, char** argv)
 
 int main()
 {
-    // Open with posix_file for RAII, but use raw POSIX read/write
-    ::fast_io::posix_file pf(u8"data.bin", ::fast_io::open_mode::out);
+    try
+    {
+        // Open with posix_file for RAII, but use raw POSIX read/write
+        ::fast_io::posix_file pf(u8"data.bin", ::fast_io::open_mode::out);
 
-    // Get the raw file descriptor
-    int fd{pf.native_handle()};
+        // Get the raw file descriptor
+        int fd{pf.native_handle()};
 
-    // Use raw POSIX write (unbuffered, goes directly to kernel)
-    char const buffer[]{"Hello from raw write(2)\n"};
-    ::ssize_t written{::write(fd, buffer, sizeof(buffer) - 1)};
+        // Use raw POSIX write (unbuffered, goes directly to kernel)
+        char const buffer[]{"Hello from raw write(2)\n"};
+        ::ssize_t written{::write(fd, buffer, sizeof(buffer) - 1)};
 
-    if (written &lt; 0) {
-        // handle error
+        if (written &lt; 0) {
+            // handle error
+        }
+
+        // pf's destructor calls close(fd) automatically when it goes out of scope.
+        // No need to manually call close() here, even if we return early or throw.
     }
-
-    // pf's destructor calls close(fd) automatically when it goes out of scope.
-    // No need to manually call close() here, even if we return early or throw.
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -248,17 +293,26 @@ int main()
 
 int main()
 {
-    ::fast_io::posix_file pf(u8"data.bin", ::fast_io::open_mode::in);
-    int fd{pf.native_handle()};
+    try
+    {
+        ::fast_io::posix_file pf(u8"data.bin", ::fast_io::open_mode::in);
+        int fd{pf.native_handle()};
 
-    char buffer[256];
-    ::ssize_t nread{::read(fd, buffer, sizeof(buffer))};
+        char buffer[256];
+        ::ssize_t nread{::read(fd, buffer, sizeof(buffer))};
 
-    if (nread &gt; 0) {
-        // Process the buffer
+        if (nread &gt; 0) {
+            // Process the buffer
+        }
+
+        // close(fd) is called automatically
     }
-
-    // close(fd) is called automatically
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -271,17 +325,26 @@ int main()
 
 int main()
 {
-    ::fast_io::posix_file pf(u8"data.bin",
-        ::fast_io::open_mode::in | ::fast_io::open_mode::out);
-    int fd{pf.native_handle()};
+    try
+    {
+        ::fast_io::posix_file pf(u8"data.bin",
+            ::fast_io::open_mode::in | ::fast_io::open_mode::out);
+        int fd{pf.native_handle()};
 
-    // Seek to offset 100 from the beginning of the file
-    ::off_t result{::lseek(fd, 100, SEEK_SET)};
-    if (result == static_cast&lt;::off_t&gt;(-1)) {
-        // handle error
+        // Seek to offset 100 from the beginning of the file
+        ::off_t result{::lseek(fd, 100, SEEK_SET)};
+        if (result == static_cast&lt;::off_t&gt;(-1)) {
+            // handle error
+        }
+
+        // Now read or write from the new position
     }
-
-    // Now read or write from the new position
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>

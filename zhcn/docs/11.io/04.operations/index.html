@@ -32,23 +32,33 @@
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    ::fast_io::ibuf_file ibf{"input.txt"};
+int main()
+{
+    try
+    {
+        ::fast_io::ibuf_file ibf{"input.txt"};
 
-    char buffer[1024];
-    char* first{buffer};
-    char* last{buffer + sizeof(buffer)};
+        char buffer[1024];
+        char* first{buffer};
+        char* last{buffer + sizeof(buffer)};
 
-    // read_some: may do a partial read.
-    // Returns pointer past the last byte read.
-    char* next = ::fast_io::operations::read_some(ibf, first, last);
+        // read_some: may do a partial read.
+        // Returns pointer past the last byte read.
+        char* next = ::fast_io::operations::read_some(ibf, first, last);
 
-    // Process what was read
-    ::std::size_t bytes_read = static_cast<::std::size_t>(next - first);
-    println("Read ", bytes_read, " bytes");
+        // Process what was read
+        ::std::size_t bytes_read = static_cast<::std::size_t>(next - first);
+        println("Read ", bytes_read, " bytes");
 
-    // Read more with read_all (loops until buffer is full or EOF)
-    ::fast_io::operations::read_all(ibf, next, last);
+        // Read more with read_all (loops until buffer is full or EOF)
+        ::fast_io::operations::read_all(ibf, next, last);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -63,16 +73,26 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 #include &lt;cstddef&gt;
 
-int main() {
-    ::fast_io::ibuf_file ibf{"binary.bin"};
+int main()
+{
+    try
+    {
+        ::fast_io::ibuf_file ibf{"binary.bin"};
 
-    ::std::byte data[256];
+        ::std::byte data[256];
 
-    ::std::byte* first{data};
-    ::std::byte* last{data + 256uz};
+        ::std::byte* first{data};
+        ::std::byte* last{data + 256uz};
 
-    // Read all bytes (loops until buffer is full or EOF)
-    ::fast_io::operations::read_all_bytes(ibf, first, last);
+        // Read all bytes (loops until buffer is full or EOF)
+        ::fast_io::operations::read_all_bytes(ibf, first, last);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -89,17 +109,27 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    ::fast_io::ibuf_file ibf{"data.bin"};
+int main()
+{
+    try
+    {
+        ::fast_io::ibuf_file ibf{"data.bin"};
 
-    char block0[4];
-    char block1[4];
+        char block0[4];
+        char block1[4];
 
-    // Read 4 bytes from offset 1024 without moving the file position
-    ::fast_io::operations::pread_all(ibf, block1, block1 + 4uz, 1024uz);
+        // Read 4 bytes from offset 1024 without moving the file position
+        ::fast_io::operations::pread_all(ibf, block1, block1 + 4uz, 1024uz);
 
-    // Read 4 bytes from offset 0; file position is still 0
-    ::fast_io::operations::pread_all(ibf, block0, block0 + 4uz, 0uz);
+        // Read 4 bytes from offset 0; file position is still 0
+        ::fast_io::operations::pread_all(ibf, block0, block0 + 4uz, 0uz);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -114,13 +144,23 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 #include &lt;cstddef&gt;
 
-int main() {
-    ::fast_io::ibuf_file ibf{"binary.bin"};
+int main()
+{
+    try
+    {
+        ::fast_io::ibuf_file ibf{"binary.bin"};
 
-    ::std::byte header[4];
+        ::std::byte header[4];
 
-    // Read PNG header from offset 0
-    ::fast_io::operations::pread_all_bytes(ibf, header, header + 4uz, 0uz);
+        // Read PNG header from offset 0
+        ::fast_io::operations::pread_all_bytes(ibf, header, header + 4uz, 0uz);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -137,21 +177,31 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    ::fast_io::ibuf_file ibf{"scatter.txt"};
+int main()
+{
+    try
+    {
+        ::fast_io::ibuf_file ibf{"scatter.txt"};
 
-    char part1[10];
-    char part2[10];
-    char part3[10];
+        char part1[10];
+        char part2[10];
+        char part3[10];
 
-    ::fast_io::io_scatter_t const scatters[]{
-        {part1, sizeof(part1)},
-        {part2, sizeof(part2)},
-        {part3, sizeof(part3)},
-    };
+        ::fast_io::io_scatter_t const scatters[]{
+            {part1, sizeof(part1)},
+            {part2, sizeof(part2)},
+            {part3, sizeof(part3)},
+        };
 
-    // One syscall reads into all three buffers
-    ::fast_io::operations::scatter_read_all(ibf, scatters, scatters + 3uz);
+        // One syscall reads into all three buffers
+        ::fast_io::operations::scatter_read_all(ibf, scatters, scatters + 3uz);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -165,19 +215,29 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    ::fast_io::ibuf_file ibf{"scatter_pos.bin"};
+int main()
+{
+    try
+    {
+        ::fast_io::ibuf_file ibf{"scatter_pos.bin"};
 
-    char part1[3];
-    char part2[3];
+        char part1[3];
+        char part2[3];
 
-    ::fast_io::io_scatter_t const scatters[]{
-        {part1, 3uz},
-        {part2, 3uz},
-    };
+        ::fast_io::io_scatter_t const scatters[]{
+            {part1, 3uz},
+            {part2, 3uz},
+        };
 
-    // Read 6 bytes from offset 512 into two buffers, file position unchanged
-    ::fast_io::operations::scatter_pread_all(ibf, scatters, scatters + 2uz, 512uz);
+        // Read 6 bytes from offset 512 into two buffers, file position unchanged
+        ::fast_io::operations::scatter_pread_all(ibf, scatters, scatters + 2uz, 512uz);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -194,19 +254,29 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    ::fast_io::obuf_file obf{"output.txt"};
+int main()
+{
+    try
+    {
+        ::fast_io::obuf_file obf{"output.txt"};
 
-    char const message[] = "Hello, fast_io operations!\n";
-    char const* first{message};
-    char const* last{message + sizeof(message) - 1}; // exclude null terminator
+        char const message[] = "Hello, fast_io operations!\n";
+        char const* first{message};
+        char const* last{message + sizeof(message) - 1}; // exclude null terminator
 
-    // write_some: may do a partial write.
-    // Returns pointer to first unwritten char.
-    char const* next = ::fast_io::operations::write_some(obf, first, last);
+        // write_some: may do a partial write.
+        // Returns pointer to first unwritten char.
+        char const* next = ::fast_io::operations::write_some(obf, first, last);
 
-    // Write the rest with write_all (loops until done)
-    ::fast_io::operations::write_all(obf, next, last);
+        // Write the rest with write_all (loops until done)
+        ::fast_io::operations::write_all(obf, next, last);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -221,19 +291,29 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 #include &lt;cstddef&gt;
 
-int main() {
-    ::fast_io::obuf_file obf{"binary.bin"};
+int main()
+{
+    try
+    {
+        ::fast_io::obuf_file obf{"binary.bin"};
 
-    ::std::byte const data[]{
-        ::std::byte{0xDE}, ::std::byte{0xAD},
-        ::std::byte{0xBE}, ::std::byte{0xEF}
-    };
+        ::std::byte const data[]{
+            ::std::byte{0xDE}, ::std::byte{0xAD},
+            ::std::byte{0xBE}, ::std::byte{0xEF}
+        };
 
-    ::std::byte const* first{data};
-    ::std::byte const* last{data + 4uz};
+        ::std::byte const* first{data};
+        ::std::byte const* last{data + 4uz};
 
-    // Write all bytes (loops until complete)
-    ::fast_io::operations::write_all_bytes(obf, first, last);
+        // Write all bytes (loops until complete)
+        ::fast_io::operations::write_all_bytes(obf, first, last);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -250,18 +330,28 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    ::fast_io::obuf_file obf{"data.bin",
-        ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
+int main()
+{
+    try
+    {
+        ::fast_io::obuf_file obf{"data.bin",
+            ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
 
-    char const block0[] = "AAAA";
-    char const block1[] = "BBBB";
+        char const block0[] = "AAAA";
+        char const block1[] = "BBBB";
 
-    // Write "BBBB" at offset 1024 without moving the file position
-    ::fast_io::operations::pwrite_all(obf, block1, block1 + 4uz, 1024uz);
+        // Write "BBBB" at offset 1024 without moving the file position
+        ::fast_io::operations::pwrite_all(obf, block1, block1 + 4uz, 1024uz);
 
-    // Write "AAAA" at offset 0; file position is still 0
-    ::fast_io::operations::pwrite_all(obf, block0, block0 + 4uz, 0uz);
+        // Write "AAAA" at offset 0; file position is still 0
+        ::fast_io::operations::pwrite_all(obf, block0, block0 + 4uz, 0uz);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -276,16 +366,26 @@ int main() {
 #include &lt;fast_io_device.h&gt;
 #include &lt;cstddef&gt;
 
-int main() {
-    ::fast_io::obuf_file obf{"binary.bin",
-        ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
+int main()
+{
+    try
+    {
+        ::fast_io::obuf_file obf{"binary.bin",
+            ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
 
-    ::std::byte const header[]{
-        ::std::byte{0x89}, ::std::byte{0x50},
-        ::std::byte{0x4E}, ::std::byte{0x47}
-    };
+        ::std::byte const header[]{
+            ::std::byte{0x89}, ::std::byte{0x50},
+            ::std::byte{0x4E}, ::std::byte{0x47}
+        };
 
-    ::fast_io::operations::pwrite_all_bytes(obf, header, header + 4uz, 0uz);
+        ::fast_io::operations::pwrite_all_bytes(obf, header, header + 4uz, 0uz);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -302,21 +402,31 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    ::fast_io::obuf_file obf{"scatter.txt"};
+int main()
+{
+    try
+    {
+        ::fast_io::obuf_file obf{"scatter.txt"};
 
-    char const part1[] = "Hello, ";
-    char const part2[] = "scatter ";
-    char const part3[] = "write!\n";
+        char const part1[] = "Hello, ";
+        char const part2[] = "scatter ";
+        char const part3[] = "write!\n";
 
-    ::fast_io::io_scatter_t const scatters[]{
-        {part1, sizeof(part1) - 1uz},
-        {part2, sizeof(part2) - 1uz},
-        {part3, sizeof(part3) - 1uz},
-    };
+        ::fast_io::io_scatter_t const scatters[]{
+            {part1, sizeof(part1) - 1uz},
+            {part2, sizeof(part2) - 1uz},
+            {part3, sizeof(part3) - 1uz},
+        };
 
-    // One syscall writes all three parts
-    ::fast_io::operations::scatter_write_all(obf, scatters, scatters + 3uz);
+        // One syscall writes all three parts
+        ::fast_io::operations::scatter_write_all(obf, scatters, scatters + 3uz);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -330,20 +440,30 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    ::fast_io::obuf_file obf{"scatter_pos.bin",
-        ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
+int main()
+{
+    try
+    {
+        ::fast_io::obuf_file obf{"scatter_pos.bin",
+            ::fast_io::open_mode::out | ::fast_io::open_mode::trunc};
 
-    char const part1[] = "AAA";
-    char const part2[] = "BBB";
+        char const part1[] = "AAA";
+        char const part2[] = "BBB";
 
-    ::fast_io::io_scatter_t const scatters[]{
-        {part1, 3uz},
-        {part2, 3uz},
-    };
+        ::fast_io::io_scatter_t const scatters[]{
+            {part1, 3uz},
+            {part2, 3uz},
+        };
 
-    // Write "AAABBB" at offset 512, file position unchanged
-    ::fast_io::operations::scatter_pwrite_all(obf, scatters, scatters + 2uz, 512uz);
+        // Write "AAABBB" at offset 512, file position unchanged
+        ::fast_io::operations::scatter_pwrite_all(obf, scatters, scatters + 2uz, 512uz);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -357,12 +477,22 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    ::fast_io::obuf_file obf{"chars.txt"};
+int main()
+{
+    try
+    {
+        ::fast_io::obuf_file obf{"chars.txt"};
 
-    ::fast_io::operations::char_put(obf, 'H');
-    ::fast_io::operations::char_put(obf, 'i');
-    ::fast_io::operations::char_put(obf, '\n');
+        ::fast_io::operations::char_put(obf, 'H');
+        ::fast_io::operations::char_put(obf, 'i');
+        ::fast_io::operations::char_put(obf, '\n');
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>

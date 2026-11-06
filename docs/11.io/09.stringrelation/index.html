@@ -55,7 +55,7 @@ struct Point {
 
 inline constexpr void print_reserve_define(::fast_io::io_reserve_type_t&lt;char, Point&gt;,
                                            char* iter,
-                                           Point const&amp; p) {
+                                           Point const&amp; p) noexcept {
     // Format: "(x, y)"
     *iter++ = '(';
     iter = ::fast_io::detail::print_reserve_integral(iter, p.x);
@@ -65,18 +65,28 @@ inline constexpr void print_reserve_define(::fast_io::io_reserve_type_t&lt;char,
     *iter++ = ')';
 }
 
-int main() {
-    using namespace ::fast_io::iomnp;
-    Point p{3.0, 4.0};
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        Point p{3.0, 4.0};
 
-    // Works on the console
-    println("Console: ", p);
+        // Works on the console
+        println("Console: ", p);
 
-    // Also works in concat_fast_io &mdash; same customisation point
-    ::fast_io::string s = ::fast_io::concat_fast_io("Point: ", p);
-    // s == "Point: (3, 4)"
+        // Also works in concat_fast_io &mdash; same customisation point
+        ::fast_io::string s = ::fast_io::concat_fast_io("Point: ", p);
+        // s == "Point: (3, 4)"
 
-    println(s);
+        println(s);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -108,16 +118,26 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_dsal/string.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
-    // Format 42 as a string ("42"), then parse it back as a double
-    double d = ::fast_io::to&lt;double&gt;(42);  // d == 42.0
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        // Format 42 as a string ("42"), then parse it back as a double
+        double d = ::fast_io::to&lt;double&gt;(42);  // d == 42.0
 
-    // Concatenate multiple arguments, then parse the result
-    ::std::size_t n = ::fast_io::to&lt;::std::size_t&gt;(1zu, 23zu);
-    // "1" + "23" -> "123" -> 123
+        // Concatenate multiple arguments, then parse the result
+        ::std::size_t n = ::fast_io::to&lt;::std::size_t&gt;(1zu, 23zu);
+        // "1" + "23" -> "123" -> 123
 
-    println("d = ", d, ", n = ", n);
+        println("d = ", d, ", n = ", n);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -168,18 +188,28 @@ struct Point {
 
 // Assume print_reserve_define is defined as in Ch11.2
 
-int main() {
-    using namespace ::fast_io::iomnp;
-    Point p{42, 100};
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        Point p{42, 100};
 
-    // concat_std produces a ::std::string
-    ::std::string s = ::fast_io::concat_std("Point: ", p);
-    // s == "Point: (42, 100)"
+        // concat_std produces a ::std::string
+        ::std::string s = ::fast_io::concat_std("Point: ", p);
+        // s == "Point: (42, 100)"
 
-    // u8concat_std produces a ::std::u8string
-    ::std::u8string u8s = ::fast_io::u8concat_std(u8"Unicode: ", p);
+        // u8concat_std produces a ::std::u8string
+        ::std::u8string u8s = ::fast_io::u8concat_std(u8"Unicode: ", p);
 
-    println("std::string: ", s);
+        println("std::string: ", s);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -259,31 +289,40 @@ int main() {
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    ::fast_io::u8string result;
+        ::fast_io::u8string result;
 
-    // Wrap the existing string as an output device
-    ::fast_io::u8ostring_ref_fast_io ref(result);
+        // Wrap the existing string as an output device
+        ::fast_io::u8ostring_ref_fast_io ref(result);
 
-    // Write to the string using print/println
-    print(ref, "Hello, ");
-    print(ref, "World!");
-    println(ref);  // adds newline
+        // Write to the string using print/println
+        print(ref, "Hello, ");
+        print(ref, "World!");
+        println(ref);  // adds newline
 
-    // The string now contains "Hello, World!\n"
-    println("Result: ", result);
+        // The string now contains "Hello, World!\n"
+        println("Result: ", result);
 
-    // You can also write structured data
-    ::fast_io::u8string buffer;
-    ::fast_io::u8ostring_ref_fast_io buf_ref(buffer);
+        // You can also write structured data
+        ::fast_io::u8string buffer;
+        ::fast_io::u8ostring_ref_fast_io buf_ref(buffer);
 
-    ::std::size_t const x{42zu};
-    ::std::size_t const y{100zu};
-    println(buf_ref, "Point: (", x, ", ", y, ")");
+        ::std::size_t const x{42zu};
+        ::std::size_t const y{100zu};
+        println(buf_ref, "Point: (", x, ", ", y, ")");
 
-    // buffer now contains "Point: (42, 100)\n"
-    println(buffer);
+        // buffer now contains "Point: (42, 100)\n"
+        println(buffer);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>

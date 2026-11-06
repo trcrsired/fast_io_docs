@@ -59,17 +59,26 @@
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    // The constructor translates open_mode into the corresponding
-    // NtCreateFile parameters (DesiredAccess, CreateDisposition, ...).
-    ::fast_io::nt_file nf(u8"hello_nt.txt", ::fast_io::open_mode::out);
+        // The constructor translates open_mode into the corresponding
+        // NtCreateFile parameters (DesiredAccess, CreateDisposition, ...).
+        ::fast_io::nt_file nf(u8"hello_nt.txt", ::fast_io::open_mode::out);
 
-    print(nf, "Hello from nt_file!\n");
+        print(nf, "Hello from nt_file!\n");
 
-    ::std::size_t const n{42zu};
-    println(nf, u8"The answer is: ", n);
-    // NtClose is invoked automatically when `nf` goes out of scope.
+        ::std::size_t const n{42zu};
+        println(nf, u8"The answer is: ", n);
+        // NtClose is invoked automatically when `nf` goes out of scope.
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
     </section>
@@ -80,7 +89,7 @@ int main()
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-void inspect(void* nt_handle)
+void inspect(void* nt_handle) throws
 {
     using namespace ::fast_io::iomnp;
 
@@ -94,8 +103,17 @@ void inspect(void* nt_handle)
 
 int main()
 {
-    ::fast_io::nt_file nf(u8"inspect.txt", ::fast_io::open_mode::out);
-    inspect(nf.native_handle());
+    try
+    {
+        ::fast_io::nt_file nf(u8"inspect.txt", ::fast_io::open_mode::out);
+        inspect(nf.native_handle());
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
     </section>
@@ -113,13 +131,22 @@ int main()
 
 int main(int argc, char** argv)
 {
-    using namespace ::fast_io::iomnp;
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    ::fast_io::nt_file dir{::fast_io::mnp::os_c_str(argv[1]),
-                           ::fast_io::open_mode::directory};
-    ::fast_io::nt_file nf(at(dir), u8"relative.txt",
-                          ::fast_io::open_mode::out);
-    println(nf, u8"Opened through NtCreateFile with a root directory\n");
+        ::fast_io::nt_file dir{::fast_io::mnp::os_c_str(argv[1]),
+                               ::fast_io::open_mode::directory};
+        ::fast_io::nt_file nf(at(dir), u8"relative.txt",
+                              ::fast_io::open_mode::out);
+        println(nf, u8"Opened through NtCreateFile with a root directory\n");
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
     </section>
@@ -215,18 +242,27 @@ int main(int argc, char** argv)
 
 int main()
 {
-    // Open with nt_file for RAII, but use raw NT NtReadFile/NtWriteFile
-    ::fast_io::nt_file nf(u8"data.bin", ::fast_io::open_mode::out);
+    try
+    {
+        // Open with nt_file for RAII, but use raw NT NtReadFile/NtWriteFile
+        ::fast_io::nt_file nf(u8"data.bin", ::fast_io::open_mode::out);
 
-    // Get the raw HANDLE
-    void* h{nf.native_handle()};
+        // Get the raw HANDLE
+        void* h{nf.native_handle()};
 
-    // In practice, calling NtWriteFile directly is complex due to IO_STATUS_BLOCK
-    // and OBJECT_ATTRIBUTES setup. Most programs should use fast_io's print/println.
-    // This example shows the concept, but real code typically uses fast_io's I/O.
+        // In practice, calling NtWriteFile directly is complex due to IO_STATUS_BLOCK
+        // and OBJECT_ATTRIBUTES setup. Most programs should use fast_io's print/println.
+        // This example shows the concept, but real code typically uses fast_io's I/O.
 
-    // nf's destructor calls NtClose(h) automatically when it goes out of scope.
-    // No need to manually call NtClose() here, even if we return early or throw.
+        // nf's destructor calls NtClose(h) automatically when it goes out of scope.
+        // No need to manually call NtClose() here, even if we return early or throw.
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -246,13 +282,22 @@ int main()
 
 int main()
 {
-    ::fast_io::nt_file nf(u8"data.bin", ::fast_io::open_mode::in);
-    void* h{nf.native_handle()};
+    try
+    {
+        ::fast_io::nt_file nf(u8"data.bin", ::fast_io::open_mode::in);
+        void* h{nf.native_handle()};
 
-    // If you call NtReadFile directly here...
-    // (complex setup omitted for brevity)
+        // If you call NtReadFile directly here...
+        // (complex setup omitted for brevity)
 
-    // NtClose(h) is called automatically by nf's destructor
+        // NtClose(h) is called automatically by nf's destructor
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>

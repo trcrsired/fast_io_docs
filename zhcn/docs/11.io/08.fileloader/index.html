@@ -72,42 +72,51 @@ using namespace fast_io::io;
 
 int main(int argc, char** argv)
 {
-    if (argc &lt; 2)
+    try
     {
-        perr("Usage: ", ::fast_io::mnp::os_c_str(*argv), " &lt;file&gt;\n");
-        return 1;
-    }
-
-    // Memory-map the entire file
-    ::fast_io::native_file_loader loader(::fast_io::mnp::os_c_str(argv[1]));
-
-    // Print the entire file contents directly
-    print(loader);
-    println("File size: ", loader.size(), " bytes");
-
-    // Iterate over the bytes
-    ::std::size_t newline_count{};
-    for (auto ch : loader)
-    {
-        if (ch == u8'\n')
+        if (argc &lt; 2)
         {
-            ++newline_count;
+            perr("Usage: ", ::fast_io::mnp::os_c_str(*argv), " &lt;file&gt;\n");
+            return 1;
+        }
+
+        // Memory-map the entire file
+        ::fast_io::native_file_loader loader(::fast_io::mnp::os_c_str(argv[1]));
+
+        // Print the entire file contents directly
+        print(loader);
+        println("File size: ", loader.size(), " bytes");
+
+        // Iterate over the bytes
+        ::std::size_t newline_count{};
+        for (auto ch : loader)
+        {
+            if (ch == u8'\n')
+            {
+                ++newline_count;
+            }
+        }
+        println("Newline count: ", newline_count);
+
+        // Random access via operator[]
+        if (loader.size() > 0zu)
+        {
+            println("First byte: ", loader[0]);
+        }
+
+        // Use with algorithms via begin()/end()
+        auto it = ::std::find(loader.begin(), loader.end(), u8'X');
+        if (it != loader.end())
+        {
+            println("Found 'X' at offset: ", static_cast<::std::size_t>(it - loader.begin()));
         }
     }
-    println("Newline count: ", newline_count);
-
-    // Random access via operator[]
-    if (loader.size() > 0zu)
+    catch throws (::std::error e)
     {
-        println("First byte: ", loader[0]);
+        ::fast_io::perrln(e);
+        return 1;
     }
-
-    // Use with algorithms via begin()/end()
-    auto it = ::std::find(loader.begin(), loader.end(), u8'X');
-    if (it != loader.end())
-    {
-        println("Found 'X' at offset: ", static_cast<::std::size_t>(it - loader.begin()));
-    }
+    return 0;
 }
       </code></pre>
       <p>
@@ -128,28 +137,37 @@ using namespace fast_io::io;
 
 int main(int argc, char** argv)
 {
-    if (argc &lt; 2)
+    try
     {
-        perr("Usage: ", ::fast_io::mnp::os_c_str(*argv), " &lt;file&gt;\n");
-        return 1;
-    }
-
-    // Load file into a heap-allocated buffer
-    ::fast_io::allocation_file_loader loader(::fast_io::mnp::os_c_str(argv[1]));
-
-    // Same container-like interface
-    println("File size: ", loader.size(), " bytes");
-    // Print file contents
-    print(loader);
-
-    // Access individual bytes
-    for (::std::size_t i{}; i &lt; loader.size(); ++i)
-    {
-        if (loader[i] == u8'\n')
+        if (argc &lt; 2)
         {
-            println("Newline at offset: ", i);
+            perr("Usage: ", ::fast_io::mnp::os_c_str(*argv), " &lt;file&gt;\n");
+            return 1;
+        }
+
+        // Load file into a heap-allocated buffer
+        ::fast_io::allocation_file_loader loader(::fast_io::mnp::os_c_str(argv[1]));
+
+        // Same container-like interface
+        println("File size: ", loader.size(), " bytes");
+        // Print file contents
+        print(loader);
+
+        // Access individual bytes
+        for (::std::size_t i{}; i &lt; loader.size(); ++i)
+        {
+            if (loader[i] == u8'\n')
+            {
+                println("Newline at offset: ", i);
+            }
         }
     }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
     </section>
@@ -209,20 +227,29 @@ int main(int argc, char** argv)
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
-
-    // Load file into heap memory (file is closed after loading)
-    ::fast_io::allocation_file_loader loader(u8"data.txt");
-
-    // Modify the contents in memory
-    for (auto&amp; ch : loader)
+    try
     {
-        if (ch == u8'a') ch = u8'A';
-    }
+        using namespace ::fast_io::iomnp;
 
-    // Now we can safely write back to the same file
-    ::fast_io::obuf_file obf(u8"data.txt");
-    print(obf, loader);
+        // Load file into heap memory (file is closed after loading)
+        ::fast_io::allocation_file_loader loader(u8"data.txt");
+
+        // Modify the contents in memory
+        for (auto&amp; ch : loader)
+        {
+            if (ch == u8'a') ch = u8'A';
+        }
+
+        // Now we can safely write back to the same file
+        ::fast_io::obuf_file obf(u8"data.txt");
+        print(obf, loader);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
       <p>
@@ -251,17 +278,26 @@ using namespace fast_io::io;
 
 int main()
 {
-    auto loader = load_file("example.txt");
+    try
+    {
+        auto loader = load_file("example.txt");
 
-    // loader now owns the mapped file
-    println("Size in main: ", loader.size());
-    print(loader);
+        // loader now owns the mapped file
+        println("Size in main: ", loader.size());
+        print(loader);
 
-    // Move into another variable
-    auto loader2 = ::std::move(loader);
-    // loader is now in a moved-from state; loader2 owns the data
+        // Move into another variable
+        auto loader2 = ::std::move(loader);
+        // loader is now in a moved-from state; loader2 owns the data
 
-    // When loader2 goes out of scope, the mapping is released
+        // When loader2 goes out of scope, the mapping is released
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
     </section>
@@ -277,28 +313,37 @@ int main()
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
-
-    ::fast_io::dir_file df(u8"src");
-
-    // Iterate over all files recursively
-    for (auto const&amp; ent : recursive(at(df)))
+    try
     {
-        if (type(ent) != ::fast_io::file_type::regular) continue;
+        using namespace ::fast_io::iomnp;
 
-        // Load only .cpp files
-        ::std::u8string_view ext{u8extension(ent)};
-        if (ext != u8".cpp") continue;
+        ::fast_io::dir_file df(u8"src");
 
-        // drt(ent) gives the (fd, name) pair to open this entry
-        ::fast_io::native_file_loader loader(drt(ent));
-        ::std::size_t lines{};
-        for (auto ch : loader)
+        // Iterate over all files recursively
+        for (auto const&amp; ent : recursive(at(df)))
         {
-            if (ch == u8'\n') ++lines;
+            if (type(ent) != ::fast_io::file_type::regular) continue;
+
+            // Load only .cpp files
+            ::std::u8string_view ext{u8extension(ent)};
+            if (ext != u8".cpp") continue;
+
+            // drt(ent) gives the (fd, name) pair to open this entry
+            ::fast_io::native_file_loader loader(drt(ent));
+            ::std::size_t lines{};
+            for (auto ch : loader)
+            {
+                if (ch == u8'\n') ++lines;
+            }
+            print(::fast_io::mnp::code_cvt(u8filename(ent)), ": ", lines, " lines\n");
         }
-        print(::fast_io::mnp::code_cvt(u8filename(ent)), ": ", lines, " lines\n");
     }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
       <p>

@@ -364,13 +364,16 @@
         <strong>跨层转换也是允许的。</strong>你不需要一层一层地转换。例如可以直接从 <code>nt_file</code>（Windows 最低层）移动到 <code>filebuf_file</code>（最高层），跳过中间的 <code>win32_file</code>、<code>posix_file</code> 和 <code>c_file</code>：
       </p>
 <pre><code class="language-cpp">
-// Cross-layer conversion: skip intermediate layers
-::fast_io::nt_file nf(u8"example.txt", ::fast_io::open_mode::out);
+void convert_layers() throws
+{
+    // Cross-layer conversion: skip intermediate layers
+    ::fast_io::nt_file nf(u8"example.txt", ::fast_io::open_mode::out);
 
-// Move directly from nt_file (layer 1) to filebuf_file (layer 6)
-::fast_io::filebuf_file fbf(::std::move(nf), ::fast_io::open_mode::out);
+    // Move directly from nt_file (layer 1) to filebuf_file (layer 6)
+    ::fast_io::filebuf_file fbf(::std::move(nf), ::fast_io::open_mode::out);
 
-// This works because filebuf_file's constructor accepts any lower-layer file type
+    // This works because filebuf_file's constructor accepts any lower-layer file type
+}
 </code></pre>
       <p>
         同样地，你可以从任何高层的 <code>static_cast</code> 直接到任何低层的观察者：
@@ -449,21 +452,30 @@ using basic_iobuf_file = ::fast_io::basic_iobuf&lt;
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    // Start at the bottom: a POSIX file descriptor.
-    ::fast_io::posix_file pf(u8"mixed.txt", ::fast_io::open_mode::out);
-    println(pf, u8"Line 1 via posix_file");
+        // Start at the bottom: a POSIX file descriptor.
+        ::fast_io::posix_file pf(u8"mixed.txt", ::fast_io::open_mode::out);
+        println(pf, u8"Line 1 via posix_file");
 
-    // Move it up to a C FILE*.
-    ::fast_io::c_file cf(::std::move(pf), ::fast_io::open_mode::out);
-    println(cf, u8"Line 2 via c_file");
+        // Move it up to a C FILE*.
+        ::fast_io::c_file cf(::std::move(pf), ::fast_io::open_mode::out);
+        println(cf, u8"Line 2 via c_file");
 
-    // Move it up again to a C++ std::filebuf.
-    ::fast_io::filebuf_file fbf(::std::move(cf), ::fast_io::open_mode::out);
-    println(fbf, u8"Line 3 via filebuf_file");
+        // Move it up again to a C++ std::filebuf.
+        ::fast_io::filebuf_file fbf(::std::move(cf), ::fast_io::open_mode::out);
+        println(fbf, u8"Line 3 via filebuf_file");
 
-    // All three lines end up in the same file, in order.
+        // All three lines end up in the same file, in order.
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
       <p>
@@ -483,23 +495,32 @@ int main()
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    // Start at the syscall level (posix on Linux/macOS, nt/win32 on Windows).
-    ::fast_io::posix_file pf(u8"syscall.txt", ::fast_io::open_mode::out);
+        // Start at the syscall level (posix on Linux/macOS, nt/win32 on Windows).
+        ::fast_io::posix_file pf(u8"syscall.txt", ::fast_io::open_mode::out);
 
-    // Move up: posix -&gt; c
-    ::fast_io::c_file cf(::std::move(pf), ::fast_io::open_mode::out);
+        // Move up: posix -&gt; c
+        ::fast_io::c_file cf(::std::move(pf), ::fast_io::open_mode::out);
 
-    // Move up: c -&gt; filebuf
-    ::fast_io::filebuf_file fbf(::std::move(cf), ::fast_io::open_mode::out);
+        // Move up: c -&gt; filebuf
+        ::fast_io::filebuf_file fbf(::std::move(cf), ::fast_io::open_mode::out);
 
-    // Transfer the filebuf into an std::ofstream
-    ::std::ofstream fout;
-    *fout.rdbuf() = ::std::move(*fbf.fb);
+        // Transfer the filebuf into an std::ofstream
+        ::std::ofstream fout;
+        *fout.rdbuf() = ::std::move(*fbf.fb);
 
-    // Now you can use the fstream like normal C++.
-    fout &lt;&lt; "Hello from a syscall-originated fstream!\n";
+        // Now you can use the fstream like normal C++.
+        fout &lt;&lt; "Hello from a syscall-originated fstream!\n";
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
       <p>
@@ -518,26 +539,35 @@ int main()
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    // iobuf_file is buffered I/O on top of native_file.
-    ::fast_io::iobuf_file bf(u8"demo.txt", ::fast_io::open_mode::out);
-    println(bf, u8"Buffered write");
+        // iobuf_file is buffered I/O on top of native_file.
+        ::fast_io::iobuf_file bf(u8"demo.txt", ::fast_io::open_mode::out);
+        println(bf, u8"Buffered write");
 
-    // Flush so everything hits the underlying file before we peek at it.
-    ::fast_io::flush(bf);
+        // Flush so everything hits the underlying file before we peek at it.
+        ::fast_io::flush(bf);
 
-    // Step 1: obtain a posix_io_observer from the iobuf_file.
-    //         On POSIX systems, iobuf_file's native file is posix_file,
-    //         so this static_cast is lossless.
-    auto piob{static_cast&lt;::fast_io::posix_io_observer&gt;(bf)};
+        // Step 1: obtain a posix_io_observer from the iobuf_file.
+        //         On POSIX systems, iobuf_file's native file is posix_file,
+        //         so this static_cast is lossless.
+        auto piob{static_cast&lt;::fast_io::posix_io_observer&gt;(bf)};
 
-    // Step 2: pull the raw int fd out of the observer.
-    int const fd{piob.fd};
+        // Step 2: pull the raw int fd out of the observer.
+        int const fd{piob.fd};
 
-    print("The underlying fd is: ", fd);
+        print("The underlying fd is: ", fd);
 
-    // The fd is still owned by `bf`; we only borrowed a view.
+        // The fd is still owned by `bf`; we only borrowed a view.
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
       <p>

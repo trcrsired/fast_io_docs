@@ -42,7 +42,7 @@
       </p>
 
 <pre><code class="language-cpp">
-void scale(int x, int factor = 2)
+void scale(int x, int factor = 2) throws
 {
     ::fast_io::io::println(x * factor);
 }
@@ -74,10 +74,10 @@ int main()
 
 <pre><code class="language-cpp">
 // header (math.hpp)
-int power(int base, int exp = 2);
+int power(int base, int exp = 2) noexcept;
 
 // source file (math.cpp)
-int power(int base, int exp)
+int power(int base, int exp) noexcept
 {
     int result{1};
     for(int i{}; i &lt; exp; ++i)
@@ -103,8 +103,8 @@ int power(int base, int exp)
       </p>
 
 <pre><code class="language-cpp">
-void f(int x = 0, int y = 0);   // ✔ OK
-void g(int x = 0, int y);       // ❌ error — y has no default
+void f(int x = 0, int y = 0) noexcept;   // ✔ OK
+void g(int x = 0, int y) noexcept;       // ❌ error — y has no default
 </code></pre>
 
       <p>
@@ -123,8 +123,8 @@ void g(int x = 0, int y);       // ❌ error — y has no default
       </p>
 
 <pre><code class="language-cpp">
-void h(int x, int y = 0);
-void h(int x);
+void h(int x, int y = 0) noexcept;
+void h(int x) noexcept;
 </code></pre>
 
       <p>
@@ -153,13 +153,13 @@ void h(int x);
       </p>
 
 <pre><code class="language-cpp">
-int next_id()
+int next_id() noexcept
 {
     static int counter{};
     return ++counter;
 }
 
-void assign_id(int id = next_id());
+void assign_id(int id = next_id()) noexcept;
 
 int main()
 {

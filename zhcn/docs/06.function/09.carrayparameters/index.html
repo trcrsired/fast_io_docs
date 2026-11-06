@@ -51,7 +51,7 @@
       </p>
 
 <pre><code class="language-cpp">
-void print_first(int const* p)
+void print_first(int const* p) throws
 {
     ::fast_io::io::println("first element = ", *p);
 }
@@ -87,9 +87,9 @@ int main()
       </p>
 
 <pre><code class="language-cpp">
-void f(int const arr[]);
-void f(int const arr[10]);
-void f(int const* arr);
+void f(int const arr[]) noexcept;
+void f(int const arr[10]) noexcept;
+void f(int const* arr) noexcept;
 </code></pre>
 
       <p>
@@ -129,7 +129,7 @@ void f(int const* arr);
       </p>
 
 <pre><code class="language-cpp">
-void print_size(int const arr[])
+void print_size(int const arr[]) throws
 {
     ::fast_io::io::println(sizeof(arr));
     // prints sizeof(int*) — NOT the size of the array!
@@ -145,7 +145,7 @@ void print_size(int const arr[])
       </p>
 
 <pre><code class="language-cpp">
-void print_all(int const* arr, std::size_t n)
+void print_all(int const* arr, std::size_t n) throws
 {
     for(std::size_t i{}; i != n; ++i)
         ::fast_io::io::println(arr[i]);
@@ -165,7 +165,7 @@ void print_all(int const* arr, std::size_t n)
       </p>
 
 <pre><code class="language-cpp">
-void print_matrix(int const (*arr)[4], std::size_t rows)
+void print_matrix(int const (*arr)[4], std::size_t rows) throws
 {
     for(std::size_t r{}; r != rows; ++r)
         for(std::size_t c{}; c != 4; ++c)
@@ -182,7 +182,7 @@ void print_matrix(int const (*arr)[4], std::size_t rows)
       </p>
 
 <pre><code class="language-cpp">
-void bad(int const arr[][]);  // ❌ error — second dimension unknown
+void bad(int const arr[][]) noexcept;  // ❌ error — second dimension unknown
 </code></pre>
     </section>
 
@@ -198,7 +198,7 @@ void bad(int const arr[][]);  // ❌ error — second dimension unknown
       </p>
 
 <pre><code class="language-cpp">
-void demo(int const* p)
+void demo(int const* p) throws
 {
     ::fast_io::io::println(p[2]);   // same as *(p + 2)
 }
@@ -221,7 +221,7 @@ void demo(int const* p)
       </p>
 
 <pre><code class="language-cpp">
-void print_all(int const* arr, std::size_t n);
+void print_all(int const* arr, std::size_t n) throws;
 </code></pre>
     </section>
 
@@ -264,7 +264,7 @@ void print_all(int const* arr, std::size_t n);
       <h3>固定大小数组</h3>
 
 <pre><code class="language-cpp">
-void process(::fast_io::array&lt;int, 4&gt; arr)
+void process(::fast_io::array&lt;int, 4&gt; arr) throws
 {
     for(auto e : arr)
         ::fast_io::io::println(e);
@@ -274,7 +274,7 @@ void process(::fast_io::array&lt;int, 4&gt; arr)
       <h3>动态大小数组</h3>
 
 <pre><code class="language-cpp">
-void process(::fast_io::vector&lt;int&gt; v)
+void process(::fast_io::vector&lt;int&gt; v) throws
 {
     for(auto e : v)
         ::fast_io::io::println(e);
@@ -298,7 +298,7 @@ void process(::fast_io::vector&lt;int&gt; v)
       <h3>按 const 引用传递 vector</h3>
 
 <pre><code class="language-cpp">
-void process(::fast_io::vector&lt;int&gt; const& v)
+void process(::fast_io::vector&lt;int&gt; const& v) throws
 {
     for(auto e : v)
         ::fast_io::io::println(e);

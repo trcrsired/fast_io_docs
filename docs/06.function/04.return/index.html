@@ -44,7 +44,7 @@
       </p>
 
 <pre><code class="language-cpp">
-int add(int a, int b)
+int add(int a, int b) noexcept
 {
     return a + b;
 }
@@ -99,7 +99,7 @@ int main()
       </p>
 
 <pre><code class="language-cpp">
-int classify(int x)
+int classify(int x) noexcept
 {
     if(x &lt; 0)
         return -1;
@@ -128,7 +128,7 @@ int classify(int x)
       </p>
 
 <pre><code class="language-cpp">
-int &amp; max_ref(int &amp; a, int &amp; b)
+int &amp; max_ref(int &amp; a, int &amp; b) noexcept
 {
     return (a &gt; b) ? a : b;
 }
@@ -162,7 +162,7 @@ int main()
       </p>
 
 <pre><code class="language-cpp">
-int &amp; bad()
+int &amp; bad() noexcept
 {
     int x{42};
     return x;   // ❌ ERROR — x is destroyed when the function ends
@@ -178,7 +178,7 @@ int &amp; bad()
       </p>
 
 <pre><code class="language-cpp">
-int good()
+int good() noexcept
 {
     int x{42};
     return x;   // ✔ OK — returns a copy
@@ -205,7 +205,7 @@ int good()
 <pre><code class="language-cpp">
 ::fast_io::string const &amp; get_global()
 {
-    static ::fast_io::string g("Hello");
+    static ::fast_io::string g("Hello") noexcept;
     return g;   // ✔ OK — static objects live for the entire program
 }
 </code></pre>

@@ -45,12 +45,12 @@
       </p>
 
 <pre><code class="language-cpp">
-void print(int x)
+void print(int x) throws
 {
     ::fast_io::io::println("int: ", x);
 }
 
-void print(double d)
+void print(double d) throws
 {
     ::fast_io::io::println("double: ", d);
 }
@@ -79,9 +79,9 @@ int main()
       </p>
 
 <pre><code class="language-cpp">
-void f(int);
-void f(double);       // OK — different type
-void f(int, int);     // OK — different number of parameters
+void f(int) noexcept;
+void f(double) noexcept;       // OK — different type
+void f(int, int) noexcept;     // OK — different number of parameters
 </code></pre>
 
       <p>
@@ -102,8 +102,8 @@ void f(int, int);     // OK — different number of parameters
       </p>
 
 <pre><code class="language-cpp">
-int g();
-double g();   // ❌ error — return type alone does not create a new overload
+int g() noexcept;
+double g() noexcept;   // ❌ error — return type alone does not create a new overload
 </code></pre>
 
       <p>
@@ -131,12 +131,12 @@ auto x = g();   // which g() should this call?
       </p>
 
 <pre><code class="language-cpp">
-void h(int &amp; x)
+void h(int &amp; x) throws
 {
     ::fast_io::io::print("non-const reference\n");
 }
 
-void h(int const &amp; x)
+void h(int const &amp; x) throws
 {
     ::fast_io::io::print("const reference\n");
 }
@@ -169,8 +169,8 @@ int main()
       </p>
 
 <pre><code class="language-cpp">
-void k(long);
-void k(double);
+void k(long) noexcept;
+void k(double) noexcept;
 
 int main()
 {
@@ -194,8 +194,8 @@ int main()
       </p>
 
 <pre><code class="language-cpp">
-void m(int x, int y = 0);
-void m(int x);
+void m(int x, int y = 0) noexcept;
+void m(int x) noexcept;
 </code></pre>
 
       <p>

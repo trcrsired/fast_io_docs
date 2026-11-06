@@ -29,17 +29,27 @@
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    // Create a temporary file with obuf_file
-    ::fast_io::obuf_file obf(::fast_io::io_temp);
+        // Create a temporary file with obuf_file
+        ::fast_io::obuf_file obf(::fast_io::io_temp);
 
-    // Write to it like any other file
-    println(obf, "Temporary data: ", 42);
-    println(obf, "More data: ", 3.14159);
+        // Write to it like any other file
+        println(obf, "Temporary data: ", 42);
+        println(obf, "More data: ", 3.14159);
 
-    // File is automatically deleted when `obf` goes out of scope
+        // File is automatically deleted when `obf` goes out of scope
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -49,22 +59,32 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    // Temporary file with C stdio interface
-    ::fast_io::c_file cf(::fast_io::io_temp);
-    fprintf(cf.fp, "Temporary data\n");
+        // Temporary file with C stdio interface
+        ::fast_io::c_file cf(::fast_io::io_temp);
+        fprintf(cf.fp, "Temporary data\n");
 
-    // Temporary buffered file
-    ::fast_io::obuf_file obf(::fast_io::io_temp);
-    println(obf, "Buffered temporary data");
+        // Temporary buffered file
+        ::fast_io::obuf_file obf(::fast_io::io_temp);
+        println(obf, "Buffered temporary data");
 
-    // Temporary input/output file
-    ::fast_io::iobuf_file iof(::fast_io::io_temp);
-    println(iof, "Read-write temporary data");
+        // Temporary input/output file
+        ::fast_io::iobuf_file iof(::fast_io::io_temp);
+        println(iof, "Read-write temporary data");
 
-    // All files are deleted automatically when they go out of scope
+        // All files are deleted automatically when they go out of scope
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
       <p>
@@ -81,26 +101,36 @@ int main() {
 #include &lt;fast_io.h&gt;
 #include &lt;fast_io_device.h&gt;
 
-int main() {
-    using namespace ::fast_io::iomnp;
+int main()
+{
+    try
+    {
+        using namespace ::fast_io::iomnp;
 
-    // Create a temporary file (read-write)
-    ::fast_io::native_file temp(::fast_io::io_temp);
+        // Create a temporary file (read-write)
+        ::fast_io::native_file temp(::fast_io::io_temp);
 
-    // Write data
-    println(temp, "Line 1");
-    println(temp, "Line 2");
-    println(temp, "Line 3");
+        // Write data
+        println(temp, "Line 1");
+        println(temp, "Line 2");
+        println(temp, "Line 3");
 
-    // Seek back to beginning
-    ::fast_io::rewind(temp);
+        // Seek back to beginning
+        ::fast_io::rewind(temp);
 
-    // Read it back
-    for (::fast_io::string line; scan&lt;true&gt;(temp, str_line_get(line)); ) {
-        println("Read: ", line);
+        // Read it back
+        for (::fast_io::string line; scan&lt;true&gt;(temp, str_line_get(line)); ) {
+            println("Read: ", line);
+        }
+
+        // File is deleted automatically when temp goes out of scope
     }
-
-    // File is deleted automatically when temp goes out of scope
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
 </code></pre>
     </section>
@@ -177,7 +207,9 @@ int main() {
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/11.io/18.filesystem/" class="prev-button">&larr; 第11.18章: 文件系统 API</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/11.io/18.filesystem/" class="prev-button">&larr; 第11.18章: 文件系统 API</a>
+      <a href="/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/12.random/" class="next-button">第12章: random &rarr;</a>
     </div>
   </main>
 </body>

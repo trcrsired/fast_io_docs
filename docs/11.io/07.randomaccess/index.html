@@ -34,17 +34,26 @@
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
-    ::fast_io::obuf_file obf(u8"seekable.txt", ::fast_io::open_mode::out);
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        ::fast_io::obuf_file obf(u8"seekable.txt", ::fast_io::open_mode::out);
 
-    // Write some data
-    println(obf, "Hello, World!");
+        // Write some data
+        println(obf, "Hello, World!");
 
-    // Seek back to the beginning (output_stream_rewind)
-    ::fast_io::operations::output_stream_rewind(obf);
+        // Seek back to the beginning (output_stream_rewind)
+        ::fast_io::operations::output_stream_rewind(obf);
 
-    // Or seek to a specific offset
-    ::fast_io::operations::output_stream_seek(obf, 0);
+        // Or seek to a specific offset
+        ::fast_io::operations::output_stream_seek(obf, 0);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
     </section>
@@ -78,13 +87,22 @@ int main()
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
-    ::fast_io::obuf_file obf(u8"positional_write.txt", ::fast_io::open_mode::out);
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        ::fast_io::obuf_file obf(u8"positional_write.txt", ::fast_io::open_mode::out);
 
-    // Write at specific offsets without disturbing file position
-    ::fast_io::operations::pwrite_all(obf, "AAAA", 0uz);
-    ::fast_io::operations::pwrite_all(obf, "BBBB", 100uz);
-    ::fast_io::operations::pwrite_all(obf, "CCCC", 200uz);
+        // Write at specific offsets without disturbing file position
+        ::fast_io::operations::pwrite_all(obf, "AAAA", 0uz);
+        ::fast_io::operations::pwrite_all(obf, "BBBB", 100uz);
+        ::fast_io::operations::pwrite_all(obf, "CCCC", 200uz);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
       <p>
@@ -102,18 +120,27 @@ int main()
 
 int main()
 {
-    using namespace ::fast_io::iomnp;
-    ::fast_io::ibuf_file ibf(u8"positional_write.txt", ::fast_io::open_mode::in);
+    try
+    {
+        using namespace ::fast_io::iomnp;
+        ::fast_io::ibuf_file ibf(u8"positional_write.txt", ::fast_io::open_mode::in);
 
-    char buf1[5]{};
-    char buf2[5]{};
+        char buf1[5]{};
+        char buf2[5]{};
 
-    // Read from specific offsets
-    ::fast_io::operations::pread_all(ibf, ::fast_io::as_bytes(::fast_io::span{buf1, 4uz}), 0uz);
-    ::fast_io::operations::pread_all(ibf, ::fast_io::as_bytes(::fast_io::span{buf2, 4uz}), 100uz);
+        // Read from specific offsets
+        ::fast_io::operations::pread_all(ibf, ::fast_io::as_bytes(::fast_io::span{buf1, 4uz}), 0uz);
+        ::fast_io::operations::pread_all(ibf, ::fast_io::as_bytes(::fast_io::span{buf2, 4uz}), 100uz);
 
-    println("At offset 0:   ", ::fast_io::mnp::os_c_str(buf1));
-    println("At offset 100: ", ::fast_io::mnp::os_c_str(buf2));
+        println("At offset 0:   ", ::fast_io::mnp::os_c_str(buf1));
+        println("At offset 100: ", ::fast_io::mnp::os_c_str(buf2));
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
 }
       </code></pre>
     </section>

@@ -16,11 +16,60 @@
     <section>
       <h2>概述</h2>
       <p>
-        本章讲 <code>fast_io</code> 的 I/O 系统 &mdash; 这是整个库的核心。我们将学习如何进行文件 I/O、如何为打印和扫描定义自定义类型、如何使用操纵器、理解操作层，并接触操作系统文件 API 的每一个层次。
+        本章讲解 <code>fast_io</code> 的 I/O 系统 &mdash; 整个库的核心。我们将学习如何进行文件 I/O、为打印与扫描定义自定义类型、使用操纵器、理解操作层，以及使用操作系统文件 API 的每一个层级。
       </p>
       <p>
-        <strong>重要前提：</strong>本章假设你运行在拥有完整文件系统访问权限的标准宿主环境中。如果你运行在应用沙箱里（例如移动应用沙箱、浏览器 WASM 沙箱、容器限制），或者运行在 freestanding 环境里（例如没有操作系统的嵌入式系统、内核开发），那么关于文件 I/O 的许多前提都不再成立。我们会在后续章节讨论这些特殊环境。
+        <strong>重要前提：</strong>本章假定你运行在拥有完整文件系统权限的标准宿主环境（hosted）中。如果你运行在应用沙盒（例如移动应用沙盒、浏览器 WASM 沙盒、容器限制）或 freestanding 环境（例如没有操作系统的嵌入式系统、内核开发）中，关于文件 I/O 的许多前提将不再成立。这些特殊环境我们会在后续章节讨论。
       </p>
+      <p>
+        <strong>本章的每一个示例都是处理自身错误的完整程序。</strong>I/O 是程序中唯一会例行失败的部分，所以本章绝不假装它不会失败 &mdash; 请先读<a href="#io-fails">第 0 节</a>。
+      </p>
+    </section>
+
+    <section id="io-fails">
+      <h2>0. I/O 会失败。而且是不断失败。必须处理它。</h2>
+      <p>
+        前面每一章处理的都是你计算出来的值，而计算要么给出结果，要么不给。I/O 不是这样。文件不存在。磁盘满了。目录不可写。管道的读端已经走了。套接字被对端重置了。设备忙，网络挂载超时，配额超限，描述符表满了。<strong>在真实系统上，这些都不是“异常事件”：它们就是日常。</strong>如果一章 I/O 教程只教你怎么调用而不教失败如何被报告、被处理，那它教给你的是会在生产环境里当场死掉的程序。
+      </p>
+      <p>
+        所以本章的总规则就是 <a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a> 的那条规则，用在最要紧的地方：<strong>任何与设备打交道的操作都是 <code>throws</code> 操作</strong>，并且<strong>下面每一个程序都捕获它抛出的东西</strong>。处理器只有一种形状，你在本章的每一个示例里都会见到它：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    try
+    {
+        ::fast_io::obuf_file obf(u8"out.txt");
+        ::fast_io::io::println(obf, "written only if the disk accepted it");
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
+}
+</code></pre>
+      <p>
+        <code>try</code> 覆盖的是<em>整个</em>函数体，而不只是构造函数。打开会失败，写入会失败，刷新也会失败；是哪一步失败，是处理器的职责去查明，而不是让程序去猜。<code>::std::error</code> 的每一个成员见 <a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>，同样的处理器在 <code>constexpr</code> 语境下如何工作见 <a href="/zhcn/docs/07.compiletimeprogramming/07.herbceptions/">第7.7章</a>。
+      </p>
+      <div class="note" style="border:1px solid #cc6600;background:rgba(204,102,0,0.08);padding:0.75em 1em;margin:1em 0;">
+        <strong>重要 &mdash; 本章的规则。</strong> <ul> <li><strong>绝不要省掉处理器。</strong><code>catch (...)</code> 捕获不到赫布异常，而不带 <code>throws</code> 的 <code>catch (::std::error)</code> 根本不是合法 C++。唯一能捕获失败的处理器是 <code>catch throws (::std::error e)</code>。</li> <li><strong>把处理器放在你能放的最高层。</strong>在只做一件事的程序里，那就是 <code>main</code>。在长时间运行的服务里，那是监督这项工作的那个循环的顶层。不要把处理器撒进每个辅助函数：一个会报告失败的辅助函数，比一个自己打印完继续跑的辅助函数有用得多。</li> <li><strong>不要吞掉错误。</strong>空处理器 <code>catch throws (::std::error) { }</code> 是合法的，偶尔也是正确的（见 <a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a> 第 4 节），但在这里它是错的：I/O 错误恰恰是程序通常能做出反应的那类错误。</li> <li><strong>报告本身也是 I/O。</strong><code>::fast_io::perrln(e)</code> 会写 <code>stderr</code>，它自己也可能失败。这正是它待在 <code>main</code> 里的原因：如果连打印错误都失败了，那就没有地方再报告了，返回非零就是最后一个诚实的答案。</li> <li><strong>从未刷新的目标什么都没报告过。</strong>带缓冲的写入只是写进了缓冲区。真正会失败的 <code>write</code> 发生在刷新或关闭时 &mdash; 这就是为什么本章每个缓冲区的右花括号都在 <code>try</code> 里面，也是为什么当结果重要时，你应该把缓冲区放进作用域，或在 <code>try</code> 里显式调用 <code>flush()</code>/<code>close()</code>。</li> </ul>
+      </div>
+      <p>
+        由此产生两个习惯，本章每一页的代码里都能看到它们：
+      </p>
+      <ul>
+        <li>
+          <strong>按含义处理，而不是按数字。</strong>一个错误携带一个域和一个码；<code>e.domain()</code> 告诉你它属于哪个码空间，<code>e.code()</code> 告诉你是其中哪种失败。按域分支的处理器能区分“文件不存在”“本进程无权打开它”“设备已经消失”，并对每一种采取不同的动作。只会打印的处理器仍然远好过没有。
+        </li>
+        <li>
+          <strong>把每一步都在纸面上当作可能失败。</strong>当你在本章读到 <code>print(f, x)</code>，请把它读作“尝试&nbsp;<code>print</code>”。每一次对设备的调用都是一个有两个答案的问题，而你读到的代码是同时回答了两者的那一版。
+        </li>
+      </ul>
     </section>
 
     <section>
@@ -38,7 +87,7 @@
         <li><a href="/zhcn/docs/11.io/08.fileloader/">第11.8章: 文件加载器</a></li>
         <li><a href="/zhcn/docs/11.io/09.stringrelation/">第11.9章: 与字符串的关系</a></li>
         <li>
-          <a href="/zhcn/docs/11.io/10.socket/">第11.10章: socket 文件</a> <ul> <li><a href="/zhcn/docs/11.io/10.socket/01.networkbasics/">第11.10.1章: 网络基础</a></li> <li><a href="/zhcn/docs/11.io/10.socket/02.dns/">第11.10.2章: DNS</a></li> <li><a href="/zhcn/docs/11.io/10.socket/03.modernprotocols/">第11.10.3章: 现代网络协议</a></li> <li><a href="/zhcn/docs/11.io/10.socket/04.protocolsupport/">第11.10.4章: fast_io 中的协议支持</a></li> </ul>
+          <a href="/zhcn/docs/11.io/10.socket/">第11.10章: 套接字文件</a> <ul> <li><a href="/zhcn/docs/11.io/10.socket/01.networkbasics/">第11.10.1章: 网络基础</a></li> <li><a href="/zhcn/docs/11.io/10.socket/02.dns/">第11.10.2章: DNS</a></li> <li><a href="/zhcn/docs/11.io/10.socket/03.modernprotocols/">第11.10.3章: 现代协议</a></li> <li><a href="/zhcn/docs/11.io/10.socket/04.protocolsupport/">第11.10.4章: 协议支持</a></li> </ul>
         </li>
         <li>
           <a href="/zhcn/docs/11.io/11.cstyle/">第11.11章: C 风格 I/O</a> <ul> <li><a href="/zhcn/docs/11.io/11.cstyle/01.creference/">第11.11.1章: C I/O 函数参考</a></li> </ul>
@@ -50,7 +99,7 @@
         <li><a href="/zhcn/docs/11.io/14.win32/">第11.14章: Win32 文件 API</a></li>
         <li><a href="/zhcn/docs/11.io/15.nt/">第11.15章: NT 文件 API</a></li>
         <li><a href="/zhcn/docs/11.io/16.wine/">第11.16章: Wine 文件 API</a></li>
-        <li><a href="/zhcn/docs/11.io/17.layers/">第11.17章: 文件各层之间的关系</a></li>
+        <li><a href="/zhcn/docs/11.io/17.layers/">第11.17章: 文件层级之间的关系</a></li>
         <li><a href="/zhcn/docs/11.io/18.filesystem/">第11.18章: 文件系统 API</a></li>
         <li><a href="/zhcn/docs/11.io/19.temp/">第11.19章: 临时文件</a></li>
       </ul>
@@ -58,7 +107,7 @@
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/10.associativecontainers/11.typespecs/" class="prev-button">&larr; 第10.11章: 类型与规格</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/01.fileio/" class="next-button">第11.1章: 文件 I/O &rarr;</a>
+      <a href="/zhcn/docs/10.associativecontainers/11.typespecs/" class="prev-button">&larr; 第10.11章: 类型与规范</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/01.fileio/" class="next-button">第11.1章: 文件 I/O &rarr;</a>
     </div>
   </main>
 </body>

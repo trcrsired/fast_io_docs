@@ -48,7 +48,7 @@
 <pre><code class="language-cpp">
 #include <fast_io.h>
 
-consteval int double_value(int x)
+consteval int double_value(int x) noexcept
 {
     return x * 2;
 }
@@ -112,7 +112,7 @@ int main()
 <pre><code class="language-cpp">
 #include <fast_io.h>
 
-consteval int positive(int x)
+consteval int positive(int x) noexcept
 {
     if(x <= 0)
         throw "value must be positive";
@@ -164,8 +164,8 @@ int main()
       </ul>
 
 <pre><code class="language-cpp">
-constexpr int f(int x) { return x + 1; }   // flexible
-consteval int g(int x) { return x + 1; }   // strict
+constexpr int f(int x) noexcept { return x + 1; }   // flexible
+consteval int g(int x) noexcept { return x + 1; }   // strict
 </code></pre>
 
       <p>
@@ -189,7 +189,7 @@ consteval int g(int x) { return x + 1; }   // strict
 <pre><code class="language-cpp">
 #include <fast_io.h>
 
-constexpr int compute(int x)
+constexpr int compute(int x) throws
 {
     using namespace ::fast_io::iomnp;
 
@@ -201,7 +201,7 @@ constexpr int compute(int x)
     return x * 3;
 }
 
-consteval int force_ct(int x)
+consteval int force_ct(int x) noexcept
 {
     return compute(x);  // always compile-time
 }
