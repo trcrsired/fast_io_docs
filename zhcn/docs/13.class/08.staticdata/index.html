@@ -3,31 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch13.8: Static Data Members - C++ Tutorial with fast_io</title>
+  <title>第13.8章: 静态数据成员 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch13.8: Static Data Members</h1>
+    <h1>第13.8章: 静态数据成员</h1>
     <p class="lang-switch"><a href="/docs/13.class/08.staticdata/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. One Variable for the Whole Class</h2>
+      <h2>1. 整个类共用一份变量</h2>
 
       <p>
-        A normal data member belongs to an object: every <code>account</code> has its
-        own <code>id_</code>. A <strong>static data member</strong> belongs to the
-        <strong>class</strong>: there is exactly one of it, no matter how many objects
-        exist, and it exists whether or not any object exists at all.
+        普通数据成员属于某个对象：每个 <code>account</code> 都有自己的 <code>id_</code>。<strong>静态数据成员</strong>属于<strong>类</strong>：无论存在多少对象，它都只有一份，而且即使一个对象都不存在，它也存在。
       </p>
 
       <p>
-        That is exactly what you want for a fact about the class rather than about an
-        instance: the next identifier to hand out, how many objects were created, a
-        shared limit, a table that all instances consult.
+        当你要表达的是关于类而不是关于某个实例的事实时，这正是你想要的：下一个要发放的标识符、一共创建了多少个对象、一个共享的上限、一张所有实例都要查的表。
       </p>
 
       <pre><code class="language-cpp">
@@ -43,32 +37,31 @@ class account
     </section>
 
     <section>
-      <h2>2. <code>inline static</code> and <code>static constexpr</code></h2>
+      <h2>2. <code>inline static</code> 与 <code>static constexpr</code></h2>
 
       <p>
-        There are two spellings you need, and both are one line inside the class:
+        你需要两种写法，都是在类里写一行：
       </p>
 
       <table>
         <thead>
           <tr>
-            <th>Declaration</th>
-            <th>Meaning</th>
+            <th>声明</th>
+            <th>含义</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>inline static ::std::size_t next_id_{1};</code></td>
-            <td>One mutable variable for the class. <code>inline</code> makes this
-              declaration also the definition, so nothing else has to be written
-              anywhere &mdash; not even when the class is in a header included by many
-              files.</td>
+            <td>
+              类的一个可变变量。<code>inline</code> 让这个声明同时也是定义，因此别处什么都不用写 &mdash; 即使这个类放在被许多文件包含的头文件里也一样。
+            </td>
           </tr>
           <tr>
             <td><code>static constexpr ::std::size_t iban_length{34};</code></td>
-            <td>A constant that belongs to the class. <code>constexpr</code> implies
-              <code>const</code> and, inside a class, <code>inline</code> too. Use it
-              where you would otherwise write a literal or a macro.</td>
+            <td>
+              属于该类的一个常量。<code>constexpr</code> 蕴含 <code>const</code>，在类内部还蕴含 <code>inline</code>。在原本要写字面量或宏的地方用它。
+            </td>
           </tr>
         </tbody>
       </table>
@@ -118,22 +111,11 @@ iban_length: 34 (also a.iban_length = 34)
 </code></pre>
 
       <p>
-        The constructor <code>account() noexcept : id_{next_id_++}</code> reads and
-        writes the shared counter: each object takes the current value and leaves the
-        counter one higher. The last line shows that a static member is also reachable
-        through an object (<code>a.iban_length</code>) &mdash; legal, because both
-        spellings mean the same single variable. Do not write it that way: it looks
-        like per-object data, which is exactly the misunderstanding the keyword exists
-        to prevent.
+        构造函数 <code>account() noexcept : id_{next_id_++}</code> 读写这个共享计数器：每个对象取当前值，并让计数器加一。最后一行表明，静态成员也可以通过对象到达（<code>a.iban_length</code>）&mdash; 这合法，因为两种写法指的是同一个变量。但不要那样写：它看起来像每对象数据，而这正是该关键字要防止的误解。
       </p>
 
       <div class="note">
-        <p>
-        <strong>If you cannot write <code>inline</code>.</strong> Before C++17 the
-        member had to be declared inside the class and <em>defined</em> in exactly one
-        <code>.cc</code> file:
-      </p>
-      <pre><code class="language-cpp">
+        <p> <strong>如果你不能写 <code>inline</code>。</strong>在 C++17 之前，成员必须在类内声明，并在恰好一个 <code>.cc</code> 文件里<em>定义</em>： </p> <pre><code class="language-cpp">
 // account.h
 class account
 {
@@ -143,84 +125,66 @@ public:
 
 // account.cc
 ::std::size_t account::next_id_{1};  // the one definition
-</code></pre>
-      <p>
-        You will meet this in older code. <code>inline static</code> and
-        <code>static constexpr</code> do the same job in one line and cannot get out of
-        sync, which is why this tutorial uses them.
-      </p>
+</code></pre> <p> 你会在旧代码里遇到这种写法。<code>inline static</code> 与 <code>static constexpr</code> 一行就能完成同样的活，而且不会失同步，所以本教程用它们。 </p>
       </div>
     </section>
 
     <section>
-      <h2>3. Static Data Members Are Global State</h2>
+      <h2>3. 静态数据成员就是全局状态</h2>
 
       <p>
-        The counter in the example is honest: it is a sequence number, every user of it
-        wants the same sequence, and every object that takes a number increments it. Use
-        static data for exactly this kind of fact about the class.
+        例子里的计数器是诚实的：它是一个序号，每个使用者都想要同一个序列，而每个取号的对象的都会让它加一。静态数据就用在关于类的这一类事实上。
       </p>
 
       <p>
-        Be careful with everything else. A static data member is a global variable that
-        happens to be spelled <code>account::something</code>. It is visible to every
-        line of code in the program, it lives for the whole run, and it is shared by
-        every thread. Those are the properties that make globals hard to reason about,
-        and the class scope does not remove them:
+        其他一切都要小心。静态数据成员就是一个恰好写作 <code>account::something</code> 的全局变量。它对程序里的每一行代码可见，它在整个运行期间存在，并被每个线程共享。这些正是让全局变量难以推理的性质，而类作用域并不能消除它们：
       </p>
 
       <table>
         <thead>
           <tr>
-            <th>Good use</th>
-            <th>Bad use</th>
+            <th>好的用法</th>
+            <th>坏的用法</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>An identifier or serial number generator for objects of the class.</td>
-            <td>A cache that makes a <code>const</code> member function secretly
-              non-const in effect.</td>
+            <td>为类的对象生成标识符或流水号。</td>
+            <td>
+              一个让 <code>const</code> 成员函数实际上变成非 const 的缓存。
+            </td>
           </tr>
           <tr>
-            <td>A compile-time constant describing the class
-              (<code>iban_length</code>).</td>
-            <td>Configuration that a program may want two different values of in two
-              different parts of the code.</td>
+            <td>
+              描述该类的编译期常量（<code>iban_length</code>）。
+            </td>
+            <td>
+              程序在代码的不同部分可能想要两个不同取值的配置。
+            </td>
           </tr>
           <tr>
-            <td>Optionally, counters and tables that really are per-class and are
-              documented as such.</td>
-            <td>Anything holding ownership of resources, or anything that the
-              correctness of unrelated code depends on.</td>
+            <td>
+              可选地，那些确实属于类、并且已在文档中说明的计数器和表。
+            </td>
+            <td>
+              任何持有资源所有权的东西，或者任何别的代码正确性所依赖的东西。
+            </td>
           </tr>
         </tbody>
       </table>
 
       <div class="warning">
-        <strong>A mutable static data member is shared by every thread.</strong>
-        If two threads can create accounts at the same time, then
-        <code>next_id_++</code> is a data race, and the program has undefined
-        behaviour. Making it <code>::std::atomic&lt;::std::size_t&gt;</code> makes the
-        increment safe; it does not make a more complicated shared scheme correct. If
-        your design has a static member that many threads write, treat that as a design
-        problem first.
+        <strong>可变的静态数据成员被每个线程共享。</strong>如果两个线程可以同时创建账户，那么 <code>next_id_++</code> 就是数据竞争，程序具有未定义行为。把它改成 <code>::std::atomic&lt;::std::size_t&gt;</code> 能让自增变安全；但这不会让一个更复杂的共享方案变正确。如果你的设计里有一个被许多线程写入的静态成员，先把它当作设计问题来处理。
       </div>
 
       <div class="note">
-        <strong>Prefer a member of the class over a global variable.</strong> Even when
-        you do need one shared value, putting it inside the class that uses it is
-        strictly better than a free global: the name says who owns it, the access level
-        says who may touch it, and the definition sits next to the code that maintains
-        it.
+        <strong>优先用类的成员而不是全局变量。</strong>即使你确实需要一个共享值，把它放进使用它的类里也绝对优于一个自由全局：名字说明它归谁所有，访问级别说明谁能碰它，而定义就放在维护它的代码旁边。
       </div>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/13.class/07.this/" class="prev-button">&larr; Ch13.7: The this Pointer</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/13.class/09.staticfunctions/" class="next-button">Ch13.9: Static Member Functions &rarr;</a>
+      <a href="/zhcn/docs/13.class/07.this/" class="prev-button">&larr; 第13.7章: this 指针</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/13.class/09.staticfunctions/" class="next-button">第13.9章: 静态成员函数 &rarr;</a>
     </div>
   </main>
 </body>

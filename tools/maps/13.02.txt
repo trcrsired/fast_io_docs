@@ -1,0 +1,21 @@
+1|第13.2章: 成员函数 - 使用 fast_io 学习 C++ 教程
+2|第13.2章: 成员函数
+3|1. 一个对象，一次一个操作
+4|成员函数是写在类内部、把它被调用的那个对象作为一个看不见的额外实参接收、并用点语法调用的函数：
+5|关于它的其他一切都与你在<a href="/docs/06.function/">第6章</a>学到的完全一样：参数、返回类型、重载、默认实参，以及 <code>noexcept</code> / <code>throws</code> 规格。类内部并没有另一门更简单的语言。成员函数只是一个有“主体”的函数。
+6|2. 类内声明，类外定义
+7|对一行函数来说，把函数体写在类里就可以了。对更长的函数，通常的风格是在类内部<strong>声明</strong>，在类外部<strong>定义</strong>，并加上类名和 <code>::</code> 前缀：
+8|<code>point::sum</code> 是函数的<strong>限定名</strong>。那个 <code>point::</code> 不是装饰：正是它让这个是属于 <code>point</code> 的 <code>sum</code>，而不是别的类里某个其他的 <code>sum</code>。在它自己的函数体内，以及在这个类的其他任何成员里，成员都在作用域内，不需要任何前缀：<code>return x + y;</code> 不需要 <code>this-&gt;</code>。
+9|完整程序，包含两个重载、一个默认实参，以及一个调用其他成员函数的成员函数：
+10|从中可以得出三点：
+11|<strong>重载的行为与自由函数完全相同</strong>（看那两个 <code>shift_by</code>）。编译器根据你传入的实参来挑选，在它已经知道的那个对象之外再加上这些。
+12|<strong>默认实参同样有效</strong>（<code>add(n = 1)</code>）。一如既往，默认值写在调用者看得见的那份声明上。
+13|<strong>成员函数按名字互相调用</strong>（<code>shift_by(dx, 0)</code>、<code>sum()</code>）。不需要写出对象，因为只有一个合理的对象：调用者手里已经有的那个。
+14|3. 成员函数要声明为 <code>noexcept</code> 或 <code>throws</code>
+15|成员函数就是函数，所以它在本教程中受到与其他函数同样的对待：它要么是 <code>noexcept</code>（不会失败），要么是 <code>throws</code>（可以把失败报告给调用者）（<a href="/docs/06.function/16.noexceptthrows/">第6.16章</a>）。打印就是 I/O，而 I/O 可能失败，所以会打印的成员函数是 <code>throws</code>：
+16|如果你把它标成 <code>noexcept</code>，编译器会拦在 <code>println</code> 那一行，并准确告诉你原因：
+17|措辞与自由函数完全一样，因为规则就是同一条规则。这正是有用的地方：语言里只有一个错误处理概念，而且当你走过类的定义时它不会改变形状。
+18|<strong>定义该放在哪里？</strong>如果一个类被多个 <code>.cc</code> 文件使用，类定义要放在头文件里，而每个定义在类<em>外部</em>的成员函数都必须是 <code>inline</code>（或者只在一个 <code>.cc</code> 文件里定义一次）。定义在类体<em>内部</em>的成员函数自动是 <code>inline</code>。本教程每个示例都放在一个文件里，所以没什么需要写成 <code>inline</code>。
+19|4. <code>const</code> 登场了
+20|示例中大多数声明以 <code>const</code> 结尾：<code>sum() const</code>、<code>doubled_sum() const</code>。这个词是一个承诺，表示该成员函数不会改动对象，而且它不是可选的装饰 &mdash; 它决定了你能否在 <code>const</code> 对象上调用这个函数。它有自己的子章，因为它是本章最重要的习惯：<a href="/docs/13.class/03.constmethods/">第13.3章</a>。
+21|<a href="/docs/13.class/01.definition/" class="prev-button">&larr; 第13.1章: 什么是类</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/13.class/03.constmethods/" class="next-button">第13.3章: const 成员函数 &rarr;</a>

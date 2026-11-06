@@ -3,23 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch13.1: What a Class Is - C++ Tutorial with fast_io</title>
+  <title>第13.1章: 什么是类 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch13.1: What a Class Is: Data and the Functions That Belong to It</h1>
+    <h1>第13.1章: 什么是类：数据与属于它的函数</h1>
     <p class="lang-switch"><a href="/docs/13.class/01.definition/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. Data, and the Functions That Work on It</h2>
+      <h2>1. 数据，以及作用于它的函数</h2>
 
       <p>
-        Here is a point, written the way you have written everything so far: a
-        <code>struct</code> with two members, and a free function that takes one:
+        下面是一个点，写法和你目前写过的一切一样：一个有两个成员的 <code>struct</code>，以及一个接受它的自由函数：
       </p>
 
       <pre><code class="language-cpp">
@@ -36,18 +34,11 @@ struct point_data
 </code></pre>
 
       <p>
-        This works, and it has a real weakness that has nothing to do with style:
-        <strong>nothing connects the two.</strong> The function has to name the type
-        twice, and it has to be written in a place where the type is visible. Nothing
-        in the compiler knows that <code>sum_of</code> is <em>the</em> sum of a point,
-        so there is no way to discover the operations a point supports &mdash; you
-        grep for them and hope.
+        这样能工作，但它有一个与风格无关的真实弱点：<strong>没有任何东西把两者联系起来。</strong>那个函数必须把类型名写两遍，还必须写在类型可见的地方。编译器里没有任何东西知道 <code>sum_of</code> 就是“那个”求点之和的函数，因此没有途径去发现一个点支持哪些操作 &mdash; 你只能 grep 一下，然后祈祷。
       </p>
 
       <p>
-        Now the same thing as a <strong>class</strong>. The two integers and the two
-        operations live inside one type, and the operations are called with the dot
-        syntax you already use for <code>::fast_io::string</code> members:
+        现在把同一件事写成<strong>类</strong>。两个整数和两个操作生活在同一个类型里，操作则用你已经在 <code>::fast_io::string</code> 成员上用过的点语法调用：
       </p>
 
       <pre><code class="language-cpp">
@@ -107,44 +98,34 @@ sum_of(d)   = 7
 </code></pre>
 
       <p>
-        Nothing was added to the language. <code>sum()</code> is an ordinary function
-        that happens to be declared inside the class, and <code>a.sum()</code> is an
-        ordinary function call that also says <em>on which object</em> to run it. That
-        is the whole mechanism: a member function is a function with one extra,
-        invisible argument &mdash; the object (<a href="/zhcn/docs/13.class/07.this/">Ch13.7</a>).
+        语言并没有增加任何东西。<code>sum()</code> 是一个普通函数，只不过声明在类内部；<code>a.sum()</code> 是一次普通的函数调用，只不过它同时说明了<em>在哪个对象上</em>执行。全部机制就是这样：成员函数就是一个多了一个看不见实参的函数 &mdash; 那个实参就是对象（<a href="/zhcn/docs/13.class/07.this/">第13.7章</a>）。
       </p>
 
       <div class="note">
-        <strong>Vocabulary, once.</strong>
-        The variables inside a class are <strong>data members</strong> (or fields, or
-        attributes). The functions inside a class are <strong>member functions</strong>
-        (or methods). A variable of a class type is an <strong>object</strong> (or an
-        instance) of that class. C++ programmers use both words for both things, so
-        this tutorial says &ldquo;data member&rdquo; and &ldquo;member function&rdquo;
-        when the distinction matters.
+        <strong>术语只讲一遍。</strong>类里的变量叫<strong>数据成员</strong>（也叫字段、属性）。类里的函数叫<strong>成员函数</strong>（也叫方法）。类类型的变量称为该类的<strong>对象</strong>（或实例）。C++ 程序员把这些词混用，所以本教程在需要区分时统一说“数据成员”和“成员函数”。
       </div>
     </section>
 
     <section>
-      <h2>2. An Object Is a Value Like Any Other</h2>
+      <h2>2. 对象就是普通的值</h2>
 
       <p>
-        This is the part that surprises people coming from languages where objects are
-        special: here a <code>point</code> is not a reference, a handle, or a pointer.
-        It <em>is</em> its two integers, stored where you put it, with no extra
-        allocation. So everything you learned about values keeps working:
+        这一点会让来自“对象很特殊”的语言的人惊讶：这里的 <code>point</code> 不是引用、不是句柄、也不是指针。它<em>就是</em>那两个整数，存放在你放它的地方，没有任何额外分配。因此你学到的一切关于值的知识继续有效：
       </p>
 
       <ul>
-        <li><code>point a{3, 4};</code> &mdash; the object lives on the stack, 8 bytes,
-          nothing on the heap.</li>
-        <li><code>point ps[3]{{1, 2}, {3, 4}, {5, 6}};</code> &mdash; an array of them
-          is just an array.</li>
-        <li><code>point const &amp;p</code> &mdash; passing a point to a function
-          passes its address, and <code>const</code> says the function will not change
-          it.</li>
-        <li><code>for (auto const &amp;p : ps)</code> &mdash; a range-for over an array
-          of points works like a range-for over an array of anything.</li>
+        <li>
+          <code>point a{3, 4};</code> &mdash; 对象活在栈上，8 字节，堆上什么都没有。
+        </li>
+        <li>
+          <code>point ps[3]{{1, 2}, {3, 4}, {5, 6}};</code> &mdash; 它们的数组就只是一个数组。
+        </li>
+        <li>
+          <code>point const &amp;p</code> &mdash; 把点传给函数传的是它的地址，而 <code>const</code> 表示这个函数不会改它。
+        </li>
+        <li>
+          <code>for (auto const &amp;p : ps)</code> &mdash; 对点的数组做 range-for，就像对任何东西的数组做 range-for 一样。
+        </li>
       </ul>
 
       <pre><code class="language-cpp">
@@ -193,71 +174,68 @@ total = 21
 </code></pre>
 
       <p>
-        Notice that <code>total</code> is a free function that knows nothing about
-        points beyond what the class shows it: <code>ps[i].sum()</code>. That is the
-        usual shape of a program built out of classes &mdash; small types that know a
-        lot about themselves, and free functions that combine them.
+        注意 <code>total</code> 是一个自由函数，它对点的了解不超出类展示给它的东西：<code>ps[i].sum()</code>。这正是由类构建的程序通常的形状 &mdash; 小的类型对自己知道很多，自由函数把它们组合起来。
       </p>
     </section>
 
     <section>
-      <h2>3. What the Class Actually Buys You</h2>
+      <h2>3. 类到底给你带来了什么</h2>
 
       <table>
         <thead>
           <tr>
-            <th>With a struct and free functions</th>
-            <th>With a class and member functions</th>
+            <th>用 struct 加自由函数</th>
+            <th>用类加成员函数</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>The operations are scattered; finding them means searching the
-              program.</td>
-            <td>The operations are listed inside the type. Its definition is its
-              documentation.</td>
+            <td>
+              操作散落各处；要找它们得搜索整个程序。
+            </td>
+            <td>
+              操作列在类型内部。它的定义就是它的文档。
+            </td>
           </tr>
           <tr>
-            <td>Any code anywhere can set <code>p.x = -999</code> and break whatever
-              the data was supposed to mean.</td>
-            <td>You decide who may touch <code>x</code>
-              (<a href="/zhcn/docs/13.class/04.access/">Ch13.4</a>).</td>
+            <td>
+              任何地方的任何代码都能写 <code>p.x = -999</code>，破坏数据本来该有的含义。
+            </td>
+            <td>
+              由你决定谁可以碰 <code>x</code>（<a href="/zhcn/docs/13.class/04.access/">第13.4章</a>）。
+            </td>
           </tr>
           <tr>
-            <td>A new invariant (&ldquo;coordinates are never negative&rdquo;) has to
-              be checked at every call site.</td>
-            <td>The invariant is checked once, inside the class
-              (<a href="/zhcn/docs/13.class/05.encapsulation/">Ch13.5</a>).</td>
+            <td>
+              新的不变量（“坐标永远不为负”）必须在每个调用点检查一遍。
+            </td>
+            <td>
+              不变量在类内部检查一次就够（<a href="/zhcn/docs/13.class/05.encapsulation/">第13.5章</a>）。
+            </td>
           </tr>
           <tr>
-            <td>Changing the representation means changing every function that took
-              the struct apart.</td>
-            <td>Only the class changes; the interface stays
-              (<a href="/zhcn/docs/13.class/05.encapsulation/">Ch13.5</a>).</td>
+            <td>
+              改表示方式意味着要改每一个拆开过这个 struct 的函数。
+            </td>
+            <td>
+              只有类本身要改，接口保持不变（<a href="/zhcn/docs/13.class/05.encapsulation/">第13.5章</a>）。
+            </td>
           </tr>
           <tr>
-            <td>Nothing forces the object to start in a sensible state.</td>
-            <td>Constructors force it (<a href="/zhcn/docs/13.class/06.constructors/">Ch13.6</a>).</td>
+            <td>没有任何东西强制对象以合理状态开始。</td>
+            <td>构造函数强制它（<a href="/zhcn/docs/13.class/06.constructors/">第13.6章</a>）。</td>
           </tr>
         </tbody>
       </table>
 
       <div class="warning">
-        <strong>In this subchapter the data members are still public.</strong>
-        That is deliberate: <code>point a{3, 4};</code> only works like that because the
-        class has no constructor and all members are public, so the braces initialize
-        the members in declaration order. Chapter 13.4 closes the door and Chapter 13.6
-        gives you the constructor that replaces this syntax. From then on, the way to
-        make an object is a constructor call, not a brace list you have to keep in sync
-        by hand.
+        <strong>在这个子章里数据成员仍然是公有的。</strong>这是刻意的：<code>point a{3, 4};</code> 之所以能这样写，是因为这个类没有构造函数、所有成员都是公有的，于是花括号按声明顺序初始化成员。第13.4章会把门关上，第13.6章给出取代这套语法的构造函数。从那以后，创建对象的方式是构造函数调用，而不是一个要你手动保持同步的花括号列表。
       </div>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/13.class/" class="prev-button">&larr; Ch13: Classes</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/13.class/02.methods/" class="next-button">Ch13.2: Member Functions &rarr;</a>
+      <a href="/zhcn/docs/13.class/" class="prev-button">&larr; 第13章: 类</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/13.class/02.methods/" class="next-button">第13.2章: 成员函数 &rarr;</a>
     </div>
   </main>
 </body>

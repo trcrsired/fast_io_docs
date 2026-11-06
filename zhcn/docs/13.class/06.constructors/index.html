@@ -3,38 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch13.6: Constructors - C++ Tutorial with fast_io</title>
+  <title>第13.6章: 构造函数 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch13.6: Constructors: How an Object Comes Into Existence</h1>
+    <h1>第13.6章: 构造函数：对象如何诞生</h1>
     <p class="lang-switch"><a href="/docs/13.class/06.constructors/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. The Job of a Constructor</h2>
+      <h2>1. 构造函数的职责</h2>
 
       <p>
-        In Chapter 13.1 you could write <code>point a{3, 4};</code> because the members
-        were public and the class had no constructor &mdash; the braces filled the
-        members in order. That syntax is a hole in the wall, and it disappears the
-        moment the data is private. Something has to take the two numbers from the
-        caller and put them where they belong, and that something is a
-        <strong>constructor</strong>.
+        在第13.1章你可以写 <code>point a{3, 4};</code>，因为成员是公有的、类没有构造函数 &mdash; 花括号按顺序填充成员。这套语法是墙上的一个洞，一旦数据变为私有，它就消失了。必须有东西把调用者给的两个数字放到该放的地方，那个东西就是<strong>构造函数</strong>。
       </p>
 
-      <p>A constructor:</p>
+      <p>构造函数：</p>
 
       <ul>
-        <li>has the same name as the class, and <strong>no return type</strong>;</li>
-        <li>runs <strong>automatically</strong> when an object is created &mdash; you
-          never call it by name;</li>
-        <li>gets the object into a state where every member function may be called
-          &mdash; that is, into a state where the invariant holds
-          (<a href="/zhcn/docs/13.class/05.encapsulation/">Ch13.5</a>).</li>
+        <li>与类同名，且<strong>没有返回类型</strong>；</li>
+        <li>
+          在创建对象时<strong>自动</strong>运行 &mdash; 你从不按名字调用它；
+        </li>
+        <li>
+          把对象带入一个“每个成员函数都可以被调用”的状态 &mdash; 也就是不变量成立的状态（<a href="/zhcn/docs/13.class/05.encapsulation/">第13.5章</a>）。
+        </li>
       </ul>
 
       <pre><code class="language-cpp">
@@ -54,23 +49,15 @@ point a{3, 4};   // still braces, but now they call the constructor
 </code></pre>
 
       <div class="important">
-        <strong>The member initializer list is the only place data members are
-          <em>initialized</em>.</strong>
-        The body of the constructor runs <em>after</em> every member already has a
-        value. Assigning in the body (<code>x_ = x;</code>) is a second write, and for
-        members that cannot be assigned at all it is not an option. Initialize in the
-        list, then do the rest in the body.
+        <strong>成员初始化列表是数据成员被<em>初始化</em>的唯一地方。</strong>构造函数体在每个成员都已经有值<em>之后</em>才运行。在函数体里赋值（<code>x_ = x;</code>）是第二次写，而对那些根本不能赋值的成员来说这不是一个选项。在列表里初始化，然后在函数体里做其余的事。
       </div>
     </section>
 
     <section>
-      <h2>2. Members Are Initialized in Declaration Order</h2>
+      <h2>2. 成员按声明顺序初始化</h2>
 
       <p>
-        The list is written by you, but the compiler reads it in
-        <strong>declaration order of the members</strong>, not left to right. If the two
-        orders disagree, the write order in the list is a lie that readers will believe,
-        and the compiler warns about it:
+        列表是你写的，但编译器按<strong>成员的声明顺序</strong>读取它，而不是从左到右。如果两个顺序不一致，列表里的书写顺序就是一句读者会相信的谎言，而编译器会为此警告：
       </p>
 
       <pre><code class="language-cpp">
@@ -86,20 +73,17 @@ private:
 
       <pre><code class="language-text">
 warning: 'box::h_' will be initialized after [-Wreorder]
-warning: 'int_least32_t box::w_' [-Wreorder]
-warning: when initialized here [-Wreorder]
+warning:   'int_least32_t box::w_' [-Wreorder]
+warning:   when initialized here [-Wreorder]
 </code></pre>
 
       <p>
-        The fix is free: write the list in the same order as the declarations, so the
-        two never disagree. It matters as soon as one member is initialized from
-        another &mdash; a member used before it is initialized is a bug that only shows
-        up in some builds.
+        修正不花代价：按与声明相同的顺序写列表，这样两者永远不会不一致。只要有一个成员是用另一个成员初始化的，这一点就立刻变得重要 &mdash; 使用尚未初始化的成员是一个只在某些构建下才出现的 bug。
       </p>
     </section>
 
     <section>
-      <h2>3. Everything at Once</h2>
+      <h2>3. 一次讲全</h2>
 
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -176,50 +160,31 @@ point(7, 9)
 length = 0, first = -
 </code></pre>
 
-      <p>The four ideas in that program:</p>
+      <p>那个程序里的四个想法：</p>
 
       <ul>
         <li>
-          <strong>In-class initializers</strong> (<code>::std::size_t length{};</code>).
-          A member declared with an initializer has that value whenever a constructor
-          does not mention it. This is why <code>label tag{};</code> produces
-          <code>length = 0, first = -</code> without any constructor being written at
-          all. Prefer them: they keep the default next to the member instead of
-          repeating it in every constructor.
+          <strong>类内初始化器</strong>（<code>::std::size_t length{};</code>）。带初始化器声明的成员，在任何构造函数没有提到它时就取那个值。这就是为什么 <code>label tag{};</code> 在完全没有写构造函数的情况下得到 <code>length = 0, first = -</code>。优先用它们：默认值紧挨着成员，而不必在每个构造函数里重复。
         </li>
         <li>
-          <strong>Delegating constructors</strong>
-          (<code>point() noexcept : point{0, 0} {}</code>). One constructor can hand its
-          work to another of the same class. The default constructor then contains no
-          data at all: &ldquo;an origin is a point at zero, zero&rdquo; is written once,
-          in the constructor that knows how to build a point.
+          <strong>委托构造函数</strong>（<code>point() noexcept : point{0, 0} {}</code>）。一个构造函数可以把工作交给同类的另一个构造函数。于是默认构造函数里一个数据都没有：“原点是零、零处的点”这句话只写一次，写在那个知道如何构造点的构造函数里。
         </li>
         <li>
-          <strong>Overloaded constructors</strong> are chosen by the arguments exactly
-          like any other overload. <code>point{}</code>, <code>point{3}</code> and
-          <code>point{7, 9}</code> reach three different constructors.
+          <strong>重载的构造函数</strong>与其他任何重载一样，按实参挑选。<code>point{}</code>、<code>point{3}</code> 和 <code>point{7, 9}</code> 分别到达三个不同的构造函数。
         </li>
         <li>
-          <strong>A default constructor is not created for you once you write
-          any constructor.</strong> <code>class point</code> with only
-          <code>point(x, y)</code> cannot be default-constructed, and the compiler says
-          so plainly:
-      <pre><code class="language-text">
+          <strong>一旦你写了任何构造函数，编译器就不再为你生成默认构造函数。</strong>只有 <code>point(x, y)</code> 的 <code>class point</code> 不能被默认构造，编译器会直白地说： <pre><code class="language-text">
 error: no matching function for call to 'point::point()'
-</code></pre>
-        If you want both, declare both. <code>point() noexcept = default;</code> asks
-        the compiler to write the default constructor, which will use the in-class
-        initializers of the members.
+</code></pre> 如果两个都要，就两个都声明。<code>point() noexcept = default;</code> 请求编译器生成默认构造函数，它会使用成员的类内初始化器。
         </li>
       </ul>
     </section>
 
     <section>
-      <h2>4. <code>explicit</code>: Refusing the Quiet Conversion</h2>
+      <h2>4. <code>explicit</code>：拒绝悄悄发生的转换</h2>
 
       <p>
-        A constructor that takes one argument is also a <strong>conversion</strong> from
-        that argument to the class type. That is what lets this compile:
+        只接受一个实参的构造函数同时也是从该实参到类类型的<strong>转换</strong>。正是它让下面这段能编译：
       </p>
 
       <pre><code class="language-cpp">
@@ -229,11 +194,7 @@ draw(5);   // silently means: point{5}
 </code></pre>
 
       <p>
-        When a single number is a complete description of a point (a square), that is
-        pleasant. Most of the time it is a trap: nobody reading <code>draw(5)</code>
-        knows that a point was constructed behind their back, and the conversion will
-        happen in the middle of overload resolution too. <code>explicit</code> on the
-        constructor forbids exactly that one conversion, and nothing else:
+        当单个数字确实是点的完整描述时（一个正方形），这很舒服。但大多数时候它是一个陷阱：读 <code>draw(5)</code> 的人不知道背后构造了一个点，而且这种转换还会在重载决议中发生。在构造函数上加 <code>explicit</code> 恰好禁止这一个转换，别的都不影响：
       </p>
 
       <pre><code class="language-cpp">
@@ -243,32 +204,21 @@ explicit point(::std::int_least32_t both) noexcept : point{both, both} {}
       <pre><code class="language-text">
 error: invalid initialization of reference of type 'const point&amp;' from expression
        of type 'int'
-note: in passing argument 1 of 'void draw(const point&amp;)' 
+note:   in passing argument 1 of 'void draw(const point&amp;)' 
 </code></pre>
 
       <p>
-        <code>point{3}</code> and <code>point square{3};</code> still work &mdash; the
-        conversion through braces is deliberate there. What stops working is the
-        invisible one. Mark every single-argument constructor <code>explicit</code>
-        unless you actually want the class to behave like the argument; that is the
-        default in this tutorial.
+        <code>point{3}</code> 与 <code>point square{3};</code> 仍然可用 &mdash; 那里通过花括号的转换是刻意的。失效的是那个看不见的转换。除非你真的希望这个类表现得像那个实参，否则给每个单实参构造函数加上 <code>explicit</code>；这是本教程的默认做法。
       </p>
 
       <div class="note">
-        <strong>Constructors that can fail are <code>throws</code>.</strong>
-        Validating arguments is normal (<code>account</code> in Ch13.5 refuses a
-        negative opening balance). A validating constructor is declared
-        <code>throws</code>, throws <code>::std::errc::invalid_argument</code>, and an
-        object that exists is then guaranteed to be valid &mdash; for the rest of the
-        program, with no further checks.
+        <strong>可能失败的构造函数是 <code>throws</code>。</strong>校验实参很正常（第13.5章的 <code>account</code> 拒绝负的开户余额）。带校验的构造函数声明为 <code>throws</code>，抛出 <code>::std::errc::invalid_argument</code>，而一个存在的对象因此被保证是有效的 &mdash; 在程序的余下部分，无需再检查。
       </div>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/13.class/05.encapsulation/" class="prev-button">&larr; Ch13.5: Encapsulation</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/13.class/07.this/" class="next-button">Ch13.7: The this Pointer &rarr;</a>
+      <a href="/zhcn/docs/13.class/05.encapsulation/" class="prev-button">&larr; 第13.5章: 封装</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/13.class/07.this/" class="next-button">第13.7章: this 指针 &rarr;</a>
     </div>
   </main>
 </body>

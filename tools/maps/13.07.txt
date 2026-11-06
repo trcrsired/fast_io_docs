@@ -1,0 +1,20 @@
+1|第13.7章: this 指针 - 使用 fast_io 学习 C++ 教程
+2|第13.7章: this 指针
+3|1. 每个成员函数都悄悄接收了对象
+4|当你写 <code>c.add(2)</code> 时，编译器必须告诉 <code>add</code> 该往哪个计数器上加。它通过把对象作为一个额外实参传进去 &mdash; 第一个实参，在参数列表里看不见，在函数内部通过关键字 <code>this</code> 到达：
+5|<code>this</code> 是指向那个对象的<strong>指针</strong>。所以 <code>this-&gt;value_</code>、<code>(*this).value_</code> 和裸的 <code>value_</code> 是同一个成员的三种写法。你很少需要写它；需要写的三种情形见下文。
+6|2. 情形 1：参数遮住了成员
+7|如果一个参数与某个数据成员同名，参数胜出，成员从视野中消失。<code>this-&gt;</code> 把它带回来：
+8|很多人干脆避免这个问题，把参数换个名字（<code>n</code>，或者 <code>new_value</code>）&mdash; 那也行，而且名字更短。两种做法都可以，当两个名字冲突时，<code>this-&gt;</code> 是显式表达的方式。
+9|3. 情形 2：返回你被调用的那个对象
+10|<code>*this</code> 是对象本身，不是指向它的指针。返回对它的引用，就能让调用者在同一个对象上链式调用，因为链中的每次调用都是在前一次调用返回的那个对象上的成员函数：
+11|返回类型是 <code>counter &amp;</code> &mdash; 对对象本身的引用，不是指针也不是另作一份的值，所以 <code>c.add(1).add(2)</code> 读起来就像把对象只写一次的 <code>c.add(1); c.add(2);</code>。如果这条链可能作用于 <code>const</code> 对象，就用 <code>counter const &amp;</code> 配一个 <code>const</code> 成员函数（<a href="/docs/13.class/03.constmethods/">第13.3章</a>）。
+12|4. 情形 3：你指的是<em>这个</em>对象吗？
+13|一个成员函数可以把它被调用的对象与另一个对象做比较。<code>this</code> 是前者的地址，<code>&amp;other</code> 是后者的地址，所以 <code>this == &amp;other</code> 问的是它们是不是同一个对象 &mdash; 而不是内容是否相等：
+14|在 <code>c.same_as(d)</code> 里地址不同，答案是 <code>0</code>；在 <code>c.same_as(c)</code> 里两个名字指同一个对象，答案是 <code>1</code>。比较内容会是另一个函数：<code>return value_ == other.value_;</code>。两者都有用；请务必清楚你问的是哪个问题。
+15|5. 在 <code>const</code> 成员函数里，<code>this</code> 是 <code>const</code>
+16|这就是第13.3章背后的机制。关键字 <code>this</code> 跟随成员函数的 <code>const</code>：
+17|因此 <code>const</code> 成员函数不能给成员赋值，也不能调用非 <code>const</code> 的成员函数 &mdash; 它持有的对象是只读的，通过它到达的每个成员也都是只读的。
+18|<strong><code>this</code> 在静态成员函数里不存在</strong>（<a href="/docs/13.class/09.staticfunctions/">第13.9章</a>）。静态成员函数不是在对象上调用的，所以没有对象可指： {{pre:7}} <p>当然，它在自由函数里也不存在：</p> {{pre:8}}
+19|<strong>不要滥用 <code>this</code>。</strong>在裸的 <code>value_</code> 意思相同时写 <code>this-&gt;value_</code>，只是增加了读者必须过滤的噪音。当它能消除歧义（情形 1）、当它就是你需要的那个值（情形 2 和 3）、或者当只有代码编辑器的语法着色才能区分你的成员时 &mdash; 才写它，而后者是任何读者都看不见的。
+20|<a href="/docs/13.class/06.constructors/" class="prev-button">&larr; 第13.6章: 构造函数</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/13.class/08.staticdata/" class="next-button">第13.8章: 静态数据成员 &rarr;</a>

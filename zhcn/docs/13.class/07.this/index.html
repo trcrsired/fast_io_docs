@@ -3,25 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch13.7: The this Pointer - C++ Tutorial with fast_io</title>
+  <title>第13.7章: this 指针 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch13.7: The this Pointer</h1>
+    <h1>第13.7章: this 指针</h1>
     <p class="lang-switch"><a href="/docs/13.class/07.this/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
 
     <section>
-      <h2>1. Every Member Function Quietly Receives the Object</h2>
+      <h2>1. 每个成员函数都悄悄接收了对象</h2>
 
       <p>
-        When you write <code>c.add(2)</code>, the compiler has to tell
-        <code>add</code> which counter to add to. It does that by passing the object as
-        an extra argument &mdash; the first one, not visible in the parameter list, and
-        reachable inside the function through the keyword <code>this</code>:
+        当你写 <code>c.add(2)</code> 时，编译器必须告诉 <code>add</code> 该往哪个计数器上加。它通过把对象作为一个额外实参传进去 &mdash; 第一个实参，在参数列表里看不见，在函数内部通过关键字 <code>this</code> 到达：
       </p>
 
       <pre><code class="language-cpp">
@@ -32,19 +28,15 @@ c.add(2);        // what you write
 </code></pre>
 
       <p>
-        <code>this</code> is a <strong>pointer</strong> to that object. So
-        <code>this-&gt;value_</code> and <code>(*this).value_</code> and plain
-        <code>value_</code> are three spellings of the same member. You rarely need to
-        write it; the three cases where you do are below.
+        <code>this</code> 是指向那个对象的<strong>指针</strong>。所以 <code>this-&gt;value_</code>、<code>(*this).value_</code> 和裸的 <code>value_</code> 是同一个成员的三种写法。你很少需要写它；需要写的三种情形见下文。
       </p>
     </section>
 
     <section>
-      <h2>2. Case 1: A Parameter Hides a Member</h2>
+      <h2>2. 情形 1：参数遮住了成员</h2>
 
       <p>
-        If a parameter has the same name as a data member, the parameter wins and the
-        member disappears from view. <code>this-&gt;</code> brings it back:
+        如果一个参数与某个数据成员同名，参数胜出，成员从视野中消失。<code>this-&gt;</code> 把它带回来：
       </p>
 
       <pre><code class="language-cpp">
@@ -56,21 +48,15 @@ counter &amp;set(::std::int_least32_t value) noexcept
 </code></pre>
 
       <p>
-        Many people avoid the question entirely by naming the parameter differently
-        (<code>n</code>, or <code>new_value</code>) &mdash; that works too, and gives
-        shorter names. Either way, <code>this-&gt;</code> is the way to be explicit when
-        the two names collide.
+        很多人干脆避免这个问题，把参数换个名字（<code>n</code>，或者 <code>new_value</code>）&mdash; 那也行，而且名字更短。两种做法都可以，当两个名字冲突时，<code>this-&gt;</code> 是显式表达的方式。
       </p>
     </section>
 
     <section>
-      <h2>3. Case 2: Returning the Object You Were Called On</h2>
+      <h2>3. 情形 2：返回你被调用的那个对象</h2>
 
       <p>
-        <code>*this</code> is the object itself, not a pointer to it. Returning a
-        reference to it lets the caller chain calls on the same object, because every
-        call in the chain is a member function on the object the previous call
-        returned:
+        <code>*this</code> 是对象本身，不是指向它的指针。返回对它的引用，就能让调用者在同一个对象上链式调用，因为链中的每次调用都是在前一次调用返回的那个对象上的成员函数：
       </p>
 
       <pre><code class="language-cpp">
@@ -119,7 +105,7 @@ int main()
 	println("after chaining: ", c.value());
 
 	c.set(10);
-	println("after set(10): ", c.value());
+	println("after set(10):  ", c.value());
 
 	counter d{10};
 	println("c.same_as(d) = ", c.same_as(d));
@@ -128,29 +114,21 @@ int main()
 </code></pre>
       <pre><code class="language-text">
 after chaining: 6
-after set(10): 10
+after set(10):  10
 c.same_as(d) = 0
 c.same_as(c) = 1
 </code></pre>
 
       <p>
-        The return type is <code>counter &amp;</code> &mdash; a reference to the object
-        itself, not a pointer and not a separate value, so <code>c.add(1).add(2)</code> reads like
-        <code>c.add(1); c.add(2);</code> with the object written once. If the chain may
-        be called on a <code>const</code> object, use <code>counter const &amp;</code>
-        and a <code>const</code> member function
-        (<a href="/zhcn/docs/13.class/03.constmethods/">Ch13.3</a>).
+        返回类型是 <code>counter &amp;</code> &mdash; 对对象本身的引用，不是指针也不是另作一份的值，所以 <code>c.add(1).add(2)</code> 读起来就像把对象只写一次的 <code>c.add(1); c.add(2);</code>。如果这条链可能作用于 <code>const</code> 对象，就用 <code>counter const &amp;</code> 配一个 <code>const</code> 成员函数（<a href="/zhcn/docs/13.class/03.constmethods/">第13.3章</a>）。
       </p>
     </section>
 
     <section>
-      <h2>4. Case 3: Do You Mean <em>This</em> Object?</h2>
+      <h2>4. 情形 3：你指的是<em>这个</em>对象吗？</h2>
 
       <p>
-        A member function can compare the object it was called on against another one.
-        <code>this</code> is the address of the first, <code>&amp;other</code> the
-        address of the second, so <code>this == &amp;other</code> asks whether they are
-        the same object &mdash; not whether their contents are equal:
+        一个成员函数可以把它被调用的对象与另一个对象做比较。<code>this</code> 是前者的地址，<code>&amp;other</code> 是后者的地址，所以 <code>this == &amp;other</code> 问的是它们是不是同一个对象 &mdash; 而不是内容是否相等：
       </p>
 
       <pre><code class="language-cpp">
@@ -161,20 +139,15 @@ bool same_as(counter const &amp;other) const noexcept
 </code></pre>
 
       <p>
-        In <code>c.same_as(d)</code> the addresses differ and the answer is
-        <code>0</code>; in <code>c.same_as(c)</code> both names refer to one object and
-        the answer is <code>1</code>. Comparing the contents would be a different
-        function: <code>return value_ == other.value_;</code>. Both are useful; make
-        sure you know which question you asked.
+        在 <code>c.same_as(d)</code> 里地址不同，答案是 <code>0</code>；在 <code>c.same_as(c)</code> 里两个名字指同一个对象，答案是 <code>1</code>。比较内容会是另一个函数：<code>return value_ == other.value_;</code>。两者都有用；请务必清楚你问的是哪个问题。
       </p>
     </section>
 
     <section>
-      <h2>5. In a <code>const</code> Member Function, <code>this</code> Is <code>const</code></h2>
+      <h2>5. 在 <code>const</code> 成员函数里，<code>this</code> 是 <code>const</code></h2>
 
       <p>
-        This is the mechanism behind Chapter 13.3. The keyword <code>this</code> follows
-        the <code>const</code> of the member function:
+        这就是第13.3章背后的机制。关键字 <code>this</code> 跟随成员函数的 <code>const</code>：
       </p>
 
       <pre><code class="language-cpp">
@@ -185,38 +158,25 @@ bool same_as(counter const &amp;other) const noexcept
 </code></pre>
 
       <p>
-        A <code>const</code> member function therefore cannot assign to a member, and
-        cannot call a non-<code>const</code> member function &mdash; the object it holds
-        is read-only, and every member reached through it is read-only too.
+        因此 <code>const</code> 成员函数不能给成员赋值，也不能调用非 <code>const</code> 的成员函数 &mdash; 它持有的对象是只读的，通过它到达的每个成员也都是只读的。
       </p>
 
       <div class="warning">
-        <strong><code>this</code> does not exist in a static member function</strong>
-        (<a href="/zhcn/docs/13.class/09.staticfunctions/">Ch13.9</a>). A static member
-        function is not called on an object, so there is no object to point at:
-      <pre><code class="language-text">
+        <strong><code>this</code> 在静态成员函数里不存在</strong>（<a href="/zhcn/docs/13.class/09.staticfunctions/">第13.9章</a>）。静态成员函数不是在对象上调用的，所以没有对象可指： <pre><code class="language-text">
 error: 'this' is unavailable for static member functions
-</code></pre>
-        <p>And of course it does not exist in a free function either:</p>
-      <pre><code class="language-text">
+</code></pre> <p>当然，它在自由函数里也不存在：</p> <pre><code class="language-text">
 error: invalid use of 'this' in non-member function
 </code></pre>
       </div>
 
       <div class="note">
-        <strong>Do not overuse <code>this</code>.</strong> <code>this-&gt;value_</code>
-        where plain <code>value_</code> means the same thing adds noise that readers
-        have to filter. Write it when it disambiguates (Case 1), when it is the value
-        you need (Cases 2 and 3), or when a code editor&rsquo;s syntax colouring is the
-        only thing telling your members apart &mdash; which no reader can see.
+        <strong>不要滥用 <code>this</code>。</strong>在裸的 <code>value_</code> 意思相同时写 <code>this-&gt;value_</code>，只是增加了读者必须过滤的噪音。当它能消除歧义（情形 1）、当它就是你需要的那个值（情形 2 和 3）、或者当只有代码编辑器的语法着色才能区分你的成员时 &mdash; 才写它，而后者是任何读者都看不见的。
       </div>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/13.class/06.constructors/" class="prev-button">&larr; Ch13.6: Constructors</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/13.class/08.staticdata/" class="next-button">Ch13.8: Static Data Members &rarr;</a>
+      <a href="/zhcn/docs/13.class/06.constructors/" class="prev-button">&larr; 第13.6章: 构造函数</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/13.class/08.staticdata/" class="next-button">第13.8章: 静态数据成员 &rarr;</a>
     </div>
   </main>
 </body>

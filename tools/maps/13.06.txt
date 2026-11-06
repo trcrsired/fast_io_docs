@@ -1,0 +1,24 @@
+1|第13.6章: 构造函数 - 使用 fast_io 学习 C++ 教程
+2|第13.6章: 构造函数：对象如何诞生
+3|1. 构造函数的职责
+4|在第13.1章你可以写 <code>point a{3, 4};</code>，因为成员是公有的、类没有构造函数 &mdash; 花括号按顺序填充成员。这套语法是墙上的一个洞，一旦数据变为私有，它就消失了。必须有东西把调用者给的两个数字放到该放的地方，那个东西就是<strong>构造函数</strong>。
+5|构造函数：
+6|与类同名，且<strong>没有返回类型</strong>；
+7|在创建对象时<strong>自动</strong>运行 &mdash; 你从不按名字调用它；
+8|把对象带入一个“每个成员函数都可以被调用”的状态 &mdash; 也就是不变量成立的状态（<a href="/docs/13.class/05.encapsulation/">第13.5章</a>）。
+9|<strong>成员初始化列表是数据成员被<em>初始化</em>的唯一地方。</strong>构造函数体在每个成员都已经有值<em>之后</em>才运行。在函数体里赋值（<code>x_ = x;</code>）是第二次写，而对那些根本不能赋值的成员来说这不是一个选项。在列表里初始化，然后在函数体里做其余的事。
+10|2. 成员按声明顺序初始化
+11|列表是你写的，但编译器按<strong>成员的声明顺序</strong>读取它，而不是从左到右。如果两个顺序不一致，列表里的书写顺序就是一句读者会相信的谎言，而编译器会为此警告：
+12|修正不花代价：按与声明相同的顺序写列表，这样两者永远不会不一致。只要有一个成员是用另一个成员初始化的，这一点就立刻变得重要 &mdash; 使用尚未初始化的成员是一个只在某些构建下才出现的 bug。
+13|3. 一次讲全
+14|那个程序里的四个想法：
+15|<strong>类内初始化器</strong>（<code>::std::size_t length{};</code>）。带初始化器声明的成员，在任何构造函数没有提到它时就取那个值。这就是为什么 <code>label tag{};</code> 在完全没有写构造函数的情况下得到 <code>length = 0, first = -</code>。优先用它们：默认值紧挨着成员，而不必在每个构造函数里重复。
+16|<strong>委托构造函数</strong>（<code>point() noexcept : point{0, 0} {}</code>）。一个构造函数可以把工作交给同类的另一个构造函数。于是默认构造函数里一个数据都没有：“原点是零、零处的点”这句话只写一次，写在那个知道如何构造点的构造函数里。
+17|<strong>重载的构造函数</strong>与其他任何重载一样，按实参挑选。<code>point{}</code>、<code>point{3}</code> 和 <code>point{7, 9}</code> 分别到达三个不同的构造函数。
+18|<strong>一旦你写了任何构造函数，编译器就不再为你生成默认构造函数。</strong>只有 <code>point(x, y)</code> 的 <code>class point</code> 不能被默认构造，编译器会直白地说： {{pre:6}} 如果两个都要，就两个都声明。<code>point() noexcept = default;</code> 请求编译器生成默认构造函数，它会使用成员的类内初始化器。
+19|4. <code>explicit</code>：拒绝悄悄发生的转换
+20|只接受一个实参的构造函数同时也是从该实参到类类型的<strong>转换</strong>。正是它让下面这段能编译：
+21|当单个数字确实是点的完整描述时（一个正方形），这很舒服。但大多数时候它是一个陷阱：读 <code>draw(5)</code> 的人不知道背后构造了一个点，而且这种转换还会在重载决议中发生。在构造函数上加 <code>explicit</code> 恰好禁止这一个转换，别的都不影响：
+22|<code>point{3}</code> 与 <code>point square{3};</code> 仍然可用 &mdash; 那里通过花括号的转换是刻意的。失效的是那个看不见的转换。除非你真的希望这个类表现得像那个实参，否则给每个单实参构造函数加上 <code>explicit</code>；这是本教程的默认做法。
+23|<strong>可能失败的构造函数是 <code>throws</code>。</strong>校验实参很正常（第13.5章的 <code>account</code> 拒绝负的开户余额）。带校验的构造函数声明为 <code>throws</code>，抛出 <code>::std::errc::invalid_argument</code>，而一个存在的对象因此被保证是有效的 &mdash; 在程序的余下部分，无需再检查。
+24|<a href="/docs/13.class/05.encapsulation/" class="prev-button">&larr; 第13.5章: 封装</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/13.class/07.this/" class="next-button">第13.7章: this 指针 &rarr;</a>

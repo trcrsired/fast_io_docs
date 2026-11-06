@@ -1,0 +1,23 @@
+1|第13.3章: const 成员函数 - 使用 fast_io 学习 C++ 教程
+2|第13.3章: const 成员函数：承诺不修改
+3|1. 参数列表后面的 <code>const</code> 意味着什么
+4|每个成员函数都把它被调用的那个对象作为一个看不见的指针 <code>this</code> 接收（<a href="/docs/13.class/07.this/">第13.7章</a>）。在参数列表后面写 <code>const</code> 会改变那个指针的类型：
+5|它所做的就这些，而这就足够同时给你两个保证：
+6|<strong>在函数内部</strong>，你不能给数据成员赋值，也不能调用不是 <code>const</code> 的成员函数。编译器强制这个承诺；它不是注释。
+7|<strong>在函数外部</strong>，一个 <code>const</code> 对象 &mdash; 或者任何通过 <code>const &amp;</code> 到达的对象 &mdash; 只能调用 <code>const</code> 成员函数。所以接受 <code>counter const &amp;</code> 的函数，在物理上无法修改那个计数器。
+8|2. 规则：只读的成员函数就是 <code>const</code>
+9|对你写的每个成员函数问一个问题：<em>它会改变对象吗？</em>如果答案是不会，声明就以 <code>const</code> 结尾。这就是规则，没有值得例外的情形。
+10|<code>show</code> 接受 <code>counter const &amp;</code>，因为它只读。它调用 <code>c.value()</code>，而这能编译仅仅因为 <code>value()</code> 是 <code>const</code>。如果 <code>value()</code> 在写的时候没加 <code>const</code>，这个再普通不过的函数就无法编译，而需要修改的地方是 <code>value()</code>，不是 <code>show</code>。
+11|当你试图修改一个 <code>const</code> 对象 &mdash; <code>frozen.add(1)</code> &mdash; 编译器会说：
+12|<em>“discards qualifiers”</em>（丢弃限定符）的意思是这次调用会丢掉 <code>const</code>，而编译器不会让你不小心这么做。
+13|<strong>不要靠撒 <code>const_cast</code> 来消音。</strong>如果你需要在 <code>const</code> 成员函数里写入，那么要么这个函数并非真的只读（去掉它的 <code>const</code>，并接受它不能在 <code>const</code> 对象上调用），要么交给你的那个对象本来就不该是 <code>const</code>。两者都是关于你设计的信息；强制转换把信息丢掉，留下的程序在说谎。
+14|3. 为什么这是本章最有价值的习惯
+15|<code>const</code> 会以最好的方式传染。一旦只读的成员函数被标记出来，<code>const &amp;</code> 参数就会到处都是，程序里的每个函数都在记录 &mdash; 并由编译器检查 &mdash; 谁可以改什么。三个具体后果：
+16|<strong><code>const &amp;</code> 参数是一个你可以信任的承诺。</strong>当你调用 <code>show(c)</code> 时，你知道计数器会以进来的样子返回。你不必去读 <code>show</code> 的实现，只读它的签名就够了。
+17|<strong>错误在发生处被捕获。</strong>漏写 <code>const</code> 会在调用点就产生编译错误，而不是在三个函数之后得到一个错误的数字。
+18|<strong>接口保持诚实。</strong>没有 <code>const</code> 的成员函数在宣告“我可能会修改这个对象”。于是类的读者可以去看那份短的修改列表，从而知道状态在哪些地方变化。
+19|<strong>两个成员函数，同名，只有 <code>const</code> 不同，是两个不同的重载。</strong>这偶尔有用 &mdash; 一个可变访问器和一个只读版本：{{pre:5}} 编译器根据对象挑选：可变的 <code>counter</code> 得到前一个，<code>const</code> 的得到后一个。要有意识地使用这一点，不要误用：交出一个私有数据成员的可变引用，等于把你在<a href="/docs/13.class/05.encapsulation/">第13.5章</a>获得的控制权又让了出去。
+20|4. <code>const</code> 成员函数与 <code>throws</code>
+21|这两个规格是独立的，都出现在声明的末尾，<code>const</code> 在前：
+22|在上面的例子里，<code>show</code> 是 <code>throws</code> 而不是 <code>noexcept</code>，因为它要打印，而它在 <code>main</code> 里的调用者把调用包进了 <code>try { } catch throws (::std::error e)</code>。类本身不需要为这一点的成立做任何事：成员函数的失败会从 <code>c.value()</code> 传出，再从 <code>show</code> 传出，最后在程序准备好处理它的地方被捕获（<a href="/docs/03.statements/16.herbceptions/">第3.16章</a>）。
+23|<a href="/docs/13.class/02.methods/" class="prev-button">&larr; 第13.2章: 成员函数</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/13.class/04.access/" class="next-button">第13.4章: 访问控制 &rarr;</a>

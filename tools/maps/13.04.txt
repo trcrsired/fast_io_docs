@@ -1,0 +1,30 @@
+1|第13.4章: 访问控制 - 使用 fast_io 学习 C++ 教程
+2|第13.4章: 访问控制：public 与 private
+3|1. 两扇门
+4|一个类有两个访问级别，写作标签，标签一直生效到下一个标签为止：
+5|<code>public</code> &mdash; 任何人都可以使用这些名字。这是<strong>接口</strong>：你承诺要保留的那部分。
+6|<code>private</code> &mdash; 只有本类的成员函数和友元可以使用这些名字。这是<strong>实现</strong>：你下周可以重写的那部分。
+7|编译器拒绝外部访问私有名字，并指出是哪个成员、声明在哪里：
+8|同一个程序，把私有成员在类内部使用，那里才是允许访问的地方：
+9|2. 访问权授予的是类，而不是对象
+10|这正是人们常搞错的细节。<code>private</code> 并不意味着“只有我可以看自己的数据”，而是“只有写在这个类内部的代码可以看这份数据” &mdash; <em>任何</em>本类的对象，无论它属于谁：
+11|<code>dx_to</code> 是 <code>point</code> 的成员函数，所以它站在墙内，可以像读自己的 <code>x_</code> 一样轻松读 <code>other.x_</code>。这就是为什么类可以在不暴露任何东西的前提下实现两个对象之间的比较、算术和校验：墙围的是<em>定义</em>，不是某个特定对象（<a href="/docs/13.class/10.friend/">第13.10章</a>展示了同一个想法的外部函数版本）。
+12|3. <code>struct</code> 与 <code>class</code> 是同一回事
+13|它们之间只有一个差别：默认访问级别。在 <code>struct</code> 里，最前面的成员是 <code>public</code>；在 <code>class</code> 里，它们是 <code>private</code>。
+14|本教程遵循的约定，也是你读任何库时都会见到的约定：
+15|写
+16|何时
+17|<code>struct</code>
+18|这个类型就是一堆裸值，没有不变量、没有行为：坐标、一个范围、一个键/值对。使用者会直接读写成员，没有什么需要保护。
+19|<code>class</code>
+20|这个类型有不变量、有接口、有行为。一切都私有着，直到你决定某样东西应该是公有的。
+21|<strong>你到目前为止在本章看到的一切都是 <code>struct</code> 风格的类。</strong>从这里开始，示例改用 <code>class</code> 与私有数据，因为那才是有意思的情形。关键字只是默认值，不是另一门语言：一个在顶部显式写了 <code>public:</code> 的 <code>class</code>，与等价的 <code>struct</code> 是同一个类型。
+22|4. 接口小是优点
+23|访问控制是你决定承诺大小的地方。学习时的本能是把一切都设成 public“这样才灵活”。这个本能是反的：每个公有名字都是你若不破坏别人的代码就无法更改的东西，而每个公有数据成员都是你决定不去维持的不变量。
+24|对你即将放到 <code>public:</code> 后面的每个名字问三个问题：
+25|<strong>调用者真的需要它吗？</strong>如果调用者用一个成员函数就能完成工作，那数据成员就保持私有。
+26|<strong>调用者能误用它吗？</strong>公有的 <code>::std::int_least64_t balance</code> 让任何人都能往里写 <code>-1000</code>。私有的加上带检查的 <code>withdraw()</code> 就无法被误用（<a href="/docs/13.class/05.encapsulation/">第13.5章</a>）。
+27|<strong>改掉它会不会破坏不属于我的代码？</strong>如果会，那它就是一个承诺。承诺应当少、小、真。
+28|<strong>访问控制是编译期规则，不是安全机制。</strong>它防的是<em>意外</em>，以及<em>写正常代码的人误用</em>。它挡不住一个手里有指针和 <code>reinterpret_cast</code> 的执着程序员，它也不是在内存里保守秘密的手段。它的价值在于：诚实的程序不可能误伤一个类，而编译器会在确切的那一行告诉你。
+29|<strong>关上门之后的账单立刻就到了。</strong><code>point a{3, 4};</code> 在第13.1章能用，是因为成员是公有的、类没有构造函数。成员私有之后，外部就无法写入这两个值了。这不是缺陷，而是设计中缺失的另一半：取代它的是<strong>构造函数</strong>，见<a href="/docs/13.class/06.constructors/">第13.6章</a>。在此之前，示例先创建一个对象再通过成员函数填充它（<code>a.set(3, 4)</code>）。
+30|<a href="/docs/13.class/03.constmethods/" class="prev-button">&larr; 第13.3章: const 成员函数</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/13.class/05.encapsulation/" class="next-button">第13.5章: 封装 &rarr;</a>

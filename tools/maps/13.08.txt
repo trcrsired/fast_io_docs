@@ -1,0 +1,29 @@
+1|第13.8章: 静态数据成员 - 使用 fast_io 学习 C++ 教程
+2|第13.8章: 静态数据成员
+3|1. 整个类共用一份变量
+4|普通数据成员属于某个对象：每个 <code>account</code> 都有自己的 <code>id_</code>。<strong>静态数据成员</strong>属于<strong>类</strong>：无论存在多少对象，它都只有一份，而且即使一个对象都不存在，它也存在。
+5|当你要表达的是关于类而不是关于某个实例的事实时，这正是你想要的：下一个要发放的标识符、一共创建了多少个对象、一个共享的上限、一张所有实例都要查的表。
+6|2. <code>inline static</code> 与 <code>static constexpr</code>
+7|你需要两种写法，都是在类里写一行：
+8|声明
+9|含义
+10|<code>inline static ::std::size_t next_id_{1};</code>
+11|类的一个可变变量。<code>inline</code> 让这个声明同时也是定义，因此别处什么都不用写 &mdash; 即使这个类放在被许多文件包含的头文件里也一样。
+12|<code>static constexpr ::std::size_t iban_length{34};</code>
+13|属于该类的一个常量。<code>constexpr</code> 蕴含 <code>const</code>，在类内部还蕴含 <code>inline</code>。在原本要写字面量或宏的地方用它。
+14|构造函数 <code>account() noexcept : id_{next_id_++}</code> 读写这个共享计数器：每个对象取当前值，并让计数器加一。最后一行表明，静态成员也可以通过对象到达（<code>a.iban_length</code>）&mdash; 这合法，因为两种写法指的是同一个变量。但不要那样写：它看起来像每对象数据，而这正是该关键字要防止的误解。
+15|<p> <strong>如果你不能写 <code>inline</code>。</strong>在 C++17 之前，成员必须在类内声明，并在恰好一个 <code>.cc</code> 文件里<em>定义</em>： </p> {{pre:4}} <p> 你会在旧代码里遇到这种写法。<code>inline static</code> 与 <code>static constexpr</code> 一行就能完成同样的活，而且不会失同步，所以本教程用它们。 </p>
+16|3. 静态数据成员就是全局状态
+17|例子里的计数器是诚实的：它是一个序号，每个使用者都想要同一个序列，而每个取号的对象的都会让它加一。静态数据就用在关于类的这一类事实上。
+18|其他一切都要小心。静态数据成员就是一个恰好写作 <code>account::something</code> 的全局变量。它对程序里的每一行代码可见，它在整个运行期间存在，并被每个线程共享。这些正是让全局变量难以推理的性质，而类作用域并不能消除它们：
+19|好的用法
+20|坏的用法
+21|为类的对象生成标识符或流水号。
+22|一个让 <code>const</code> 成员函数实际上变成非 const 的缓存。
+23|描述该类的编译期常量（<code>iban_length</code>）。
+24|程序在代码的不同部分可能想要两个不同取值的配置。
+25|可选地，那些确实属于类、并且已在文档中说明的计数器和表。
+26|任何持有资源所有权的东西，或者任何别的代码正确性所依赖的东西。
+27|<strong>可变的静态数据成员被每个线程共享。</strong>如果两个线程可以同时创建账户，那么 <code>next_id_++</code> 就是数据竞争，程序具有未定义行为。把它改成 <code>::std::atomic&lt;::std::size_t&gt;</code> 能让自增变安全；但这不会让一个更复杂的共享方案变正确。如果你的设计里有一个被许多线程写入的静态成员，先把它当作设计问题来处理。
+28|<strong>优先用类的成员而不是全局变量。</strong>即使你确实需要一个共享值，把它放进使用它的类里也绝对优于一个自由全局：名字说明它归谁所有，访问级别说明谁能碰它，而定义就放在维护它的代码旁边。
+29|<a href="/docs/13.class/07.this/" class="prev-button">&larr; 第13.7章: this 指针</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/13.class/09.staticfunctions/" class="next-button">第13.9章: 静态成员函数 &rarr;</a>

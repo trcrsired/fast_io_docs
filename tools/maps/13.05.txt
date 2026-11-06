@@ -1,0 +1,34 @@
+1|第13.5章: 封装 - 使用 fast_io 学习 C++ 教程
+2|第13.5章: 封装：让不变量始终成立
+3|1. 不变量是一句永远为真的话
+4|<em>“账户的余额永远不会为负。”</em>这句话就是这个类存在的全部理由。如果它为真，那么每个收到账户的函数都可以假定它、不必再检查；如果它为假，那么每个收到账户的函数都必须自我防卫，永远如此。
+5|<strong>封装</strong>就是让这句话在构造上为真的技术：数据成员是私有的，所以整个程序里唯一能写它的代码就是你在类里写的代码 &mdash; 而那段代码在每次写入之前都检查这句话。
+6|比较同一个想法的两种版本。用公有成员时，不变量只是一句注释，任何地方的任何代码都能违反它：
+7|用私有成员加带检查的接口时，每次写入都经过拒绝让这句话变假的代码。调用者无法忘记检查，因为调用者根本够不到数据：
+8|2. 解读这个例子
+9|<strong>构造函数建立不变量。</strong>每个账户一出生就通过检查，而且没有别的办法构造一个。这就是“对象”与“恰好具有正确类型的变量”之间的区别。
+10|<strong>每个修改器都维持它。</strong><code>deposit</code> 拒绝非正金额，<code>withdraw</code> 拒绝透支。两个函数都不必重新检查构造函数已经保证过的东西。
+11|<strong>失败被报告，而不是被隐藏。</strong>被拒绝的操作抛出 <code>::std::errc::invalid_argument</code>，于是调用者在事情发生的那一刻、带着自己的上下文得知它（<a href="/docs/03.statements/16.herbceptions/">第3.16章</a>）。另一种做法 &mdash; 悄悄截断到零，或者设置一个以后可能有人去读的标志 &mdash; 会把 bug 变成一个莫名其妙的数字。
+12|<strong>拒绝之后对象毫发无损。</strong>检查发生在写入<em>之前</em>，这就是为什么那次失败的取款之后余额仍然是 <code>150</code>。每个修改器都按这个顺序写：先校验，再修改。
+13|<strong>构造函数失败与操作失败使用同一套机制。</strong><code>account{-1}</code> 与 <code>a.withdraw(1000)</code> 都抛出 <code>::std::errc::invalid_argument</code>，都用 <code>catch throws (::std::error e)</code> 捕获，在一切正常的路径上都不花代价。没有另一个“构造函数错误”概念需要学。
+14|3. 回报：你可以重写内部
+15|<code>account</code> 的接口是四个名字：<code>account(...)</code>、<code>balance()</code>、<code>deposit(...)</code>、<code>withdraw(...)</code>。类外面没有任何东西知道余额是怎么存的。因此下面这些都是你以后可以做的私有决定，完全不必改动一行调用代码：
+16|你的决定
+17|外部会变什么
+18|把金额以分为单位存进 <code>::std::int_least64_t</code>，而不是以整单位。
+19|什么都不变。修改器和访问器吸收了单位转换。
+20|记录交易历史，并从中算出余额。
+21|什么都不变。同样四个名字，不同的数据成员。
+22|增加货币字段、所有者、利率。
+23|什么都不变，只要构造函数仍然接受它以前接受的东西。
+24|增加保持双方一致的 <code>transfer_to(account &amp;, amount)</code>。
+25|什么都不变。它是个新名字，而不变量仍然只在一个地方强制。
+26|用公有数据成员时，上面每一个决定都是破坏性变更：每一行写过或读过 <code>a.balance</code> 的代码都必须找出来重写，而且如果成员还在但含义变了，没有编译器会告诉你哪些行是那些行。
+27|4. 访问器：交出值，而不是交出存储
+28|只有当一个访问器能交出调用者用别的方式拿不到的东西时，它才值得写。而它交出什么，比它是否存在更重要：
+29|<strong>默认是按值</strong> &mdash; <code>::std::int_least64_t balance() const noexcept</code> 返回数字本身，作为一个值。调用者无法用它改动账户。
+30|<strong><code>const &amp;</code></strong> 用于按值交出代价高的成员，例如 <code>::fast_io::string</code>。它依然不交出可写访问：<code>::fast_io::string const &amp;name() const noexcept</code>。
+31|<strong>非 <code>const</code> 引用是墙上的一个洞。</strong><code>::std::int_least64_t &amp;balance() noexcept</code> 返回存储本身，于是 <code>a.balance() = -1000;</code> 又合法了，不变量荡然无存。不要写这种访问器。如果调用者确实需要修改这个值，就给他一个带检查的成员函数（<code>a.deposit(1000)</code>）。
+32|<strong>封装不是“私有字段加一个 getter 和一个 setter”。</strong>一个私有的 <code>balance_</code>，配上 <code>balance()</code> 和什么都接受的 <code>set_balance(v)</code>，和公有字段一样毫无保护，只是更长。只有墙后的函数<em>真的做事</em>时，这堵墙才值得建：检查、转换、计数、记录、拒绝。否则你只是增加了仪式，却把 bug 留了下来。
+33|<strong>检查放在哪里？</strong>放在构造函数和修改器里 &mdash; 别处都不放。如果读取对象可能失败，那设计就错了：一个存在的对象应当无需进一步校验就能被读取和使用。这就是“不变量永远为真”的含义。
+34|<a href="/docs/13.class/04.access/" class="prev-button">&larr; 第13.4章: 访问控制</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/13.class/06.constructors/" class="next-button">第13.6章: 构造函数 &rarr;</a>
