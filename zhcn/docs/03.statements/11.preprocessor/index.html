@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.11章: 预处理器 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.11章: 预处理器</h1>
+
+    <section>
+      <h2>什么是预处理器</h2>
+      <p>
+        在编译器看到你的 C++ 代码之前，代码会先被
+        <strong>预处理器</strong>处理。预处理器对源代码执行简单的文本
+        变换。它不理解 C++ 的类型、作用域或语义，
+        只操作词法单元（token）。
+      </p>
+
+      <p>
+        预处理指令以 <code>#</code> 开头，在编译之前逐行处理。
+      </p>
+
+      <ul>
+        <li>复制文件（<code>#include</code>）</li>
+        <li>定义宏（<code>#define</code>）</li>
+        <li>条件编译（<code>#ifdef</code>、<code>#ifndef</code>）</li>
+        <li>嵌入外部数据（<code>#embed</code>）</li>
+        <li>编译器专属指令（<code>#pragma</code>）</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2><code>#include</code></h2>
+      <p>
+        <code>#include</code> 指令会把另一个文件的全部内容原样复制到
+        当前文件中。
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io.h&gt;   // included twice
+</code></pre>
+
+      <h3>为什么这不会破坏编译</h3>
+      <p>
+        <code>fast_io</code> 库在每个头文件的开头都使用了 <code>#pragma once</code>。
+        当预处理器第二次看到该头文件时，它会完全忽略其中的内容。
+      </p>
+
+      <p>
+        这可以防止重复定义，并让重复包含变得安全。
+      </p>
+
+      <h3>没有 <code>#pragma once</code> 时会发生什么</h3>
+      <p>
+        如果一个头文件<strong>没有</strong>使用 <code>#pragma once</code>（或
+        包含防卫宏），那么包含它两次就会插入两遍同样的文本：
+      </p>
+
+      <pre><code class="language-cpp">
+// myheader.h (no pragma once)
+void f();
+</code></pre>
+
+      <pre><code class="language-cpp">
+#include "myheader.h"
+#include "myheader.h"   // inserted twice → duplicate definition error
+</code></pre>
+
+      <p>
+        这会破坏编译，因为该函数被定义了两次。
+      </p>
+
+      <h3><code>#include</code> 为什么慢</h3>
+      <p>
+        因为 <code>#include</code> 执行的是头文件文本的完整<strong>复制粘贴</strong>，
+        包括它自己所有的 <code>#include</code> 指令，
+        所以大型项目会变得编译缓慢。
+      </p>
+
+      <p>
+        单个头文件可能展开成数千行代码，而这种展开会发生在
+        每一个包含它的翻译单元中。
+      </p>
+    </section>
+
+    <section>
+      <h2><code>#pragma once</code></h2>
+      <p>
+        <code>#pragma once</code> 确保一个头文件在每个翻译单元中只被包含
+        一次。
+      </p>
+
+      <pre><code class="language-cpp">
+// myheader.h
+#pragma once
+
+void f();
+</code></pre>
+
+      <p>
+        这可以防止重复定义并加快编译速度。
+        所有主流编译器都支持它。
+      </p>
+    </section>
+
+    <section>
+      <h2><code>#define</code></h2>
+      <p>
+        <code>#define</code> 指令创建一个宏。
+        宏就是在编译之前执行的简单文本替换。
+      </p>
+
+      <h3>对象式宏</h3>
+
+      <pre><code class="language-cpp">
+#define PI 3.141592653589793
+#define BUFFER_SIZE 1024
+</code></pre>
+
+      <p>
+        当预处理器看到 <code>PI</code> 时，就把它替换为文本
+        <code>3.141592653589793</code>。
+      </p>
+
+      <h3>函数式宏</h3>
+
+      <pre><code class="language-cpp">
+#define SQR(x) ((x) * (x))
+</code></pre>
+
+      <p>
+        圆括号至关重要，可以避免优先级造成的 bug。
+      </p>
+
+      <h3>宏的副作用</h3>
+      <p>
+        宏不会只求值一次实参，它会替换文本。
+        这可能造成危险的副作用：
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t i{};
+
+println(SQR(++i));
+</code></pre>
+
+      <p>
+        该宏展开为：
+      </p>
+
+      <pre><code>
+((++i) * (++i))
+</code></pre>
+
+      <p>
+        这会让 <code>i</code> 自增两次，几乎从来不是你想要的结果。
+      </p>
+
+      <h3>关于宏的警告</h3>
+      <ul>
+        <li>没有类型检查</li>
+        <li>没有作用域（宏是全局的）</li>
+        <li>难以调试</li>
+        <li>当实参包含 <code>++</code> 或 <code>--</code> 时会产生副作用</li>
+        <li>现代 C++ 中优先使用 <code>constexpr</code> 与 <code>inline</code></li>
+      </ul>
+
+      <p>
+        宏在条件编译和包含防卫中仍然是必要的。
+      </p>
+    </section>
+
+    <section>
+      <h2><code>#embed</code></h2>
+      <p>
+        <code>#embed</code> 指令在编译期把文件内容作为数据直接嵌入
+        你的程序。
+      </p>
+
+      <pre><code class="language-cpp">
+static constexpr auto data =
+#embed "resource.bin";
+</code></pre>
+
+      <p>
+        与粘贴 C++ 代码的 <code>#include</code> 不同，<code>#embed</code> 用于
+        二进制或文本资源。
+      </p>
+
+      <p>
+        <code>#embed</code> 的支持情况取决于编译器与标准版本。
+      </p>
+    </section>
+
+    <section>
+      <h2>预处理指令汇总</h2>
+
+      <pre><code>
+#include        // copy-paste another file
+#pragma once    // include only once
+#define         // define a macro
+#embed          // embed external data
+#ifdef/#ifndef  // conditional compilation (next chapter)
+#endif
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong>预处理器在编译之前运行：</strong>它执行文本替换。</li>
+        <li><strong>#include 复制文件：</strong>因展开而可能很慢。</li>
+        <li><strong>#pragma once：</strong>防止重复包含并避免重复定义。</li>
+        <li><strong>#define：</strong>简单但危险；注意副作用。</li>
+        <li><strong>宏会替换文本：</strong><code>SQR(++i)</code> 展开为 <code>((++i)*(++i))</code>。</li>
+        <li><strong>#embed：</strong>在编译期嵌入二进制/文本数据。</li>
+        <li><strong>预处理器不理解 C++：</strong>它只操作词法单元。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/10.goto/" class="prev-button">← 第3.10章: goto</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/03.statements/12.ifdefifndef/" class="next-button">第3.12章: #ifdef / #ifndef →</a>
+    </div>
+  </main>
+</body>
+</html>

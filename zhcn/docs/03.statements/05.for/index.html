@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.5章: for - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.5章: for</h1>
+
+<section>
+  <h2><code>for</code> 语句</h2>
+  <p>
+    <code>for</code> 循环是重复执行语句的另一种方式。
+    它由三部分组成：
+  </p>
+
+<pre><code class="language-cpp">
+for (init; cond; step) {
+    body
+}
+</code></pre>
+
+    <ul>
+    <li><strong>init</strong>：在循环开始前执行一次</li>
+    <li><strong>cond</strong>：在每次迭代前检查</li>
+    <li><strong>step</strong>：在每次迭代后执行</li>
+    <li><strong>body</strong>：条件为真时每次执行的语句</li>
+    </ul>
+
+    <p>
+        和之前一样，如果循环体什么也不做，<code>;</code> 可以是空语句。
+    </p>
+
+<pre><code>
+        ┌───────────────┐
+        │     init       │   (runs once)
+        └───────┬───────┘
+                │
+                ▼
+        ┌───────────────┐
+┌────▶│     cond       │─── false ───▶ loop ends
+│     └───────┬───────┘
+│             │ true
+│             ▼
+│     ┌───────────────┐
+│     │     body       │
+│     └───────┬───────┘
+│             │
+│             ▼
+│     ┌───────────────┐
+└─────│      step      │
+        └───────┬───────┘
+                │
+                └─────────────── back to cond
+</code></pre>
+    </section>
+
+
+    <section>
+      <h2>始终使用 <code>{ }</code></h2>
+      <p>
+        与 <code>if</code> 和 <code>while</code> 一样，初学者应当<strong>始终</strong>使用花括号。
+      </p>
+
+      <h3>❌ 错误</h3>
+      <pre><code class="language-cpp">
+for (i = 0; i != 5; ++i)
+    print(i, "\n");
+    print("done\n");   // NOT inside the loop
+</code></pre>
+
+      <h3>✔️ 正确</h3>
+      <pre><code class="language-cpp">
+for (i = 0; i != 5; ++i) {
+    print(i, "\n");
+}
+print("done\n");
+</code></pre>
+    </section>
+
+    <section>
+      <h2>初始化语句</h2>
+      <p>
+        <code>for</code> 循环可以在 init 部分声明变量。
+      </p>
+
+      <pre><code class="language-cpp">
+for (::std::int_least32_t i = 0; i != 5; ++i) {
+    println("i=", i);
+}
+</code></pre>
+
+      <p>
+        该变量（<code>i</code>）只存在于循环内部。
+      </p>
+    </section>
+
+    <section>
+      <h2>示例：对 <code>[0, 100)</code> 求和</h2>
+      <p>
+        <code>for</code> 循环非常适合在某个范围上迭代。
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t sum{};
+
+for (::std::uint_least32_t i{}; i != 100; ++i) {
+    sum = sum + i;
+}
+
+println("sum of [0,100) = ", sum);
+</code></pre>
+
+      <p>
+        和之前一样，固定上限时我们优先用 <code>!=</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>示例：只对 3 的倍数求和</h2>
+      <p>
+        你可以把 <code>for</code> 与 <code>if</code> 结合来筛选值。
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t sum{};
+
+for (::std::uint_least32_t i{}; i != 100; ++i) {
+    if (i % 3 == 0) {
+        sum = sum + i;
+    }
+}
+
+println("sum of multiples of 3 in [0,100) = ", sum);
+</code></pre>
+    </section>
+
+<section>
+  <h2>死循环</h2>
+  <p>
+    <strong>死循环</strong>（无限循环）可以用 <code>for</code> 写出：
+  </p>
+
+  <pre><code class="language-cpp">
+for (;;) {
+    ;
+}
+</code></pre>
+
+  <p>
+    三个部分全部省略，因此没有任何东西能让循环停下来。
+  </p>
+
+  <p>
+    根据 C++ 标准，这种形式的行为等同于：
+  </p>
+
+  <pre><code class="language-cpp">
+while (true) {
+    ;
+}
+</code></pre>
+
+  <p>
+    除非循环体内有东西跳出去，否则两个循环都会永远运行。
+  </p>
+</section>
+
+
+    <section>
+      <h2>空循环体循环</h2>
+      <p>
+        有时所有工作都在 step 表达式中完成：
+      </p>
+
+      <pre><code class="language-cpp">
+for (::std::uint_least32_t i{}; i != 10; ++i)
+    ;   // empty body
+</code></pre>
+
+      <p>
+        这是合法的，但应当谨慎使用。
+      </p>
+    </section>
+
+    <section>
+      <h2>风格说明</h2>
+      <p>
+        在 C++ 中，我们一般更倾向于：
+      </p>
+
+      <ul>
+        <li>循环到固定上限时，用 <code>!=</code> 而不是 <code>&lt;</code></li>
+        <li>用 <code>&lt;</code> 而不是 <code>&gt;</code>，因为它读起来更自然</li>
+      </ul>
+
+      <p>
+        这些约定让循环更易读、更不容易出错。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong>for 有四个部分：</strong>初始化语句、条件、步进，以及循环体语句。</li>
+        <li><strong>初始化语句：</strong>两种变量声明形式都允许。</li>
+        <li><strong>范围循环：</strong>固定上限时优选 <code>!=</code>。</li>
+        <li><strong>筛选：</strong>把 <code>for</code> 与 <code>if</code> 结合以选出需要的值。</li>
+        <li><strong>死循环：</strong><code>for(;;)</code> 永不结束。</li>
+        <li><strong>空循环体：</strong>允许，但应当有意识地使用。</li>
+        <li><strong>清晰性：</strong>始终使用 <code>{ }</code> 以避免出错。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/04.while/" class="prev-button">← 第3.4章: while</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/03.statements/06.break/" class="next-button">第3.6章: break →</a>
+    </div>
+  </main>
+</body>
+</html>

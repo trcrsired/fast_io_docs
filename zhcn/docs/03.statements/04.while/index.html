@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.4章: while - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.4章: while</h1>
+
+    <section>
+      <h2><code>while</code> 语句</h2>
+      <p>
+        <code>while</code> 语句在条件为真时重复执行一条语句。
+      </p>
+
+      <pre><code class="language-cpp">
+while (cond)
+    ;
+</code></pre>
+
+      <p>
+        这里循环体只是一个空语句（<code>;</code>）。
+        这个循环反复检查条件，但什么也不做。
+      </p>
+    </section>
+
+    <section>
+      <h2>始终使用 <code>{ }</code></h2>
+      <p>
+        与 <code>if</code> 一样，初学者应当<strong>始终</strong>使用花括号。
+        不加花括号时，只有一条语句属于循环。
+      </p>
+
+      <h3>❌ 错误（只有一条语句在循环内）</h3>
+      <pre><code class="language-cpp">
+while (x < 5)
+    x = x + 1;
+    print("looping\n");   // this is NOT inside the loop
+</code></pre>
+
+      <h3>✔️ 正确</h3>
+      <pre><code class="language-cpp">
+while (x < 5) {
+    x = x + 1;
+    print("looping\n");
+}
+</code></pre>
+
+      <p>
+        花括号让哪些语句被重复一目了然。
+      </p>
+    </section>
+
+    <section>
+      <h2>死循环</h2>
+      <p>
+        <strong>死循环</strong>（无限循环）是指条件永远为真的循环。
+      </p>
+
+      <pre><code class="language-cpp">
+while (true) {
+    ;
+}
+</code></pre>
+
+      <p>
+        这个循环永不结束。
+        它在底层代码、服务器或事件循环中有时很有用，但初学者应当谨慎使用。
+      </p>
+
+      <p>
+        你也可以用初始化语句写出无限循环：
+      </p>
+
+      <pre><code class="language-cpp">
+while (auto flag = true; flag) {
+    ;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>初始化语句</h2>
+      <p>
+        <code>while</code> 循环可以在条件之前声明变量。
+        C++ 允许两种不同的写法。
+        该变量只存在于循环内部。
+      </p>
+
+      <h3>形式 1</h3>
+      <pre><code class="language-cpp">
+::std::uint_least32_t a{3};
+::std::uint_least32_t b{9};
+
+while (::std::int_least32_t sum = a + b) {   // condition is: sum != 0
+    println("sum != 0, a=", a, ", b=", b, ", sum=", sum);
+    break;  // avoid infinite loop in this example
+}
+</code></pre>
+
+      <p>
+        在这种形式中，条件就是该变量是否非零。
+      </p>
+
+      <h3>形式 2</h3>
+      <pre><code class="language-cpp">
+while (auto sum = a + b; sum > 10) {
+    println("sum > 10, a=", a, ", b=", b, ", sum=", sum);
+    break;  // avoid infinite loop in this example
+}
+</code></pre>
+
+      <p>
+        在这种形式中，先声明变量，然后再检查一个独立的条件。
+      </p>
+
+      <p>
+        两种形式下，变量（<code>sum</code>）都会在每次循环迭代结束时被销毁。
+      </p>
+    </section>
+
+    <section>
+      <h2>示例：对 <code>[0, 100)</code> 求和</h2>
+      <p>
+        一个常见的模式是在某个范围上循环。
+        在 C++ 中，只要可能，我们更愿意用 <code>!=</code> 而不是 <code>&lt;</code> 来写条件。
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t i{};
+::std::uint_least32_t sum{};
+
+while (i != 100) {   // preferred over i < 100
+    sum = sum + i;
+    ++i;
+}
+
+println("sum of [0,100) = ", sum);
+</code></pre>
+
+      <p>
+        使用 <code>!=</code> 可避免差一错误，并让循环更清晰。
+      </p>
+    </section>
+
+    <section>
+      <h2>示例：只对 3 的倍数求和</h2>
+      <p>
+        你可以把 <code>while</code> 与 <code>if</code> 结合来筛选值。
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t i{};
+::std::uint_least32_t sum{};
+
+while (i != 100) {
+    if (i % 3 == 0) {
+        sum = sum + i;
+    }
+    ++i;
+}
+
+println("sum of multiples of 3 in [0,100) = ", sum);
+</code></pre>
+
+      <p>
+        这个模式非常常见：在某个范围上循环，并用 <code>if</code> 选出需要的值。
+      </p>
+    </section>
+
+    <section>
+      <h2>风格说明</h2>
+      <p>
+        在 C++ 中，我们一般更倾向于：
+      </p>
+
+      <ul>
+        <li>循环到固定上限时，用 <code>!=</code> 而不是 <code>&lt;</code></li>
+        <li>用 <code>&lt;</code> 而不是 <code>&gt;</code>，因为它读起来更自然，也更不容易出错</li>
+      </ul>
+
+      <p>
+        这些约定让循环更易读、更不容易出错。
+      </p>
+    </section>
+
+    <section>
+      <h2>空循环体循环</h2>
+      <p>
+        有时所有工作都在条件或自增中完成。
+        这种情况下，循环体是有意为空的：
+      </p>
+
+      <pre><code class="language-cpp">
+while (++x < 10)
+    ;   // empty body
+</code></pre>
+
+      <p>
+        这是合法的，但应当谨慎使用。
+        大多数循环应当使用 <code>{ }</code> 以保持清晰。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong>while 重复一条语句：</strong>不加花括号时，只有一条语句在循环内。</li>
+        <li><strong>初始化语句：</strong><code>while (init)</code> 与 <code>while (init; cond)</code> 两种形式声明的变量只在循环内有效。</li>
+        <li><strong>死循环：</strong><code>while(true)</code> 永不结束。</li>
+        <li><strong>范围循环：</strong>固定上限时优先用 <code>!=</code>。</li>
+        <li><strong>筛选：</strong>把 <code>while</code> 与 <code>if</code> 结合以选出需要的值。</li>
+        <li><strong>空循环体：</strong>允许，但应当有意识地、克制地使用。</li>
+        <li><strong>清晰性：</strong>始终使用 <code>{ }</code> 以避免出错。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/03.if/" class="prev-button">← 第3.3章: if-else</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/03.statements/05.for/" class="next-button">第3.5章: for →</a>
+    </div>
+  </main>
+</body>
+</html>

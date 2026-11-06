@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.2章: 复合语句 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.2章: 复合语句</h1>
+
+    <section>
+      <h2>复合语句</h2>
+      <p>
+        <strong>复合语句</strong>是用花括号括起来的一组语句：
+      </p>
+
+      <pre><code>{
+    ;
+    ;
+}
+</code></pre>
+
+      <p>
+        花括号 <code>{ }</code> 让若干条语句表现得像一条单一语句。
+      </p>
+    </section>
+
+    <section>
+      <h2>复合语句内部的局部变量</h2>
+      <p>
+        复合语句同时也创建了一个<strong>作用域</strong>。
+        在花括号内声明的变量，在遇到收尾的 <code>}</code> 时被销毁。
+      </p>
+
+      <pre><code class="language-cpp">
+{
+    ::std::uint_least32_t v{};
+    v = 5;   // OK: v exists here
+}
+
+v = 6;       // ERROR: v was destroyed at the }
+</code></pre>
+
+      <p>
+        代码块结束后，<code>v</code> 就不再存在了。
+      </p>
+    </section>
+
+    <section>
+      <h2>名字遮蔽</h2>
+      <p>
+        如果你在内层作用域中声明了同名的变量，
+        它会<strong>遮蔽</strong>外层的那个：
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t v{1};
+
+{
+    ::std::uint_least32_t v{2}; // shadows the outer v
+    // this v is different
+}
+</code></pre>
+
+      <p>
+        遮蔽是合法的，但常常令人困惑。
+        如果你启用以下选项，编译器可以给出警告：
+      </p>
+
+      <pre><code>-Wshadow</code></pre>
+
+      <p>
+        我们建议始终启用这个警告。
+      </p>
+    </section>
+    <section>
+    <h2>要点</h2>
+    <ul>
+        <li><strong>复合语句：</strong><code>{ }</code> 把多条语句组合成一条。</li>
+        <li><strong>作用域：</strong>复合语句会创建一个新作用域。</li>
+        <li><strong>生命周期：</strong>在 <code>{ }</code> 内声明的变量在收尾花括号处被销毁。</li>
+        <li><strong>名字遮蔽：</strong>内层变量可以隐藏外层变量；这合法但容易混淆。</li>
+        <li><strong>警告：</strong>启用 <code>-Wshadow</code> 以发现意外的名字遮蔽。</li>
+    </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/01.empty/" class="prev-button">← 第3.1章: 空语句</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/03.statements/03.if/" class="next-button">第3.3章: if-else →</a>
+    </div>
+  </main>
+</body>
+</html>

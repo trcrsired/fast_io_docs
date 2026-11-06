@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.10章: goto - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.10章: goto</h1>
+
+    <section>
+      <h2><code>goto</code> 语句</h2>
+      <p>
+        <code>goto</code> 语句直接跳转到同一函数中的某个标签。
+        它不检查条件，也不遵循正常的控制流。
+      </p>
+
+      <pre><code class="language-cpp">
+goto label;
+
+label:
+    statement;
+</code></pre>
+
+      <p>
+        标签是由标识符加冒号构成的。
+        它们必须与 <code>goto</code> 位于同一函数中。
+      </p>
+    </section>
+
+    <section>
+      <h2>基础示例</h2>
+
+      <pre><code class="language-cpp">
+print("A\n");
+goto skip;
+print("B\n");   // skipped
+
+skip:
+print("C\n");
+</code></pre>
+
+      <p>
+        这会打印：
+      </p>
+
+      <pre><code>
+A
+C
+</code></pre>
+    </section>
+
+    <section>
+      <h2>向前与向后跳转</h2>
+      <p>
+        <code>goto</code> 既可以向前跳，也可以向后跳。
+      </p>
+
+      <h3>向前跳</h3>
+      <pre><code class="language-cpp">
+goto end;
+
+print("never printed\n");
+
+end:
+print("done\n");
+</code></pre>
+
+      <h3>向后跳（类似循环）</h3>
+      <pre><code class="language-cpp">
+::std::uint_least32_t i{};
+
+start:
+println("i=", i);
+++i;
+if (i != 5) {
+    goto start;   // jump back
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>限制：不能跳入作用域</h2>
+      <p>
+        <code>goto</code> 语句不能跳<strong>入</strong>某个会跳过自动变量初始化的作用域。
+        这可以防止使用未初始化的变量。
+      </p>
+
+      <pre><code class="language-cpp">
+goto label;
+
+{
+    ::std::int_least32_t x{42};   // initialization skipped
+label:
+    println(x);                   // illegal: x not initialized
+}
+</code></pre>
+
+      <p>
+        跳<strong>出</strong>作用域是允许的；析构函数仍会正常执行。
+      </p>
+    </section>
+
+    <section>
+      <h2>限制：不允许在 <code>constexpr</code> 函数中使用</h2>
+      <p>
+        <code>goto</code> 不能出现在 <code>constexpr</code> 或
+        <code>consteval</code> 函数中。
+        这些函数必须具有严格结构化的控制流。
+      </p>
+
+      <pre><code class="language-cpp">
+constexpr int f(int x) {
+    if (x == 0)
+        goto fail;   // error: goto not allowed in constexpr
+    return x;
+fail:
+    return -1;
+}
+</code></pre>
+
+      <p>
+        我们将在<strong>第7章：编译期编程</strong>中详细讲解 <code>constexpr</code> 函数。
+      </p>
+
+      <p>
+        这项限制正是为 C++ 添加<strong>带标签的 <code>break</code> 与 <code>continue</code></strong>
+        的提案动机之一：
+        它们提供了在 <code>constexpr</code> 上下文中允许的结构化多层退出，
+        而 <code>goto</code> 不允许。
+      </p>
+    </section>
+
+    <section>
+      <h2>合理用例：跳出多层循环</h2>
+      <p>
+        <code>goto</code> 可以一次退出多层嵌套循环。
+        这有时比使用标志变量更清晰。
+      </p>
+
+      <pre><code class="language-cpp">
+for (::std::uint_least32_t i{}; i != 3; ++i) {
+    for (::std::uint_least32_t j{}; j != 3; ++j) {
+        if (i == 1 && j == 1) {
+            goto done;   // exit both loops
+        }
+        println("i=", i, ", j=", j);
+    }
+}
+
+done:
+println("finished");
+</code></pre>
+    </section>
+
+    <section>
+      <h2>为什么应当少用 <code>goto</code></h2>
+      <p>
+        <code>goto</code> 让控制流更难跟踪。
+        现代 C++ 提供了更安全的替代方案：
+      </p>
+
+      <ul>
+        <li><code>while</code>、<code>for</code>、<code>do while</code></li>
+        <li><code>break</code> 与 <code>continue</code></li>
+        <li><code>switch</code></li>
+        <li>函数与提前返回</li>
+      </ul>
+
+      <p>
+        只在 <code>goto</code> 能提升清晰度时才使用它。
+      </p>
+    </section>
+
+    <section>
+      <h2>伪图：<code>goto</code></h2>
+
+      <pre><code>
+          ┌───────────────┐
+          │   normal flow  │
+          └───────┬───────┘
+                  │
+                  ├──▶ goto label ───────────────▶ label:
+                  │
+                  ▼
+          ┌───────────────┐
+          │   next stmt    │
+          └───────────────┘
+      </code></pre>
+    </section>
+
+    <section>
+    <h2>历史警示：Dijkstra 对 <code>goto</code> 的批评</h2>
+    <p>
+        在一篇著名的文章中，计算机科学家 Edsger W. Dijkstra 认为
+        <code>goto</code> 让程序更难理解、更难推理。
+        他的批评在于：任意跳转会破坏程序的结构化流程，
+        使人难以看清控制权如何在代码中移动。
+    </p>
+
+    <p>
+        这一论点深刻影响了现代编程语言的设计，包括 C++——它鼓励使用
+        循环、<code>if</code> 语句和函数来构成结构化的控制流，而不是无限制的跳转。
+    </p>
+
+    <p>
+        Dijkstra 的批评在今天依然适用：只有当 <code>goto</code> 确实能提升清晰度时才应使用它，
+        当结构化替代方案能更清楚地表达意图时，就应当避免它。
+    </p>
+    </section>
+
+    <section>
+    <h2>要点</h2>
+    <ul>
+        <li><strong>goto 跳转到标签：</strong>没有条件，没有检查。</li>
+        <li><strong>标签必须在同一函数内。</strong></li>
+        <li><strong>不能跳入作用域：</strong>不能绕过变量初始化。</li>
+        <li><strong>constexpr 中禁止 goto：</strong>要求结构化的控制流。</li>
+        <li><strong>带标签 break 的动机：</strong>constexpr 安全的多层退出。</li>
+        <li><strong>谨慎使用：</strong>优先采用结构化的控制流。</li>
+        <li><strong>Dijkstra 的警告：</strong>无限制跳转损害可读性，并使代码更难推理。</li>
+    </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/09.switch/" class="prev-button">← 第3.9章: switch</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/03.statements/11.preprocessor/" class="next-button">第3.11章: 预处理器 →</a>
+    </div>
+  </main>
+</body>
+</html>

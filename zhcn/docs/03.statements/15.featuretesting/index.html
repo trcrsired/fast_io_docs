@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.15章: 特性测试 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.15章: 特性测试</h1>
+
+    <section>
+      <h2>什么是特性测试</h2>
+      <p>
+        不同的编译器、平台和标准库支持不同的特性。
+        特性测试让你的程序可以在编译期适配当前可用的东西。
+      </p>
+
+      <p>
+        所有特性测试都由<strong>预处理器</strong>完成，发生在编译器
+        看到你的代码之前。
+      </p>
+
+      <ul>
+        <li>检测头文件</li>
+        <li>检测编译器特性</li>
+        <li>检测平台</li>
+        <li>检测 C++ 标准版本</li>
+        <li>检测库特性</li>
+        <li>检测工具链提供的 C 层宏</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>检测头文件：<code>__has_include</code></h2>
+      <p>
+        <code>__has_include</code> 在包含之前检查头文件是否存在。
+      </p>
+
+      <pre><code class="language-cpp">
+#if __has_include(<span>)
+#include <span>
+#else
+println("std::span not available");
+#endif
+</code></pre>
+    </section>
+
+    <section>
+      <h2>检测 <code>#embed</code>：<code>__has_embed</code></h2>
+      <p>
+        <code>__has_embed</code> 检查编译器是否支持
+        <code>#embed</code> 指令。
+      </p>
+
+      <pre><code class="language-cpp">
+#if __has_embed("resource.bin")
+static constexpr auto data =
+#embed "resource.bin";
+#else
+print("embed not supported\n");
+#endif
+</code></pre>
+    </section>
+
+    <section>
+      <h2>检测 C++ 标准版本：<code>__cplusplus</code></h2>
+      <p>
+        宏 <code>__cplusplus</code> 指明编译器正在使用哪个 C++ 标准。
+      </p>
+
+      <pre><code class="language-cpp">
+#if __cplusplus >= 202002L
+print("C++20 or later\n");
+#elif __cplusplus >= 201703L
+print("C++17\n");
+#else
+print("older C++\n");
+#endif
+</code></pre>
+
+      <p>
+        这个宏由编译器定义，而不是标准库。
+      </p>
+    </section>
+
+    <section>
+      <h2>编译器特性宏</h2>
+      <p>
+        编译器定义了若干宏，用来指明某些语言特性是否启用。
+      </p>
+
+      <h3><code>__cpp_exceptions</code></h3>
+      <p>
+        若启用了异常处理，则该宏已定义。
+      </p>
+
+      <pre><code class="language-cpp">
+#ifdef __cpp_exceptions
+print("exceptions enabled\n");
+#else
+print("exceptions disabled\n");
+#endif
+</code></pre>
+
+      <p>
+        由于实现复杂度或运行时开销，许多环境<strong>完全禁用异常</strong>
+        ——包括 Android、WebAssembly、嵌入式系统以及操作系统内核。
+        我们将在后续章节中详细讨论这一点。
+      </p>
+
+      <h3><code>__cpp_rtti</code></h3>
+      <p>
+        若启用了运行时类型信息（RTTI），则该宏已定义。
+      </p>
+
+      <pre><code class="language-cpp">
+#ifdef __cpp_rtti
+print("RTTI enabled\n");
+#else
+print("RTTI disabled\n");
+#endif
+</code></pre>
+    </section>
+
+    <section>
+      <h2>平台检测</h2>
+      <p>
+        编译器定义了若干用于识别操作系统的宏。
+      </p>
+
+      <pre><code class="language-cpp">
+#ifdef _WIN32
+print("Windows\n");
+#endif
+
+#ifdef __linux__
+print("Linux\n");
+#endif
+
+#ifdef __APPLE__
+print("macOS\n");
+#endif
+</code></pre>
+    </section>
+
+    <section>
+      <h2>编译器检测</h2>
+
+      <pre><code class="language-cpp">
+#ifdef __clang__
+print("Clang\n");
+#endif
+
+#ifdef __GNUC__
+print("GCC\n");
+#endif
+
+#ifdef _MSC_VER
+print("MSVC\n");
+#endif
+</code></pre>
+    </section>
+
+    <section>
+      <h2>检测库特性：&lt;version&gt; 头文件</h2>
+      <p>
+        C++ 标准库提供了形如 <code>__cpp_feature</code> 的特性测试宏。
+        这些宏指明哪些库特性可用。
+      </p>
+
+      <p>
+        它们全都定义在 <code>&lt;version&gt;</code> 头文件中。
+      </p>
+
+      <pre><code class="language-cpp">
+#include <version>
+
+#ifdef __cpp_lib_span
+print("std::span available\n");
+#else
+print("std::span not available\n");
+#endif
+</code></pre>
+
+      <p>
+        特性测试宏的完整权威列表见：
+      </p>
+
+      <p>
+        <a href="https://en.cppreference.com/w/cpp/feature_test.html">
+          https://en.cppreference.com/w/cpp/feature_test.html
+        </a>
+      </p>
+    </section>
+
+    <section>
+      <h2>检测 C 宏：<code>features.h</code></h2>
+      <p>
+        你的工具链还提供了许多 C 层特性宏。它们并不是
+        C++ 的一部分，但会影响可移植性与底层行为。
+      </p>
+
+      <p>
+        它们通常定义在一个名为：
+      </p>
+
+      <pre><code>
+features.h
+</code></pre>
+
+      <p>
+        的头文件中。该头文件属于你的 C 库实现（glibc、musl、BSD
+        libc 等）。它包含这样的宏：
+      </p>
+
+      <ul>
+        <li><code>_GNU_SOURCE</code></li>
+        <li><code>_POSIX_C_SOURCE</code></li>
+        <li><code>_XOPEN_SOURCE</code></li>
+        <li><code>_FORTIFY_SOURCE</code></li>
+      </ul>
+
+      <p>
+        这些宏控制哪些 C 与 POSIX API 可用。
+        确切列表请查看你工具链的 <code>features.h</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong>特性测试发生在编译之前。</strong></li>
+        <li><strong>__has_include / __has_embed：</strong>检测头文件与 embed 支持。</li>
+        <li><strong>__cplusplus：</strong>检测 C++ 语言版本。</li>
+        <li><strong>__cpp_exceptions / __cpp_rtti：</strong>检测编译器层面的特性。</li>
+        <li><strong>平台宏：</strong>检测操作系统。</li>
+        <li><strong>编译器宏：</strong>检测编译器。</li>
+        <li><strong>&lt;version&gt;：</strong>提供 C++ 标准库的特性测试宏。</li>
+        <li><strong>features.h：</strong>包含工具链提供的 C 层特性宏。</li>
+        <li><strong>cppreference 特性测试列表：</strong><br>
+          <a href="https://en.cppreference.com/w/cpp/feature_test.html">
+            https://en.cppreference.com/w/cpp/feature_test.html
+          </a>
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/14.stringify/" class="prev-button">← 第3.14章: 字符串化</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/03.statements/16.herbceptions/" class="next-button">第3.16章: Herbceptions →</a>
+    </div>
+  </main>
+</body>
+</html>

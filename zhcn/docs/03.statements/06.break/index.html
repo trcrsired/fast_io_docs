@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.6章: break - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.6章: break</h1>
+
+    <section>
+      <h2><code>break</code> 语句</h2>
+      <p>
+        <code>break</code> 语句立刻终止最近的循环，并从循环之后的语句
+        继续执行。
+      </p>
+
+      <pre><code class="language-cpp">
+break;
+</code></pre>
+
+      <p>
+        <code>break</code> 只跳出<strong>一层</strong>循环——最内层的那一个。
+      </p>
+    </section>
+
+    <section>
+      <h2><code>while</code> 循环中的 <code>break</code></h2>
+      <p>
+        这个循环在 <code>i == 50</code> 时提前终止。
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t i{};
+::std::uint_least32_t sum{};
+
+while (i != 100) {
+    if (i == 50) {
+        break;   // exit the loop
+    }
+    sum = sum + i;
+    ++i;
+}
+
+println("sum of [0,50) = ", sum);
+</code></pre>
+    </section>
+
+    <section>
+      <h2><code>for</code> 循环中的 <code>break</code></h2>
+      <p>
+        在 <code>for</code> 循环中，<code>break</code> 的行为完全相同。
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t sum{};
+
+for (::std::uint_least32_t i{}; i != 100; ++i) {
+    if (i == 10) {
+        break;
+    }
+    sum = sum + i;
+}
+
+println("sum of [0,10) = ", sum);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>死循环中的 <code>break</code></h2>
+      <p>
+        死循环会永远运行，除非循环体内有东西让循环停下。
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t i{};
+
+for (;;) {   // infinite loop
+    if (i == 5) {
+        break;   // exit the loop
+    }
+    println("i=", i);
+    ++i;
+}
+</code></pre>
+
+      <p>
+        这个循环之所以会结束，完全是因为 <code>break</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>带初始化语句的循环中的 <code>break</code></h2>
+      <p>
+        即使循环使用了初始化语句，<code>break</code> 也照常工作。
+      </p>
+
+      <pre><code class="language-cpp">
+for (auto i = 0; i &lt; 100; ++i) {
+    if (i == 3) {
+        break;
+    }
+    println("i=", i);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>嵌套循环</h2>
+      <p>
+        <code>break</code> 只跳出<strong>最内层</strong>循环。
+      </p>
+
+      <pre><code class="language-cpp">
+for (::std::uint_least32_t i{}; i != 3; ++i) {
+    for (::std::uint_least32_t j{}; j != 3; ++j) {
+        if (j == 1) {
+            break;   // exits only the inner loop
+        }
+        println("i=", i, ", j=", j);
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>未来提案：带标签的 <code>break</code>（P3568）</h2>
+      <p>
+        C++ 委员会正在讨论一项提案（P3568），它将为语言添加
+        <strong>带标签的 <code>break</code></strong>。
+        这一特性<strong>尚未成为 C++ 的一部分</strong>，但可能出现在未来的标准中。
+      </p>
+
+      <p>
+        其想法是让 <code>break</code> 能直接跳出<em>外层</em>循环。
+        标签必须出现在你想跳出的循环<strong>之前</strong>。
+      </p>
+
+      <h3>示例（提案语法）</h3>
+
+      <pre><code class="language-cpp">
+outer:
+for (::std::uint_least32_t i{}; i != 3; ++i) {
+    for (::std::uint_least32_t j{}; j != 3; ++j) {
+        if (j == 1) {
+            break outer;   // exits the loop labeled "outer"
+        }
+        println("i=", i, ", j=", j);
+    }
+}
+</code></pre>
+
+      <p>
+        标签必须放在循环头部<strong>之前</strong>。
+        你不能把标签放在循环之后，也不能放在 <code>for</code> 关键字之后。
+      </p>
+
+      <p>
+        再次强调，这<strong>在今天的 C++ 中并不合法</strong>。
+        此处展示它，只是为了说明 <code>break</code> 未来可能如何演进。
+      </p>
+    </section>
+
+    <section>
+      <h2>伪图：<code>break</code> 跳向何处</h2>
+
+      <pre><code>
+          ┌───────────────┐
+          │     loop       │
+          │    begins      │
+          └───────┬───────┘
+                  │
+                  ▼
+          ┌───────────────┐
+          │     cond       │─── false ───▶ loop ends
+          └───────┬───────┘
+                  │ true
+                  ▼
+          ┌───────────────┐
+          │     body       │
+          └───────┬───────┘
+                  │
+                  ├──▶ if (break) ───────────────▶ loop ends
+                  │
+                  ▼
+          ┌───────────────┐
+          │      step      │
+          └───────┬───────┘
+                  │
+                  └─────────────── back to cond
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong>break 跳出最近的循环：</strong>它不会跳出外层循环。</li>
+        <li><strong>break 能终止死循环：</strong>对 <code>for(;;)</code> 和 <code>while(true)</code> 很有用。</li>
+        <li><strong>break 适用于任何循环：</strong><code>while</code>、<code>for</code> 和 <code>do while</code>。</li>
+        <li><strong>带初始化语句的 break：</strong>行为正常。</li>
+        <li><strong>嵌套循环：</strong>只有最内层循环会被跳出。</li>
+        <li><strong>带标签的 break（P3568）：</strong>提案中的特性；标签必须出现在循环之前。</li>
+        <li><strong>清晰性：</strong>有意识地使用 <code>break</code>；不要把它深埋在复杂逻辑里。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/05.for/" class="prev-button">← 第3.5章: for</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/03.statements/07.continue/" class="next-button">第3.7章: continue →</a>
+    </div>
+  </main>
+</body>
+</html>

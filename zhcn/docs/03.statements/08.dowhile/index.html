@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.8章: do while - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.8章: do while</h1>
+
+    <section>
+      <h2><code>do while</code> 语句</h2>
+      <p>
+        <code>do while</code> 循环与 <code>while</code> 循环相似，区别在于
+        循环体在检查条件之前<strong>至少执行一次</strong>。
+      </p>
+
+      <pre><code class="language-cpp">
+do {
+    body
+} while (cond);
+</code></pre>
+
+      <p>
+        条件在循环体执行<strong>之后</strong>检查。
+      </p>
+    </section>
+
+    <section>
+      <h2>基础示例</h2>
+      <p>
+        这个循环打印 0 到 4。
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t i{};
+
+do {
+    println("i=", i);
+    ++i;
+} while (i != 5);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>与 <code>while</code> 的区别</h2>
+      <p>
+        如果开始时条件为假，<code>while</code> 循环可能一次都不执行。
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t i{5};
+
+while (i != 5) {   // false immediately
+    println("never printed");
+}
+</code></pre>
+
+      <p>
+        但 <code>do while</code> 总会执行一次循环体：
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t i{5};
+
+do {
+    println("printed once");
+} while (i != 5);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>求和示例</h2>
+      <p>
+        这个例子对 <code>[0, 100)</code> 求和。
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t i{};
+::std::uint_least32_t sum{};
+
+do {
+    sum = sum + i;
+    ++i;
+} while (i != 100);
+
+println("sum of [0,100) = ", sum);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>输入校验示例</h2>
+      <p>
+        <code>do while</code> 的一个经典用法是反复执行，直到收到合法输入。
+      </p>
+
+      <pre><code class="language-cpp">
+::std::int_least32_t x{};
+
+do {
+    print("Enter a number between 1 and 5: ");
+    scan(x);
+} while (x < 1 || x > 5);
+
+println("You entered: ", x);
+</code></pre>
+
+      <p>
+        提示语总会至少出现一次。
+      </p>
+    </section>
+
+    <section>
+      <h2>空循环体的 <code>do while</code></h2>
+      <p>
+        空循环体是允许的，尽管很少需要。
+      </p>
+
+      <pre><code class="language-cpp">
+do {
+    ;
+} while (false);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>伪图：<code>do while</code></h2>
+
+      <pre><code>
+          ┌───────────────┐
+          │     body       │   (runs once)
+          └───────┬───────┘
+                  │
+                  ▼
+          ┌───────────────┐
+          │     cond       │─── false ───▶ loop ends
+          └───────┬───────┘
+                  │ true
+                  ▼
+                  └─────────────── back to body
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong>do while 先执行循环体：</strong>条件在其后检查。</li>
+        <li><strong>至少执行一次：</strong>这一点与 <code>while</code> 不同。</li>
+        <li><strong>适用于输入校验：</strong>提示语必须至少出现一次。</li>
+        <li><strong>花括号规则相同：</strong>始终使用 <code>{ }</code> 以保持清晰。</li>
+        <li><strong>条件以分号结尾：</strong>这是必需的语法。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/07.continue/" class="prev-button">← 第3.7章: continue</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/03.statements/09.switch/" class="next-button">第3.9章: switch →</a>
+    </div>
+  </main>
+</body>
+</html>

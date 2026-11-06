@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.3章: if-else - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.3章: if-else</h1>
+
+    <section>
+      <h2><code>if-else</code> 语句</h2>
+      <p>
+        <code>if</code> 决定是否执行某条语句。
+        <code>if-else</code> 在两条语句之间做选择：
+      </p>
+
+      <pre><code class="language-cpp">
+if (cond) {
+    ;
+} else {
+    ;
+}
+</code></pre>
+
+      <p>
+        和之前一样，<code>;</code> 只是一个空语句。
+      </p>
+    </section>
+
+    <section>
+      <h2><code>else if</code></h2>
+      <p>
+        当分支超过两个时，你可以用 <code>else if</code> 串联条件：
+      </p>
+
+      <pre><code class="language-cpp">
+if (x < 0) {
+    print("negative\n");
+} else if (x == 0) {
+    print("zero\n");
+} else {
+    print("positive\n");
+}
+</code></pre>
+
+      <p>
+        只有第一个匹配的分支会执行。
+      </p>
+    </section>
+
+    <section>
+      <h2>初始化语句</h2>
+      <p>
+        <code>if</code> 或 <code>else if</code> 可以在条件之前声明变量。
+        C++ 允许两种不同的写法。
+        该变量只存在于整个 <code>if / else if / else</code> 链内部。
+      </p>
+
+      <h3>形式 1</h3>
+      <pre><code class="language-cpp">
+::std::uint_least32_t a{3};
+::std::uint_least32_t b{9};
+
+if (::std::int_least32_t sum = a + b) {   // condition is: sum != 0
+    println("sum != 0, a=", a, ", b=", b, ", sum=", sum);
+} else {
+    println("sum == 0, a=", a, ", b=", b, ", sum=", sum);
+}
+</code></pre>
+
+      <p>
+        在这种形式中，条件就是该变量是否非零。
+      </p>
+
+      <h3>形式 2</h3>
+      <pre><code class="language-cpp">
+if (auto sum = a + b; sum > 10) {
+    println("sum > 10, a=", a, ", b=", b, ", sum=", sum);
+} else if (sum == 10) {
+    println("sum == 10, a=", a, ", b=", b, ", sum=", sum);
+} else {
+    println("sum < 10, a=", a, ", b=", b, ", sum=", sum);
+}
+</code></pre>
+
+      <p>
+        在这种形式中，先声明变量，然后再检查一个独立的条件。
+      </p>
+
+      <p>
+        两种形式下，变量（<code>sum</code>）都在整条链结束后被销毁。
+      </p>
+    </section>
+
+    <section>
+      <h2>始终使用 <code>{ }</code></h2>
+      <p>
+        对 <code>if</code>、<code>else if</code> 和 <code>else</code>，初学者应当<strong>始终</strong>使用花括号。
+        不加花括号时，极易把 <code>else</code> 挂到错误的 <code>if</code> 上。
+      </p>
+
+      <h3>❌ 错误（有歧义）</h3>
+      <pre><code class="language-cpp">
+if (a)
+    if (b)
+        ;
+    else
+        ;   // attaches to the inner if, not the outer one
+</code></pre>
+
+      <p>
+        这就是经典的“悬垂 else”问题。
+      </p>
+
+      <h3>✔️ 正确</h3>
+      <pre><code class="language-cpp">
+if (a) {
+    if (b) {
+        ;
+    } else {
+        ;
+    }
+}
+</code></pre>
+
+      <p>
+        花括号让结构清晰，并防止出错。
+      </p>
+    </section>
+
+    <section>
+      <h2>另一个令人困惑的例子</h2>
+      <p>
+        不加花括号时，这段代码看起来像 <code>else</code> 属于第一个 <code>if</code>：
+      </p>
+
+      <h3>❌ 错误</h3>
+      <pre><code class="language-cpp">
+if (x > 0)
+    if (x == 1)
+        print("one\n");
+    else
+        print("not one\n");  // actually belongs to the inner if
+</code></pre>
+
+      <p>
+        但 <code>else</code> 总是与<strong>最近的</strong>未匹配的 <code>if</code> 配对。
+      </p>
+
+      <h3>✔️ 正确</h3>
+      <pre><code class="language-cpp">
+if (x > 0) {
+    if (x == 1) {
+        print("one\n");
+    } else {
+        print("not one\n");
+    }
+}
+</code></pre>
+
+      <p>
+        始终使用花括号。它消除了所有歧义。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong>if-else 做选择：</strong><code>if</code> 选一条路径；<code>if-else</code> 在两条之间选。</li>
+        <li><strong>else if 链：</strong>多个有序条件用 <code>else if</code>。</li>
+        <li><strong>初始化语句：</strong><code>if (init) ...</code> 与 <code>if (init; cond)</code> 两种形式都会声明一个对整个链有效的变量。</li>
+        <li><strong>单语句规则：</strong>不加花括号时，每个分支只控制一条语句。</li>
+        <li><strong>空语句：</strong><code>if (cond) ;</code> 或 <code>else ;</code> 什么也不做，几乎总是 bug。</li>
+        <li><strong>悬垂 else：</strong><code>else</code> 绑定到最近的 <code>if</code>；花括号可防止混淆。</li>
+        <li><strong>清晰性：</strong>一致地使用花括号让代码更易读、更易安全修改。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/02.compound/" class="prev-button">← 第3.2章: 复合语句</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/03.statements/04.while/" class="next-button">第3.4章: while →</a>
+    </div>
+  </main>
+</body>
+</html>

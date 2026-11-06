@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.12章: #ifdef / #ifndef - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.12章: #ifdef / #ifndef</h1>
+
+    <section>
+      <h2>条件编译</h2>
+      <p>
+        预处理器可以根据某个宏是否定义，来包含或排除代码中的某些部分。
+        这被称为<strong>条件编译</strong>。
+      </p>
+
+      <p>它被用于：</p>
+      <ul>
+        <li>平台专属代码</li>
+        <li>编译器专属代码</li>
+        <li>条件包含</li>
+        <li>包含防卫</li>
+        <li>特性检测（<code>__has_include</code>、<code>__has_embed</code>）</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2><code>#ifdef</code> 与 <code>#ifndef</code></h2>
+      <p>
+        <code>#ifdef</code> 检查某个宏是否已定义。
+        <code>#ifndef</code> 检查某个宏是否<strong>未</strong>定义。
+      </p>
+
+      <pre><code class="language-cpp">
+#ifdef DEBUG
+print("debug mode\n");
+#endif
+
+#ifndef RELEASE
+print("not release mode\n");
+#endif
+</code></pre>
+    </section>
+
+    <section>
+      <h2>多分支条件编译</h2>
+      <p>你可以用 <code>#elif</code> 串联多个条件。</p>
+
+      <pre><code class="language-cpp">
+#if defined(FAST_IO)
+print("fast_io enabled\n");
+#elif defined(USE_SIMD)
+print("SIMD enabled\n");
+#else
+print("default configuration\n");
+#endif
+</code></pre>
+
+      <p>
+        只有第一个匹配的分支会被包含。
+      </p>
+    </section>
+
+    <section>
+      <h2>包含防卫</h2>
+      <p>
+        包含防卫（include guard）防止一个头文件被包含多次。
+        它们是 <code>#pragma once</code> 的传统替代方案。
+      </p>
+
+      <pre><code class="language-cpp">
+// myheader.h
+#ifndef MYHEADER_H
+#define MYHEADER_H
+
+void f();
+
+#endif
+</code></pre>
+
+      <p>
+        当头文件被再次包含时，<code>MYHEADER_H</code> 已经被
+        定义，因此其中的内容会被跳过。
+      </p>
+    </section>
+
+    <section>
+      <h2>平台专属包含</h2>
+      <p>
+        你可以根据平台有条件地包含头文件。
+      </p>
+
+      <pre><code class="language-cpp">
+#if defined(_WIN32)
+#include &lt;windows.h&gt;
+#undef min
+#undef max
+#endif
+</code></pre>
+
+      <p>
+        <code>windows.h</code> 定义了宏 <code>min</code> 与 <code>max</code>，
+        它们会与同名的 C++ 函数冲突。
+        <code>#undef</code> 移除这些宏，这样你就能使用真正的函数。
+      </p>
+    </section>
+
+    <section>
+      <h2><code>#undef</code></h2>
+      <p>
+        <code>#undef</code> 指令移除一个宏定义。
+      </p>
+
+      <pre><code class="language-cpp">
+#define PI 3.14
+#undef PI   // PI no longer defined
+</code></pre>
+
+      <p>
+        这常用于撤销系统头文件带来的宏。
+      </p>
+    </section>
+
+    <section>
+      <h2>条件包含</h2>
+      <p>
+        部分编译器支持 <code>__has_include</code>，用于在包含之前检查头文件
+        是否存在。
+      </p>
+
+      <pre><code class="language-cpp">
+#if __has_include(&lt;optional&gt;)
+#include &lt;optional&gt;
+#endif
+</code></pre>
+
+      <p>
+        这让代码可以可移植地适配可用的头文件。
+      </p>
+    </section>
+
+    <section>
+      <h2>特性检测：<code>__has_embed</code></h2>
+      <p>
+        <code>__has_embed</code> 检查编译器是否支持 <code>#embed</code>
+        指令。
+      </p>
+
+      <pre><code class="language-cpp">
+#if __has_embed("resource.bin")
+static constexpr auto data =
+#embed "resource.bin";
+#else
+print("embed not supported\n");
+#endif
+</code></pre>
+
+      <p>
+        这让 <code>#embed</code> 在可用时能被可移植地使用。
+      </p>
+    </section>
+
+    <section>
+      <h2>断言与 <code>-DNDEBUG</code></h2>
+      <p>
+        头文件 <code>&lt;cassert&gt;</code> 提供了 <code>assert</code>
+        宏。它在运行时检查一个条件，如果条件为假就
+        终止程序。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;cassert&gt;
+
+void f(int x) {
+    assert(x != 0);
+    println(100 / x);
+}
+</code></pre>
+
+      <p>
+        在调试构建中，如果 <code>x == 0</code>，这会打印一条错误信息并
+        终止程序。
+      </p>
+
+      <h3>用 <code>-DNDEBUG</code> 禁用断言</h3>
+      <p>
+        如果宏 <code>NDEBUG</code> 已定义，所有 <code>assert</code> 调用
+        都会被预处理器移除。
+      </p>
+
+      <pre><code class="language-cpp">
+// compile with:
+// g++ -DNDEBUG main.cpp
+
+assert(x != 0);   // expands to nothing
+</code></pre>
+
+      <p>
+        这就是发布构建通常会定义 <code>NDEBUG</code> 的原因。
+      </p>
+
+      <h3>警告：不要在 <code>assert</code> 内产生副作用</h3>
+      <p>
+        因为当定义了 <code>NDEBUG</code> 时 <code>assert</code> 会消失，
+        所以它内部的表达式不能有副作用。
+      </p>
+
+      <pre><code class="language-cpp">
+assert(++i != 0);   // BAD: increments only in debug builds
+</code></pre>
+
+      <p>
+        这会导致调试构建与发布构建行为不一致。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong>#ifdef / #ifndef：</strong>根据宏定义包含或排除代码。</li>
+        <li><strong>#elif：</strong>多分支条件编译。</li>
+        <li><strong>包含防卫：</strong>防止头文件被多次包含。</li>
+        <li><strong>平台专属包含：</strong>只在有效的地方包含头文件。</li>
+        <li><strong>#undef：</strong>移除宏（例如 <code>windows.h</code> 中的 <code>min</code>、<code>max</code>）。</li>
+        <li><strong>__has_include：</strong>在包含之前检查头文件是否存在。</li>
+        <li><strong>__has_embed：</strong>检查是否支持 <code>#embed</code>。</li>
+        <li><strong>assert + NDEBUG：</strong>断言在发布构建中会消失。</li>
+        <li><strong>assert 中不要有副作用：</strong>否则调试与发布行为不同。</li>
+        <li><strong>条件编译发生在 C++ 之前：</strong>预处理器只看词法单元。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/11.preprocessor/" class="prev-button">← 第3.11章: 预处理器</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/03.statements/13.attribute/" class="next-button">第3.13章: attribute →</a>
+    </div>
+  </main>
+</body>
+</html>

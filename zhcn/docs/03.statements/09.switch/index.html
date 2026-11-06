@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.9章: switch - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.9章: switch</h1>
+
+    <section>
+      <h2><code>switch</code> 语句</h2>
+      <p>
+        <code>switch</code> 语句根据表达式的值选择一个分支。
+        它通常比一长串 <code>if</code> / <code>else if</code> 链更清晰。
+      </p>
+
+      <pre><code class="language-cpp">
+switch (expr) {
+    case value1:
+        stmt1;
+        break;
+    case value2:
+        stmt2;
+        break;
+    default:
+        stmt_default;
+        break;
+}
+</code></pre>
+
+      <p>
+        每个 <code>case</code> 标签匹配一个常量值。
+        <code>break</code> 防止执行“贯穿”到下一个 case。
+      </p>
+    </section>
+
+    <section>
+      <h2>基础示例</h2>
+
+      <pre><code class="language-cpp">
+::std::int_least32_t x{2};
+
+switch (x) {
+    case 1:
+        println("one");
+        break;
+    case 2:
+        println("two");
+        break;
+    default:
+        println("other");
+        break;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>贯穿行为</h2>
+      <p>
+        如果某个 <code>case</code> 没有以 <code>break</code> 结尾，执行会继续
+        （“贯穿”）进入下一个 case。
+      </p>
+
+      <pre><code class="language-cpp">
+::std::int_least32_t x{1};
+
+switch (x) {
+    case 1:
+        println("one");
+        // no break here → fallthrough
+    case 2:
+        println("two");
+        break;
+}
+</code></pre>
+
+      <p>
+        这会打印：
+      </p>
+
+      <pre><code>
+one
+two
+</code></pre>
+
+      <p>
+        贯穿是允许的，但应当有意识地使用。
+      </p>
+    </section>
+
+    <section>
+      <h2>C++ 属性</h2>
+      <p>
+        C++ 提供了一种标准语法，用于给代码附加额外信息：
+      </p>
+
+      <pre><code class="language-cpp">
+[[attribute_name]]
+</code></pre>
+
+      <p>
+        属性不会改变程序的含义，但它们可以给编译器提供
+        提示，或为读者提升清晰度。
+      </p>
+    </section>
+
+    <section>
+      <h2><code>[[fallthrough]]</code> 属性</h2>
+      <p>
+        当你在 <code>switch</code> 中有意允许贯穿时，应当
+        用 <code>[[fallthrough]]</code> 标记它。
+        这让意图清晰，并避免编译器警告。
+      </p>
+
+      <pre><code class="language-cpp">
+switch (x) {
+    case 1:
+        println("one");
+        [[fallthrough]];   // intentional fallthrough
+    case 2:
+        println("two");
+        break;
+}
+</code></pre>
+
+      <p>
+        该属性必须作为一条独立语句出现。
+      </p>
+    </section>
+
+    <section>
+      <h2><code>default</code> 分支</h2>
+      <p>
+        当没有其他 case 匹配时，<code>default</code> 标签会执行。
+      </p>
+
+      <pre><code class="language-cpp">
+switch (x) {
+    case 0:
+        println("zero");
+        break;
+    default:
+        println("not zero");
+        break;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>一个分支对应多个 case</h2>
+
+      <pre><code class="language-cpp">
+switch (x) {
+    case 1:
+    case 3:
+    case 5:
+        println("odd small number");
+        break;
+    default:
+        println("other");
+        break;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>嵌套 <code>switch</code></h2>
+
+      <pre><code class="language-cpp">
+switch (x) {
+    case 1:
+        switch (y) {
+            case 0:
+                println("x=1, y=0");
+                break;
+            default:
+                println("x=1, y!=0");
+                break;
+        }
+        break;
+    default:
+        println("x!=1");
+        break;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>伪图：<code>switch</code></h2>
+
+      <pre><code>
+          ┌───────────────┐
+          │   switch(expr) │
+          └───────┬───────┘
+                  │
+                  ▼
+        ┌──────────────────────┐
+        │   match a case?       │─── no ───▶ default
+        └──────────┬───────────┘
+                   │ yes
+                   ▼
+          ┌───────────────┐
+          │   case block   │
+          └───────┬───────┘
+                  │
+                  ├──▶ break ─────────────▶ end
+                  │
+                  └──▶ fallthrough ───────▶ next case
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong>switch 选择分支：</strong>依据表达式的值。</li>
+        <li><strong>case 标签：</strong>必须是常量表达式。</li>
+        <li><strong>break 防止贯穿：</strong>没有它，执行会继续往下走。</li>
+        <li><strong>[[fallthrough]]：</strong>标记有意的贯穿。</li>
+        <li><strong>default：</strong>没有 case 匹配时执行。</li>
+        <li><strong>多个 case：</strong>可以共享同一个代码块。</li>
+        <li><strong>嵌套 switch：</strong>允许，但应谨慎使用。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/08.dowhile/" class="prev-button">← 第3.8章: do while</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/03.statements/10.goto/" class="next-button">第3.10章: goto →</a>
+    </div>
+  </main>
+</body>
+</html>

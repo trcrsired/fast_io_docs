@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.14章: 字符串化 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.14章: 字符串化</h1>
+
+    <section>
+      <h2>宏与词法单元操作</h2>
+      <p>
+        C++ 预处理器提供了两个用于操作词法单元的特殊运算符：
+      </p>
+
+      <ul>
+        <li><strong><code>#</code></strong> —— 字符串化</li>
+        <li><strong><code>##</code></strong> —— 词法单元拼接</li>
+      </ul>
+
+      <p>
+        这些运算符只在 <code>#define</code> 宏内部有效。它们很
+        强大，但必须谨慎使用。
+      </p>
+    </section>
+
+    <section>
+      <h2>字符串化：<code>#</code></h2>
+      <p>
+        <code>#</code> 运算符把宏参数转换为字符串
+        字面量。
+      </p>
+
+      <pre><code class="language-cpp">
+#define STR(x) #x
+
+println(STR(hello world));
+</code></pre>
+
+      <p>
+        输出：
+      </p>
+
+      <pre><code>
+hello world
+</code></pre>
+
+      <p>
+        参数不会被求值——它按原样变成文本。
+      </p>
+
+      <h3>示例：打印表达式</h3>
+
+      <pre><code class="language-cpp">
+#define SHOW(expr) println(#expr, " = ", (expr))
+
+SHOW(2 + 3);
+SHOW(10 * 20);
+</code></pre>
+
+      <p>
+        输出：
+      </p>
+
+      <pre><code>
+2 + 3 = 5
+10 * 20 = 200
+</code></pre>
+    </section>
+
+    <section>
+      <h2>词法单元拼接：<code>##</code></h2>
+      <p>
+        <code>##</code> 运算符把两个词法单元拼接成一个。
+      </p>
+
+      <pre><code class="language-cpp">
+#define MAKE_NAME(prefix, id) prefix##id
+
+int MAKE_NAME(var, 1) = 42;   // becomes: int var1 = 42;
+</code></pre>
+
+      <p>
+        词法单元拼接常用于生成变量名或函数名。
+      </p>
+
+      <h3>示例：生成枚举到字符串的辅助函数</h3>
+
+      <pre><code class="language-cpp">
+#define CASE_TO_STRING(x) case x: return #x;
+
+    switch (c) {
+        CASE_TO_STRING(red)
+        CASE_TO_STRING(green)
+        CASE_TO_STRING(blue)
+    }
+</code></pre>
+    </section>
+
+    <section>
+      <h2>组合使用 <code>#</code> 与 <code>##</code></h2>
+      <p>
+        你可以把两个运算符结合起来，构建更复杂的宏。
+      </p>
+
+      <pre><code class="language-cpp">
+#define MAKE_GETTER(name) \
+    int get_##name() { \
+        println("getting " #name); \
+        return name; \
+    }
+
+int value = 123;
+MAKE_GETTER(value)
+</code></pre>
+
+      <p>
+        展开为：
+      </p>
+
+      <pre><code>
+int get_value() {
+    println("getting " "value");
+    return value;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>宏的陷阱</h2>
+
+      <h3>1. 没有类型检查</h3>
+      <p>
+        宏操作的是文本，而不是类型。错误可能只在展开之后才出现。
+      </p>
+
+      <h3>2. 副作用</h3>
+      <p>
+        宏可能对实参求值多次。
+      </p>
+
+      <pre><code class="language-cpp">
+#define SQR(x) ((x) * (x))
+
+SQR(++i);   // expands to ((++i) * (++i))
+</code></pre>
+
+      <p>
+        这会让 <code>i</code> 自增两次——几乎从来不是本意。
+      </p>
+
+      <h3>3. 难以调试</h3>
+      <p>
+        调试器显示的是展开后的代码，而不是宏定义。
+      </p>
+
+      <h3>4. 词法单元拼接可能产生非法代码</h3>
+
+      <pre><code class="language-cpp">
+#define BAD(x) x##123abc   // invalid token
+</code></pre>
+
+      <p>
+        编译器会在展开之后报错。
+      </p>
+    </section>
+
+    <section>
+      <h2>安全的使用模式</h2>
+      <ul>
+        <li>给宏参数加上圆括号。</li>
+        <li>用 <code>#</code> 编写调试辅助工具。</li>
+        <li>只在必要时使用 <code>##</code>。</li>
+        <li>现代 C++ 中优先使用 <code>constexpr</code> 与模板。</li>
+      </ul>
+
+      <p>
+        宏很强大，但应当少用。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong>#</strong> 把宏参数变成字符串字面量。</li>
+        <li><strong>##</strong> 把词法单元拼接在一起。</li>
+        <li>宏操作的是文本，不是类型。</li>
+        <li>副作用与多次求值是常见陷阱。</li>
+        <li>尽可能优先使用现代 C++ 特性。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/13.attribute/" class="prev-button">← 第3.13章: attribute</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/03.statements/15.featuretesting/" class="next-button">第3.15章: 特性测试 →</a>
+    </div>
+  </main>
+</body>
+</html>

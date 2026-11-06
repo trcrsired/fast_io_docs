@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.13章: attribute - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.13章: attribute</h1>
+
+    <section>
+      <h2>什么是属性</h2>
+      <p>
+        属性（attribute）向编译器提供额外信息。它们不会
+        改变程序的含义，但可以启用警告、优化，或特殊行为。
+      </p>
+
+      <p>
+        属性使用以下语法：
+      </p>
+
+      <pre><code class="language-cpp">
+[[attribute]]
+</code></pre>
+
+      <p>
+        属性是 C++ 语言的一部分，而不是宏。
+      </p>
+    </section>
+
+    <section>
+      <h2>基本语法</h2>
+
+      <pre><code class="language-cpp">
+[[nodiscard]]
+int compute();
+</code></pre>
+
+      <p>
+        你可以把属性应用于函数、变量、类型和语句。
+      </p>
+    </section>
+
+    <section>
+      <h2>多个属性</h2>
+      <p>
+        你可以在同一对括号中列出多个属性：
+      </p>
+
+      <pre><code class="language-cpp">
+[[nodiscard, maybe_unused]]
+int f();
+</code></pre>
+
+      <p>
+        也可以分开写：
+      </p>
+
+      <pre><code class="language-cpp">
+[[nodiscard]]
+[[maybe_unused]]
+int f();
+</code></pre>
+
+      <p>
+        两种形式等价。
+      </p>
+    </section>
+
+    <section>
+      <h2>属性命名空间</h2>
+      <p>
+        标准属性隐式使用 <code>std</code> 命名空间：
+      </p>
+
+      <pre><code class="language-cpp">
+[[nodiscard]]
+[[maybe_unused]]
+[[deprecated]]
+</code></pre>
+
+      <p>
+        厂商特有的属性使用显式命名空间：
+      </p>
+
+      <pre><code class="language-cpp">
+[[gnu::always_inline]]
+[[clang::fallthrough]]
+[[msvc::noinline]]
+</code></pre>
+
+      <p>
+        命名空间可以防止不同编译器之间的冲突。
+      </p>
+    </section>
+
+    <section>
+      <h2>using 属性语法</h2>
+      <p>
+        C++ 还支持 <strong>using-attribute</strong> 语法，可以一次为多个属性
+        指定命名空间。
+      </p>
+
+      <pre><code class="language-cpp">
+[[using CC: opt(1), debug]]
+void f();
+</code></pre>
+
+      <p>
+        这等价于：
+      </p>
+
+      <pre><code class="language-cpp">
+[[CC::opt(1), CC::debug]]
+void f();
+</code></pre>
+    </section>
+
+    <section>
+      <h2>标准 C++ 属性（C++11 → C++26）</h2>
+      <p>
+        C++ 标准定义了一组不断增长的标准属性。下面是其中最重要的
+        几个的汇总。完整细节见：
+      </p>
+
+      <p>
+        <a href="https://en.cppreference.com/w/cpp/language/attributes.html">
+          cppreference.com：C++ 属性
+        </a>
+      </p>
+
+      <h3>C++11</h3>
+        <li><strong>[[noreturn]]</strong> —— 函数永不返回</li>
+        <li><strong>[[carries_dependency]]</strong> —— 内存序依赖提示（C++26 中移除）</li>
+        <li><strong>[[deprecated]]</strong></li>
+        <li><strong>[[deprecated("reason")]]</strong></li>
+        <li><strong>[[fallthrough]]</strong> —— 有意的 switch 贯穿</li>
+        <li><strong>[[maybe_unused]]</strong> —— 抑制未使用警告</li>
+        <li><strong>[[nodiscard]]</strong> —— 忽略返回值时发出警告</li>
+        <li><strong>[[nodiscard("reason")]]</strong></li>
+        <li><strong>[[likely]]</strong> —— 分支预测提示</li>
+        <li><strong>[[unlikely]]</strong> —— 分支预测提示</li>
+        <li><strong>[[no_unique_address]]</strong> —— 允许成员存储重叠</li>
+        <li><strong>[[assume(expression)]]</strong> —— 编译器可假定该表达式为真</li>
+        <li><strong>[[indeterminate]]</strong> —— 对象具有不确定值</li>
+    </section>
+
+    <section>
+      <h2>语句上的属性</h2>
+      <p>
+        有些属性直接作用于语句。最常见的是
+        <code>[[likely]]</code> 与 <code>[[unlikely]]</code>。
+      </p>
+
+      <p>
+        正确的语法是把属性放在条件<strong>之后</strong>、
+        语句体<strong>之前</strong>：
+      </p>
+
+      <pre><code class="language-cpp">
+if (x > 0) [[likely]] {
+    print("positive\n");
+} else [[unlikely]] {
+    print("non-positive\n");
+}
+</code></pre>
+
+      <p>
+        该属性作用于<strong>语句</strong>，而不是条件。
+      </p>
+    </section>
+
+    <section>
+      <h2>Clang 属性</h2>
+      <p>
+        Clang 支持大量额外属性，用于诊断、优化、ABI 控制、代码生成
+        等等。
+      </p>
+
+      <p>
+        示例：
+      </p>
+
+      <pre><code class="language-cpp">
+[[clang::always_inline]]
+[[clang::noinline]]
+[[clang::reinitializes]]
+[[clang::trivial_abi]]
+</code></pre>
+
+      <p>
+        Clang 提供的属性远多于 C++ 标准。
+        完整列表：
+      </p>
+
+      <p>
+        <a href="https://clang.llvm.org/docs/AttributeReference.html">
+          Clang 属性参考
+        </a>
+      </p>
+    </section>
+
+    <section>
+      <h2>关于属性的警告</h2>
+      <ul>
+        <li>属性不会改变程序语义。</li>
+        <li>编译器可能忽略它不认识的属性。</li>
+        <li>不应当用属性来掩盖逻辑错误。</li>
+        <li>厂商属性会降低可移植性。</li>
+      </ul>
+
+      <p>
+        属性只是提示，不是保证。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong>属性提供提示：</strong>它们不改变程序含义。</li>
+        <li><strong>标准语法：</strong><code>[[attribute]]</code>。</li>
+        <li><strong>多个属性：</strong><code>[[a, b]]</code> 或多个方括号块。</li>
+        <li><strong>命名空间：</strong><code>gnu::</code>、<code>clang::</code>、<code>msvc::</code>。</li>
+        <li><strong>using 属性语法：</strong><code>[[using CC: opt(1), debug]]</code>。</li>
+        <li><strong>语句属性：</strong><code>if (cond) [[likely]] { ... }</code>。</li>
+        <li><strong>标准属性：</strong>已在上文列出。</li>
+        <li><strong>Clang 提供更多属性：</strong>见 Clang 文档。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/12.ifdefifndef/" class="prev-button">← 第3.12章: #ifdef / #ifndef</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/03.statements/14.stringify/" class="next-button">第3.14章: 字符串化 →</a>
+    </div>
+  </main>
+</body>
+</html>

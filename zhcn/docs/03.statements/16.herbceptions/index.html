@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.16章: Herbceptions - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.16章: Herbceptions</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        在之前的每一页中，我们都默默地假定没有任何操作会失败。从这里开始，这种沉默结束了：
+        <strong>fast_io 中的每一个错误都是 herbception</strong>，而
+        herbceptions 是本教程中唯一的错误报告机制。
+      </p>
+      <p>
+        你只需要学两条语句：
+      </p>
+      <ul>
+        <li><code>throw throws <em>value</em>;</code> —— 报告失败</li>
+        <li><code>try { } catch throws (::std::error e) { }</code> —— 处理失败</li>
+      </ul>
+      <p>
+        读懂这一页不需要任何别的知识：下面每个例子都是一个单独的 <code>int main()</code>，
+        它抛出一个错误，然后再把它捕获。
+      </p>
+    </section>
+
+    <section>
+      <h2>1. 什么是 Herbception</h2>
+      <p>
+        herbception 是一个<strong>双字的错误值</strong>：
+      </p>
+      <pre><code class="language-cpp">
+struct raw_herbception
+{
+	::std::error_domain_singleton const *domain; // which error code-space
+	::std::size_t code;                          // the code inside that space
+};
+</code></pre>
+      <p>
+        无论是什么错误，<code>sizeof(::std::error) == 2 * sizeof(void *)</code>。
+        它通过<strong>返回寄存器</strong>送回给调用者，同时配合条件寄存器中的
+        一个失败位 —— x86 上是 <code>CF</code>，AArch64 上是
+        <code>NZCV.C</code>。没有第二条返回路径，也不需要任何设置：
+      </p>
+      <ul>
+        <li>没有栈展开，没有 <code>.eh_frame</code> 表，没有 personality 例程</li>
+        <li>永远不为错误做堆分配</li>
+        <li>没有 <code>std::exception</code> 基类，没有 <code>what()</code>，没有 RTTI</li>
+      </ul>
+      <p>
+        <strong>Herbceptions 在两条路径上都非常非常廉价。</strong>用这种方式报告错误的函数，
+        生成的代码与返回错误码的函数相同，而失败路径只是返回两个字的普通返回。
+        永远不要为了“速度”而选择“返回错误码再检查”的风格，
+        也永远不要因为“抛异常听起来很贵”而不去报告失败。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 构建：<code>-fherbceptions -lherbceptions</code></h2>
+      <p>
+        Herbceptions 是一项编译器特性，而不是库的小把戏，所以你需要一个实现了它的编译器。
+        只有<strong>我们的</strong> GCC 与 LLVM 构建可以：
+      </p>
+      <ul>
+        <li><strong>GCC</strong> —— 我们的 herbceptions GCC（<code>g++</code> 17+）。</li>
+        <li><strong>Clang</strong> —— 我们的 herbceptions LLVM（<code>clang++</code> 24+）。</li>
+        <li>
+          <strong>不支持 MSVC</strong>：<code>cl.exe</code> 没有
+          <code>-fherbceptions</code>，因此本教程不用它构建。Windows
+          目标没问题 —— 用我们的 Clang 或我们的 MinGW GCC。
+        </li>
+      </ul>
+      <p>两个选项，这就是全部额外的添加：</p>
+      <ul>
+        <li>
+          <code>-fherbceptions</code> 打开这项语言特性。它必须在<em>编译</em>每一个
+          翻译单元时传入，而不只是在链接时。
+        </li>
+        <li>
+          <code>-lherbceptions</code> 链接运行时，它拥有这些错误域
+          （负责命名并打印错误的代码）。
+        </li>
+      </ul>
+      <pre><code>
+# our Clang
+clang++ --config=$HOME/cfgs/x86_64-linux-gnu-libcxx.cfg \
+  -O3 -flto=thin -fherbceptions -I$HOME/libraries/fast_io/include \
+  hello.cc -lherbceptions -o hello
+
+# our GCC
+g++ -std=c++26 -O3 -s -fuse-ld=lld -fherbceptions \
+  -I$HOME/libraries/fast_io/include \
+  hello.cc -lherbceptions -o hello
+</code></pre>
+      <p>在 Windows 上，同样的选项配合 Windows 目标即可工作，而 <code>--sysroot</code>
+        能找到运行时，所以不需要写 <code>-L</code>：</p>
+      <pre><code>
+clang++ --config=$HOME/cfgs/x86_64-windows-msvc.cfg \
+  -O3 -flto=thin -fherbceptions -I$HOME/libraries/fast_io/include \
+  hello.cc -lherbceptions -o hello.exe
+
+x86_64-w64-mingw32-g++ -std=c++26 -O3 -s -fherbceptions \
+  -I$HOME/libraries/fast_io/include \
+  hello.cc -lherbceptions -lntdll -o hello.exe
+</code></pre>
+      <p>
+        忘记 <code>-fherbceptions</code>，编译器会拒绝这种语法；忘记
+        <code>-lherbceptions</code>，链接会因错误域符号失败。两者都在
+        <a href="/zhcn/docs/01.compile/08.fastio/">第1.8章</a>中讲过。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>throw throws</code> 语句</h2>
+      <p>
+        报告失败是一条语句，它只有一种形态：
+      </p>
+      <pre><code class="language-cpp">
+throw throws <em>expression</em>;
+</code></pre>
+      <p>
+        <code>throws</code> 是标记，表示“这个错误从 herbception 通道离开”。
+        该表达式是某个带有错误域的类型的值 —— 实践中就是第 7 节列出的
+        标准错误枚举之一。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	try
+	{
+		throw throws ::std::errc::invalid_argument;
+	}
+	catch throws (::std::error e)
+	{
+		perrln(e);
+		return 1;
+	}
+	return 0;
+}
+</code></pre>
+      <p>输出，以及程序返回的退出状态：</p>
+      <pre><code class="language-text">
+[posix](22)Invalid argument
+exit status: 1
+</code></pre>
+      <p>三条规则，全部由编译器强制执行：</p>
+      <ul>
+        <li>
+          <strong>它必须在能处理该失败的地方。</strong>在这里它位于一个带有
+          <code>catch throws</code> 的 <code>try</code> 内。把它放到别处，编译器会说：
+      <pre><code class="language-text">
+error: 'throw throws' is only valid inside a function declared 'throws' or inside a
+       'try' block with a 'catch throws' handler
+</code></pre>
+        （等你在<a href="/zhcn/docs/06.function/">第6章</a>中编写自己的函数后，
+        同样的语句会出现在函数内部，并且函数会被声明为允许错误离开。
+        语句本身没有任何变化。）
+        </li>
+        <li>
+          <strong>它之后的代码都不会执行。</strong>在示例中，是处理程序里的
+          <code>return 1;</code> 结束了程序；<code>throw throws</code>
+          之后的那一行永远不会执行。
+        </li>
+        <li>
+          <strong>重新抛出是 <code>throw throws;</code></strong> —— 不带操作数
+          —— 并且只能在 <code>catch throws</code> 处理程序内。它把同一个错误
+          交给外层处理程序：
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	try
+	{
+		try
+		{
+			throw throws ::std::errc::permission_denied;
+		}
+		catch throws (::std::error e)
+		{
+			perr("inner handler: ", e, "\n");
+			throw throws; // rethrow: pass it to the enclosing handler
+		}
+	}
+	catch throws (::std::error e)
+	{
+		perr("outer handler: ", e, "\n");
+		return 1;
+	}
+	return 0;
+}
+</code></pre>
+      <pre><code class="language-text">
+inner handler: [posix](13)Permission denied
+outer handler: [posix](13)Permission denied
+</code></pre>
+        </li>
+      </ul>
+      <div class="note">
+        <strong>先检查，再报告。</strong>在代码块最前面检查条件，
+        并在任何东西被写出或打印之前立刻 <code>throw throws</code>。
+        fast_io 自身就是这么写的。
+      </div>
+    </section>
+
+    <section>
+      <h2>4. <code>try { } catch throws (::std::error e) { }</code> 语句</h2>
+      <p>处理也是一条语句，只有一种形态：</p>
+      <pre><code class="language-cpp">
+try
+{
+	/* anything that may fail */
+}
+catch throws (::std::error e)
+{
+	/* inspect / report / recover / rethrow */
+}
+</code></pre>
+      <p>规则同样由编译器强制执行：</p>
+      <ul>
+        <li>
+          <strong>处理程序按值声明 <code>::std::error</code>。</strong>不能按引用，
+          不能加 <code>const&amp;</code>，也不能是 <code>::std::errc</code>：
+      <pre><code class="language-text">
+error: 'catch throws' requires the caught type to be 'std::error' ('std::errc' given)
+</code></pre>
+        </li>
+        <li>
+          <strong>你不能存储错误。</strong><code>::std::error</code> 没有默认构造函数，
+          也不能拷贝；只有编译器能创建它，并且处理程序拥有它。
+          你需要什么就在处理程序体内就地读取。
+        </li>
+        <li>
+          <strong>处理程序可以无名</strong>：
+          <code>catch throws (::std::error) { }</code>。当你唯一能做的就是
+          跳过失败的操作继续执行时，用它。
+        </li>
+        <li>
+          <strong><code>catch (...)</code> 不会捕获 herbceptions</strong>，而且在本教程中
+          被禁止：失败只能由 <code>catch throws</code> 块来处理。
+        </li>
+        <li>
+          <strong>不带 <code>throws</code> 的 <code>catch (::std::error e)</code> 也不
+          合法。</strong>那是旧式处理程序，它无法编译：
+      <pre><code class="language-text">
+error: use of deleted function 'std::error::error(const std::error&amp;)'
+</code></pre>
+          旧式 C++ 异常不属于本教程的一部分。
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>5. <code>::std::error</code>：你会用到的成员</h2>
+      <p>
+        处理程序里的值非常小：两个字，以及六件你可以问它的事。
+        这就是你需要知道的完整清单。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>表达式</th>
+            <th>结果</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>e.domain()</code></td>
+            <td><code>::std::error_domain_singleton const *</code></td>
+            <td>该错误属于哪个码空间。在处理程序内部它绝不为空。</td>
+          </tr>
+          <tr>
+            <td><code>e.code()</code></td>
+            <td><code>::std::size_t</code></td>
+            <td>该域内的原始编码 —— 对 POSIX 错误而言就是 <code>errno</code> 值。</td>
+          </tr>
+          <tr>
+            <td><code>e == ::std::errc::permission_denied</code></td>
+            <td><code>bool</code></td>
+            <td>
+              精确匹配：同一个域<em>并且</em>同一个编码。右侧值的类型
+              决定了比较所用的域。
+            </td>
+          </tr>
+          <tr>
+            <td><code>e.equivalent(::std::errc::no_such_file_or_directory)</code></td>
+            <td><code>bool</code></td>
+            <td>
+              <em>跨域</em>匹配：这个错误与那个编码是否含义相同？
+              HTTP 的 <code>404</code> 就以这种方式等于 <code>ENOENT</code>。
+            </td>
+          </tr>
+          <tr>
+            <td><code>e.to_errc()</code></td>
+            <td><code>::std::errc</code></td>
+            <td>该错误的 POSIX 等价物，以 <code>::std::errc</code> 表示。</td>
+          </tr>
+          <tr>
+            <td><code>e.is_code_of&lt;::std::http_errc&gt;()</code></td>
+            <td><code>bool</code></td>
+            <td>“这个错误是由这个域产生的吗？”，忽略具体编码。</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	try
+	{
+		throw throws ::std::http_errc::not_found;
+	}
+	catch throws (::std::error e)
+	{
+		println("domain is http:  ", e.is_code_of&lt;::std::http_errc&gt;());
+		println("domain is posix: ", e.is_code_of&lt;::std::errc&gt;());
+		println("== not_found:    ", e == ::std::http_errc::not_found);
+		println("== errc ENOENT:  ", e == ::std::errc::no_such_file_or_directory);
+		println("equivalent:      ", e.equivalent(::std::errc::no_such_file_or_directory));
+		println("to_errc:         ", static_cast&lt;::std::int_least32_t&gt;(e.to_errc()));
+		println("code:            ", e.code());
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+domain is http:  1
+domain is posix: 0
+== not_found:    1
+== errc ENOENT:  0
+equivalent:      1
+to_errc:         2
+code:            404
+</code></pre>
+      <p>
+        把 <code>==</code> 与 <code>equivalent</code> 放在一起看。该错误是
+        <code>http_errc::not_found</code>，所以它<em>不是</em>一个 <code>ENOENT</code>
+        （域不同：<code>==</code> 为假），但它<em>含义</em>相同
+        （所以 <code>equivalent</code> 为真）。这个差别正是这两个成员都存在的原因。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 打印错误</h2>
+      <p>
+        因为错误只是一个域加一个编码，fast_io 可以打印它。完整形式是
+        <code>[<em>domain</em>](<em>code</em>)<em>message</em></code>，你也可以只要求
+        其中的一部分：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	try
+	{
+		throw throws ::std::errc::no_space_on_device;
+	}
+	catch throws (::std::error e)
+	{
+		perrln(e);                                          // the whole line, to stderr
+		perr("inside a line:  ", e, "\n");
+		perr("domain name:    ", ::fast_io::mnp::name(e), "\n");
+		perr("code + text:    ", ::fast_io::mnp::message(e), "\n");
+		perr("as posix name:  ", ::fast_io::mnp::posix_equivalent_name(e), "\n");
+		perr("as posix text:  ", ::fast_io::mnp::posix_equivalent_message(e), "\n");
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+[posix](28)No space left on device
+inside a line:  [posix](28)No space left on device
+domain name:    posix
+code + text:    (28)No space left on device
+as posix name:  posix
+as posix text:  [posix](28)No space left on device
+</code></pre>
+      <ul>
+        <li><code>perrln(e)</code> —— 完整内容，单独一行，写到 stderr。</li>
+        <li><code>::fast_io::mnp::name(e)</code> —— 只要域名。</li>
+        <li><code>::fast_io::mnp::message(e)</code> —— 编码与文本，不含域名。</li>
+        <li>
+          <code>::fast_io::mnp::posix_equivalent_name(e)</code> /
+          <code>::fast_io::mnp::posix_equivalent_message(e)</code> —— 对非 POSIX 错误的
+          POSIX 等价物给出同样的内容，这样日志行始终以
+          <code>errc</code> 说话。
+        </li>
+      </ul>
+      <div class="note">
+        <strong><code>perr</code> 写到 stderr，<code>print</code> 写到 stdout。</strong>
+        本教程中错误报告都写到 stderr，这样即使程序的输出被重定向到文件，
+        失败信息仍然会显示在终端上。报告错误只是一次普通的
+        I/O 调用：不需要在外面包任何特别的东西。
+      </div>
+    </section>
+
+    <section>
+      <h2>7. 错误域</h2>
+      <p>
+        域就是一个码空间。每一个域都是一种类型，带有错误域特化，
+        并各有自己打包 <code>code()</code> 的方式。它们全都在这里了。
+        你永远不需要定义域：只需挑出能描述该失败的那一个，然后
+        <code>throw throws</code> 它的某个值。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>值类型</th>
+            <th>打印标签</th>
+            <th><code>code()</code> 是</th>
+            <th>描述</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::std::errc</code></td>
+            <td><code>[posix]</code></td>
+            <td><code>errno</code> 值</td>
+            <td>POSIX / C 错误：<code>invalid_argument</code>、
+              <code>no_such_file_or_directory</code>、<code>permission_denied</code>、
+              <code>no_space_on_device</code> 等。这是本库的默认域。</td>
+          </tr>
+          <tr>
+            <td><code>::std::parse_errc</code></td>
+            <td><code>[parse]</code></td>
+            <td>1 = 文件结束，2 = 部分，3 = 非法，4 = 溢出</td>
+            <td>文本解析与扫描失败，不涉及操作系统。</td>
+          </tr>
+          <tr>
+            <td><code>::std::cmath_errc</code></td>
+            <td><code>[cmath]</code></td>
+            <td><code>FE_*</code> 标志位</td>
+            <td>浮点异常：<code>invalid</code>、<code>divbyzero</code>、
+              <code>inexact</code>、<code>overflow</code>、<code>underflow</code>。</td>
+          </tr>
+          <tr>
+            <td><code>::std::http_errc</code></td>
+            <td><code>[http]</code></td>
+            <td>HTTP 状态码</td>
+            <td>HTTP 响应：<code>not_found</code>（404）、<code>im_a_teapot</code>（418）、
+              <code>internal_server_error</code>（500）等。</td>
+          </tr>
+          <tr>
+            <td><code>::std::tls_alert</code></td>
+            <td><code>[tls]</code></td>
+            <td><code>(level &lt;&lt; 8) | description</code></td>
+            <td>TLS 警报：级别（<code>warning</code>/<code>fatal</code>）与描述
+              （<code>certificate_expired</code>、<code>bad_record_mac</code> 等）。</td>
+          </tr>
+          <tr>
+            <td><code>::std::win32_errc</code></td>
+            <td><code>[win32]</code></td>
+            <td><code>ERROR_*</code> / <code>GetLastError()</code> 值</td>
+            <td>Windows API 失败。仅限 Windows 目标。</td>
+          </tr>
+          <tr>
+            <td><code>::std::nt_errc</code></td>
+            <td><code>[nt]</code></td>
+            <td><code>NTSTATUS</code> / <code>STATUS_*</code> 值</td>
+            <td>NT 原生 API 失败。仅限 Windows 目标。</td>
+          </tr>
+          <tr>
+            <td><code>::std::com_errc</code></td>
+            <td><code>[com]</code></td>
+            <td><code>HRESULT</code> 值</td>
+            <td>COM 失败。仅限 Windows 目标。</td>
+          </tr>
+          <tr>
+            <td><code>::std::wine_errc</code></td>
+            <td><code>[wine]</code></td>
+            <td>Wine 宿主侧的 <code>errno</code> 值</td>
+            <td>Wine 的 <code>ntdll</code> 报告的宿主错误。用于在 Wine 下运行的
+              Windows 目标。</td>
+          </tr>
+          <tr>
+            <td><code>::std::exception_ptr</code></td>
+            <td><code>[itanium]</code> / <code>[msvc]</code></td>
+            <td>被装箱的旧式 EH 对象的身份</td>
+            <td>认出它然后继续：当仍在用旧式 C++ 异常的代码
+              跨越 herbception 边界时，到达的就是它。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        该抛哪一个？在可移植代码中，用 <code>::std::errc</code>。只有当编码确实<em>来自</em>
+        某个平台时，才使用该平台或协议的域：失败的
+        <code>GetLastError()</code> 是 <code>win32_errc</code>，来自对端的 TLS 警报是
+        <code>tls_alert</code>，你想向上传播的 HTTP 状态是
+        <code>http_errc</code>。不要手工翻译 —— 让 <code>equivalent()</code> 与
+        <code>to_errc()</code> 在需要 POSIX 语义的地方完成转换。
+      </p>
+      <p>
+        例如，下面三条语句都是合法的，而且不言自明：
+      </p>
+      <pre><code class="language-cpp">
+throw throws ::std::errc::no_such_file_or_directory;
+throw throws ::std::parse_errc::invalid;
+throw throws ::std::http_errc::not_found;
+</code></pre>
+    </section>
+
+    <section>
+      <h2>8. 无处可逃：<code>main</code> 就是终点</h2>
+      <p>
+        抵达程序顶层的 herbception 没有接手的人，因此进程会<strong>陷入陷阱（trap）</strong>。
+        在 x86-64 上，检测到这种情况的指令会触发 <code>SIGILL</code>，
+        你得到的是核心转储，而不是一条消息：
+      </p>
+      <pre><code class="language-text">
+$ ./a.out
+Illegal instruction (core dumped)
+</code></pre>
+      <p>这是刻意的：未被报告的错误就是 bug，而意识到 bug 最快的方式就是停下来。
+        由此产生的两个后果塑造了本教程中的每一个程序：</p>
+      <ul>
+        <li>
+          <strong><code>main</code> 不能被声明为 <code>throws</code>。</strong>
+          编译器会拒绝，因为已经没有调用者能处理该错误了：
+      <pre><code class="language-text">
+error: '::main' cannot be declared with a herbceptions exception specification
+</code></pre>
+        </li>
+        <li>
+          <strong>所以 <code>main</code> 负责捕获</strong>、报告，并把失败转成
+          退出状态。这正是本教程每个示例的形态：
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	::std::int_least32_t value{};
+	try
+	{
+		scan(::fast_io::c_stdin(), value);
+		println("you typed: ", value);
+	}
+	catch throws (::std::error e)
+	{
+		perrln(e);
+		return 1;
+	}
+	return 0;
+}
+</code></pre>
+        <pre><code class="language-text">
+$ echo abc | ./a.out
+[parse](3)Invalid format
+
+$ echo 42 | ./a.out
+you typed: 42
+</code></pre>
+        </li>
+      </ul>
+      <p>
+        注意是哪个域作出了回答：程序要求一个数字，输入却不是数字，
+        于是失败是 <code>[parse](3)Invalid format</code> —— 而不是操作系统错误，
+        因为操作系统层面并没有出任何问题。
+      </p>
+    </section>
+
+    <section>
+      <h2>9. fast_io 在其中处于什么位置</h2>
+      <p>
+        fast_io 中每一个可能失败的操作都被声明为通过这个通道报告失败，
+        而每一个不可能失败的操作都被声明为 <code>noexcept</code>。你
+        永远不需要检查返回码，也永远不需要在调用之后检查 <code>errno</code>：
+        失败的调用会通过 <code>throws</code> 路径离开，并保持原来的
+        码空间不变。
+      </p>
+      <p>
+        这包括 I/O —— 正是因此
+        <a href="/zhcn/docs/02.basics/14.a+b/">第2.14章</a>从第一个程序起就把打印和扫描
+        包在 <code>try { } catch throws (::std::error e) { }</code> 中。
+        后续章节正是建立在这之上：文件、套接字、扫描器，一切都以这种方式
+        报告失败。
+      </p>
+    </section>
+
+    <section>
+      <h2>10. 常见错误</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>错误</th>
+            <th>编译器会说什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>在任何 <code>try</code>/处理程序链之外使用 <code>throw throws</code></td>
+            <td><code>'throw throws' is only valid inside a function declared 'throws' or inside a 'try' block with a 'catch throws' handler</code></td>
+          </tr>
+          <tr>
+            <td>期望 <code>throw throws</code> 之后的那一行会执行</td>
+            <td>不会执行：该语句之后什么都不会运行。</td>
+          </tr>
+          <tr>
+            <td><code>catch throws (::std::errc e)</code></td>
+            <td><code>'catch throws' requires the caught type to be 'std::error' ('std::errc' given)</code></td>
+          </tr>
+          <tr>
+            <td><code>catch (::std::error e)</code>（旧式处理程序）</td>
+            <td><code>use of deleted function 'std::error::error(const std::error&amp;)'</code></td>
+          </tr>
+          <tr>
+            <td>用 <code>catch (...) { }</code> 代替 <code>catch throws</code></td>
+            <td><code>an unhandled herbceptions failure cannot leave a function without a herbceptions specification</code></td>
+          </tr>
+          <tr>
+            <td><code>void f() noexcept throws</code></td>
+            <td><code>'throws'/'return_failure{E}' cannot be combined with 'noexcept'; the herbceptions specifier supersedes it</code></td>
+          </tr>
+          <tr>
+            <td><code>int main() throws</code></td>
+            <td><code>'::main' cannot be declared with a herbceptions exception specification</code></td>
+          </tr>
+          <tr>
+            <td>忘记 <code>-fherbceptions</code></td>
+            <td>在第一个 <code>throws</code> 处报 <code>'throws' has not been declared</code></td>
+          </tr>
+          <tr>
+            <td>忘记 <code>-lherbceptions</code></td>
+            <td>链接时对 <code>__cxa_error_domain_*</code> 报未定义引用</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>
+          <strong>fast_io 中的所有错误都是 herbceptions。</strong>本教程中没有需要检查的
+          错误码 API，也没有旧式 C++ 异常处理。
+        </li>
+        <li>
+          每个翻译单元都用 <code>-fherbceptions</code> 构建，链接时加
+          <code>-lherbceptions</code>，并使用我们的 GCC 或 LLVM 构建。MSVC 做不到；
+          在 Windows 上请使用我们的 Clang 或我们的 MinGW GCC。
+        </li>
+        <li>
+          用 <code>throw throws value;</code> 报告，用
+          <code>try { } catch throws (::std::error e) { }</code> 处理，用
+          <code>throw throws;</code> 转发。
+        </li>
+        <li>
+          处理程序按值声明 <code>::std::error</code>，错误不能被拷贝或存储：
+          你需要什么就在处理程序内部读取。
+        </li>
+        <li>
+          可以向错误询问：<code>domain()</code>、<code>code()</code>、<code>==</code>、
+          <code>equivalent()</code>、<code>to_errc()</code>、
+          <code>is_code_of&lt;T&gt;()</code>。
+        </li>
+        <li>
+          可移植代码中抛 <code>::std::errc</code>；当失败确实属于
+          <code>parse_errc</code>、<code>cmath_errc</code>、<code>http_errc</code>、
+          <code>tls_alert</code> 以及各 Windows 域时，就用它们。
+        </li>
+        <li>
+          herbception 是返回寄存器中紧挨条件标志的两个字，因此它在两条路径上都很廉价。
+          不要围绕它的开销来做设计。
+        </li>
+        <li>
+          未被捕获的 herbception 会触发陷阱，而 <code>main</code> 不能是
+          <code>throws</code> —— 所以由 <code>main</code> 捕获、报告，并返回
+          退出状态。
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/15.featuretesting/" class="prev-button">&larr; 第3.15章: 特性测试</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/04.dsal/" class="next-button">第4章: 数据结构与算法 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3.7章: continue - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第3.7章: continue</h1>
+
+    <section>
+      <h2><code>continue</code> 语句</h2>
+      <p>
+        <code>continue</code> 语句跳过循环体余下的部分，直接跳到
+        下一次迭代。
+      </p>
+
+      <pre><code class="language-cpp">
+continue;
+</code></pre>
+
+      <p>
+        它<strong>不会</strong>退出循环。
+        它只跳过当前迭代中剩余的语句。
+      </p>
+    </section>
+
+    <section>
+      <h2><code>while</code> 循环中的 <code>continue</code></h2>
+      <p>
+        这个循环只打印偶数。
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t i{};
+
+while (i != 10) {
+    if (i % 2 == 1) {
+        ++i;
+        continue;   // skip odd numbers
+    }
+    println("even: ", i);
+    ++i;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2><code>for</code> 循环中的 <code>continue</code></h2>
+      <p>
+        <code>continue</code> 会直接跳到循环的步进表达式。
+      </p>
+
+      <pre><code class="language-cpp">
+for (::std::uint_least32_t i{}; i != 10; ++i) {
+    if (i % 3 != 0) {
+        continue;   // skip non-multiples of 3
+    }
+    println("multiple of 3: ", i);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>死循环中的 <code>continue</code></h2>
+      <p>
+        在死循环中，<code>continue</code> 只是重新开始循环。
+      </p>
+
+      <pre><code class="language-cpp">
+::std::uint_least32_t i{};
+
+for (;;) {
+    ++i;
+    if (i &lt; 5) {
+        continue;   // restart the loop
+    }
+    println("i reached 5");
+    break;          // stop the loop
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>带初始化语句的循环中的 <code>continue</code></h2>
+      <p>
+        即使循环使用了初始化语句，<code>continue</code> 也照常工作。
+      </p>
+
+      <pre><code class="language-cpp">
+for (auto i = 0; i &lt; 10; ++i) {
+    if (i == 4) {
+        continue;
+    }
+    println("i=", i);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>嵌套循环</h2>
+      <p>
+        <code>continue</code> 只影响<strong>最内层</strong>循环。
+      </p>
+
+      <pre><code class="language-cpp">
+for (::std::uint_least32_t i{}; i != 3; ++i) {
+    for (::std::uint_least32_t j{}; j != 3; ++j) {
+        if (j == 1) {
+            continue;   // skips only the inner loop's iteration
+        }
+        println("i=", i, ", j=", j);
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>伪图：<code>continue</code> 跳向何处</h2>
+
+      <pre><code>
+          ┌───────────────┐
+          │     loop       │
+          │    begins      │
+          └───────┬───────┘
+                  │
+                  ▼
+          ┌───────────────┐
+          │     cond       │─── false ───▶ loop ends
+          └───────┬───────┘
+                  │ true
+                  ▼
+          ┌───────────────┐
+          │     body       │
+          └───────┬───────┘
+                  │
+                  ├──▶ if (continue) ───────▶ step ─────▶ cond
+                  │
+                  ▼
+          ┌───────────────┐
+          │      step      │
+          └───────┬───────┘
+                  │
+                  └─────────────── back to cond
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><strong>continue 跳过循环体余下的部分：</strong>它不会退出循环。</li>
+        <li><strong>continue 跳到下一次迭代：</strong>在 <code>for</code> 中，它跳到步进表达式。</li>
+        <li><strong>嵌套循环：</strong>只有最内层循环受影响。</li>
+        <li><strong>死循环：</strong><code>continue</code> 只是重新开始循环。</li>
+        <li><strong>清晰性：</strong>有意识地使用 <code>continue</code>；不要把它深埋在复杂逻辑里。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/03.statements/06.break/" class="prev-button">← 第3.6章: break</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/03.statements/08.dowhile/" class="next-button">第3.8章: do while →</a>
+    </div>
+  </main>
+</body>
+</html>
