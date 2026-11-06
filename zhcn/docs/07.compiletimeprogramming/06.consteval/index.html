@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第7.6章: consteval - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>第7.6章: consteval</h1>
+
+    <!-- ========================= -->
+    <!-- OVERVIEW -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>概述</h2>
+
+      <p>
+        <code>consteval</code> 函数必须在编译期求值。
+        它不能在运行时运行。如果编译器无法在编译期间求值该函数，
+        程序就无法编译。
+      </p>
+
+      <p>
+        这比 <code>constexpr</code> 更严格。实践中，
+        <code>consteval</code> 很少需要，但当你想保证某个函数<em>永远不会</em>
+        在运行时执行时，它很有用。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. BASIC EXAMPLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. 基础示例</h2>
+
+      <p>
+        <code>consteval</code> 函数必须在常量表达式中调用。
+      </p>
+
+<pre><code class="language-cpp">
+#include <fast_io.h>
+
+consteval int double_value(int x)
+{
+    return x * 2;
+}
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    constexpr int a = double_value(10);  // OK: compile-time
+    print("a = ", a, "\n");
+
+    // int b = double_value(10);        // ERROR: cannot call at runtime
+}
+</code></pre>
+
+      <p>
+        第二次调用会失败，因为 <code>double_value</code> 不能在运行时运行。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. WHY THIS IS RARELY USEFUL -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 为什么这很少有用</h2>
+
+      <p>
+        大多数函数并不需要被限制为只能在编译期求值。
+        需要时 <code>constexpr</code> 已经允许编译期求值，
+        同时又仍然允许运行时执行。
+      </p>
+
+      <p>
+        <code>consteval</code> 只在以下情况有用：
+      </p>
+
+      <ul>
+        <li>你想完全禁止运行时执行</li>
+        <li>你想保证得到编译期常量</li>
+        <li>你想对非法用法立即给出编译期错误</li>
+      </ul>
+
+      <p>
+        这些情况在普通应用代码中并不常见。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. COMPILE-TIME VALIDATION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 编译期校验</h2>
+
+      <p>
+        <code>consteval</code> 函数可以强制那些必须在编译期间检查的约束。
+      </p>
+
+<pre><code class="language-cpp">
+#include <fast_io.h>
+
+consteval int positive(int x)
+{
+    if(x <= 0)
+        throw "value must be positive";
+
+    return x;
+}
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    constexpr int a = positive(5);   // OK
+    print("a = ", a, "\n");
+
+    // constexpr int b = positive(-3); // compile-time error
+}
+</code></pre>
+
+      <p>
+        任何非法输入都会导致编译期失败。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. DIFFERENCE FROM constexpr -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 与 <code>constexpr</code> 的区别</h2>
+
+      <p>
+        <code>constexpr</code> 函数：
+      </p>
+
+      <ul>
+        <li>可以在编译期运行</li>
+        <li>也可以在运行时运行</li>
+        <li>可在两种上下文中使用</li>
+      </ul>
+
+      <p>
+        <code>consteval</code> 函数：
+      </p>
+
+      <ul>
+        <li><strong>必须</strong>在编译期运行</li>
+        <li>不能在运行时运行</li>
+        <li>用法错误会导致编译失败</li>
+      </ul>
+
+<pre><code class="language-cpp">
+constexpr int f(int x) { return x + 1; }   // flexible
+consteval int g(int x) { return x + 1; }   // strict
+</code></pre>
+
+      <p>
+        <code>g()</code> 只能在常量表达式中使用。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. INTERACTION WITH if consteval -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. 与 <code>if consteval</code> 的配合</h2>
+
+      <p>
+        <code>if consteval</code> 检测某个 <code>constexpr</code> 函数是否
+        正在编译期求值。而 <code>consteval</code> 函数<em>总是</em>在编译期求值。
+      </p>
+
+<pre><code class="language-cpp">
+#include <fast_io.h>
+
+constexpr int compute(int x)
+{
+    using namespace ::fast_io::iomnp;
+
+    if consteval
+        print("compile-time path\n");
+    else
+        print("runtime path\n");
+
+    return x * 3;
+}
+
+consteval int force_ct(int x)
+{
+    return compute(x);  // always compile-time
+}
+</code></pre>
+
+      <p>
+        <code>force_ct()</code> 保证 <code>compute()</code> 走编译期
+        分支。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+
+      <ul>
+        <li><code>consteval</code> 函数必须在编译期运行。</li>
+        <li>它们不能在运行时运行。</li>
+        <li>它们适用于严格的编译期校验与生成。</li>
+        <li><code>constexpr</code> 灵活；<code>consteval</code> 严格。</li>
+        <li><code>if consteval</code> 检测编译期求值，而 <code>consteval</code> 强制它。</li>
+        <li>大多数真实世界的代码并不需要 <code>consteval</code>。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/07.compiletimeprogramming/05.constinit/" class="prev-button">← 第7.5章: constinit</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/07.compiletimeprogramming/07.herbceptions/" class="next-button">第7.7章: 编译期的 Herbceptions →</a>
+    </div>
+
+  </main>
+</body>
+</html>

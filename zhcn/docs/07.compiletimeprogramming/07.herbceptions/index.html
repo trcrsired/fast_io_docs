@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第7.7章: 编译期的 Herbceptions - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第7.7章: 编译期的 Herbceptions</h1>
+
+    <div class="warning">
+      <strong>重要。</strong>请先阅读 <a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>
+      （语句）与 <a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>（每个函数上的
+      规范）。本页假定你已掌握这两者，并展示 herbceptions 在
+      <code>constexpr</code> 与 <code>consteval</code> 代码中的含义。
+    </div>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        Herbceptions 是本教程中唯一的错误机制，因此它们在编译期代码中同样工作
+        也就不足为奇了。这里多了一条规则，而正是这条规则让本页有价值：
+      </p>
+      <ul>
+        <li>
+          <code>constexpr</code>/<code>consteval</code> 函数可以像运行时函数一样
+          被声明为 <code>throws</code>。
+        </li>
+        <li>
+          在常量求值内部，herbception 的行为就像一个流向调用者的错误值
+          —— <code>try { } catch throws (::std::error e) { }</code> 可以捕获它，
+          程序继续求值。
+        </li>
+        <li>
+          如果<em>没有任何东西</em>捕获它，这个常量表达式就无效：编译器
+          发出诊断，编译失败。一个未达成的期望变成构建错误，
+          而不是运行时的意外。
+        </li>
+      </ul>
+      <p>
+        最后一点正是本页存在的理由：借助 herbceptions，你可以用程序运行时所用的
+        同一批函数，<strong>在构建期</strong>校验常量、表和算法，
+        并在检查失败时得到编译错误。
+      </p>
+    </section>
+
+    <section>
+      <h2>1. 一个可能失败的 <code>constexpr</code> 函数</h2>
+      <p>
+        <code>constexpr</code> 与 <code>throws</code> 是彼此独立的标注：前者
+        说“这也可以在编译期运行”，后者说“这可以报告错误”。
+        两者同时出现没有问题：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+constexpr int checked_div(int a, int b) throws
+{
+    if (b == 0)
+    {
+        throw throws ::std::errc::invalid_argument;
+    }
+    return a / b;
+}
+
+// the happy path is a constant expression
+static_assert(checked_div(10, 2) == 5);
+
+int main()
+{
+    println(checked_div(9, 3), "\n");    // also usable at runtime
+}
+</code></pre>
+      <p>
+        不需要任何特别的东西：同一个函数在有效输入上既是编译期常量表达式，
+        在运行时也是一个普通的可能失败的函数。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 在编译期捕获</h2>
+      <p>
+        处理程序在常量求值期间是允许的，因此包装函数可以<em>决定</em>
+        失败意味着什么：
+      </p>
+      <pre><code class="language-cpp">
+constexpr int checked_div(int a, int b) throws
+{
+    if (b == 0)
+    {
+        throw throws ::std::errc::invalid_argument;
+    }
+    return a / b;
+}
+
+constexpr int safe_div(int a, int b) noexcept
+{
+    try
+    {
+        return checked_div(a, b);
+    }
+    catch throws (::std::error)          // recoverable: turn it into a value
+    {
+        return -1;
+    }
+}
+
+static_assert(safe_div(10, 2) == 5);     // no failure
+static_assert(safe_div(1, 0) == -1);     // failure, caught at compile time
+</code></pre>
+      <p>
+        两个断言都由编译器求值。<code>safe_div</code> 是
+        <code>noexcept</code> 的，恰恰因为它把错误吸收掉了——这正是
+        <em>第6.16章</em>的规则在编译期的应用。
+      </p>
+      <p>
+        <code>consteval</code> 函数的工作方式相同：
+      </p>
+      <pre><code class="language-cpp">
+consteval int compile_time_div(int a, int b)
+{
+    try
+    {
+        return checked_div(a, b);
+    }
+    catch throws (::std::error)
+    {
+        return -1;
+    }
+}
+
+static_assert(compile_time_div(9, 3) == 3);
+static_assert(compile_time_div(9, 0) == -1);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. 未捕获的 Herbception 就是编译错误</h2>
+      <p>
+        当 herbception 逃出常量表达式时，编译器就停下。没有
+        运行时可供陷入陷阱，于是<em>构建</em>失败，诊断信息会指出抛出
+        位置：
+      </p>
+      <pre><code class="language-cpp">
+consteval int must_be_positive(int v) throws
+{
+    if (v &lt;= 0)
+    {
+        throw throws ::std::errc::invalid_argument;
+    }
+    return v;
+}
+
+constexpr int dimensions{must_be_positive(0)};   // ERROR: nothing caught it
+</code></pre>
+      <pre><code>
+error: constexpr variable 'dimensions' must be initialized by a constant expression
+note: herbception thrown during constant evaluation was not caught
+</code></pre>
+      <p>
+        这正是你希望校验器具备的行为：源码里一个错误的常量，就是包含它的那一行上的
+        构建失败，并且带着你选择的错误码。对比运行时 <code>assert</code>：
+        它只在程序被运行时才触发，而且只在程序走到那条代码路径时
+        才触发。
+      </p>
+      <pre><code class="language-cpp">
+// fine: the value is valid
+constexpr int width{must_be_positive(80)};
+static_assert(width == 80);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. 构建期测试套件</h2>
+      <p>
+        这一切最有价值的用法是<strong>编译期测试</strong>：一个
+        <code>constexpr bool</code> 函数，对某个组件进行检验并通过
+        <code>static_assert</code> 报告结果。没有测试框架，没有运行时，没有构建目标
+        ——组件坏了就编译不过。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+constexpr int checked_div(int a, int b) throws
+{
+    if (b == 0)
+    {
+        throw throws ::std::errc::invalid_argument;
+    }
+    return a / b;
+}
+
+constexpr bool self_test() noexcept
+{
+    // 1. the happy paths
+    try
+    {
+        if (checked_div(10, 2) != 5)
+        {
+            return false;
+        }
+        if (checked_div(-9, 3) != -3)
+        {
+            return false;
+        }
+    }
+    catch throws (::std::error)
+    {
+        return false;                  // should not have failed
+    }
+
+    // 2. the failure path, including the exact error it reports
+    try
+    {
+        (void)checked_div(1, 0);
+        return false;                  // should have failed
+    }
+    catch throws (::std::error e)
+    {
+        return e == ::std::errc::invalid_argument;
+    }
+}
+
+static_assert(self_test(), "checked_div is broken");
+
+int main()
+{
+    println("self test passed at compile time\n");
+}
+</code></pre>
+      <p>
+        注意 <code>self_test</code> 是 <code>noexcept</code> 的，并且捕获了一切：一个
+        自身可能失败的测试就不再是编译期检查，而是编译期崩溃。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 向编译器询问错误契约</h2>
+      <p>
+        由于规范是类型的一部分，它可以在编译期间被查询。
+        有两种工具：
+      </p>
+      <ul>
+        <li><code>noexcept(expression)</code> —— 你在 <em>第6.16章</em>中见过的标准工具：
+          “这次调用是否不可能失败？”</li>
+        <li>
+          herbception traits <code>::std::is_herbceptions_throws_*</code> —— 更细粒度的
+          工具，用来区分“是否可以构造/调用”与
+          “是否可以<em>通过 throws 通道</em>构造/调用”。
+        </li>
+      </ul>
+      <pre><code class="language-cpp">
+struct ok_default { ok_default() throws {} };
+struct plain      { };
+
+// is the default constructor declared 'throws'?
+static_assert(::std::has_herbceptions_throws_constructor_v&lt;ok_default&gt;);
+static_assert(!::std::has_herbceptions_throws_constructor_v&lt;plain&gt;);
+
+// can we construct it, and can that construction report?
+struct from_int { explicit from_int(int) throws {} };
+static_assert(::std::is_herbceptions_throws_constructible_v&lt;from_int, int&gt;);
+
+// copies that can report
+struct reporting_copy { reporting_copy(reporting_copy const &amp;) throws {} };
+static_assert(::std::is_herbceptions_throws_copy_constructible_v&lt;reporting_copy&gt;);
+static_assert(!::std::is_herbceptions_throws_copy_constructible_v&lt;plain&gt;);
+
+// callables
+constexpr int risky(int) throws { return 0; }
+constexpr int pure(int) noexcept { return 0; }
+static_assert(::std::is_herbceptions_throws_invocable_v&lt;decltype(risky), int&gt;);
+static_assert(!::std::is_herbceptions_throws_invocable_v&lt;decltype(pure), int&gt;);
+</code></pre>
+      <div class="note">
+        <strong>该用哪一个？</strong><code>noexcept(expr)</code> 回答的是你通常关心的
+        问题（“这次调用我必须处理吗？”）。这些 traits 是为那些必须根据操作是否报告
+        错误来<em>选择</em>实现的泛型代码而存在的——这恰恰就是像 <code>fast_io</code>
+        这样的 freestanding 库在内部所做的事。你自己很少会需要它们，
+        但你会读到它们。
+      </div>
+    </section>
+
+    <section>
+      <h2>6. 这一切为何能成立</h2>
+      <p>
+        常量求值没有栈展开、没有堆、没有异常对象——而
+        herbceptions 也不需要这些。错误就是一个
+        <code>{domain, code}</code> 对，因此求值器只需要携带两个整数和一个
+        “失败”位；域查找（<code>::std::error_domain&lt;T&gt;::domain()</code>）在常量求值期间
+        被拦截，这正是被抛出的值能成为常量表达式、而不是仅限运行时对象的原因。
+      </p>
+      <p>
+        运行时也具备同样的性质，这就是为什么在编译期与运行时之间移动代码时
+        没有任何变化：<code>checked_div</code> 的错误路径
+        真的就是一个返回。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>
+          <code>constexpr</code>/<code>consteval</code> 函数可以是
+          <code>throws</code>；这两个标注彼此独立。
+        </li>
+        <li>
+          <code>try { } catch throws (::std::error e) { }</code> 在常量求值期间
+          可用，因此 constexpr 包装函数可以从编译期失败中恢复。
+        </li>
+        <li>
+          常量表达式中未捕获的 herbception 会使构建失败，并报告
+          <code>herbception thrown during constant evaluation was not caught</code>
+          —— 用它来校验常量。
+        </li>
+        <li>
+          一个 <code>constexpr bool self_test() noexcept</code> 加上
+          <code>static_assert(self_test())</code> 就是一个真正的编译期测试套件，使用
+          与程序相同的函数。
+        </li>
+        <li>
+          <code>noexcept(expr)</code> 与 <code>::std::is_herbceptions_throws_*</code> 让
+          泛型代码在生成调用之前就能询问某次调用可能如何失败。
+        </li>
+        <li>
+          这一切之所以可能，是因为 herbception 只是两个机器字，没有
+          展开、没有分配，也没有异常对象。
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/07.compiletimeprogramming/06.consteval/" class="prev-button">&larr; 第7.6章: consteval</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/08.algorithm/" class="next-button">第8章: 算法 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

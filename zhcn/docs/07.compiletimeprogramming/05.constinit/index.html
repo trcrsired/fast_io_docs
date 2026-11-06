@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第7.5章: constinit - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>第7.5章: constinit</h1>
+
+    <!-- ========================= -->
+    <!-- OVERVIEW -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>概述</h2>
+
+      <p>
+        <code>constinit</code> 保证变量在编译期初始化，但与 <code>constexpr</code>
+        不同，变量本身不必是常量表达式。它只是确保初始化
+        发生在任何动态初始化之前。
+      </p>
+
+      <p>
+        这对避免静态初始化顺序问题极其有用。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. BASIC EXAMPLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. 基础示例</h2>
+
+      <p>
+        <code>constinit</code> 变量必须用常量初始化器初始化，但变量本身
+        不必是 <code>constexpr</code>。
+      </p>
+
+<pre><code class="language-cpp">
+#include <fast_io.h>
+
+constinit int counter = 0;   // guaranteed compile-time initialization
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ++counter;                // OK: not constexpr
+    print("counter = ", counter, "\n");
+}
+</code></pre>
+
+      <p>
+        初始化在编译期完成，但变量在运行时是可变的。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. WHY THIS IS USEFUL -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 为什么这很有用</h2>
+
+      <p>
+        <code>constinit</code> 解决了一个真实问题：静态初始化顺序灾难。
+        它确保全局变量在任何动态初始化开始之前就已完成初始化。
+      </p>
+
+      <p>
+        没有 <code>constinit</code> 时，不同翻译单元中的两个全局变量
+        可能以不可预测的顺序初始化。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. PREVENTING STATIC INITIALIZATION ORDER FIASCO -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 避免静态初始化顺序问题</h2>
+
+      <p>
+        考虑位于不同文件中的两个全局变量：
+      </p>
+
+<pre><code class="language-cpp">
+// file A
+#include <fast_io.h>
+
+constinit int global_value = 42;
+
+// file B
+extern int global_value;
+
+int compute()
+{
+    return global_value * 2;   // safe: global_value is initialized early
+}
+</code></pre>
+
+      <p>
+        由于 <code>global_value</code> 是 <code>constinit</code> 的，因此保证它在
+        <code>compute()</code> 运行之前就已完成初始化。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. DIFFERENCE FROM constexpr -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 与 <code>constexpr</code> 的区别</h2>
+
+      <p>
+        <code>constexpr</code> 意味着：
+      </p>
+
+      <ul>
+        <li>值必须是常量表达式</li>
+        <li>变量不能被修改</li>
+      </ul>
+
+      <p>
+        <code>constinit</code> 意味着：
+      </p>
+
+      <ul>
+        <li>变量必须在编译期初始化</li>
+        <li>变量在运行时<em>可以</em>被修改</li>
+        <li>值<em>不必</em>是常量表达式</li>
+      </ul>
+
+<pre><code class="language-cpp">
+constexpr int a = 5;     // constant expression, immutable
+constinit int b = 5;     // compile-time init, mutable
+</code></pre>
+
+      <p>
+        <code>b</code> 可以在运行时改变；<code>a</code> 不能。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. constinit DOES NOT FORCE CONSTANT EVALUATION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. constinit 不强制常量求值</h2>
+
+      <p>
+        <code>constinit</code> 只要求初始化器是常量初始化器。它并<em>不</em>
+        强制该变量必须在常量表达式中使用。
+      </p>
+
+<pre><code class="language-cpp">
+constinit int x = 10;   // must be initialized at compile time
+int y = x + 5;          // runtime use is fine
+</code></pre>
+
+      <p>
+        这使 <code>constinit</code> 非常适合那些必须尽早初始化、但仍然可变的
+        全局状态。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+
+      <ul>
+        <li><code>constinit</code> 保证编译期初始化。</li>
+        <li>变量本身在运行时可以被修改。</li>
+        <li>它避免了静态初始化顺序问题。</li>
+        <li>它与 <code>constexpr</code> 不同，后者要求常量表达式。</li>
+        <li>它非常适合必须尽早初始化的全局变量。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/07.compiletimeprogramming/04.ifconsteval/" class="prev-button">← 第7.4章: if consteval</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/07.compiletimeprogramming/06.consteval/" class="next-button">第7.6章: consteval →</a>
+    </div>
+
+  </main>
+</body>
+</html>

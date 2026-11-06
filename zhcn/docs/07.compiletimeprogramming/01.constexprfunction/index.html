@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第7.1章: constexpr 函数 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>第7.1章: constexpr 函数</h1>
+
+    <!-- ========================= -->
+    <!-- OVERVIEW -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>概述</h2>
+
+      <p>
+        <code>constexpr</code> 函数是可以在编译期求值的函数。本章只关注
+        如何正确定义这样一个函数，以及它的定义需要遵守哪些规则。
+      </p>
+
+      <p>
+        <code>constexpr</code> 函数同时也隐式是 <code>inline</code>。
+        这让你可以把它定义在头文件中，而不会在各翻译单元之间造成
+        重复符号错误。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- DEFINING CONSTEXPR FUNCTION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>定义 <code>constexpr</code> 函数</h2>
+
+      <p>
+        要定义 <code>constexpr</code> 函数，请把关键字
+        <code>constexpr</code> 放在返回类型之前：
+      </p>
+
+<pre><code class="language-cpp">
+constexpr int add(int a, int b)
+{
+    return a + b;
+}
+</code></pre>
+
+      <p>
+        <code>constexpr</code> 函数必须遵守常量表达式的规则。实践中，
+        这意味着：
+      </p>
+
+      <ul>
+        <li>函数必须返回一个值</li>
+        <li>它不能执行 I/O</li>
+        <li>它不能修改全局变量</li>
+      </ul>
+
+      <p>
+        由于 <code>constexpr</code> 意味着 <code>inline</code>，在头文件中定义这类
+        函数是安全的，也不会出现重复定义错误。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- EXAMPLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>示例</h2>
+
+<pre><code class="language-cpp">
+constexpr int square(int x)
+{
+    return x * x;
+}
+</code></pre>
+
+      <p>
+        这个函数在常量表达式中是有效的，放在头文件中也是安全的。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+
+      <ul>
+        <li><code>constexpr</code> 定义一个可以在编译期运行的函数。</li>
+        <li><code>constexpr</code> 函数隐式是 <code>inline</code>。</li>
+        <li>它们必须遵守常量表达式的规则。</li>
+        <li>在头文件中定义它们是安全的。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/07.compiletimeprogramming/" class="prev-button">← 第7章: 编译期编程</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/07.compiletimeprogramming/02.constexprobjects/" class="next-button">第7.2章: constexpr 对象 →</a>
+    </div>
+
+  </main>
+</body>
+</html>

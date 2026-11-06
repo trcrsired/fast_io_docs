@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第7.4章: if consteval - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>第7.4章: if consteval</h1>
+
+    <!-- ========================= -->
+    <!-- OVERVIEW -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>概述</h2>
+
+      <p>
+        <code>if consteval</code> 检查当前这次函数调用是否正在常量表达式
+        上下文中求值。它允许函数在编译期执行与运行时执行
+        表现出不同的行为。
+      </p>
+
+      <p>
+        与依赖常量表达式值的 <code>if constexpr</code> 不同，
+        <code>if consteval</code> 取决于函数<em>如何</em>被求值。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. BASIC EXAMPLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. 基础示例</h2>
+
+      <p>
+        当函数在编译期求值时，会选中 <code>if consteval</code>
+        分支。在运行时求值时，则选中 <code>else</code> 分支。
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+constexpr int compute(int x)
+{
+    using namespace ::fast_io::iomnp;
+
+    if consteval
+    {
+        print("computed at compile time\n");
+        return x * 2;
+    }
+    else
+    {
+        print("computed at runtime\n");
+        return x + 2;
+    }
+}
+</code></pre>
+
+      <p>
+        编译器根据求值上下文选择分支。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. FORCING COMPILE-TIME EVALUATION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 强制编译期求值</h2>
+
+      <p>
+        <code>constexpr</code> 变量会强制其初始化器在编译期求值。
+        这意味着会选中 <code>if consteval</code> 分支。
+      </p>
+
+<pre><code class="language-cpp">
+constexpr int a = compute(10);  // compile-time evaluation
+int b = compute(10);            // runtime evaluation
+</code></pre>
+
+      <p>
+        第一次调用会打印“computed at compile time”，第二次会打印
+        “computed at runtime”。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. WHY THIS IS USEFUL -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 为什么这很有用</h2>
+
+      <p>
+        当函数必须做到以下事情时，<code>if consteval</code> 很有用：
+      </p>
+
+      <ul>
+        <li>在编译期执行不同的逻辑</li>
+        <li>在常量求值期间避开仅限运行时的操作</li>
+        <li>为编译期用法提供更好的诊断</li>
+      </ul>
+
+      <p>
+        例如，当函数在编译期求值时，你可能想禁止某些操作。
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+constexpr int safe_divide(int a, int b)
+{
+    using namespace ::fast_io::iomnp;
+
+    if consteval
+    {
+        if(b == 0)
+            print("error: division by zero in constant expression\n");
+    }
+
+    return a / b;
+}
+</code></pre>
+
+      <p>
+        这允许进行编译期检查，而不会影响运行时行为。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. CONTRAST WITH if constexpr -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 与 <code>if constexpr</code> 的区别</h2>
+
+      <p>
+        <code>if constexpr</code> 取决于一个常量表达式的值：
+      </p>
+
+<pre><code class="language-cpp">
+if constexpr(flag) { ... }
+</code></pre>
+
+      <p>
+        <code>if consteval</code> 取决于求值上下文：
+      </p>
+
+<pre><code class="language-cpp">
+if consteval { ... }
+</code></pre>
+
+      <p>
+        它们解决不同的问题：
+      </p>
+
+      <ul>
+        <li><code>if constexpr</code> 根据常量值选择代码。</li>
+        <li><code>if consteval</code> 根据函数是否正在编译期求值来选择代码。</li>
+      </ul>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+
+      <ul>
+        <li><code>if consteval</code> 检查当前这次函数调用是否在编译期求值。</li>
+        <li>它允许函数在编译期与运行时上下文中表现不同。</li>
+        <li><code>constexpr</code> 变量强制编译期求值。</li>
+        <li>适用于诊断、限制，以及依上下文而异的行为。</li>
+        <li>与 <code>if constexpr</code> 不同，后者取决于常量表达式的值。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/07.compiletimeprogramming/03.ifconstexpr/" class="prev-button">← 第7.3章: if constexpr</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/07.compiletimeprogramming/05.constinit/" class="next-button">第7.5章: constinit →</a>
+    </div>
+
+  </main>
+</body>
+</html>

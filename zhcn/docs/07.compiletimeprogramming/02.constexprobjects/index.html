@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第7.2章: constexpr 对象生成 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+
+    <h1>第7.2章: constexpr 对象生成</h1>
+
+    <!-- ========================= -->
+    <!-- OVERVIEW -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>概述</h2>
+
+      <p>
+        <code>constexpr</code> 函数可以在编译期构建对象。在本章中，我们在一个
+        <code>constexpr</code> 函数内部用循环生成 10 的幂查找表，返回该表，
+        并强制编译器在编译期间把它算出来。
+      </p>
+
+      <p>
+        这种技术适用于预计算表，例如 10 的幂、数字转换表，
+        以及其他不应在运行时计算的固定数据。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 1. HOW MANY POWERS OF TEN -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>1. 确定能容纳多少个 10 的幂</h2>
+
+      <p>
+        我们使用 <code>std::uint_least64_t</code> 来避免溢出。安全的
+        10 的幂的个数由下式给出：
+      </p>
+
+<pre><code class="language-cpp">
+constexpr std::size_t pow10_count =
+    ::std::numeric_limits<::std::uint_least64_t>::digits10 + 1;
+</code></pre>
+
+      <p>
+        对 64 位整数而言，这通常是 19（即 10⁰ 到 10¹⁸）。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 2. GENERATING THE TABLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>2. 用 <code>constexpr</code> 函数生成表</h2>
+
+      <p>
+        <code>constexpr</code> 函数可以包含循环。我们用它把 10 的幂填入
+        <code>::fast_io::array</code>。返回类型是
+        <code>auto</code>，因此编译器会推导出数组类型。
+      </p>
+
+<pre><code class="language-cpp">
+constexpr auto make_pow10()
+{
+    ::fast_io::array&lt;::std::uint_least64_t, pow10_count&gt; arr{};
+    ::std::uint_least64_t value{1};
+
+    for(std::size_t i{}; i != pow10_count; ++i)
+    {
+        arr[i] = value;
+        value *= 10;
+    }
+
+    return arr;
+}
+</code></pre>
+
+      <p>
+        这个函数在编译期构建整张表。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 3. FORCING COMPILE-TIME EVALUATION -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>3. 强制编译期求值</h2>
+
+      <p>
+        要强制编译器在编译期间计算该表，请定义一个
+        <code>inline constexpr</code> 全局变量：
+      </p>
+
+<pre><code class="language-cpp">
+inline constexpr auto pow10_table = make_pow10();
+</code></pre>
+
+      <p>
+        <code>constexpr</code> 变量会强制其初始化器在编译期求值。如果初始化器
+        调用了一个 <code>constexpr</code> 函数，编译器就必须在编译期间执行
+        该函数。
+      </p>
+
+      <p>
+        如果该计算无法在编译期完成，编译就会失败。这种情况发生在：
+      </p>
+
+      <ul>
+        <li>被调用的函数不是 <code>constexpr</code></li>
+        <li>该函数执行了常量表达式中不允许的操作</li>
+        <li>该函数触发了未定义行为</li>
+      </ul>
+
+      <p>
+        由于该变量是 <code>inline</code> 的，它可以放在头文件中
+        而不会造成重复符号错误。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 4. USING THE TABLE -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 在 <code>main()</code> 中使用该表</h2>
+
+<pre><code class="language-cpp">
+int main()
+{
+    using namespace ::fast_io::iomnp;
+    println(pow10_table[0]);  // 1
+    println(pow10_table[1]);  // 10
+    println(pow10_table[5]);  // 100000
+    println(pow10_table[18]); // 10^18 (on 64-bit)
+}
+</code></pre>
+
+      <p>
+        所有值都已预先计算好，并直接存储在程序映像中。
+      </p>
+    </section>
+
+    <!-- ========================= -->
+    <!-- SUMMARY -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>要点</h2>
+
+      <ul>
+        <li><code>digits10</code> 告诉我们该类型能容纳多少个 10 的幂。</li>
+        <li><code>constexpr</code> 函数可以用循环生成数组。</li>
+        <li>返回 <code>auto</code> 让编译器推导数组类型。</li>
+        <li><code>inline constexpr</code> 变量强制编译期求值。</li>
+        <li>如果计算无法在编译期完成，编译就会失败。</li>
+        <li>生成的表直接嵌入程序映像中。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/07.compiletimeprogramming/01.constexprfunction/" class="prev-button">← 第7.1章: constexpr 函数</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/07.compiletimeprogramming/03.ifconstexpr/" class="next-button">第7.3章: if constexpr →</a>
+    </div>
+
+  </main>
+</body>
+</html>
