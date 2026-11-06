@@ -141,7 +141,108 @@ constexpr int safe_divide(int a, int b) throws
     <!-- ========================= -->
 
     <section>
-      <h2>4. 与 <code>if constexpr</code> 的区别</h2>
+    <!-- ========================= -->
+    <!-- 4. THE NEGATED FORM -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>4. 否定形式：<code>if !consteval</code></h2>
+
+      <p>
+        同一个判断也可以反过来写。<code>if !consteval</code> 就是两个分支对调的
+        <code>if consteval</code>，它并没有多出任何能力 &mdash; 它存在的意义是让你
+        把<em>平常</em>的那条路径写在前面：当几乎所有调用都是运行期调用、常量求值只是例外时，
+        这种写法更贴合事实：
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+constexpr ::std::uint_least64_t fib(int n) noexcept
+{
+    if !consteval
+    {
+        // Ordinary calls land here: iterate. O(n) time, O(1) stack.
+        ::std::uint_least64_t a{}, b{1};
+        for (int i{}; i != n; ++i)
+        {
+            ::std::uint_least64_t const next{a + b};
+            a = b;
+            b = next;
+        }
+        return a;
+    }
+    else
+    {
+        // Constant evaluation: the textbook recursion, folded by the compiler.
+        return n &lt; 2 ? n : fib(n - 1) + fib(n - 2);
+    }
+}
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    try
+    {
+        constexpr ::std::uint_least64_t folded{fib(20)};   // constant-evaluated
+        ::std::uint_least64_t const looped{fib(20)};       // runtime, from the loop
+        println("folded = ", folded, ", looped = ", looped);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
+}
+</code></pre>
+
+      <p>
+        两次调用都得到 <code>6765</code>，走的是两条不同的代码路径，而且任何一条路径都不会为另一种上下文生成。
+      </p>
+
+      <p>
+        <code>else</code> 是可以省掉的，但那样一来，只要函数正在被常量求值，
+        执行就会<em>继续越过这个块</em>，因为这个块被整个跳过了：
+      </p>
+
+      <pre><code class="language-cpp">
+constexpr int scale(int x) noexcept
+{
+    if !consteval
+    {
+        return x + 2;     // runtime only
+    }
+    return x * 2;         // reached only during constant evaluation
+}
+</code></pre>
+
+      <p>
+        所以否定形式里的运行期分支必须 <code>return</code> 或 <code>throw</code>：
+        否则代码会掉出去，在两种上下文里都执行。当两条路径不是一眼就能看清时，
+        请写显式的 <code>else</code>。
+      </p>
+
+      <div class="warning">
+        <strong>运行期调用必须放在哪里。</strong>不要用命名空间作用域的变量去演示运行期路径。
+        恰好是常量表达式的初始化器会在静态初始化期间就被应用，所以这<em>不是</em>一次运行期求值，
+        <code>if !consteval</code> 块会被跳过：
+        <pre><code class="language-cpp">
+int a{scale(10)};   // constant-initialized: 20, NOT 12
+
+int main()
+{
+    int b{scale(10)};   // automatic variable: 12, the runtime branch
+}
+</code></pre>
+        把运行期调用留在函数内部，或者用 <code>constinit</code>
+        （<a href="/zhcn/docs/07.compiletimeprogramming/05.constinit/">第7.5章</a>）
+        明说出你要的就是编译期初始化。
+      </div>
+    </section>
+
+      <h2>5. 与 <code>if constexpr</code> 的区别</h2>
 
       <p>
         <code>if constexpr</code> 取决于一个常量表达式的值：
@@ -181,6 +282,7 @@ if consteval { ... }
         <li>它允许函数在编译期与运行时上下文中表现不同。</li>
         <li><code>constexpr</code> 变量强制编译期求值。</li>
         <li>适用于诊断、限制，以及依上下文而异的行为。</li>
+        <li><code>if !consteval</code> 是同样的判断，只是分支对调；没有 <code>else</code> 时，常量求值期间执行的是块<em>之后</em>的代码。</li>
         <li>与 <code>if constexpr</code> 不同，后者取决于常量表达式的值。</li>
       </ul>
     </section>

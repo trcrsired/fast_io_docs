@@ -140,11 +140,117 @@ constexpr int safe_divide(int a, int b) throws
     </section>
 
     <!-- ========================= -->
-    <!-- 4. CONTRAST WITH if constexpr -->
+    <!-- 4. THE NEGATED FORM -->
     <!-- ========================= -->
 
     <section>
-      <h2>4. Contrast with <code>if constexpr</code></h2>
+      <h2>4. The negated form: <code>if !consteval</code></h2>
+
+      <p>
+        The same test can be written negated. <code>if !consteval</code> is
+        <code>if consteval</code> with the two branches swapped, and it adds no
+        new power &mdash; it exists so that the <em>ordinary</em> path can be
+        written first, which matters when virtually every call is a runtime call
+        and constant evaluation is the exception:
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+constexpr ::std::uint_least64_t fib(int n) noexcept
+{
+    if !consteval
+    {
+        // Ordinary calls land here: iterate. O(n) time, O(1) stack.
+        ::std::uint_least64_t a{}, b{1};
+        for (int i{}; i != n; ++i)
+        {
+            ::std::uint_least64_t const next{a + b};
+            a = b;
+            b = next;
+        }
+        return a;
+    }
+    else
+    {
+        // Constant evaluation: the textbook recursion, folded by the compiler.
+        return n &lt; 2 ? n : fib(n - 1) + fib(n - 2);
+    }
+}
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    try
+    {
+        constexpr ::std::uint_least64_t folded{fib(20)};   // constant-evaluated
+        ::std::uint_least64_t const looped{fib(20)};       // runtime, from the loop
+        println("folded = ", folded, ", looped = ", looped);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
+}
+</code></pre>
+
+      <p>
+        Both calls produce <code>6765</code>, by two different code paths, and
+        neither path is ever generated for the other context.
+      </p>
+
+      <p>
+        The <code>else</code> is optional, but then execution <em>continues past
+        the block</em> whenever the function is being constant-evaluated, because
+        the block is skipped entirely:
+      </p>
+
+<pre><code class="language-cpp">
+constexpr int scale(int x) noexcept
+{
+    if !consteval
+    {
+        return x + 2;     // runtime only
+    }
+    return x * 2;         // reached only during constant evaluation
+}
+</code></pre>
+
+      <p>
+        That is why the runtime branch of a negated test has to return or throw:
+        anything else falls through and runs in both contexts. Prefer the explicit
+        <code>else</code> when the two paths are not immediately obvious.
+      </p>
+
+      <div class="warning">
+        <strong>Where the runtime call must live.</strong> Do not try to
+        demonstrate the runtime path with a namespace-scope variable. An
+        initializer that happens to be a constant expression is applied during
+        static initialization, so this is <em>not</em> a runtime evaluation and
+        the <code>if !consteval</code> block is skipped:
+        <pre><code class="language-cpp">
+int a{scale(10)};   // constant-initialized: 20, NOT 12
+
+int main()
+{
+    int b{scale(10)};   // automatic variable: 12, the runtime branch
+}
+</code></pre>
+        Keep the runtime call inside a function, or use <code>constinit</code>
+        (<a href="/docs/07.compiletimeprogramming/05.constinit/">Ch7.5</a>) to say
+        out loud that compile-time initialization is what you want.
+      </div>
+    </section>
+
+    <!-- ========================= -->
+    <!-- 5. CONTRAST WITH if constexpr -->
+    <!-- ========================= -->
+
+    <section>
+      <h2>5. Contrast with <code>if constexpr</code></h2>
 
       <p>
         <code>if constexpr</code> depends on a constant expression value:
@@ -184,6 +290,7 @@ if consteval { ... }
         <li>It allows functions to behave differently in compile‑time and runtime contexts.</li>
         <li><code>constexpr</code> variables force compile‑time evaluation.</li>
         <li>Useful for diagnostics, restrictions, and context‑dependent behavior.</li>
+        <li><code>if !consteval</code> is the same test with the branches swapped; without an <code>else</code>, the code after the block is what runs during constant evaluation.</li>
         <li>Different from <code>if constexpr</code>, which depends on a constant expression value.</li>
       </ul>
     </section>

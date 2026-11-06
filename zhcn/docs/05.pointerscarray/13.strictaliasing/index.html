@@ -149,7 +149,7 @@ int const *q = ::std::addressof(x);   // ok
 int x{0x12345678};
 
 unsigned char *bytes =
-    reinterpret_cast<unsigned char*>(::std::addressof(x));
+    reinterpret_cast&lt;unsigned char*&gt;(::std::addressof(x));
 </code></pre>
 
       <p>
@@ -284,7 +284,7 @@ using may_alias_int_ptr = int * MAY_ALIAS;
 float f{1.0f};
 
 // Allowed by GCC and Clang (non-portable)
-may_alias_int_ptr p = reinterpret_cast<may_alias_int_ptr>(::std::addressof(f));
+may_alias_int_ptr p = reinterpret_cast&lt;may_alias_int_ptr&gt;(::std::addressof(f));
 
 // GCC/Clang will not assume this violates strict aliasing
 int bits = *p;
