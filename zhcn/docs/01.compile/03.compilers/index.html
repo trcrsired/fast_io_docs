@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第1.3章: 编译器 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第1.3章: 编译器</h1>
+
+    <section>
+      <h2>为什么我们需要编译器？</h2>
+      <p>
+        编译器是把人类可读的 C++ 源代码转换成机器指令的工具。
+        没有编译器，我们的程序就只能停留在文本文件阶段，永远无法被 CPU 执行。
+      </p>
+      <p>
+        编译器做的工作远不止翻译。它还会把你的程序与系统库、
+        动态链接库（DLL）以及其他操作系统组件<strong>链接</strong>起来。这样你的程序才能调用
+        <code>malloc</code>、<code>printf</code> 或系统 API 之类的函数。
+      </p>
+      <p>
+        除了链接之外，<strong>编译器和工具链还会对平台本身做出假设</strong>：
+        系统调用如何工作、内存如何布局、线程与进程如何管理，以及遵循哪些应用二进制接口（ABI）约定。
+        这些假设都被固化进生成的二进制文件中。
+      </p>
+      <p>
+        这就是为什么即使二进制文件格式相同，它们也无法跨操作系统移植。
+        例如，一个 GNU/Linux 二进制文件无法在 FreeBSD、基于 musl 的系统或 Android 上运行，
+        尽管它们使用的都是 ELF 二进制。差异在于各系统提供的库、ABI 和平台约定。
+      </p>
+    </section>
+
+    <section>
+    <h2>安装</h2>
+    <p>
+        你可以直接访问它们的发布页面来安装这些编译器：
+    </p>
+    <ul>
+        <li><a href="https://github.com/trcrsired/gcc-releases/releases" target="_blank" rel="noopener noreferrer">GCC 发布版</a></li>
+        <li><a href="https://github.com/trcrsired/llvm-releases/releases" target="_blank" rel="noopener noreferrer">Clang/LLVM 发布版</a></li>
+        <li><a href="https://github.com/trcrsired/windows-msvc-sysroot" target="_blank" rel="noopener noreferrer">Windows MSVC Sysroot（若使用 Clang 编译 Windows 程序则必需）</a></li>
+    </ul>
+    <p>
+        这些编译器同样由 <strong>fast_io</strong> 库的作者构建与维护，
+        以确保它们与本教程中的示例无缝配合。
+    </p>
+    <p>
+        在接下来的章节中，我们会先在 <em>第1.4章</em> 讲解如何配置 <strong>Clang</strong>，
+        然后在 <em>第1.5章</em> 讲解 <strong>GCC</strong>。你可以选择其中任意一个编译器使用——两者都受支持。
+    </p>
+    </section>
+
+    <section>
+      <h2>设置环境变量</h2>
+      <p>
+        下载完成后，你应当设置环境变量，以便你的 shell 能定位到编译器二进制文件：
+      </p>
+      <ul>
+        <li><strong>PATH：</strong>添加编译器的 <code>bin</code> 目录，这样 <code>gcc</code> 或 <code>clang</code> 等命令才能被找到。</li>
+        <li><strong>LD_LIBRARY_PATH：</strong>（Linux/BSD/Android 等）添加编译器的库目录，以便动态库能够被解析。</li>
+        <li><strong>DYLD_LIBRARY_PATH：</strong>（macOS）添加编译器的库目录用于动态链接。</li>
+        <li><strong>Windows：</strong>只需要 <code>PATH</code>，不需要 <code>LD_LIBRARY_PATH</code>。</li>
+      </ul>
+      <p>
+        设置这些变量可确保你的终端能找到编译器可执行文件以及它们所依赖的库。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/01.compile/02.vscode/" class="prev-button">← 第1.2章: VS Code</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/01.compile/04.clang/" class="next-button">第1.4章: Clang →</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第1.4章: Clang - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第1.4章: Clang</h1>
+
+    <section>
+    <h2>什么是 Clang？</h2>
+    <p>
+        Clang 是来自 LLVM 项目的现代 C 和 C++ 编译器前端。它被设计为快速、
+        模块化且高度可移植。与 GCC 不同，Clang 允许你在编译时自由指定
+        <code>--target</code>，这使得交叉编译极其容易。
+    </p>
+
+    <p>
+        Clang 在工业界被广泛使用，原因在于它具备：
+    </p>
+
+    <ul>
+        <li>出色的诊断和错误信息</li>
+        <li>快速的编译速度</li>
+        <li>干净的架构与模块化设计</li>
+        <li>对众多平台的支持（Windows、Linux、macOS、Android、WebAssembly 等）</li>
+        <li>与 GNU 和 MSVC 工具链的兼容性</li>
+    </ul>
+
+    <p>
+        在本教程中，Clang 是我们的主要编译器，因为它能为几乎所有平台生成二进制文件，
+        包括 Windows MSVC 二进制、Linux 二进制、macOS 二进制、Android 二进制
+        以及 WebAssembly 二进制。Clang 还能与本教程提供的 <code>windows-msvc-sysroot</code>
+        干净地集成，让你可以在任何操作系统上构建 MSVC 兼容的 Windows 可执行文件。
+    </p>
+    </section>
+
+    <section>
+      <h2>安装 Git</h2>
+      <p>
+        在下载工具链脚本之前，请确保你的系统已安装 <strong>Git</strong>。
+      </p>
+      <ul>
+        <li><strong>Linux：</strong>通过你的包管理器安装（例如 <code>sudo apt install git</code>）</li>
+        <li><strong>macOS：</strong>通过 Homebrew（<code>brew install git</code>）或 Xcode Command Line Tools 安装</li>
+        <li><strong>Windows：</strong>从 <a href="https://git-scm.com" target="_blank" rel="noopener noreferrer">git-scm.com</a> 安装</li>
+        <li><strong>Android（Termux）：</strong>通过 <code>pkg install git</code> 安装</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>克隆工具链构建脚本</h2>
+      <p>
+        本教程使用的 Clang 工具链是用作者的自动化构建脚本构建的。
+        使用以下命令之一克隆仓库：
+      </p>
+      <ul>
+        <li><code>git clone https://github.com/trcrsired/toolchainbuildscripts.git</code></li>
+        <li>
+          <code>git@github.com:trcrsired/toolchainbuildscripts.git</code>
+          <br>（注意：在中国，SSH 克隆可能被防火墙屏蔽。）
+        </li>
+      </ul>
+      <p>
+        克隆完成后，进入仓库目录即可访问安装脚本。
+      </p>
+    </section>
+
+    <section>
+      <h2>下载本地工具链</h2>
+      <p>
+        要下载适用于你当前宿主系统的工具链，请运行相应的脚本：
+      </p>
+      <ul>
+        <li><strong>Linux / macOS / BSD / Android：</strong><code>./installs/host_download.sh</code></li>
+        <li>
+          <strong>Windows PowerShell：</strong><code>./installs/windows/host_download.ps1</code>
+          <br>你可能需要以管理员身份运行 PowerShell，或临时绕过执行限制：
+          <br><code>Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass</code>
+        </li>
+      </ul>
+      <p>
+        你也可以通过设置环境变量来启用可选组件：
+      </p>
+      <ul>
+        <li><code>CLONE_WINDOWS_MSVC_SYSROOT=yes</code> —— 克隆 Windows MSVC sysroot，用于构建 Windows 二进制文件</li>
+        <li><code>CLONE_FAST_IO=yes</code> —— 自动克隆 <strong>fast_io</strong> 库</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>下载全部工具链</h2>
+      <p>
+        如果你想要每一个受支持的工具链（而不只是本地的那一个），请使用 <strong>all_download</strong> 脚本：
+      </p>
+      <ul>
+        <li><strong>POSIX 系统：</strong><code>./installs/all_download.sh</code></li>
+        <li><strong>Windows：</strong><code>./installs/windows/all_download.ps1</code></li>
+      </ul>
+      <p>
+        这些脚本会下载所有可用的工具链。
+        这种情况下，你<strong>不需要</strong>再运行 <code>host_download</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>故障排查</h2>
+      <p>
+        如果在安装过程中遇到问题：
+      </p>
+      <ul>
+        <li>检查你的网络连接与代理设置</li>
+        <li>确保 Git 与 PowerShell 的权限配置正确</li>
+        <li>检查你的 shell 是否有执行脚本的权限</li>
+        <li>向 Microsoft Copilot 或 ChatGPT 等 AI 助手求助，以诊断错误</li>
+      </ul>
+      <p>
+        工具链下载完成后，你就可以开始用 <strong>Clang</strong> 编译了。
+      </p>
+    </section>
+
+  <section>
+    <h2>手动安装（如果自动安装失败）</h2>
+    <p>
+      如果自动化安装脚本因网络问题、代理配置或平台限制而失败，
+      你可以直接下载预构建的发布版本来手动安装工具链。
+    </p>
+
+    <ul>
+      <li>
+        <a href="https://github.com/trcrsired/llvm-releases/releases" target="_blank" rel="noopener noreferrer">
+          llvm-releases
+        </a>
+        —— fast_io 作者的最新 Clang/LLVM 构建
+      </li>
+      <li>
+        <a href="https://github.com/trcrsired/wavm-releases/releases" target="_blank" rel="noopener noreferrer">
+          wavm-releases
+        </a>
+        —— 包含 WebAssembly 内存标记支持（ACM CCSW 2025 论文：
+        <a href="https://dl.acm.org/doi/10.1145/3733812.3765536" target="_blank" rel="noopener noreferrer">链接</a>）
+      </li>
+      <li>
+        <a href="https://github.com/trcrsired/windows-msvc-sysroot" target="_blank" rel="noopener noreferrer">
+          windows-msvc-sysroot
+        </a>
+        —— 使用 Clang 构建 Windows 二进制文件所必需
+      </li>
+      <li>
+        <a href="https://github.com/cppfastio/fast_io" target="_blank" rel="noopener noreferrer">
+          fast_io 库
+        </a>
+        —— 使用 <code>-b next</code> 克隆即可使用开发分支
+      </li>
+    </ul>
+
+    <p>
+      下载压缩包或克隆仓库后，解压并手动配置你的环境变量：
+    </p>
+
+    <ul>
+      <li><strong>PATH：</strong>添加编译器的 <code>bin</code> 目录</li>
+      <li><strong>LD_LIBRARY_PATH：</strong>（Linux/BSD/Android）添加工具链的 <code>lib</code> 目录</li>
+      <li><strong>DYLD_LIBRARY_PATH：</strong>（macOS）添加工具链的 <code>lib</code> 目录</li>
+      <li><strong>WINEPATH：</strong>如果使用 Wine 运行 Windows 二进制文件</li>
+    </ul>
+
+    <p>
+      如果你不确定如何手动重现自动化步骤，可以打开
+      <code>host_download.sh</code> 或 <code>host_download.ps1</code> 脚本并把它们交给 AI 助手
+      （例如 Microsoft Copilot 或 ChatGPT）。它会精确解释每一步做了什么，以便你手工复现。
+    </p>
+  </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/01.compile/03.compilers/" class="prev-button">← 第1.3章: 编译器</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/01.compile/05.testinstallation/" class="next-button">第1.5章: 测试安装 →</a>
+    </div>
+  </main>
+</body>
+</html>

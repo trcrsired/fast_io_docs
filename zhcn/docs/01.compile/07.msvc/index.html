@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第1.7章: MSVC（仅限 Windows） - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第1.7章: MSVC（仅限 Windows）</h1>
+    <section>
+        <h2>什么是 MSVC？</h2>
+        <p>
+            MSVC（Microsoft Visual C++）是微软官方的 C 和 C++ 编译器，随 Visual Studio 一同提供。
+            它是 Windows 开发的默认编译器，并与 Windows SDK、
+            微软调试器以及 Visual Studio IDE 紧密集成。
+        </p>
+        <div class="warning">
+            <strong>MSVC 不是 fast_io 支持的编译器。</strong>fast_io
+            把每个错误都报告为 herbception，而 <code>cl.exe</code> 并未实现
+            herbceptions（那里根本没有 <code>-fherbceptions</code>），因此本库所基于的错误
+            契约无法用它表达。你可以阅读本页来了解 MSVC 是什么，以及 Windows 二进制文件是如何产出的，
+            但本教程中的所有代码都是用我们的 GCC 或 LLVM 分支构建的——对于 Windows 目标，
+            请使用我们的 Clang 加 <code>--config=$HOME/cfgs/x86_64-windows-msvc.cfg</code>，
+            或者我们的 MinGW GCC。确切的命令见 <a href="/zhcn/docs/01.compile/08.fastio/">第1.8章</a>。
+        </div>
+    </section>
+
+    <section>
+      <h2>安装 Visual Studio（MSVC）</h2>
+      <p>
+        如果你在 Windows 上，可以使用微软官方的 C++ 编译器：
+        <strong>MSVC（Microsoft Visual C++）</strong>，它随 Visual Studio 提供。
+      </p>
+
+      <p>
+        我们建议安装 <strong>Visual Studio Insider</strong> 而不是稳定版通道。
+        Insider 版本提供最新的 MSVC 工具链、更新的头文件以及最新的 C++ 特性。
+      </p>
+
+      <p>
+        在此下载 Visual Studio Insider：
+      </p>
+
+      <p>
+        <a href="https://visualstudio.microsoft.com/insiders/" target="_blank" rel="noopener noreferrer">
+          https://visualstudio.microsoft.com/insiders/
+        </a>
+      </p>
+
+      <p>安装步骤：</p>
+      <ul>
+        <li>下载并运行 Visual Studio 安装程序</li>
+        <li>选择 <strong>Desktop development with C++</strong></li>
+        <li>安装 MSVC 工具链与 Windows SDK</li>
+      </ul>
+
+      <p>
+        安装完成后，你必须使用适用于你的架构的 <strong>Visual C++ 开发者命令提示符</strong>：
+      </p>
+
+      <ul>
+        <li><strong>x64 Native Tools Command Prompt</strong>（最常见）</li>
+        <li><strong>x86 Native Tools Command Prompt</strong></li>
+        <li><strong>ARM64 Native Tools Command Prompt</strong>（Surface Pro 11、Surface Laptop 7 等）</li>
+      </ul>
+
+      <p>
+        这些命令提示符会配置所有必需的环境变量，例如 <code>INCLUDE</code>、
+        <code>LIB</code> 和 <code>PATH</code>。
+        在普通命令提示符中运行 <code>cl.exe</code> 无法正常工作。
+      </p>
+    </section>
+
+    <section>
+      <h2>使用 MSVC 编译 Windows 二进制文件</h2>
+      <p>
+        进入正确的开发者命令提示符后，你可以这样编译 Windows 二进制文件：
+      </p>
+
+      <pre><code>cl /EHsc /Ox hello.cpp /std:c++latest /GL /MD</code></pre>
+
+      <p>
+        这会产出 <code>hello.exe</code>，并链接到 Microsoft Visual C++ 运行时。
+      </p>
+    </section>
+
+    <section>
+      <h2>你并不需要 MSVC 来创建 MSVC 兼容的 Windows 二进制文件</h2>
+      <p>
+        虽然 MSVC 是微软的官方编译器，但你<strong>并不</strong>需要 MSVC 来创建
+        使用 MSVC 运行时的 Windows 二进制文件。
+      </p>
+
+      <p>
+        在 <em>第1.4章</em> 和 <em>第1.5章</em> 中，我们展示了如何使用 Clang 搭配
+        <strong>windows-msvc-sysroot</strong> 包。
+        这个 sysroot 包含了所有 MSVC 头文件与库，由本教程作者提取并打包。
+      </p>
+
+      <p>
+        借助这个 sysroot，你可以在以下平台上构建 MSVC 兼容的 Windows 二进制文件：
+      </p>
+
+      <ul>
+        <li>Linux</li>
+        <li>macOS</li>
+        <li>Android</li>
+        <li>FreeBSD</li>
+        <li>Windows</li>
+        <li>任何能运行 Clang 的平台</li>
+      </ul>
+
+      <p>
+        这意味着你完全<strong>不需要</strong>安装 Visual Studio 或 MSVC。
+      </p>
+
+      <p>
+        许多 C++ 开发者认为 MSVC 的编译器前端与诊断信息不如 Clang 和 GCC。
+        你当然可以试试 MSVC，但本教程强烈建议改用 <strong>Clang</strong> 或
+        <strong>GCC</strong>。
+      </p>
+    </section>
+
+    <section>
+      <h2>本教程为何使用 Clang</h2>
+      <p>
+        在本教程中，我们主要使用 <strong>Clang</strong>，因为：
+      </p>
+
+      <ul>
+        <li>它能轻松地在所有平台之间交叉编译</li>
+        <li>它可以面向 Windows、Linux、macOS、Android 和 WebAssembly</li>
+        <li>它能与 <code>windows-msvc-sysroot</code> 干净地集成</li>
+        <li>它能产出 WebAssembly 二进制文件</li>
+        <li>它支持诸如 <strong>WebAssembly 内存标记</strong>之类的高级工具</li>
+      </ul>
+
+      <p>
+        如果你还没读过 <em>第1.4章</em> 和 <em>第1.5章</em>，建议回顾一下，以理解
+        Clang 交叉编译是如何工作的。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/01.compile/06.gcc/" class="prev-button">← 第1.6章: GCC</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/01.compile/08.fastio/" class="next-button">第1.8章: fast_io →</a>
+    </div>
+  </main>
+</body>
+</html>

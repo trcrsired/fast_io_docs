@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第1.6章: GCC - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第1.6章: GCC</h1>
+    <p>
+        GCC（GNU 编译器集合）是世界上最古老、使用最广泛的 C 和 C++ 编译器之一。它是许多 Linux 发行版的默认编译器，以其稳定性、可移植性以及在开源生态中的悠久历史而著称。
+    </p>
+    <section>
+      <h2>理解 GCC 的工具链模型</h2>
+      <p>
+        GCC 使用其文档中描述的三元组配置模型：
+      </p>
+      <p>
+        <a href="https://gcc.gnu.org/onlinedocs/gccint/Configure-Terms.html" target="_blank" rel="noopener noreferrer">
+          GCC 配置术语
+        </a>
+      </p>
+      <p>
+        GCC 区分：
+      </p>
+      <ul>
+        <li><strong>--build</strong>：构建 GCC 的机器</li>
+        <li><strong>--host</strong>：运行 GCC 的机器</li>
+        <li><strong>--target</strong>：GCC 为其生成二进制文件的机器</li>
+      </ul>
+      <p>
+        与 Clang 不同，GCC <strong>不能</strong>在编译时自由设置 <code>--target</code>。
+        这意味着 GCC 必须针对每个目标架构与 sysroot 组合分别构建。
+        因此，GCC 交叉编译器比 Clang 的更笨重、更不灵活，也更难维护。
+      </p>
+    </section>
+
+    <section>
+      <h2>下载 GCC 工具链</h2>
+      <p>
+        预构建的 GCC 工具链可在此获取：
+      </p>
+      <p>
+        <a href="https://github.com/trcrsired/gcc-releases/releases" target="_blank" rel="noopener noreferrer">
+          gcc-releases
+        </a>
+      </p>
+
+      <p>
+        每个压缩包遵循如下命名模式：
+      </p>
+
+      <pre><code>target.host.tar.xz</code></pre>
+
+      <p>
+        例如：
+      </p>
+
+      <pre><code>x86_64-linux-gnu.x86_64-w64-mingw32.tar.xz</code></pre>
+
+      <p>
+        这表示：
+      </p>
+      <ul>
+        <li><strong>host：</strong><code>x86_64-w64-mingw32</code> → 运行在 Windows 上</li>
+        <li><strong>target：</strong><code>x86_64-linux-gnu</code> → 产出 Linux 二进制文件</li>
+      </ul>
+
+      <p>
+        解压压缩包后，把包含 <code>x86_64-linux-gnu-g++</code> 的 <code>bin</code> 目录
+        加入你的 Windows <code>PATH</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>在 Windows 上使用 GCC 编译 Linux 二进制文件</h2>
+      <p>
+        一旦工具链进入你的 <code>PATH</code>，你就可以直接在 Windows 上编译 Linux 二进制文件：
+      </p>
+
+      <pre><code>x86_64-linux-gnu-g++ -o hello hello.cpp -O3 -s -flto</code></pre>
+
+      <p>
+        然后把 <code>hello</code> 拷贝到你的 Linux 机器上，将其标记为可执行：
+      </p>
+
+      <pre><code>chmod +x hello</code></pre>
+
+      <p>
+        然后正常运行它。
+      </p>
+    </section>
+
+    <section>
+      <h2>使用 GCC 编译 Windows 二进制文件</h2>
+      <p>
+        最容易使用的 GCC 工具链是：
+      </p>
+
+      <pre><code>x86_64-w64-mingw32.x86_64-w64-mingw32.tar.xz</code></pre>
+
+      <p>
+        这个工具链运行在 Windows 上，并产出 Windows 二进制文件。
+        你有两种使用方式：
+      </p>
+
+      <h3>1. 在 Windows 上编译</h3>
+      <p>
+        把工具链的 <code>bin</code> 目录加入你的 Windows <code>PATH</code>，然后编译：
+      </p>
+
+      <pre><code>g++ -o hello.exe hello.cpp -O3 -std=c++26 -s -flto</code></pre>
+
+      <p>
+        你可以在 Windows 上直接运行 <code>hello.exe</code>。
+      </p>
+
+      <h3>2. 在 Linux 上通过 Wine 编译</h3>
+      <p>
+        在 Linux 上，你可以通过 Wine 运行 Windows 版的 GCC 编译器。
+        设置 <code>WINEPATH</code> 以包含工具链的 <code>bin</code> 目录：
+      </p>
+
+      <pre><code>wine g++ -o hello.exe hello.cpp -O3 -std=c++26 -s -flto</code></pre>
+
+      <p>
+        这会产出 Windows 可执行文件，你可以这样运行：
+      </p>
+
+      <pre><code>wine ./hello.exe</code></pre>
+
+      <p>
+        这种方法通常比在 Linux 上配置本地 GCC 交叉编译器更简单。
+      </p>
+    </section>
+
+    <section>
+      <h2>关于面向 Linux 的 GCC 工具链</h2>
+      <p>
+        你也可以尝试这样的工具链：
+      </p>
+
+      <pre><code>x86_64-linux-gnu.x86_64-linux-gnu.tar.xz</code></pre>
+
+      <p>
+        然而，如果你使用的发行版带有较老版本的 <code>glibc</code>，
+        这样构建的 Linux 二进制文件可能无法运行。这是 GCC 构建的 Linux 二进制文件的常见问题。
+      </p>
+
+      <p>
+        Clang 避免了这个问题，因为它在交叉编译时不依赖宿主系统的 glibc 版本。
+      </p>
+    </section>
+
+    <section>
+      <h2>运行时库</h2>
+      <p>
+        GCC 二进制文件依赖 GNU C++ 运行时（<code>libstdc++</code>），有时还依赖其他 GCC 运行时库。
+        运行 GCC 构建的二进制文件时，你可能需要设置：
+      </p>
+
+      <ul>
+        <li><strong>LD_LIBRARY_PATH</strong>（Linux / BSD / Android）</li>
+        <li><strong>WINEPATH</strong>（如果在 Linux 下用 Wine 运行 Windows 二进制文件）</li>
+      </ul>
+
+      <p>
+        这些环境变量确保运行时库能被正确找到。
+      </p>
+    </section>
+
+    <section>
+      <h2>自行构建 GCC</h2>
+      <p>
+        GCC 官方鼓励用户从源码构建 GCC。
+        他们不提供官方的预构建二进制文件。
+      </p>
+
+      <p>
+        如果你打算自行构建 GCC，可以通过以下选项简化流程：
+      </p>
+
+      <pre><code>--disable-bootstrap</code></pre>
+
+      <p>
+        这可以避免多阶段的自我重建过程，并显著加快编译速度。
+      </p>
+
+      <p>
+        或者，你也可以直接在 Wine 下使用 Windows 版 GCC 二进制文件，这通常更容易，也能避免 glibc 兼容性问题。
+      </p>
+    </section>
+    <section>
+    <h2>后续章节：构建你自己的 GCC 与 LLVM 工具链</h2>
+    <p>
+        在本章中，我们只关注使用预构建的 GCC 工具链。
+        然而，GCC 和 LLVM 都可以完全从源码构建，包括完整的交叉编译器。
+    </p>
+    <p>
+        在后续章节中，我们将讲解如何使用<strong>加拿大编译</strong>来创建你自己的 GCC 与 LLVM
+        工具链——这是一种构建机、宿主机和目标机三者互不相同的技术。
+        它是为任意架构或操作系统生产可移植、可复现工具链的标准方法。
+    </p>
+    <p>
+        一旦你理解了加拿大编译，你就能完全在自己的系统上为 Linux、Windows、macOS、
+        Android、WebAssembly 等构建工具链。
+    </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/01.compile/05.testinstallation/" class="prev-button">← 第1.5章: 测试安装</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/01.compile/07.msvc/" class="next-button">第1.7章: MSVC（仅限 Windows） →</a>
+    </div>
+  </main>
+</body>
+</html>

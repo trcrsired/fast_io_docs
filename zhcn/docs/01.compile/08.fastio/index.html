@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第1.8章: fast_io - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第1.8章: fast_io</h1>
+
+    <section>
+      <h2>使用 fast_io（仅头文件）</h2>
+      <p>
+        在 <em>第1.5章</em> 中，我们克隆了 <strong>fast_io</strong> 仓库。
+        fast_io 是一个<strong>仅头文件</strong>的库，因此你不需要构建任何东西。
+        你只需把 <code>include</code> 目录加入编译器选项。
+      </p>
+
+      <p>
+        假设你把 fast_io 克隆到了：
+      </p>
+
+      <pre><code>$HOME/libraries/fast_io</code></pre>
+
+      <p>
+        那么你可以在程序中包含它：
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main() {
+    print("Hello from fast_io!\n");
+}
+</code></pre>
+
+      <p>
+        并通过添加以下选项来编译：
+      </p>
+
+      <pre><code>-I$HOME/libraries/fast_io/include</code></pre>
+
+      <p>
+        这会告诉编译器到哪里去找 <code>fast_io.h</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>两个必需的选项：<code>-fherbceptions -lherbceptions</code></h2>
+      <p>
+        fast_io 把<strong>每一个</strong>错误都报告为 <strong>herbception</strong>，
+        而 herbceptions 是一项编译器特性。所以仅靠 include 目录是不够的：你还需要
+        herbceptions 运行时，以及一个实现了该语言特性的编译器。
+      </p>
+      <ul>
+        <li>
+          <code>-fherbceptions</code> —— 打开 herbceptions。凡是包含 fast_io 的
+          翻译单元都必须传入它。
+        </li>
+        <li>
+          <code>-lherbceptions</code> —— 链接拥有错误域（error domain）的运行时库。
+        </li>
+      </ul>
+      <p>
+        只有<strong>我们的</strong> GCC 和 LLVM 构建支持 herbceptions。原版编译器
+        和 <strong>MSVC 则不支持</strong>——没有办法用 <code>cl.exe</code> 编译 fast_io。
+        完整解释以及每一条错误报告规则见
+        <a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章: Herbceptions</a>。
+      </p>
+      <p>
+        不需要别的东西：herbceptions 的头文件与库都是你所安装工具链的一部分，
+        所以 <code>-lherbceptions</code> 就是全部额外的添加。假设 fast_io 被克隆到
+        <code>$HOME/libraries/fast_io</code>：
+      </p>
+      <pre><code>
+FASTIO=$HOME/libraries/fast_io
+</code></pre>
+    </section>
+
+    <section>
+      <h2>用 Clang 编译</h2>
+      <p>
+        示例：使用 Clang 和 MSVC sysroot 构建一个 Windows MSVC 二进制文件：
+      </p>
+
+      <pre><code>
+clang++ --config=$HOME/cfgs/x86_64-windows-msvc.cfg \
+  -O3 -flto=thin -fherbceptions \
+  -I$FASTIO/include \
+  hello.cpp -lherbceptions -o hello.exe
+</code></pre>
+
+      <p>
+        herbceptions 运行时位于 sysroot 中：
+        链接时是 <code>lib/&lt;triple&gt;/herbceptions.lib</code>，
+        运行时是 <code>bin/&lt;triple&gt;/herbceptions.dll</code>（Wine 通过
+        <code>WINEPATH</code> 找到它）。我们的 MinGW g++ 用自己的导入库
+        复用同一个 DLL，并且需要 <code>-lntdll</code>，因为 fast_io 直接与 NT 打交道：
+      </p>
+
+      <pre><code>
+x86_64-w64-mingw32-g++ -o hello.exe hello.cpp \
+  -std=c++26 -O3 -s \
+  -fherbceptions \
+  -I$FASTIO/include \
+  -lherbceptions -lntdll
+
+wine ./hello.exe
+</code></pre>
+
+      <p>
+        要查看一个 Windows 二进制文件需要哪些 DLL，请使用 win-ldd：
+      </p>
+
+      <pre><code>
+wine $HOME/softwares/win-ldd/x86_64-windows-msvc/win-ldd.exe ./hello.exe
+</code></pre>
+
+      <div class="note">
+        <strong>关于这些选项的说明：</strong>MSVC sysroot 已经自带 Windows
+        的 herbceptions 运行时（链接用 <code>herbceptions.lib</code>，
+        运行时用 <code>herbceptions.dll</code>），所以 <code>--sysroot</code> 就能找到它，
+        永远不需要写 <code>-L</code>。GCC/GNU 目标的构建还会额外传入 <code>-s</code>
+        来剥离二进制文件。
+      </div>
+    </section>
+
+    <section>
+      <h2>用 GCC 编译</h2>
+      <p>
+        GCC 的工作方式相同，前提是使用我们带 herbceptions 的 GCC 构建：
+      </p>
+
+      <pre><code>
+g++ -o hello hello.cpp \
+  -std=c++26 -O3 -s -fuse-ld=lld \
+  -fherbceptions \
+  -I$FASTIO/include \
+  -lherbceptions
+</code></pre>
+
+    </section>
+
+    <section>
+      <h2>不支持 MSVC（cl.exe）</h2>
+      <p>
+        对 fast_io 而言，MSVC <strong>不是受支持的编译器</strong>。它没有
+        <code>-fherbceptions</code>，而 fast_io 通过 herbception 通道报告每一个错误，
+        因此本教程的错误契约无法用它表达。请使用我们的 GCC 或
+        LLVM 分支。
+      </p>
+      <p>
+        在 Windows 上，请使用我们面向 <code>x86_64-windows-msvc</code> 的 Clang（就是
+        上面那条命令——它产出一个普通的 Windows 二进制文件，用
+        <code>lld</code> 链接），或者我们的 MinGW GCC。<code>cl.exe</code> 和 Visual Studio 的
+        常规 C++ 工具集都不参与其中。
+      </p>
+    </section>
+
+    <section>
+      <h2>使用 fast_io 模块</h2>
+      <p>
+        fast_io 也提供 C++20 模块文件。
+        它们位于：
+      </p>
+
+      <pre><code>{fast_io_cloned_dir}/share/fast_io</code></pre>
+
+      <p>示例目录：</p>
+
+      <pre><code>
+/Users/username/libraries/fast_io/share/fast_io
+</code></pre>
+
+      <p>内容：</p>
+
+      <pre><code>
+fast_io.cppm
+fast_io_crypto.cppm
+fast_io_legacy.cppm
+fast_io_inc/
+</code></pre>
+
+      <h3>如何导入模块</h3>
+
+      <p>
+        创建一个文件 <code>hello.cpp</code>：
+      </p>
+
+      <pre><code class="language-cpp">
+import fast_io;
+
+int main() {
+    using namespace ::fast_io::io;
+    print("Hello from fast_io module!\n");
+}
+</code></pre>
+
+      <h3>用 Clang 编译 fast_io 模块</h3>
+
+      <p>
+        首先，编译模块接口：
+      </p>
+
+      <pre><code>
+clang++ --config=$HOME/cfgs/x86_64-linux-gnu-libcxx.cfg \
+  -O2 -fherbceptions -I$FASTIO/include \
+  -x c++-module $FASTIO/share/fast_io/fast_io_json.cppm \
+  -o fast_io.json.pcm --precompile
+</code></pre>
+
+      <p>
+        然后用该 PCM 编译你的程序：
+      </p>
+
+      <pre><code>
+clang++ --config=$HOME/cfgs/x86_64-linux-gnu-libcxx.cfg \
+  -O2 -fherbceptions -I$FASTIO/include \
+  -fmodule-file=fast_io.json=fast_io.json.pcm \
+  hello.cpp fast_io.json.pcm -lherbceptions \
+  -o hello
+</code></pre>
+
+      <p>
+        模块只需预编译一次，之后即可导入；导入处除了
+        <code>#include &lt;herbceptions/error&gt;</code>（当你想自己编写
+        <code>catch throws</code> 处理程序时）之外，不需要头文件里的任何东西。
+      </p>
+
+      <div class="note">
+        <strong>关于模块文件名的状态：</strong>
+        <code>fast_io_json.cppm</code> 目前可以干净地预编译并导入，也是本示例所用的那个。
+        总括式的 <code>fast_io.cppm</code> 仍在追赶头文件，所以如果预编译它在失败，
+        请改用头文件接口（<code>#include &lt;fast_io.h&gt;</code>）——本教程其余部分
+        用的就是这个。
+      </div>
+
+      <h3>用 GCC 编译 fast_io 模块</h3>
+
+      <p>
+        GCC 的模块支持仍是实验性的，而且我们带 herbceptions 的 GCC 构建
+        在某些 fast_io 模块单元上已知会崩溃（<code>ICE</code>）——请用 Clang 编译
+        这组模块，或者用 GCC 时改用头文件接口。
+      </p>
+
+      <pre><code>
+g++ -std=c++26 -fmodules -fherbceptions -O3 -s -fuse-ld=lld \
+  -c $FASTIO/share/fast_io/fast_io_json.cppm \
+  -I$FASTIO/include \
+  -o fast_io.json.gcm
+
+g++ -std=c++26 -fmodules -fherbceptions -O3 -s -fuse-ld=lld hello.cpp \
+  fast_io.json.gcm \
+  -I$FASTIO/include \
+  -lherbceptions \
+  -o hello
+</code></pre>
+
+      <h3>MSVC 无法编译该模块</h3>
+
+      <p>
+        MSVC 不是 fast_io 支持的编译器：它没有 herbceptions，而库中的每个错误
+        都被报告为 herbception。我们的 GCC 和 LLVM 分支是本教程唯一支持的编译器。
+        Windows 二进制文件是用我们面向 MSVC ABI 的 Clang（或我们的 MinGW GCC）构建的——
+        产出的可执行文件是普通的 Windows 二进制文件，只不过不是由
+        <code>cl.exe</code> 生成的而已。
+      </p>
+    </section>
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>fast_io 是仅头文件的——不需要构建步骤。</li>
+        <li>把 <code>-I{fast_io}/include</code> 加入你的编译器选项。</li>
+        <li>Clang、GCC 和 MSVC 都能与 fast_io 配合使用。</li>
+        <li>fast_io 还在 <code>share/fast_io</code> 中提供了模块。</li>
+        <li>模块需要一个单独的编译步骤来生成 <code>.pcm</code>、<code>.gcm</code> 或 <code>.ifc</code>。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/01.compile/07.msvc/" class="prev-button">← 第1.7章: MSVC</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/" class="next-button">第2章: 基础 →</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>fast_io - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>fast_io</h1>
+    <section>
+      <h2>早期的发现</h2>
+      <p>
+        我构建全新 I/O 库的兴趣始于高中时期。在浏览网上的性能基准
+        并进行我自己的测试时，我发现 <code>ifstream</code> 和 <code>stdio</code>
+        都慢得令人痛苦。在许多情况下，相比把整个文件直接读入内存并手工解析，
+        它们至少<strong>慢 5 倍</strong>，在某些平台上甚至
+        <strong>慢 10 到 100 倍</strong>。
+      </p>
+      <p>
+        这种低效让我确信，C++ 中的标准 I/O 设施
+        在根本上有缺陷，需要彻底的重新思考。
+      </p>
+    </section>
+
+    <section>
+      <h2>泛型编程 vs. 面向对象</h2>
+      <p>
+        我非常欣赏 C++ 标准库容器与算法中所使用的
+        <strong>泛型编程范式</strong>。它们展示了模板如何
+        同时提供灵活性与性能。然而，C++ 中的 I/O 却显得
+        格格不入：<code>iostream</code> 严重依赖面向对象编程，
+        其核心是虚继承。这种设计选择带来了复杂性与低效，
+        与语言其他地方泛型编程的优雅形成了鲜明对比。
+      </p>
+    </section>
+
+    <section>
+      <h2>格式字符串的问题</h2>
+      <p>
+        另一个主要的不满是它对<strong>格式字符串</strong>的依赖。
+        我一直认为它们是多余且不安全的。我多年使用
+        <strong>Lua</strong> 编程的经历，特别是在开发《魔兽世界》插件时，
+        给了我不同的视角。Lua 的默认做法常常比 C++ 更正确，
+        尽管 Lua 本身也有它的缺陷。
+      </p>
+      <p>
+        我逐渐相信格式字符串应当被彻底消除。无论你如何约束它们——
+        即使在编译期——它们依然脆弱。宏、代码生成器，
+        甚至 AI 生成的代码都能重新引入格式字符串漏洞。
+        复杂性从未真正消失。在我看来，格式字符串是一个<strong>万亿美元级的历史错误</strong>，
+        堪与臭名昭著的 <code>gets()</code> 函数相比。既然 <code>gets()</code>
+        本身就是 <code>stdio</code> 中的一个 I/O 函数，这只会进一步强化我的信念：
+        整个 <code>stdio</code> 系统是极其危险的。
+      </p>
+    </section>
+
+    <section>
+      <h2>fast_io 的诞生</h2>
+      <p>
+        2013 年，当 Bjarne Stroustrup 在 CppCon 上介绍 <strong>concepts 原型</strong>时，
+        我有一个突破性的想法：为什么不用 concepts 重写整个
+        I/O 子系统呢？那一刻 <strong>fast_io</strong> 就诞生了——至少在
+        理论上。我用 GCC 的实验性 concepts 实现构建了一个早期原型，
+        只是为了证明这个想法是可行的。
+      </p>
+      <p>
+        遗憾的是，当时 concepts 还不成熟，只以
+        技术规范（TS）的形式存在。缺少恰当的标准库支持，
+        <strong>fast_io</strong> 无法超越原型阶段。真正的
+        实现直到 2020 年前后才认真开始，那时 concepts 已成为
+        主流 C++ 的一部分。
+      </p>
+    </section>
+
+    <section>
+      <h2>打磨与哲学</h2>
+      <p>
+        即使在 2020 年之后，<strong>fast_io</strong> 仍然经历了多轮
+        重构。我的目标不只是让它能工作，而是让它
+        <em>优秀</em>——优雅、可移植且健壮。由于它基于 concepts，
+        这个库被设计为可在所有平台上工作，甚至在没有操作系统的环境中也能工作。
+      </p>
+      <p>
+        Herb Sutter 关于 <strong>Herbceptions</strong> 的演讲进一步影响了我的愿景。
+        由于 I/O 是 C++ 中异常的最大消耗者之一，我意识到
+        <strong>fast_io</strong> 最终需要集成 Herbceptions，才能真正
+        完成它的设计。在那之前，这个库会继续
+        演进，随着设计成熟，API 也会逐步稳定。
+      </p>
+    </section>
+
+    <section>
+      <h2>向后兼容</h2>
+      <p>
+        <strong>fast_io</strong> 的一个关键设计原则是向后兼容。
+        这个库被构建为可与多种现有系统互操作：
+        <code>wine</code>（宿主文件描述符）、<code>NT</code> 句柄、
+        <code>Win32</code> 句柄、<code>POSIX</code> 文件描述符、
+        <code>stdio</code>，甚至 <code>iostream/fstream</code> 中的
+        <code>filebuf</code>。我们投入了大量精力，让这些
+        系统在统一的接口下彼此兼容。
+      </p>
+    </section>
+
+    <section>
+      <h2>Freestanding 环境</h2>
+      <p>
+        由于 <strong>fast_io</strong> 意在随处可用，包括
+        freestanding 环境，我逐渐意识到 C++ 社区所倡导的
+        许多特性——异常处理（EH）、RTTI、<code>vector</code>、
+        <code>array</code> 等等——在宿主环境之外根本无法可靠工作。
+        这进一步强化了需要这样一个库：既
+        <strong>对 freestanding 友好</strong>，在概念上又足够现代。
+      </p>
+    </section>
+
+    <section>
+      <h2>展望未来</h2>
+      <p>
+        <strong>fast_io</strong> 不只是一个 I/O 库。它是一个概念验证——
+        向 WG21 和更广泛的 C++ 社区展示 I/O 可以用现代语言特性
+        重新构想。它是对低效、冗余和过时设计模式的一次
+        宣言。它也是致力于构建既快速又在概念上干净的
+        工具的承诺。
+      </p>
+    </section>
+    <section>
+    <h2>视频介绍</h2>
+    <p>
+        下面这个演讲进一步阐释了 <strong>fast_io</strong> 背后的理念：
+    </p>
+    <div class="video-container">
+    <iframe 
+        src="https://www.youtube.com/embed/CefgZlXeMUg" 
+        title="YouTube video player" 
+        frameborder="0" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen>
+    </iframe>
+    </div>
+    </section>
+    <!-- Add this after the last section -->
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/00.intro/" class="prev-button">← 第0章: 介绍</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/01.compile/" class="next-button">第1章: 编译 →</a>
+    </div>
+    </main>
+
+</body>
+</html>
