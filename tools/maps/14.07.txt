@@ -1,0 +1,18 @@
+1|第14.7章: swap - 使用 fast_io 学习 C++ 教程
+2|第14.7章: swap：交换两个拥有者
+3|1. <code>swap</code> 必须做什么
+4|对资源拥有者来说，<code>swap</code> 交换的是两个对象各自拥有的资源。它不复制、不关闭、不分配：它交换两个句柄。
+5|三次 <code>int</code> 写入加一个临时变量。它不会失败，所以它是 <code>noexcept</code> &mdash; 而这不是细节：正是 <code>swap</code> 的 <code>noexcept</code> 让<a href="/docs/14.fiverules/08.copyandswap/">复制并交换</a>给出强保证。
+6|2. 自由函数，以及它为什么存在
+7|对 <code>a.swap(b)</code> 来说成员函数就够了。自由函数是让裸的 <code>swap(a, b)</code> 能工作的东西：
+8|它住在与类相同的命名空间里，实参依赖查找（<a href="/docs/13.class/10.friend/">第13.10章</a>）会在那里找到它。于是说 <code>swap(x, y)</code>（而不是 <code>::std::swap(x, y)</code>）的泛型代码，在类型有自己的版本时选中你的，否则退回 <code>::std::swap</code>。两个都写：成员函数干活，自由函数让名字可被找到。
+9|3. 没有你的版本时 <code>::std::swap</code> 做什么
+10|标准的 <code>::std::swap</code> 是用一次移动加两次移动赋值实现的：
+11|对我们的类来说那是三次描述符交换，所以结果相同 &mdash; 下面的程序用了三种写法，每种打印出的数字都一样。它正确，仅仅因为移动操作是 <code>noexcept</code>，并且移动赋值释放了它该释放的东西；如果其中任何一个错了，<code>::std::swap</code> 也就错了，而且错在离 bug 很远的地方。
+12|读最后两行：与一个默认构造的（空的）对象交换，就是你<strong>释放</strong>一个资源并把它保存在别处的办法。<code>a</code> 最终什么都不拥有，<code>empty</code> 拥有那个文件；<code>empty</code> 消亡时文件关闭。这个技巧值得记住 &mdash; 它就是你把资源停放在一个局部对象里、让析构函数去处理的办法。
+13|4. 检查它真的不会失败
+14|<code>::std::is_nothrow_swappable_v</code> 是一个有编译期答案的编译期问题，也正是容器和算法所检验的性质：
+15|如果你把 <code>swap</code> 写成复制式的 &mdash; 例如 <code>my_posix_file tmp{other}; other = *this; *this = tmp;</code> &mdash; 那个断言就会失败，因为复制一个文件可能失败，而这理所应当。
+16|5. swap 是提交原语
+17|复制赋值（<a href="/docs/14.fiverules/04.copyassignment/">第14.4章</a>）在临界线之后以一条不会失败的语句结束。对一个只有一个资源的类来说，那条语句是 <code>reset(newfd)</code>。对有多个成员的类来说，没有单一的 <code>reset</code>，但总有一个 <code>swap</code> &mdash; 那就是下一个子章的主题。
+18|<a href="/docs/14.fiverules/06.moveassignment/" class="prev-button">&larr; 第14.6章: 移动赋值</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/14.fiverules/08.copyandswap/" class="next-button">第14.8章: 复制并交换 &rarr;</a>

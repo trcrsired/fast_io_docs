@@ -1,0 +1,85 @@
+1|第14.11章: 完整的类，以及 fast_io 的 posix_file - 使用 fast_io 学习 C++ 教程
+2|第14.11章: 完整的类，以及 fast_io 的 posix_file
+3|1. 完整的类
+4|前面九个子章的全部内容，汇成一块。在顶部加上 <code>#include &lt;fast_io.h&gt;</code> 与 <code>#include &lt;fast_io_dsal/string_view.h&gt;</code>，它就是一个完整的头文件，里面没有别的代码：一个 <code>int</code>、六个特殊成员、<code>swap</code>，以及使它成为一个文件的两种操作。
+5|从上往下读，你就能看到整章：<code>reset</code> 是唯一的 <code>::close</code>（<a href="/docs/14.fiverules/02.destructor/">第14.2章</a>）；复制构造函数做复制（<a href="/docs/14.fiverules/03.copyconstructor/">第14.3章</a>）；复制赋值有那条临界线（<a href="/docs/14.fiverules/04.copyassignment/">第14.4章</a>）；移动构造函数清空它的源（<a href="/docs/14.fiverules/05.moveconstructor/">第14.5章</a>）；移动赋值有自检查（<a href="/docs/14.fiverules/06.moveassignment/">第14.6章</a>）；<code>swap</code> 是三次写入（<a href="/docs/14.fiverules/07.swap/">第14.7章</a>）。凡是只搬一个数字的都是 <code>noexcept</code>；凡是调用内核的都是 <code>throws</code> &mdash; 即<a href="/docs/14.fiverules/09.exceptionsafety/">第14.9章</a>的分类，在声明处就看得见。
+6|2. 使用它
+7|这个类与本教程的其他一切都能配合：它能进 <code>::fast_io::vector</code>，因为它的移动是 <code>noexcept</code>；它能挺过容器的重新分配，因为移动赋值释放了它该释放的东西；而 <code>swap</code> 在一次系统调用都没有的情况下，把所有权在 vector 和一个局部对象之间搬移。
+8|3. 每条规则是在哪里讲的
+9|代码中
+10|规则
+11|子章
+12|<code>int fd_{-1};</code>
+13|空状态是设计的一部分
+14|<a href="/docs/14.fiverules/01.ownership/">第14.1章</a>
+15|<code>~my_posix_file() noexcept</code>
+16|只有一个地方释放，而且它不会失败
+17|<a href="/docs/14.fiverules/02.destructor/">第14.2章</a>
+18|<code>my_posix_file(my_posix_file const &amp;)</code>
+19|副本就是第二个描述符
+20|<a href="/docs/14.fiverules/03.copyconstructor/">第14.3章</a>
+21|<code>operator=(my_posix_file const &amp;)</code>
+22|临界线
+23|<a href="/docs/14.fiverules/04.copyassignment/">第14.4章</a>
+24|<code>my_posix_file(my_posix_file &amp;&amp;)</code>
+25|先夺取，再清空源
+26|<a href="/docs/14.fiverules/05.moveconstructor/">第14.5章</a>
+27|<code>operator=(my_posix_file &amp;&amp;)</code>
+28|先释放，再夺取；自检查
+29|<a href="/docs/14.fiverules/06.moveassignment/">第14.6章</a>
+30|<code>void swap(my_posix_file &amp;) noexcept</code>
+31|提交所由构成的那个原语
+32|<a href="/docs/14.fiverules/07.swap/">第14.7章</a>
+33|那些 <code>if (fd == -1)</code> 检查
+34|空状态是有效的，不是错误
+35|<a href="/docs/14.fiverules/10.movedfrom/">第14.10章</a>
+36|4. fast_io 的 <code>posix_file</code> 多了什么
+37|真正的那个位于 <code>include/fast_io_hosted/platforms/posix/file.h</code>，它是 <code>basic_posix_family_file</code>，也就是同一个类，加上库需要而教程不需要的那些部分：
+38|<strong>它是模板。</strong><code>family</code> 与 <code>ch_type</code> 意味着同一份代码服务 <code>posix_file</code>、<code>u8posix_file</code>、<code>wposix_file</code> 以及 Win32/NT 家族。那是<a href="/docs/15.template/">第15章</a>的活。
+39|<strong>它是 <code>io_observer</code> 基类加一个文件。</strong>观察者知道如何读、写、散布、聚集和查询描述符；文件在其上增加所有权。fast_io 的整个设计就是“句柄”与“句柄的拥有者”之间的这种切分。
+40|<strong>路径是模板参数。</strong><code>::fast_io::constructible_to_os_c_str</code> 接受 <code>cstring_view</code>、<code>::fast_io::string</code> 或普通字面量，并转换成平台想要的形式。我们只接受 <code>::fast_io::cstring_view</code>，别的都不接受，好让示例保持可读。
+41|<strong>它有一个会报告的 <code>close()</code>。</strong><code>::close</code> 可能失败，而调用者可能在意；所以这个类在 <code>noexcept</code> 析构函数旁边提供了 <code>void close() throws</code> &mdash; 就是<a href="/docs/14.fiverules/02.destructor/">第14.2章</a>讲的那种切分。
+42|<strong>它懂 Windows。</strong>同一个文件还带着 Cygwin、Wine、NT 和 Win32 的构造函数，它的长度大部分来自这些。我们的精简版一点都没有。
+43|<strong>它删除了危险的转换。</strong>从 <code>io_observer</code> 构造文件会把一个句柄变成两个所有者，所以那个构造函数是 <code>= delete</code>，正如<a href="/docs/14.fiverules/03.copyconstructor/">第14.3章</a>所建议的。
+44|这些附加物没有一条改变了这些页面上的任何规则。这正是用一个五十行的类来学它们的意义：五千行的类的第五条规则还是同一条规则。
+45|5. 零法则
+46|在你写出其中任何一个之前，先检查你是否必须写。如果你类的每个成员本身已经是行为良好的值 &mdash; 一个 <code>int</code>、一个 <code>::fast_io::string</code>、一个 <code>::fast_io::vector</code> &mdash; 那么编译器生成的复制、移动和析构<em>全都正确</em>，你一个都不该写：
+47|这就是<a href="/docs/13.class/">第13章</a>从未提到这些的原因：一个由数字和字符串构成的类一个都不需要。五法则是拥有裸资源的代价，而支付它最便宜的方式就是不去拥有 &mdash; 把那个 <code>int</code> 放进一个已经实现了五法则的类里，让组合来干活。
+48|6. 检查清单
+49|这个类拥有资源吗？如果不拥有，五者一个都不要写。
+50|有表示“不拥有任何东西”的哨兵值，并且在成员处初始化了吗？
+51|是否恰好只有一个地方释放它，而那个地方是 <code>noexcept</code> 吗？
+52|析构函数处理空状态时，是否不调用任何系统函数？
+53|复制构造函数是否产生<em>新</em>资源，或者复制是否已被删除？
+54|复制赋值是否在临界线之前完成了所有可能失败的工作？
+55|移动赋值是否清空了它的源？
+56|移动赋值是否检查了自赋值？
+57|<code>swap</code> 是 <code>noexcept</code> 吗？是否也有一个自由 <code>swap</code>？
+58|你能说出每个成员函数的异常安全级别吗？
+59|7. 错误，以及它们长什么样
+60|错误
+61|症状
+62|没有析构函数
+63|描述符不断积累，直到 <code>::open</code> 以 <code>EMFILE</code> 失败
+64|对句柄做逐成员复制
+65|两次 <code>::close</code>，或者关闭一个现在属于别的文件的描述符
+66|移动构造函数没有清空源
+67|一个描述符有两个所有者；同样的双重关闭，但更晚、更难找
+68|复制赋值里先释放后获取
+69|一次失败的赋值毁掉了它正在赋值的那个对象
+70|移动赋值里没有自检查
+71|自移动会悄悄关闭文件
+72|复制赋值里有自检查（<code>if (this == &amp;other)</code>）
+73|无害，但它掩盖了“顺序从未被修正”这个事实
+74|移动构造函数不是 <code>noexcept</code>
+75|<code>static assertion failed: vector element types must be nothrow move constructible or trivially relocatable</code>
+76|会报告的析构函数
+77|<code>destructor cannot be declared with a herbceptions ('throws'/'return_failure{E}') exception specification</code>
+78|会打印的析构函数
+79|<code>call to a 'throws' or 'return_failure{E}' function must be handled by an enclosing 'try { } catch throws'</code>
+80|复制一个被移出的文件
+81|运行期的 <code>[posix](9)Bad file number</code> &mdash; 这是设计如此，不是意外
+82|8. 接下来是什么
+83|这个类是为一种字符类型和一个平台家族写的。下一章把它变成模板，让同一份代码服务 <code>char</code>、<code>char8_t</code>、<code>wchar_t</code> 以及 Windows 各后端 &mdash; 而你会认出其中的每一行，因为模板不改变五法则，它们只是为更多类型重复它。
+84|另一个方向是<a href="/docs/16.operatoroverloading/">第16章</a>：<code>&lt;&lt;</code>、<code>==</code> 之类的运算符可以为一个像这样的类编写，而它们恰好提出你刚刚回答过的那些关于复制、移动和失败的问题。
+85|<a href="/docs/14.fiverules/10.movedfrom/" class="prev-button">&larr; 第14.10章: 被移出的对象</a> <a href="/" class="main-button">&uarr; 主页</a>

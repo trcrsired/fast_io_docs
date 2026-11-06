@@ -3,23 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch14.7: swap: Exchanging Two Owners - C++ Tutorial with fast_io</title>
+  <title>第14.7章: swap - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch14.7: swap: Exchanging Two Owners</h1>
+    <h1>第14.7章: swap：交换两个拥有者</h1>
     <p class="lang-switch"><a href="/docs/14.fiverules/07.swap/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
     <section>
-      <h2>1. What <code>swap</code> Has to Do</h2>
+      <h2>1. <code>swap</code> 必须做什么</h2>
 
 
       <p>
-        For a resource owner, <code>swap</code> exchanges which resource each object owns. It
-        does not copy, does not close, does not allocate: it exchanges two handles.
+        对资源拥有者来说，<code>swap</code> 交换的是两个对象各自拥有的资源。它不复制、不关闭、不分配：它交换两个句柄。
       </p>
       <pre><code class="language-cpp">
 	void swap(my_posix_file &amp;other) noexcept
@@ -30,20 +28,16 @@
 	}
 </code></pre>
       <p>
-        Three <code>int</code> writes and a temporary. It cannot fail, so it is
-        <code>noexcept</code> &mdash; and that is not a detail: <code>swap</code> being
-        <code>noexcept</code> is what makes <a href="/zhcn/docs/14.fiverules/08.copyandswap/">copy and
-        swap</a> give the strong guarantee.
+        三次 <code>int</code> 写入加一个临时变量。它不会失败，所以它是 <code>noexcept</code> &mdash; 而这不是细节：正是 <code>swap</code> 的 <code>noexcept</code> 让<a href="/zhcn/docs/14.fiverules/08.copyandswap/">复制并交换</a>给出强保证。
       </p>
 
     </section>
     <section>
-      <h2>2. The Free Function, and Why It Exists</h2>
+      <h2>2. 自由函数，以及它为什么存在</h2>
 
 
       <p>
-        A member function is enough for <code>a.swap(b)</code>. The free function is what makes
-        plain <code>swap(a, b)</code> work:
+        对 <code>a.swap(b)</code> 来说成员函数就够了。自由函数是让裸的 <code>swap(a, b)</code> 能工作的东西：
       </p>
       <pre><code class="language-cpp">
 inline void swap(my_posix_file &amp;a, my_posix_file &amp;b) noexcept
@@ -52,22 +46,16 @@ inline void swap(my_posix_file &amp;a, my_posix_file &amp;b) noexcept
 }
 </code></pre>
       <p>
-        It lives in the same namespace as the class, which is where argument-dependent lookup
-        (<a href="/zhcn/docs/13.class/10.friend/">Ch13.10</a>) will find it. Generic code that says
-        <code>swap(x, y)</code> &mdash; not <code>::std::swap(x, y)</code> &mdash; then picks
-        yours when the type has one, and falls back to
-        <code>::std::swap</code> otherwise. Write both: the member does the work, the free
-        function makes the name findable.
+        它住在与类相同的命名空间里，实参依赖查找（<a href="/zhcn/docs/13.class/10.friend/">第13.10章</a>）会在那里找到它。于是说 <code>swap(x, y)</code>（而不是 <code>::std::swap(x, y)</code>）的泛型代码，在类型有自己的版本时选中你的，否则退回 <code>::std::swap</code>。两个都写：成员函数干活，自由函数让名字可被找到。
       </p>
 
     </section>
     <section>
-      <h2>3. What <code>::std::swap</code> Does Without Yours</h2>
+      <h2>3. 没有你的版本时 <code>::std::swap</code> 做什么</h2>
 
 
       <p>
-        The standard <code>::std::swap</code> is implemented with a move and two move
-        assignments:
+        标准的 <code>::std::swap</code> 是用一次移动加两次移动赋值实现的：
       </p>
       <pre><code class="language-cpp">
 template &lt;typename T&gt;
@@ -79,11 +67,7 @@ void swap(T &amp;a, T &amp;b) noexcept(...)
 }
 </code></pre>
       <p>
-        For our class that is three descriptor exchanges, so it produces the same result
-        &mdash; the program below uses all three spellings and prints the same numbers for
-        each. It is only correct because the move operations are <code>noexcept</code> and
-        because move assignment releases what it should; if any of those were wrong,
-        <code>::std::swap</code> would be wrong too, in a place far from the bug.
+        对我们的类来说那是三次描述符交换，所以结果相同 &mdash; 下面的程序用了三种写法，每种打印出的数字都一样。它正确，仅仅因为移动操作是 <code>noexcept</code>，并且移动赋值释放了它该释放的东西；如果其中任何一个错了，<code>::std::swap</code> 也就错了，而且错在离 bug 很远的地方。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -194,73 +178,60 @@ int main()
 	println("a = ", a.native_handle(), ", b = ", b.native_handle());
 
 	a.swap(b);
-	println("after a.swap(b): a = ", a.native_handle(), ", b = ", b.native_handle());
+	println("after a.swap(b):               a = ", a.native_handle(), ", b = ", b.native_handle());
 
 	swap(a, b);
-	println("after swap(a, b): a = ", a.native_handle(), ", b = ", b.native_handle());
+	println("after swap(a, b):              a = ", a.native_handle(), ", b = ", b.native_handle());
 
 	::std::swap(a, b);
-	println("after ::std::swap(a, b): a = ", a.native_handle(), ", b = ", b.native_handle());
+	println("after ::std::swap(a, b):       a = ", a.native_handle(), ", b = ", b.native_handle());
 
 	my_posix_file empty;
 	a.swap(empty);
-	println("after a.swap(empty): a = ", a.native_handle(), ", empty = ", empty.native_handle());
+	println("after a.swap(empty):           a = ", a.native_handle(), ", empty = ", empty.native_handle());
 	println("a.is_open() = ", a.is_open(), ", empty.is_open() = ", empty.is_open());
 }
 </code></pre>
       <pre><code class="language-text">
 a = 3, b = 4
-after a.swap(b): a = 4, b = 3
-after swap(a, b): a = 3, b = 4
-after ::std::swap(a, b): a = 4, b = 3
-after a.swap(empty): a = -1, empty = 4
+after a.swap(b):               a = 4, b = 3
+after swap(a, b):              a = 3, b = 4
+after ::std::swap(a, b):       a = 4, b = 3
+after a.swap(empty):           a = -1, empty = 4
 a.is_open() = 0, empty.is_open() = 1
 </code></pre>
       <p>
-        Read the last two lines: swapping with a default-constructed (empty) object is how you
-        <strong>release</strong> a resource and keep it alive somewhere else. <code>a</code>
-        ends up owning nothing and <code>empty</code> owns the file; when
-        <code>empty</code> dies, the file closes. That trick is worth remembering &mdash; it is
-        how you park a resource in a local object and let a destructor take care of it.
+        读最后两行：与一个默认构造的（空的）对象交换，就是你<strong>释放</strong>一个资源并把它保存在别处的办法。<code>a</code> 最终什么都不拥有，<code>empty</code> 拥有那个文件；<code>empty</code> 消亡时文件关闭。这个技巧值得记住 &mdash; 它就是你把资源停放在一个局部对象里、让析构函数去处理的办法。
       </p>
 
     </section>
     <section>
-      <h2>4. Checking That It Really Cannot Fail</h2>
+      <h2>4. 检查它真的不会失败</h2>
 
 
       <p>
-        <code>::std::is_nothrow_swappable_v</code> is a compile-time question with a
-        compile-time answer, and it is the property containers and algorithms test for:
+        <code>::std::is_nothrow_swappable_v</code> 是一个有编译期答案的编译期问题，也正是容器和算法所检验的性质：
       </p>
       <pre><code class="language-cpp">
 static_assert(::std::is_nothrow_swappable_v&lt;my_posix_file&gt;);
 </code></pre>
       <p>
-        If you had written <code>swap</code> by copying instead &mdash; for instance
-        <code>my_posix_file tmp{other}; other = *this; *this = tmp;</code> &mdash; the
-        assertion would fail, because copying a file can fail, and rightly so.
+        如果你把 <code>swap</code> 写成复制式的 &mdash; 例如 <code>my_posix_file tmp{other}; other = *this; *this = tmp;</code> &mdash; 那个断言就会失败，因为复制一个文件可能失败，而这理所应当。
       </p>
 
     </section>
     <section>
-      <h2>5. swap Is the Commit Primitive</h2>
+      <h2>5. swap 是提交原语</h2>
 
 
       <p>
-        Copy assignment (<a href="/zhcn/docs/14.fiverules/04.copyassignment/">Ch14.4</a>) ended with
-        a single infallible statement after the critical line. For a class with one resource
-        that statement was <code>reset(newfd)</code>. For a class with several members there is
-        no single <code>reset</code>, but there is always a <code>swap</code> &mdash; and that
-        is the subject of the next subchapter.
+        复制赋值（<a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章</a>）在临界线之后以一条不会失败的语句结束。对一个只有一个资源的类来说，那条语句是 <code>reset(newfd)</code>。对有多个成员的类来说，没有单一的 <code>reset</code>，但总有一个 <code>swap</code> &mdash; 那就是下一个子章的主题。
       </p>
 
     </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/14.fiverules/06.moveassignment/" class="prev-button">&larr; Ch14.6: Move Assignment</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/14.fiverules/08.copyandswap/" class="next-button">Ch14.8: Copy and Swap &rarr;</a>
+      <a href="/zhcn/docs/14.fiverules/06.moveassignment/" class="prev-button">&larr; 第14.6章: 移动赋值</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/14.fiverules/08.copyandswap/" class="next-button">第14.8章: 复制并交换 &rarr;</a>
     </div>
   </main>
 </body>

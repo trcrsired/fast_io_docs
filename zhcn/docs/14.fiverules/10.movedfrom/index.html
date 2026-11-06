@@ -3,88 +3,76 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch14.10: Self-Assignment and Moved-From Objects - C++ Tutorial with fast_io</title>
+  <title>第14.10章: 自赋值与已移出的对象 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch14.10: Self-Assignment and Moved-From Objects</h1>
+    <h1>第14.10章: 自赋值与已移出的对象</h1>
     <p class="lang-switch"><a href="/docs/14.fiverules/10.movedfrom/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
     <section>
-      <h2>1. Self-Assignment, Both Kinds</h2>
+      <h2>1. 自赋值，两种情形</h2>
 
 
       <p>
-        <code>a = a</code> happens in real code more often than people expect: through a
-        reference, an index (<code>v[i] = v[j]</code> with <code>i == j</code>), a template that
-        does not know the two arguments are the same object. The two assignments treat it
-        differently, and both are correct:
+        <code>a = a</code> 在真实代码中出现的频率超出人们的预期：通过引用、通过下标（<code>v[i] = v[j]</code> 且 <code>i == j</code>）、通过一个不知道两个实参是同一对象的模板。两种赋值对它的处理不同，而两者都正确：
       </p>
       <table>
         <thead>
-          <tr><th></th><th>self-copy <code>a = a</code></th><th>self-move <code>a = std::move(a)</code></th></tr>
+          <tr><th></th><th>自复制 <code>a = a</code></th><th>自移动 <code>a = std::move(a)</code></th></tr>
         </thead>
         <tbody>
           <tr>
-            <td>needs a check</td>
-            <td>no</td>
-            <td><strong>yes</strong></td>
+            <td>需要检查</td>
+            <td>不需要</td>
+            <td><strong>需要</strong></td>
           </tr>
           <tr>
-            <td>why</td>
-            <td>the duplicate is taken before anything is closed</td>
-            <td>the old resource is released before anything is taken</td>
+            <td>为什么</td>
+            <td>副本在任何东西被关闭之前就取到了</td>
+            <td>旧资源在任何东西被夺取之前就被释放了</td>
           </tr>
           <tr>
-            <td>observable effect</td>
-            <td>the descriptor number may change; the file does not</td>
-            <td>nothing at all</td>
+            <td>可观察的影响</td>
+            <td>描述符的编号可能变；文件不变</td>
+            <td>完全没有</td>
           </tr>
         </tbody>
       </table>
       <p>
-        The full argument is in <a href="/zhcn/docs/14.fiverules/04.copyassignment/">Ch14.4</a> and
-        <a href="/zhcn/docs/14.fiverules/06.moveassignment/">Ch14.6</a>; this subchapter is about the
-        state the object is in <em>after</em> a move, which is the other half of the same
-        subject.
+        完整论证见<a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章</a>与<a href="/zhcn/docs/14.fiverules/06.moveassignment/">第14.6章</a>；本子章讲的是移动<em>之后</em>对象所处的状态，那是同一个主题的另一半。
       </p>
 
     </section>
     <section>
-      <h2>2. The Contract of a Moved-From Object</h2>
+      <h2>2. 被移出对象的契约</h2>
 
 
       <p>
-        The standard says a moved-from object is <strong>valid but unspecified</strong>: you may
-        destroy it, assign to it, and call members whose preconditions it meets &mdash; nothing
-        more. &ldquo;Unspecified&rdquo; is not a licence to be mysterious, though: a class
-        should <em>document</em> what its moved-from state is, and ours is:
+        标准说被移出的对象是<strong>有效但未指定</strong>的：你可以销毁它、给它赋值，并调用它满足前置条件的成员 &mdash; 仅此而已。“未指定”并不是神秘的许可证：一个类应当<em>记录</em>它的被移出状态是什么，而我们的类是：
       </p>
       <table>
         <thead>
-          <tr><th>Question</th><th>Answer for <code>my_posix_file</code></th></tr>
+          <tr><th>问题</th><th><code>my_posix_file</code> 的答案</th></tr>
         </thead>
         <tbody>
           <tr><td><code>is_open()</code></td><td><code>false</code></td></tr>
           <tr><td><code>native_handle()</code></td><td><code>-1</code></td></tr>
-          <tr><td>destructor</td><td>does nothing, closes nothing</td></tr>
-          <tr><td>assignment (copy or move)</td><td>works, and makes the object open again</td></tr>
-          <tr><td><code>read_some</code> / <code>write_some</code></td><td>throws <code>::std::errc::bad_file_descriptor</code></td></tr>
-          <tr><td>copy construction from it</td><td>throws <code>::std::errc::bad_file_descriptor</code></td></tr>
+          <tr><td>析构函数</td><td>什么都不做，什么都不关闭</td></tr>
+          <tr><td>赋值（复制或移动）</td><td>可用，并让对象重新打开</td></tr>
+          <tr><td><code>read_some</code> / <code>write_some</code></td><td>抛出 <code>::std::errc::bad_file_descriptor</code></td></tr>
+          <tr><td>从它复制构造</td><td>抛出 <code>::std::errc::bad_file_descriptor</code></td></tr>
         </tbody>
       </table>
       <p>
-        The last two rows are the reason the copy operations take the values they take: they
-        are not being defensive, they are applying <code>::dup</code> to <code>-1</code> and
-        forwarding what the kernel said.
+        最后两行正是复制操作得到那些取值的原因：它们不是在防御，它们是在对 <code>-1</code> 应用 <code>::dup</code>，并把内核说的话转发出去。
       </p>
 
     </section>
     <section>
-      <h2>3. All of It, Running</h2>
+      <h2>3. 全部跑起来</h2>
 
 
       <pre><code class="language-cpp">
@@ -245,12 +233,12 @@ int main()
 	my_posix_file a{"demo.txt", O_RDONLY};
 	println("a = ", a.native_handle());
 	a = a; // self copy: no check needed
-	println("after a = a: a = ", a.native_handle(), ", is_open = ", a.is_open());
+	println("after a = a:        a = ", a.native_handle(), ", is_open = ", a.is_open());
 
 	my_posix_file b{"demo.txt", O_RDONLY};
 	my_posix_file *alias{&amp;b};
 	b = ::std::move(*alias); // self move through an alias: the check is needed
-	println("after self-move: b = ", b.native_handle(), ", is_open = ", b.is_open());
+	println("after self-move:    b = ", b.native_handle(), ", is_open = ", b.is_open());
 
 	my_posix_file source{"demo.txt", O_RDONLY};
 	my_posix_file moved{::std::move(source)};
@@ -275,7 +263,7 @@ int main()
 	}
 
 	source = my_posix_file{"demo.txt", O_RDONLY}; // assignment revives it
-	println("after reviving: source = ", source.native_handle(), ", is_open = ", source.is_open());
+	println("after reviving:     source = ", source.native_handle(), ", is_open = ", source.is_open());
 
 	{
 		sloppy_file x{"demo.txt", O_RDONLY};
@@ -290,45 +278,37 @@ int main()
 </code></pre>
       <pre><code class="language-text">
 a = 3
-after a = a: a = 4, is_open = 1
-after self-move: b = 3, is_open = 1
+after a = a:        a = 4, is_open = 1
+after self-move:    b = 3, is_open = 1
 moved = 5, source = -1, source.is_open() = 0
 reading a moved-from file: [posix](9)Bad file number
 copying a moved-from file: [posix](9)Bad file number
-after reviving: source = 6, is_open = 1
+after reviving:     source = 6, is_open = 1
 sloppy x = 7
 sloppy y = 7, x still says 7
 after y died, the descriptor is closed and x still thinks it owns it
 </code></pre>
       <p>
-        The first three lines repeat the self-assignment results. The interesting part starts
-        at <code>moved = 5, source = -1</code>: the source is empty but alive, and every use of
-        it is a clean, catchable failure rather than undefined behaviour.
+        前三行重复自赋值的结果。有意思的部分从 <code>moved = 5, source = -1</code> 开始：源对象是空的但还活着，而每次使用它都是一次干净、可捕获的失败，而不是未定义行为。
       </p>
       <p>
-        Then look at the last three lines, which come from a deliberately broken
-        <code>sloppy_file</code> whose move constructor forgets <code>other.fd_ = -1</code>:
+        然后看最后三行，它们来自一个故意写坏的 <code>sloppy_file</code>，它的移动构造函数忘了 <code>other.fd_ = -1</code>：
       </p>
       <pre><code class="language-cpp">
 	sloppy_file(sloppy_file &amp;&amp;other) noexcept : fd_{other.fd_} // WRONG
 	{}
 </code></pre>
       <p>
-        Two objects now believe they own descriptor <code>7</code>. The inner one dies first
-        and closes it, so the outer one is holding a number that is no longer open &mdash; and
-        the next <code>::open</code> anywhere in the program will be handed that same number
-        and be closed by the wrong owner. The move constructor <em>must</em> empty its source.
+        现在两个对象都相信自已拥有描述符 <code>7</code>。里面那个先消亡并关闭了它，于是外面那个持有一个不再打开的数字 &mdash; 而程序中下一次 <code>::open</code> 会被发给同一个数字，然后被错误的所有者关闭。移动构造函数<em>必须</em>清空它的源对象。
       </p>
 
     </section>
     <section>
-      <h2>4. <code>::std::move</code> Is a Cast</h2>
+      <h2>4. <code>::std::move</code> 是一次强制转换</h2>
 
 
       <p>
-        Nothing is moved by <code>::std::move</code>. It is an unconditional cast to
-        <code>T&amp;&amp;</code>, whose only effect is that overload resolution prefers the
-        move constructor or move assignment:
+        <code>::std::move</code> 不移动任何东西。它是一次到 <code>T&amp;&amp;</code> 的无条件强制转换，唯一效果是让重载决议优先选择移动构造函数或移动赋值：
       </p>
       <pre><code class="language-cpp">
 template &lt;typename T&gt;
@@ -338,32 +318,27 @@ constexpr ::std::remove_reference_t&lt;T&gt; &amp;&amp;move(T &amp;&amp;t) noexc
 }
 </code></pre>
       <p>
-        Every consequence in this chapter follows from that definition:
+        本章的每一个结论都源自这个定义：
       </p>
       <ul>
-        <li>without a move constructor, the cast changes nothing and the copy runs
-          (<a href="/zhcn/docs/14.fiverules/05.moveconstructor/">Ch14.5</a>);</li>
-        <li>on a <code>const</code> object the cast produces
-          <code>T const &amp;&amp;</code>, which no move constructor accepts, so the copy runs
-          again;</li>
-        <li><code>::std::move(x)</code> never modifies <code>x</code>; the constructor or
-          assignment that follows does.</li>
+        <li>
+          没有移动构造函数时，这次转换什么也没改变，于是运行复制（<a href="/zhcn/docs/14.fiverules/05.moveconstructor/">第14.5章</a>）；
+        </li>
+        <li>
+          对 <code>const</code> 对象，这次转换产生 <code>T const &amp;&amp;</code>，没有移动构造函数接受它，于是又运行复制；
+        </li>
+        <li>
+          <code>::std::move(x)</code> 从不修改 <code>x</code>；修改它的是随后的构造函数或赋值。
+        </li>
       </ul>
             <div class="note">
-        <strong>A moved-from object is not &ldquo;dead&rdquo;, and a moved-from
-          <code>my_posix_file</code> is not an error state.</strong>
-        It is the empty state of the class, the same one a default-constructed file is in.
-        Do not use it for anything else without saying so in the docs &mdash; and where you do
-        document it, as with the table above, a moved-from object is as ordinary as any other.
-      
-      </div>
+              <strong>被移出的对象不是“死”的，被移出的 <code>my_posix_file</code> 也不是错误状态。</strong>它是该类的空状态，与默认构造的文件所处的状态相同。除非在文档里说明，否则别拿它做别的事 &mdash; 而在你确实记录了它（就像上面那张表）之后，被移出的对象与其他对象一样普通。
+            </div>
 
     </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/14.fiverules/09.exceptionsafety/" class="prev-button">&larr; Ch14.9: Exception Safety</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/14.fiverules/11.myposixfile/" class="next-button">Ch14.11: The Whole Class &rarr;</a>
+      <a href="/zhcn/docs/14.fiverules/09.exceptionsafety/" class="prev-button">&larr; 第14.9章: 异常安全</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/14.fiverules/11.myposixfile/" class="next-button">第14.11章: 完整的类 &rarr;</a>
     </div>
   </main>
 </body>

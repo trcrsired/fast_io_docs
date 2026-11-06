@@ -1,0 +1,43 @@
+1|第14.8章: 复制并交换 - 使用 fast_io 学习 C++ 教程
+2|第14.8章: 复制并交换：一次不会失败的提交
+3|1. 多出一个成员带来的问题
+4|<code>my_posix_file</code> 复制赋值的提交步骤只是一次 <code>reset(newfd)</code>，因为这个类恰好只拥有一样东西。给一个类两个资源，那一步就不存在了：没有任何单次调用能替换两者又不可能是半完成的。
+5|逐成员地写赋值是每个人都会犯一次的错：
+6|当第二行失败时，对象既不是它原来的样子，也不是它本该变成的样子：一个文件的读者，另一个文件的写着。对象依然<em>可用</em> &mdash; 两个成员都是有效对象 &mdash; 但它的不变量（“两个句柄指名同一个文件”）被破坏了，而且没有人能从外部修复它。这就是下下个子章所称的<strong>无保证</strong>，那是一个真正糟糕的处境。
+7|2. 复制并交换
+8|有一种办法能把提交找回来，而且对任意多个成员都适用：<strong>在别处构造新值，然后与 <code>*this</code> 交换</strong>。
+9|每个可能失败的操作都在 <code>tmp</code> 的构造里，而 <code>tmp</code> 是一个<em>不同的对象</em>：如果复制抛出，<code>*this</code> 未被触碰，而 <code>tmp</code> 自己的析构函数会清理它设法获取到的一切。临界线之后恰好只有一次调用，而它是 <code>noexcept</code>。
+10|旧内容并不会在 <code>operator=</code> 结束时消失；它们被交给了 <code>tmp</code>，而 <code>tmp</code> 是局部对象，局部对象在整个表达式结束时消亡。所以 <code>*this</code> 原本拥有的描述符稍后由 <code>tmp</code> 的析构函数关闭，此时新的描述符已经就位。
+11|<strong>复制并交换：整个保证都压在 <code>swap</code> 是 <code>noexcept</code> 这一点上。</strong><code>tmp</code> 做所有可能失败的工作；<code>swap</code> 是那唯一不会失败的调用。把这次调用挪到任何可能失败的语句之上，保证就蒸发了。
+12|3. 复制并交换实战
+13|<code>dst = src</code> 成功了，两个句柄都被替换。然后 <code>src</code> 的写者被摘掉，所以复制它必然失败 &mdash; 而最后一行显示了要紧的东西：<code>dst</code> 仍然恰好拥有它在失败语句之前拥有的描述符（<code>7</code> 和 <code>8</code>），一个都没被替换。那个无法完成的临时对象从未变成 <code>dst</code>。
+14|注意 <code>operator=</code> 里没有任何东西需要知道 <code>two_files</code> 有多少个成员、它们是什么。明天加第三个句柄，赋值运算符依然能用 &mdash; 只要 <code>swap</code> 和复制构造函数也更新了，而如果没有，编译器会告诉你。
+15|4. 复制并交换，还是直接提交？
+16|直接提交（第14.4章）
+17|复制并交换（本章）
+18|资源的个数
+19|一个
+20|任意多个
+21|临界线之后是什么
+22|一次安装新句柄的 <code>reset</code>
+23|一次 <code>swap</code>
+24|持有的临时资源
+25|只有新描述符
+26|对象完整的一份副本
+27|需要复制构造函数
+28|不需要
+29|需要
+30|需要 <code>noexcept</code> 的 <code>swap</code>
+31|不需要
+32|必需
+33|自赋值
+34|免费
+35|免费（一次白费的复制，然后一次自交换）
+32|
+36|对只有单个资源的类来说，直接形式更小、做的事更少，所以 <code>my_posix_file</code> 就用它。而一旦类拥有两样东西，复制并交换就是六个月后你仍然读得懂的版本，也是其保证不依赖于“某天有人可能把两行互相调换”的版本。
+37|5. 复制并交换需要什么
+38|<strong>一个可能抛出的复制构造函数。</strong>它负责做那些可能失败的工作。如果你的类型不能被复制，这个惯用法就不可用 &mdash; 复制赋值也不可用。
+39|<strong>一个 <code>noexcept</code> 的 <code>swap</code></strong>（<a href="/docs/14.fiverules/07.swap/">第14.7章</a>）。没有它，提交可能失败，保证就没了。
+40|<strong>一个 <code>noexcept</code> 的析构函数。</strong><code>tmp</code> 必须能在赫布异常飞行途中消亡，这对析构函数本来就是必需的（<a href="/docs/14.fiverules/02.destructor/">第14.2章</a>）。
+41|这三个性质各用一行就能检查：<code>::std::is_nothrow_swappable_v</code>、<code>::std::is_nothrow_destructible_v</code> 和 <code>::std::is_copy_constructible_v</code> &mdash; 而前两个，编译器在有东西尝试使用它们的那一刻就替你检查了。
+42|<a href="/docs/14.fiverules/07.swap/" class="prev-button">&larr; 第14.7章: swap</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/14.fiverules/09.exceptionsafety/" class="next-button">第14.9章: 异常安全 &rarr;</a>

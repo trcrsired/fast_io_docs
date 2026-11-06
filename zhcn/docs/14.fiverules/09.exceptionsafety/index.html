@@ -3,83 +3,78 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch14.9: Exception Safety: nothrow, strong, basic, none - C++ Tutorial with fast_io</title>
+  <title>第14.9章: 异常安全 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch14.9: Exception Safety: nothrow, strong, basic, none</h1>
+    <h1>第14.9章: 异常安全：nothrow、strong、basic、none</h1>
     <p class="lang-switch"><a href="/docs/14.fiverules/09.exceptionsafety/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
     <section>
-      <h2>1. Four Levels, Not a Feeling</h2>
+      <h2>1. 四个级别，不是一种感觉</h2>
 
 
       <p>
-        &ldquo;This function is exception safe&rdquo; means nothing on its own. What a caller
-        needs to know is how much of the object's value survives a failure, and there are
-        exactly four answers.
+        “这个函数是异常安全的”本身什么也没说。调用者需要知道的是：失败之后对象的值还保住了多少。而答案恰好只有四种。
       </p>
       <table>
         <thead>
           <tr>
-            <th>Level</th>
-            <th>What the caller may assume after a failure</th>
-            <th>Declared as</th>
+            <th>级别</th>
+            <th>失败之后调用者可以假定什么</th>
+            <th>声明为</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><strong>nothrow</strong></td>
-            <td>It cannot fail at all. There is no failure to recover from.</td>
+            <td>它根本不会失败。没有失败需要恢复。</td>
             <td><code>noexcept</code></td>
           </tr>
           <tr>
             <td><strong>strong</strong></td>
-            <td>It failed, and the object is <em>exactly as it was</em> before the call
-              (commit or rollback).</td>
+            <td>
+              它失败了，而对象<em>完全和调用之前一样</em>（提交或回滚）。
+            </td>
             <td><code>throws</code></td>
           </tr>
           <tr>
             <td><strong>basic</strong></td>
-            <td>It failed, and the object is still <em>valid</em> &mdash; the invariant holds,
-              no resource leaked &mdash; but its value may be different, and the old value is
-              gone.</td>
+            <td>
+              它失败了，对象依然<em>有效</em> &mdash; 不变量成立、没有资源泄漏 &mdash; 但它的值可能变了，旧值已经没了。
+            </td>
             <td><code>throws</code></td>
           </tr>
           <tr>
             <td><strong>none</strong></td>
-            <td>It failed, and the object may be in a state that breaks its own invariant:
-              unusable, or worse, usable but wrong.</td>
+            <td>
+              它失败了，对象可能处于破坏自身不变量的状态：不可用，或者更糟 &mdash; 可用但是错的。
+            </td>
             <td><code>throws</code></td>
           </tr>
         </tbody>
       </table>
       <p>
-        &ldquo;Valid&rdquo; is doing the work in the last two rows. Valid means: every member
-        function may still be called, and the destructor still does the right thing. Our class
-        defines validity as <code>fd_ == -1</code> or <code>fd_</code> is an open descriptor
-        this object alone owns.
+        最后两行里真正起作用的是“有效”。有效意味着：每个成员函数仍然可以被调用，析构函数仍然做正确的事。我们的类把有效定义为 <code>fd_ == -1</code>，或者 <code>fd_</code> 是一个仅由本对象拥有的打开描述符。
       </p>
 
     </section>
     <section>
-      <h2>2. The Levels of <code>my_posix_file</code></h2>
+      <h2>2. <code>my_posix_file</code> 的各个级别</h2>
 
 
       <p>
-        Every member of the finished class, classified. Notice how the specification on the
-        declaration predicts the level:
+        最终类里每个成员及其级别。注意声明上的规格如何预示了级别：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Member</th>
-            <th>Spec</th>
-            <th>Level</th>
-            <th>Why</th>
+            <th>成员</th>
+            <th>规格</th>
+            <th>级别</th>
+            <th>原因</th>
           </tr>
         </thead>
         <tbody>
@@ -87,71 +82,73 @@
             <td><code>~my_posix_file()</code></td>
             <td><code>noexcept</code></td>
             <td>nothrow</td>
-            <td>one <code>::close</code> on a valid descriptor, failure ignored</td>
+            <td>对有效描述符的一次 <code>::close</code>，失败被忽略</td>
           </tr>
           <tr>
             <td><code>my_posix_file(T&amp;&amp;)</code></td>
             <td><code>noexcept</code></td>
             <td>nothrow</td>
-            <td>two <code>int</code> writes</td>
+            <td>两次 <code>int</code> 写入</td>
           </tr>
           <tr>
             <td><code>operator=(T&amp;&amp;)</code></td>
             <td><code>noexcept</code></td>
             <td>nothrow</td>
-            <td><code>::close</code> plus two <code>int</code> writes</td>
+            <td>一次 <code>::close</code> 加两次 <code>int</code> 写入</td>
           </tr>
           <tr>
             <td><code>swap(T&amp;)</code></td>
             <td><code>noexcept</code></td>
             <td>nothrow</td>
-            <td>three <code>int</code> writes</td>
+            <td>三次 <code>int</code> 写入</td>
           </tr>
           <tr>
-            <td><code>reset()</code>, <code>is_open()</code>, <code>native_handle()</code></td>
+            <td><code>reset()</code>、<code>is_open()</code>、<code>native_handle()</code></td>
             <td><code>noexcept</code></td>
             <td>nothrow</td>
-            <td>no system call that can fail</td>
+            <td>没有可能失败的系统调用</td>
           </tr>
           <tr>
             <td><code>my_posix_file(path, flags)</code></td>
             <td><code>throws</code></td>
             <td>strong</td>
-            <td>a constructor that throws means <em>no object exists</em>; nothing to roll
-              back</td>
+            <td>
+              抛出的构造函数意味着<em>对象不存在</em>；没有东西需要回滚
+            </td>
           </tr>
           <tr>
             <td><code>my_posix_file(T const&amp;)</code></td>
             <td><code>throws</code></td>
             <td>strong</td>
-            <td><code>::dup</code> either produces a descriptor or leaves the source and the
-              new object untouched</td>
+            <td>
+              <code>::dup</code> 要么产生一个描述符，要么让源对象和新对象都不变
+            </td>
           </tr>
           <tr>
             <td><code>operator=(T const&amp;)</code></td>
             <td><code>throws</code></td>
             <td>strong</td>
-            <td>duplicate first, then the critical line
-              (<a href="/zhcn/docs/14.fiverules/04.copyassignment/">Ch14.4</a>)</td>
+            <td>
+              先复制，然后越过临界线（<a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章</a>）
+            </td>
           </tr>
           <tr>
-            <td><code>read_some()</code>, <code>write_some()</code></td>
+            <td><code>read_some()</code>、<code>write_some()</code></td>
             <td><code>throws</code></td>
-            <td>strong for the object, basic for the file</td>
-            <td>a failed <code>::read</code>/<code>::write</code> changes nothing in the
-              object; on the file itself a partial write may already have happened</td>
+            <td>对对象是 strong，对文件是 basic</td>
+            <td>
+              失败的 <code>::read</code>/<code>::write</code> 不改变对象里的任何东西；但在文件本身，部分写入可能已经发生了
+            </td>
           </tr>
         </tbody>
       </table>
       <p>
-        That last row is worth pausing on. Exception safety is a property of <em>this
-        object</em>. A function that writes to the outside world cannot roll the outside world
-        back, no matter how careful it is with its own members.
+        最后一行值得停一下。异常安全是<em>这个对象</em>的性质。一个写出到外部世界的函数，无论对自己的成员多么小心，都无法把外部世界回滚。
       </p>
 
     </section>
     <section>
-      <h2>3. All Four, Verified</h2>
+      <h2>3. 四个级别，逐一验证</h2>
 
 
       <pre><code class="language-cpp">
@@ -359,119 +356,90 @@ int main()
 	}
 	catch throws (::std::error e)
 	{
-		print("basic: ", e, ", is_open = ", basic.is_open(), "\n");
+		print("basic:  ", e, ", is_open = ", basic.is_open(), "\n");
 	}
 
 	// NO GUARANTEE: the pair no longer belongs to one file.
 	two_files dst{"demo.txt"};
 	two_files src{"demo.txt"};
 	src.close_writer();
-	println("none: before: dst reader = ", dst.reader_handle(), ", writer = ", dst.writer_handle());
+	println("none:   before: dst reader = ", dst.reader_handle(), ", writer = ", dst.writer_handle());
 	try
 	{
 		dst = src;
 	}
 	catch throws (::std::error e)
 	{
-		print("none: ", e, "\n");
+		print("none:   ", e, "\n");
 	}
-	println("none: after: dst reader = ", dst.reader_handle(), ", writer = ", dst.writer_handle());
+	println("none:   after:  dst reader = ", dst.reader_handle(), ", writer = ", dst.writer_handle());
 }
 </code></pre>
       <pre><code class="language-text">
 nothrow: swap, move and destruction cannot fail
 strong: [posix](9)Bad file number, a is still 4
-basic: [posix](2)No such file or directory, is_open = 0
-none: before: dst reader = 6, writer = 7
-none: [posix](9)Bad file number
-none: after: dst reader = 9, writer = 7
+basic:  [posix](2)No such file or directory, is_open = 0
+none:   before: dst reader = 6, writer = 7
+none:   [posix](9)Bad file number
+none:   after:  dst reader = 9, writer = 7
 </code></pre>
       <p>
-        Line by line:
+        逐行看：
       </p>
       <ul>
         <li>
-          <strong>nothrow.</strong> <code>swap</code>, the moves and the destructor are
-          asserted at compile time, not tested at run time. There is nothing to observe because
-          nothing can happen.
+          <strong>nothrow。</strong><code>swap</code>、各个移动以及析构函数是在编译期断言的，不是在运行期测试的。没有什么可观察，因为什么都不会发生。
         </li>
         <li>
-          <strong>strong.</strong> The assignment failed with
-          <code>[posix](9)Bad file number</code> and <code>a</code> is still
-          <code>4</code> &mdash; the same descriptor it held before the statement. The critical
-          line did its job.
+          <strong>strong。</strong>赋值以 <code>[posix](9)Bad file number</code> 失败，而 <code>a</code> 仍然是 <code>4</code> &mdash; 语句之前它持有的同一个描述符。临界线完成了它的工作。
         </li>
         <li>
-          <strong>basic.</strong> <code>reopen</code> closes the old file first, then opens the
-          new one; the open failed with
-          <code>[posix](2)No such file or directory</code> and the object is now closed. It is
-          perfectly valid &mdash; you can destroy it, assign to it, ask <code>is_open()</code>
-          &mdash; but the file it used to own is gone. That is the honest price of a function
-          that cannot afford to open the new thing before closing the old one.
+          <strong>basic。</strong><code>reopen</code> 先关闭旧文件，再打开新文件；打开以 <code>[posix](2)No such file or directory</code> 失败，而对象现在是关闭的。它完全有效 &mdash; 你可以销毁它、给它赋值、问 <code>is_open()</code> &mdash; 但它原本拥有的文件没了。这是“承担不起先打开新的再关闭旧的”这一做法的诚实代价。
         </li>
         <li>
-          <strong>none.</strong> The pair was assigned member by member. The reader was
-          replaced (<code>6</code> became <code>9</code>, a duplicate of the source's reader),
-          the writer was not (<code>7</code> stayed), and the assignment then threw. Both
-          members are individually valid; the <em>pair</em> is not, and no code outside the
-          class can tell or fix it.
+          <strong>none。</strong>那对句柄是逐成员赋值的。读者被替换了（<code>6</code> 变成 <code>9</code>，源对象读者的一个副本），写者没有（<code>7</code> 保持不变），然后赋值抛出了。两个成员各自都有效；<em>这一对</em>无效，而类外面没有任何代码能看出来或修好它。
         </li>
       </ul>
 
     </section>
     <section>
-      <h2>4. How to Get the Strong Guarantee</h2>
+      <h2>4. 如何获得强保证</h2>
 
 
       <p>
-        There are two recipes, and both are the critical line in disguise.
+        有两个配方，而两者都是伪装的临界线。
       </p>
       <ul>
         <li>
-          <strong>Do all fallible work into locals first.</strong> Then perform the changes
-          with operations that cannot fail. That is <code>my_posix_file</code>'s copy
-          assignment.
+          <strong>先把所有可能失败的工作做进局部变量。</strong>然后用不会失败的操作执行改动。这就是 <code>my_posix_file</code> 的复制赋值。
         </li>
         <li>
-          <strong>Build a complete temporary, then swap it in.</strong> That is copy and swap
-          (<a href="/zhcn/docs/14.fiverules/08.copyandswap/">Ch14.8</a>), and it scales to any number
-          of members.
+          <strong>构造一个完整的临时对象，然后把它交换进来。</strong>这就是复制并交换（<a href="/zhcn/docs/14.fiverules/08.copyandswap/">第14.8章</a>），它能扩展到任意多个成员。
         </li>
       </ul>
-      <p>And two ways to lose it, also worth naming:</p>
+      <p>还有两种失去它的方式，也值得点名：</p>
       <ul>
         <li>
-          <strong>Modify first, then do something fallible.</strong> That is
-          <code>reopen</code> above; the level drops to basic immediately.
+          <strong>先修改，再做可能失败的事。</strong>就是上面的 <code>reopen</code>；级别立刻掉到 basic。
         </li>
         <li>
-          <strong>Modify some members, then fail on the rest.</strong> That is the naive
-          two-member assignment; the level drops to none.
+          <strong>先修改部分成员，然后在其余成员上失败。</strong>就是那个朴素的双成员赋值；级别掉到 none。
         </li>
       </ul>
             <div class="note">
-        <strong>Strong is not always affordable.</strong>
-        Rolling back means keeping the old value alive, and for a 10&nbsp;GB buffer that is the
-        whole buffer. Choose strong where the object is small and the invariant matters (file
-        handles, sockets, locks, small containers); choose basic where copying is out of the
-        question; and never choose none by accident.
-      
-      </div>
+              <strong>强保证并不总是付得起。</strong>回滚意味着让旧值活下去，而对一个 10&nbsp;GB 的缓冲区来说，那就是整个缓冲区。在对象很小、不变量又重要的地方选强保证（文件句柄、socket、锁、小容器）；在复制根本不可能的地方选 basic；而永远不要不经意地选 none。
+            </div>
 
     </section>
     <section>
-      <h2>5. Herbceptions Make <code>noexcept</code> a Proof</h2>
+      <h2>5. 赫布异常让 <code>noexcept</code> 成为一份证明</h2>
 
 
       <p>
-        In legacy C++, <code>noexcept</code> is a promise the compiler takes on trust and
-        punishes at run time with <code>std::terminate</code>. A <code>noexcept</code>
-        function may call anything it likes, and nobody finds out until the night it throws.
+        在传统 C++ 中，<code>noexcept</code> 是一个编译器照单全收的承诺，并在运行期用 <code>std::terminate</code> 来惩罚它。一个 <code>noexcept</code> 函数可以调用任何它喜欢的东西，直到它抛出的那一夜才有人发现。
       </p>
       <p>
-        With herbceptions the promise is checked where it is made. A <code>noexcept</code>
-        function cannot call a <code>throws</code> function at all, unless it handles the
-        failure inside its own body:
+        在赫布异常下，承诺在它被许下的地方就被检查。一个 <code>noexcept</code> 函数根本不能调用 <code>throws</code> 函数，除非它在自己的函数体里处理失败：
       </p>
       <pre><code class="language-text">
 error: call to a 'throws' or 'return_failure{E}' function must be handled by an enclosing
@@ -479,42 +447,27 @@ error: call to a 'throws' or 'return_failure{E}' function must be handled by an 
        so the error can propagate
 </code></pre>
       <p>
-        Three consequences follow, and they are the reason this chapter can be exact:
+        由此有三点后果，而它们正是本章能够做到精确的原因：
       </p>
       <ul>
         <li>
-          <strong>&ldquo;This function is nothrow&rdquo; is a fact about the code</strong>, not
-          a comment. If you can compile it with <code>noexcept</code>, it cannot fail.
+          <strong>“这个函数是 nothrow”是关于代码的事实</strong>，不是一句注释。如果你能用 <code>noexcept</code> 编译它，它就不会失败。
         </li>
         <li>
-          <strong>The critical line is enforced.</strong> Everything below it must be
-          <code>noexcept</code>-callable, and the compiler refuses anything else &mdash; the
-          sequence of a commit is checked mechanically.
+          <strong>临界线被强制执行。</strong>线下面的一切都必须可 <code>noexcept</code> 调用，编译器拒绝其他任何东西 &mdash; 提交的序列是被机械检查的。
         </li>
         <li>
-          <strong>The level is visible at the declaration.</strong> <code>noexcept</code> in a
-          header tells the reader nothrow; <code>throws</code> tells the reader &ldquo;strong
-          or basic, and the documentation says which&rdquo;. That is why every member function
-          in this tutorial carries one of the two
-          (<a href="/zhcn/docs/06.function/16.noexceptthrows/">Ch6.16</a>).
+          <strong>级别在声明处可见。</strong>头文件里的 <code>noexcept</code> 告诉读者 nothrow；<code>throws</code> 告诉读者“strong 或 basic，文档里说明是哪个”。这就是本教程每个成员函数都带这两者之一的原因（<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）。
         </li>
       </ul>
             <div class="important">
-        <strong>Destructors are <code>noexcept</code>, so destructors have exactly the nothrow
-          guarantee.</strong>
-        Anything that can fail and that you want to know about must be a named member function
-        the caller can wrap in <code>try { } catch throws</code>. This single rule explains most
-        of the shape of real file, socket and database APIs &mdash; including fast_io's, whose
-        <code>close()</code> reports and whose destructor does not.
-      
-      </div>
+              <strong>析构函数是 <code>noexcept</code>，所以析构函数恰好只有 nothrow 保证。</strong>任何可能失败、而你又想知道的事情，都必须是调用者能用 <code>try { } catch throws</code> 包裹的具名成员函数。这一条规则解释了真实的文件、socket 和数据库 API 的大部分形态 &mdash; 包括 fast_io 的：它的 <code>close()</code> 会报告，而它的析构函数不会。
+            </div>
 
     </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/14.fiverules/08.copyandswap/" class="prev-button">&larr; Ch14.8: Copy and Swap</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/14.fiverules/10.movedfrom/" class="next-button">Ch14.10: Moved-From Objects &rarr;</a>
+      <a href="/zhcn/docs/14.fiverules/08.copyandswap/" class="prev-button">&larr; 第14.8章: 复制并交换</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/14.fiverules/10.movedfrom/" class="next-button">第14.10章: 被移出的对象 &rarr;</a>
     </div>
   </main>
 </body>

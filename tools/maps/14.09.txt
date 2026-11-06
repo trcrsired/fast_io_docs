@@ -1,0 +1,86 @@
+1|第14.9章: 异常安全 - 使用 fast_io 学习 C++ 教程
+2|第14.9章: 异常安全：nothrow、strong、basic、none
+3|1. 四个级别，不是一种感觉
+4|“这个函数是异常安全的”本身什么也没说。调用者需要知道的是：失败之后对象的值还保住了多少。而答案恰好只有四种。
+5|级别
+6|失败之后调用者可以假定什么
+7|声明为
+8|<strong>nothrow</strong>
+9|它根本不会失败。没有失败需要恢复。
+10|<code>noexcept</code>
+11|<strong>strong</strong>
+12|它失败了，而对象<em>完全和调用之前一样</em>（提交或回滚）。
+13|<code>throws</code>
+14|<strong>basic</strong>
+15|它失败了，对象依然<em>有效</em> &mdash; 不变量成立、没有资源泄漏 &mdash; 但它的值可能变了，旧值已经没了。
+16|<code>throws</code>
+17|<strong>none</strong>
+18|它失败了，对象可能处于破坏自身不变量的状态：不可用，或者更糟 &mdash; 可用但是错的。
+19|<code>throws</code>
+20|最后两行里真正起作用的是“有效”。有效意味着：每个成员函数仍然可以被调用，析构函数仍然做正确的事。我们的类把有效定义为 <code>fd_ == -1</code>，或者 <code>fd_</code> 是一个仅由本对象拥有的打开描述符。
+21|2. <code>my_posix_file</code> 的各个级别
+22|最终类里每个成员及其级别。注意声明上的规格如何预示了级别：
+23|成员
+24|规格
+25|级别
+26|原因
+27|<code>~my_posix_file()</code>
+28|<code>noexcept</code>
+29|nothrow
+30|对有效描述符的一次 <code>::close</code>，失败被忽略
+31|<code>my_posix_file(T&amp;&amp;)</code>
+32|<code>noexcept</code>
+33|nothrow
+34|两次 <code>int</code> 写入
+35|<code>operator=(T&amp;&amp;)</code>
+36|<code>noexcept</code>
+37|nothrow
+38|一次 <code>::close</code> 加两次 <code>int</code> 写入
+39|<code>swap(T&amp;)</code>
+40|<code>noexcept</code>
+41|nothrow
+42|三次 <code>int</code> 写入
+43|<code>reset()</code>、<code>is_open()</code>、<code>native_handle()</code>
+44|<code>noexcept</code>
+45|nothrow
+46|没有可能失败的系统调用
+47|<code>my_posix_file(path, flags)</code>
+48|<code>throws</code>
+49|strong
+50|抛出的构造函数意味着<em>对象不存在</em>；没有东西需要回滚
+51|<code>my_posix_file(T const&amp;)</code>
+52|<code>throws</code>
+53|strong
+54|<code>::dup</code> 要么产生一个描述符，要么让源对象和新对象都不变
+55|<code>operator=(T const&amp;)</code>
+56|<code>throws</code>
+57|strong
+58|先复制，然后越过临界线（<a href="/docs/14.fiverules/04.copyassignment/">第14.4章</a>）
+59|<code>read_some()</code>、<code>write_some()</code>
+60|<code>throws</code>
+61|对对象是 strong，对文件是 basic
+62|失败的 <code>::read</code>/<code>::write</code> 不改变对象里的任何东西；但在文件本身，部分写入可能已经发生了
+63|最后一行值得停一下。异常安全是<em>这个对象</em>的性质。一个写出到外部世界的函数，无论对自己的成员多么小心，都无法把外部世界回滚。
+64|3. 四个级别，逐一验证
+65|逐行看：
+66|<strong>nothrow。</strong><code>swap</code>、各个移动以及析构函数是在编译期断言的，不是在运行期测试的。没有什么可观察，因为什么都不会发生。
+67|<strong>strong。</strong>赋值以 <code>[posix](9)Bad file number</code> 失败，而 <code>a</code> 仍然是 <code>4</code> &mdash; 语句之前它持有的同一个描述符。临界线完成了它的工作。
+68|<strong>basic。</strong><code>reopen</code> 先关闭旧文件，再打开新文件；打开以 <code>[posix](2)No such file or directory</code> 失败，而对象现在是关闭的。它完全有效 &mdash; 你可以销毁它、给它赋值、问 <code>is_open()</code> &mdash; 但它原本拥有的文件没了。这是“承担不起先打开新的再关闭旧的”这一做法的诚实代价。
+69|<strong>none。</strong>那对句柄是逐成员赋值的。读者被替换了（<code>6</code> 变成 <code>9</code>，源对象读者的一个副本），写者没有（<code>7</code> 保持不变），然后赋值抛出了。两个成员各自都有效；<em>这一对</em>无效，而类外面没有任何代码能看出来或修好它。
+70|4. 如何获得强保证
+71|有两个配方，而两者都是伪装的临界线。
+72|<strong>先把所有可能失败的工作做进局部变量。</strong>然后用不会失败的操作执行改动。这就是 <code>my_posix_file</code> 的复制赋值。
+73|<strong>构造一个完整的临时对象，然后把它交换进来。</strong>这就是复制并交换（<a href="/docs/14.fiverules/08.copyandswap/">第14.8章</a>），它能扩展到任意多个成员。
+74|还有两种失去它的方式，也值得点名：
+75|<strong>先修改，再做可能失败的事。</strong>就是上面的 <code>reopen</code>；级别立刻掉到 basic。
+76|<strong>先修改部分成员，然后在其余成员上失败。</strong>就是那个朴素的双成员赋值；级别掉到 none。
+77|<strong>强保证并不总是付得起。</strong>回滚意味着让旧值活下去，而对一个 10&nbsp;GB 的缓冲区来说，那就是整个缓冲区。在对象很小、不变量又重要的地方选强保证（文件句柄、socket、锁、小容器）；在复制根本不可能的地方选 basic；而永远不要不经意地选 none。
+78|5. 赫布异常让 <code>noexcept</code> 成为一份证明
+79|在传统 C++ 中，<code>noexcept</code> 是一个编译器照单全收的承诺，并在运行期用 <code>std::terminate</code> 来惩罚它。一个 <code>noexcept</code> 函数可以调用任何它喜欢的东西，直到它抛出的那一夜才有人发现。
+80|在赫布异常下，承诺在它被许下的地方就被检查。一个 <code>noexcept</code> 函数根本不能调用 <code>throws</code> 函数，除非它在自己的函数体里处理失败：
+81|由此有三点后果，而它们正是本章能够做到精确的原因：
+82|<strong>“这个函数是 nothrow”是关于代码的事实</strong>，不是一句注释。如果你能用 <code>noexcept</code> 编译它，它就不会失败。
+83|<strong>临界线被强制执行。</strong>线下面的一切都必须可 <code>noexcept</code> 调用，编译器拒绝其他任何东西 &mdash; 提交的序列是被机械检查的。
+84|<strong>级别在声明处可见。</strong>头文件里的 <code>noexcept</code> 告诉读者 nothrow；<code>throws</code> 告诉读者“strong 或 basic，文档里说明是哪个”。这就是本教程每个成员函数都带这两者之一的原因（<a href="/docs/06.function/16.noexceptthrows/">第6.16章</a>）。
+85|<strong>析构函数是 <code>noexcept</code>，所以析构函数恰好只有 nothrow 保证。</strong>任何可能失败、而你又想知道的事情，都必须是调用者能用 <code>try { } catch throws</code> 包裹的具名成员函数。这一条规则解释了真实的文件、socket 和数据库 API 的大部分形态 &mdash; 包括 fast_io 的：它的 <code>close()</code> 会报告，而它的析构函数不会。
+86|<a href="/docs/14.fiverules/08.copyandswap/" class="prev-button">&larr; 第14.8章: 复制并交换</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/14.fiverules/10.movedfrom/" class="next-button">第14.10章: 被移出的对象 &rarr;</a>

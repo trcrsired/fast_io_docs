@@ -1,0 +1,44 @@
+1|第14.10章: 自赋值与已移出的对象 - 使用 fast_io 学习 C++ 教程
+2|第14.10章: 自赋值与已移出的对象
+3|1. 自赋值，两种情形
+4|<code>a = a</code> 在真实代码中出现的频率超出人们的预期：通过引用、通过下标（<code>v[i] = v[j]</code> 且 <code>i == j</code>）、通过一个不知道两个实参是同一对象的模板。两种赋值对它的处理不同，而两者都正确：
+5|自复制 <code>a = a</code>
+6|自移动 <code>a = std::move(a)</code>
+7|需要检查
+8|不需要
+9|<strong>需要</strong>
+10|为什么
+11|副本在任何东西被关闭之前就取到了
+12|旧资源在任何东西被夺取之前就被释放了
+13|可观察的影响
+14|描述符的编号可能变；文件不变
+15|完全没有
+16|完整论证见<a href="/docs/14.fiverules/04.copyassignment/">第14.4章</a>与<a href="/docs/14.fiverules/06.moveassignment/">第14.6章</a>；本子章讲的是移动<em>之后</em>对象所处的状态，那是同一个主题的另一半。
+17|2. 被移出对象的契约
+18|标准说被移出的对象是<strong>有效但未指定</strong>的：你可以销毁它、给它赋值，并调用它满足前置条件的成员 &mdash; 仅此而已。“未指定”并不是神秘的许可证：一个类应当<em>记录</em>它的被移出状态是什么，而我们的类是：
+19|问题
+20|<code>my_posix_file</code> 的答案
+21|<code>is_open()</code>
+22|<code>false</code>
+23|<code>native_handle()</code>
+24|析构函数
+25|什么都不做，什么都不关闭
+26|赋值（复制或移动）
+27|可用，并让对象重新打开
+28|<code>read_some</code> / <code>write_some</code>
+29|抛出 <code>::std::errc::bad_file_descriptor</code>
+30|从它复制构造
+31|抛出 <code>::std::errc::bad_file_descriptor</code>
+32|最后两行正是复制操作得到那些取值的原因：它们不是在防御，它们是在对 <code>-1</code> 应用 <code>::dup</code>，并把内核说的话转发出去。
+33|3. 全部跑起来
+34|前三行重复自赋值的结果。有意思的部分从 <code>moved = 5, source = -1</code> 开始：源对象是空的但还活着，而每次使用它都是一次干净、可捕获的失败，而不是未定义行为。
+35|然后看最后三行，它们来自一个故意写坏的 <code>sloppy_file</code>，它的移动构造函数忘了 <code>other.fd_ = -1</code>：
+36|现在两个对象都相信自已拥有描述符 <code>7</code>。里面那个先消亡并关闭了它，于是外面那个持有一个不再打开的数字 &mdash; 而程序中下一次 <code>::open</code> 会被发给同一个数字，然后被错误的所有者关闭。移动构造函数<em>必须</em>清空它的源对象。
+37|4. <code>::std::move</code> 是一次强制转换
+38|<code>::std::move</code> 不移动任何东西。它是一次到 <code>T&amp;&amp;</code> 的无条件强制转换，唯一效果是让重载决议优先选择移动构造函数或移动赋值：
+39|本章的每一个结论都源自这个定义：
+40|没有移动构造函数时，这次转换什么也没改变，于是运行复制（<a href="/docs/14.fiverules/05.moveconstructor/">第14.5章</a>）；
+41|对 <code>const</code> 对象，这次转换产生 <code>T const &amp;&amp;</code>，没有移动构造函数接受它，于是又运行复制；
+42|<code>::std::move(x)</code> 从不修改 <code>x</code>；修改它的是随后的构造函数或赋值。
+43|<strong>被移出的对象不是“死”的，被移出的 <code>my_posix_file</code> 也不是错误状态。</strong>它是该类的空状态，与默认构造的文件所处的状态相同。除非在文档里说明，否则别拿它做别的事 &mdash; 而在你确实记录了它（就像上面那张表）之后，被移出的对象与其他对象一样普通。
+44|<a href="/docs/14.fiverules/09.exceptionsafety/" class="prev-button">&larr; 第14.9章: 异常安全</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/14.fiverules/11.myposixfile/" class="next-button">第14.11章: 完整的类 &rarr;</a>
