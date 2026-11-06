@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第4.3章: vector - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <main>
+    <h1>::fast_io::vector</h1>
+
+    <section>
+      <h2>1. 什么是 vector？</h2>
+      <p>
+        <code>::fast_io::vector&lt;T&gt;</code> 存储一串 <code>T</code> 类型的元素。
+        当你添加更多元素时，它会自动增长，且所有元素都连续存放在同一块内存中。
+      </p>
+      <p>
+        你可以把它想象成一个“会增长的数值列表”，始终保持紧密排列。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 创建 vector</h2>
+      <p>你可以创建空 vector，也可以创建带初始大小的 vector：</p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::vector&lt;std::size_t&gt; a;            // empty
+    ::fast_io::vector&lt;std::size_t&gt; b(5zu);       // 5 default-initialized elements
+    ::fast_io::vector&lt;std::size_t&gt; c(3zu, 42zu); // 3 copies of value 42
+
+    println("b size = ", b.size());
+    println("c[0] = ", c[0]);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. 添加元素</h2>
+      <p>
+        添加元素最常见的方式是 <code>push_back()</code>：
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::vector&lt;std::size_t&gt; v;
+
+    v.push_back(10zu);
+    v.push_back(20zu);
+    v.push_back(30zu);
+
+    println("Size: ", v.size()); // 3
+}
+</code></pre>
+
+      <p>
+        当 vector 空间用尽时，它会自动分配更多内存。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 安全地访问元素</h2>
+      <p>
+        你可以用 <code>front()</code>、<code>back()</code> 或 <code>operator[]</code> 访问元素：
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::vector&lt;std::size_t&gt; v{1zu, 2zu, 3zu, 4zu};
+
+    println("Front: ", v.front()); // 1
+    println("Back: ",  v.back());  // 4
+    println("Index 2: ", v[2]);    // 3
+}
+</code></pre>
+
+      <p>
+        ⚠️ <strong>安全提示：</strong>如果你访问一个不存在的元素（例如在空 vector 上调用
+        <code>v.front()</code>，或使用越界索引），<code>fast_io</code> 会执行
+        边界检查。如果检查失败，程序会通过 <code>__builtin_trap()</code> 立刻停止。
+      </p>
+
+      <h4>安全用法</h4>
+<pre><code class="language-cpp">
+if(!v.is_empty()) {
+    println("Front: ", v.front());
+}
+
+std::size_t i = 2zu;
+if(i &lt; v.size()) {
+    println("v[2] = ", v[i]);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. 遍历元素</h2>
+
+      <h3>首选：基于范围的 for 循环</h3>
+      <p>这是遍历所有元素最简单的方式：</p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::vector&lt;std::size_t&gt; v{10zu, 20zu, 30zu};
+
+    for(std::size_t x : v) {
+        println(x);
+    }
+}
+</code></pre>
+
+      <h3>替代方案：索引循环</h3>
+      <p>当你需要位置时很有用：</p>
+
+<pre><code class="language-cpp">
+for(std::size_t i{}, n{v.size()}; i != n; ++i) {
+    println("Index ", i, ": ", v[i]);
+}
+</code></pre>
+
+      <h3>进阶：迭代器</h3>
+      <p>
+        在<strong>第 3.1 节（字符串迭代器）</strong>中，我们介绍了迭代器的行为类似
+        指向容器内存的指针这一概念。<code>::fast_io::vector&lt;T&gt;</code> 使用与
+        <code>::fast_io::string</code> <strong>相同的迭代器模型</strong>。
+      </p>
+
+      <p>
+        这意味着：
+      </p>
+      <ul>
+        <li>迭代器是连续的，并支持算术运算（<code>+/-</code>、<code>[]</code>、比较）</li>
+        <li>迭代使用左闭右开区间：<code>[begin(), end())</code></li>
+        <li>越出这个区间是未定义行为</li>
+        <li>如果 vector 重新分配（例如在已满时 <code>push_back()</code>），迭代器会失效</li>
+      </ul>
+
+      <p>示例：</p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::vector&lt;std::size_t&gt; v{10zu, 20zu, 30zu};
+
+    for(auto it = v.begin(), ed = v.end(); it != ed; ++it) {
+        println(*it);
+    }
+}
+</code></pre>
+
+      <h4>迭代器算术</h4>
+      <p>
+        正如字符串一样，vector 的迭代器支持随机访问操作：
+      </p>
+
+<pre><code class="language-cpp">
+auto it = v.begin();        // first element
+println(*(it + 1));         // move forward
+println((it + 2)[0]);       // same as v[2]
+println((it + 2)[-1]);      // move backward from a valid position
+</code></pre>
+
+      <p>
+        这些操作很快，但它们<strong>不</strong>做边界检查。
+      </p>
+
+      <h4>迭代器失效</h4>
+      <p>
+        任何导致 vector 增长的操作都可能重新分配其存储。
+        一旦发生这种情况，<strong>所有已有迭代器都会失效</strong>。
+      </p>
+
+<pre><code class="language-cpp">
+auto it2 = v.begin();
+v.push_back(999zu);  // may reallocate
+
+// ⚠️ it2 may now point to old memory
+// println(*it2);   // undefined behavior
+</code></pre>
+
+      <p>
+        如果你需要在重新分配后保留位置，请保存索引而不是迭代器。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 删除元素</h2>
+
+      <h3>pop_back()</h3>
+      <p>删除最后一个元素：</p>
+
+<pre><code class="language-cpp">
+v.pop_back();
+</code></pre>
+
+      <p>
+        ⚠️ 在空 vector 上调用 <code>pop_back()</code> 会让程序立刻停止。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 清空与释放内存</h2>
+
+      <h3>clear()</h3>
+      <p>
+        移除所有元素，但<strong>保留已分配的内存</strong>。
+        当你打算很快复用这个 vector 时很有用。
+      </p>
+
+<pre><code class="language-cpp">
+v.clear();
+println(v.size()); // 0
+</code></pre>
+
+      <h3>clear_destroy()</h3>
+      <p>
+        移除所有元素，<strong>并把内存归还给分配器</strong>。
+        调用之后，vector 变成完全不占存储的空状态。
+      </p>
+
+<pre><code class="language-cpp">
+v.clear_destroy(); // memory returned to allocator
+println(v.size()); // 0
+</code></pre>
+
+      <p>
+        当你用完 vector 并想释放它的内存时，使用 <code>clear_destroy()</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>::fast_io::vector&lt;T&gt;</code> 存储一串不断增长、紧密排列的元素。</li>
+        <li><code>push_back()</code> 添加新元素，并在需要时自动扩展存储。</li>
+        <li><code>front()</code>、<code>back()</code> 与 <code>operator[]</code> 提供快速访问，但需要手工做边界检查。</li>
+        <li>vector 的迭代器行为与字符串迭代器完全一致：连续、支持算术运算，并使用 <code>[begin(), end())</code>。</li>
+        <li><code>clear()</code> 移除元素但保留内存；<code>clear_destroy()</code> 移除元素并释放内存。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/04.dsal/02.char_category/" class="prev-button">← 第4.2章: char_category</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/04.dsal/04.array/" class="next-button">第4.4章: array →</a>
+    </div>
+  </main>
+</body>
+</html>

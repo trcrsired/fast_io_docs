@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第4.5章: 多维容器 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <main>
+    <h1>多维容器</h1>
+
+    <section>
+      <h2>1. 什么是“多维容器”？</h2>
+      <p>
+        C++ 中并没有专门的多维容器语法或内建类型。
+        相反，你是通过<strong>把容器嵌套进容器</strong>来创建它们的。
+      </p>
+
+      <p>
+        例如：
+      </p>
+      <ul>
+        <li>容器的容器 → 二维</li>
+        <li>容器的容器的容器 → 三维</li>
+        <li>容器的容器的容器的容器 → 四维</li>
+      </ul>
+
+      <p>
+        这对任何容器都适用：<code>::fast_io::vector</code>、
+        <code>::fast_io::string</code>、<code>::fast_io::array</code>，或者你自己的类型。
+      </p>
+
+      <p>
+        在实践中，<strong><code>::fast_io::vector&lt;T&gt;</code> 是默认容器</strong>。
+        它会自动增长，也是多维结构中最容易使用的。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 二维容器（容器的容器）</h2>
+      <p>
+        二维容器就是一个每个元素本身也是容器的容器。
+      </p>
+
+      <h3>示例：二维 vector</h3>
+<pre><code class="language-cpp">
+#include <fast_io.h>
+#include <fast_io_dsal/vector.h>
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // A vector where each element is another vector
+    ::fast_io::vector<::fast_io::vector<std::size_t>> grid{
+        {1zu, 2zu, 3zu},
+        {4zu, 5zu, 6zu},
+        {7zu, 8zu, 9zu}
+    };
+
+    println(grid[1][2]); // prints 6
+}
+</code></pre>
+
+      <h3>示例：字符串 vector</h3>
+      <p>
+        字符串的 vector 也是一个二维容器：
+      </p>
+      <ul>
+        <li>外层维度 → 字符串列表</li>
+        <li>内层维度 → 每个字符串内部的字符</li>
+      </ul>
+
+<pre><code class="language-cpp">
+::fast_io::vector<::fast_io::string> lines{
+    "Hello",
+    "fast_io",
+    "world"
+};
+
+println(lines[0][1]); // 'e'
+</code></pre>
+
+      <h3>示例：vector 的 array</h3>
+<pre><code class="language-cpp">
+#include <fast_io.h>
+#include <fast_io_dsal/array.h>
+#include <fast_io_dsal/vector.h>
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::array<::fast_io::vector<std::size_t>, 3zu> buckets{
+        ::fast_io::vector<std::size_t>{1zu, 2zu},
+        ::fast_io::vector<std::size_t>{3zu},
+        ::fast_io::vector<std::size_t>{4zu, 5zu, 6zu}
+    };
+
+    println(buckets[2][1]); // prints 5
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. 三维容器（容器的容器的容器）</h2>
+      <p>
+        三维容器只是再多一层嵌套。
+      </p>
+
+<pre><code class="language-cpp">
+#include <fast_io.h>
+#include <fast_io_dsal/vector.h>
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::vector<
+        ::fast_io::vector<
+            ::fast_io::vector<std::size_t>
+        >
+    > cube{
+        {
+            {1zu, 2zu, 3zu},
+            {4zu, 5zu, 6zu}
+        },
+        {
+            {7zu, 8zu, 9zu},
+            {10zu, 11zu, 12zu}
+        }
+    };
+
+    println(cube[1][0][2]); // prints 9
+}
+</code></pre>
+
+      <p>
+        你可以把它理解为：
+      </p>
+      <ul>
+        <li>2 个“层”</li>
+        <li>每层有 2 个“行”</li>
+        <li>每行有 3 个“列”</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>4. 四维容器（容器的容器的容器的容器）</h2>
+      <p>
+        四维容器只是在三维之上再多一层嵌套。
+      </p>
+
+<pre><code class="language-cpp">
+#include <fast_io.h>
+#include <fast_io_dsal/vector.h>
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::vector<
+        ::fast_io::vector<
+            ::fast_io::vector<
+                ::fast_io::vector<std::size_t>
+            >
+        >
+    > hypercube{
+        {
+            {
+                {1zu, 2zu},
+                {3zu, 4zu}
+            },
+            {
+                {5zu, 6zu},
+                {7zu, 8zu}
+            }
+        },
+        {
+            {
+                {9zu, 10zu},
+                {11zu, 12zu}
+            },
+            {
+                {13zu, 14zu},
+                {15zu, 16zu}
+            }
+        }
+    };
+
+    println(hypercube[1][0][1][1]); // prints 12
+}
+</code></pre>
+
+      <p>
+        这个结构有：
+      </p>
+      <ul>
+        <li>2 个块</li>
+        <li>每块有 2 层</li>
+        <li>每层有 2 行</li>
+        <li>每行有 2 列</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>5. 遍历多维容器</h2>
+      <p>
+        你只需按嵌套容器的方式嵌套循环。
+      </p>
+
+<pre><code class="language-cpp">
+for(auto &row : grid) {
+    for(auto &x : row) {
+        print(x, " ");
+    }
+    println();
+}
+</code></pre>
+
+      <p>
+        这个模式适用于任意深度。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>C++ 没有内建的多维容器。</li>
+        <li>你通过嵌套容器来创建多维结构。</li>
+        <li>容器的容器 → 二维；容器的容器的容器 → 三维；依此类推。</li>
+        <li>你可以自由混用 <code>vector</code>、<code>string</code> 和 <code>array</code>。</li>
+        <li><code>::fast_io::vector&lt;T&gt;</code> 是默认容器，也是最灵活的选择。</li>
+        <li>嵌套之所以可行，是因为容器的行为就像普通值，可以互相存储在彼此内部。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/04.dsal/04.array/" class="prev-button">← 第4.4章: array</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/05.pointerscarray/" class="next-button">第5章: 指针与 C 风格数组 →</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第4.4章: array - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <main>
+    <h1>::fast_io::array</h1>
+
+    <section>
+      <h2>1. 什么是 array？</h2>
+      <p>
+        <code>::fast_io::array&lt;T, N&gt;</code> 恰好存储 <code>N</code> 个 <code>T</code> 类型的元素。
+        大小在编译期固定，永不改变。
+      </p>
+      <p>
+        由于大小事先已知，array 把元素直接存储在对象自身内部。
+        没有动态分配，也没有大小调整。
+      </p>
+      <p>
+        大多数情况下你应当优先使用 <code>::fast_io::vector&lt;T&gt;</code>，因为它会自动增长。
+        当大小确实固定且事先已知时，<code>::fast_io::array</code> 才有用。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 创建 array</h2>
+      <p>你需要同时指定元素类型与元素个数：</p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/array.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::array&lt;std::size_t, 3zu&gt; a{1zu, 2zu, 3zu};
+    println("a[0] = ", a[0]);
+}
+</code></pre>
+
+      <p>
+        如果你不提供初始值，元素会被默认初始化：
+      </p>
+
+<pre><code class="language-cpp">
+::fast_io::array&lt;std::size_t, 5zu&gt; b{}; // all elements default-initialized
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. 访问元素</h2>
+      <p>
+        访问方式与 <code>::fast_io::vector</code> 完全相同：
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/array.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::array&lt;std::size_t, 4zu&gt; a{10zu, 20zu, 30zu, 40zu};
+
+    println("Front: ", a.front()); // 10
+    println("Back: ",  a.back());  // 40
+    println("Index 2: ", a[2]);    // 30
+}
+</code></pre>
+
+      <p>
+        ⚠️ <strong>安全提示：</strong>如果你使用越界索引，<code>fast_io</code> 会立刻调用
+        <code>fast_terminate()</code>。
+      </p>
+
+      <h4>安全用法</h4>
+<pre><code class="language-cpp">
+std::size_t i = 2zu;
+if(i &lt; a.size()) {
+    println("a[2] = ", a[i]);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. 遍历元素</h2>
+
+      <h3>基于范围的 for 循环</h3>
+      <p>
+        正如字符串和 vector 一样，array 也支持基于范围的 for 循环：
+      </p>
+
+<pre><code class="language-cpp">
+for(std::size_t x : a) {
+    println(x);
+}
+</code></pre>
+
+      <h3>索引循环</h3>
+<pre><code class="language-cpp">
+for(std::size_t i{}, n{a.size()}; i != n; ++i) {
+    println("Index ", i, ": ", a[i]);
+}
+</code></pre>
+
+      <h3>进阶：迭代器</h3>
+      <p>
+        array 使用与<strong>第 3.1 节（string）</strong>中介绍、并在
+        <strong>第 4.2 节（vector）</strong>中再次使用的同一套迭代器模型。迭代器：
+      </p>
+      <ul>
+        <li>是连续的</li>
+        <li>支持算术运算（<code>+/-</code>、<code>[]</code>、比较）</li>
+        <li>使用左闭右开区间 <code>[begin(), end())</code></li>
+      </ul>
+
+<pre><code class="language-cpp">
+for(auto it = a.begin(), ed = a.end(); it != ed; ++it) {
+    println(*it);
+}
+</code></pre>
+
+      <p>
+        由于大小固定且永远不发生重新分配，array 的迭代器永远不会失效。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 工具函数</h2>
+
+      <h3>fill()</h3>
+      <p>把所有元素设为同一个值：</p>
+
+<pre><code class="language-cpp">
+a.fill(7zu); // all elements become 7
+</code></pre>
+
+      <h3>swap()</h3>
+      <p>交换两个同大小 array 的内容：</p>
+
+<pre><code class="language-cpp">
+::fast_io::array&lt;std::size_t, 3zu&gt; x{1zu, 2zu, 3zu};
+::fast_io::array&lt;std::size_t, 3zu&gt; y{9zu, 8zu, 7zu};
+
+x.swap(y);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>6. 拷贝 array</h2>
+
+      <p>
+        <code>::fast_io::array&lt;T, N&gt;</code> 与其他可平凡复制的容器一样支持拷贝。
+        由于大小固定且所有元素都直接存储在对象内部，拷贝一个 array 总是会拷贝全部
+        <code>N</code> 个元素。
+      </p>
+
+      <h3>拷贝构造</h3>
+<pre><code class="language-cpp">
+::fast_io::array&lt;std::size_t, 3zu&gt; a{1zu, 2zu, 3zu};
+::fast_io::array&lt;std::size_t, 3zu&gt; b{a}; // copy constructor
+</code></pre>
+
+      <h3>拷贝赋值</h3>
+<pre><code class="language-cpp">
+::fast_io::array&lt;std::size_t, 3zu&gt; a{1zu, 2zu, 3zu};
+::fast_io::array&lt;std::size_t, 3zu&gt; b{};
+
+b = a; // copy assignment
+</code></pre>
+
+      <h3>在不同大小的 array 之间拷贝</h3>
+      <p>
+        要拷贝，array 必须有相同的 <code>N</code>。下面这种写法是
+        编译期错误：
+      </p>
+
+<pre><code class="language-cpp">
+::fast_io::array&lt;std::size_t, 3zu&gt; a{};
+::fast_io::array&lt;std::size_t, 4zu&gt; b{};
+
+// b = a; // ❌ compile‑time error: sizes differ
+</code></pre>
+
+      <h3>用迭代器拷贝</h3>
+<pre><code class="language-cpp">
+::fast_io::array&lt;std::size_t, 3zu&gt; a{1zu, 2zu, 3zu};
+::fast_io::array&lt;std::size_t, 3zu&gt; b{};
+
+for(std::size_t i{}; i != a.size(); ++i) {
+    b[i] = a[i];
+}
+</code></pre>
+
+      <p>
+        由于 array 从不重新分配，基于迭代器的拷贝始终是安全的。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>::fast_io::array&lt;T, N&gt;</code> 恰好存储 <code>N</code> 个元素，不做动态分配。</li>
+        <li>大小在编译期固定，不能增长也不能缩小。</li>
+        <li>访问函数（<code>front()</code>、<code>back()</code>、<code>operator[]</code>）的行为与 vector 中相同。</li>
+        <li>array 的迭代器行为与字符串、vector 的迭代器完全一致，但永不失效。</li>
+        <li><code>fill()</code> 与 <code>swap()</code> 提供了修改整个 array 的便捷方式。</li>
+        <li>拷贝 array 总是拷贝全部元素；不同大小的 array 不能互相拷贝。</li>
+        <li>大多数任务优先使用 <code>::fast_io::vector&lt;T&gt;</code> —— 它是默认容器，并会自动增长。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/04.dsal/03.vector/" class="prev-button">← 第4.3章: vector</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/04.dsal/05.multidcontainers/" class="next-button">第4.5章: 多维容器 →</a>
+    </div>
+  </main>
+</body>
+</html>

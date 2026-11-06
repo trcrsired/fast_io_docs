@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第4.2章: ::fast_io::char_category - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第4.2章: ::fast_io::char_category</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        <code>::fast_io::char_category</code> 模块提供了一组
+        <strong>constexpr 字符分类与变换函数</strong>。
+        这些函数判断一个字符是小写、大写、数字、
+        空白、标点，等等。
+      </p>
+
+      <p>
+        所有函数都遵循程序的<strong>执行字符集</strong>（execution charset）。
+        这确保在基于 ASCII 和基于 EBCDIC 的系统上行为都正确。
+      </p>
+    </section>
+
+    <section>
+      <h2>1. 源字符集 vs 执行字符集</h2>
+      <p>
+        C++ 区分：
+      </p>
+
+      <ul>
+        <li><strong>源字符集</strong> —— 源文件中的字符是如何编码的</li>
+        <li><strong>执行字符集</strong> —— 字符在运行时是如何表示的</li>
+      </ul>
+
+      <p>
+        <code>::fast_io::char_category</code> 始终使用<strong>执行字符集</strong>。
+      </p>
+
+      <p>
+        这意味着：
+      </p>
+
+      <ul>
+        <li>如果 <code>'A'</code> 的值是 <code>0x41</code>，则适用 ASCII 规则。</li>
+        <li>如果 <code>'A'</code> 具有 EBCDIC 值（不是 <code>0x41</code>），则适用 EBCDIC 规则。</li>
+        <li>其他所有字符集（UTF-8、GB18030、Shift-JIS 等）对码点
+            <code>[0, 127]</code> 都使用 ASCII 规则。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>2. ::fast_io::char_literal_v 与 char_literal</h2>
+      <p>
+        创建遵循执行字符集的字符常量，主要方式是
+        <code>::fast_io::char_literal_v</code>。它在编译期取一个 <code>char8_t</code>
+        值，并产出执行字符集中的一个字符。
+      </p>
+
+<pre><code class="language-cpp">
+char c = ::fast_io::char_literal_v&lt;u8'a', char&gt;;
+</code></pre>
+
+      <p>
+        只要你手上有编译期的字符字面量，就用这种形式。
+      </p>
+
+      <p>
+        还有一个函数形式 <code>::fast_io::char_literal</code>，它在运行时
+        取一个 <code>char8_t</code> 值：
+      </p>
+
+<pre><code class="language-cpp">
+char8_t runtime_ch{/* ... */};
+char c = ::fast_io::char_literal&lt;char&gt;(runtime_ch);
+</code></pre>
+
+      <p>
+        这个版本更灵活，但可能更慢，因为它必须在运行时执行。
+        当字面量在编译期已知时，优先使用 <code>char_literal_v</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. ::fast_io::arithmetic_char_literal_v 与 arithmetic_char_literal</h2>
+      <p>
+        <code>::fast_io::arithmetic_char_literal</code> 的行为类似
+        <code>char_literal</code>，但它是为算术表达式设计的，
+        尤其是当 <code>wchar_t</code> 使用非 UTF 的执行字符集时。
+      </p>
+
+<pre><code class="language-cpp">
+char8_t runtime_ch{/* ... */};
+char c = ::fast_io::arithmetic_char_literal&lt;char&gt;(runtime_ch);
+</code></pre>
+
+      <p>
+        简写形式 <code>arithmetic_char_literal_v</code> 是
+        编译期版本：
+      </p>
+
+<pre><code class="language-cpp">
+wchar_t w = ::fast_io::arithmetic_char_literal_v&lt;u8'b', wchar_t&gt;;
+</code></pre>
+
+      <p>
+        当你手上是编译期 <code>char8_t</code> 字面量，并且需要执行字符集中
+        适合算术运算的值时，请使用 <code>arithmetic_char_literal_v</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 基本分类</h2>
+      <p>
+        每个分类函数接受单个字符，返回
+        <code>true</code> 或 <code>false</code>。
+      </p>
+
+<pre><code class="language-cpp">
+bool b1 = ::fast_io::char_category::is_c_lower('a');
+bool b2 = ::fast_io::char_category::is_c_upper('A');
+bool b3 = ::fast_io::char_category::is_c_digit('7');
+bool b4 = ::fast_io::char_category::is_c_space(' ');
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. 配合 ::fast_io::string 使用 char_category</h2>
+      <p>
+        <code>::fast_io::string</code> 连续存储字符，因此你可以
+        遍历它并应用任何分类函数。
+      </p>
+
+<pre><code class="language-cpp">
+::fast_io::string s{"Hello World"};
+
+for(char ch : s)
+{
+    if(::fast_io::char_category::is_c_lower(ch))
+    {
+        // lowercase letter
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>6. 示例：统计小写字母</h2>
+
+<pre><code class="language-cpp">
+::fast_io::string s{"Hello fast_io!"};
+
+std::size_t count{};
+
+for(char ch : s)
+{
+    if(::fast_io::char_category::is_c_lower(ch))
+    {
+        ++count;
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>7. 为什么不直接比较范围？</h2>
+      <p>
+        你可能会想通过与某个范围比较来检测小写字母：
+      </p>
+
+<pre><code class="language-cpp">
+if(ch &gt;= ::fast_io::char_literal_v&lt;u8'a', char&gt; &&
+   ch &lt;= ::fast_io::char_literal_v&lt;u8'z', char&gt;)
+{
+    ++count;
+}
+</code></pre>
+
+      <p>
+        即使这样使用了 <code>char_literal_v</code>，并让端点遵循执行
+        字符集，它仍然假定所有小写字母构成一个单一的连续区间。这
+        对 ASCII 成立，但<strong>并非</strong>对所有执行字符集（例如 EBCDIC）都保证成立。
+      </p>
+
+      <p>
+        始终优先使用：
+      </p>
+
+<pre><code class="language-cpp">
+if(::fast_io::char_category::is_c_lower(ch))
+{
+    ++count;
+}
+</code></pre>
+
+      <p>
+        <code>is_c_lower</code> 的实现具备关于执行字符集的正确知识，
+        不依赖天真的区间假设。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 示例：筛选字母字符</h2>
+
+<pre><code class="language-cpp">
+::fast_io::string input{"Hello 123 World!"};
+::fast_io::string letters{};
+
+for(char ch : input)
+{
+    if(::fast_io::char_category::is_c_alpha(ch))
+    {
+        letters.push_back(ch);
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>9. 变换整个字符串</h2>
+      <p>
+        <code>::fast_io::char_category::ranges</code> 命名空间提供了
+        一次作用于整个区间的函数。
+      </p>
+
+<pre><code class="language-cpp">
+::fast_io::string s{"Hello FAST_IO!"};
+
+::fast_io::char_category::ranges::to_c_lower(s);
+</code></pre>
+
+      <p>
+        调用之后，<code>s</code> 变成 <code>"hello fast_io!"</code>。
+      </p>
+
+<pre><code class="language-cpp">
+::fast_io::char_category::ranges::to_c_upper(s);
+::fast_io::char_category::ranges::to_c_halfwidth(s);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>10. 字符分类函数</h2>
+
+      <table>
+        <thead>
+          <tr><th>函数</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>is_c_alnum</code></td><td>字母或数字</td></tr>
+          <tr><td><code>is_c_alpha</code></td><td>字母</td></tr>
+          <tr><td><code>is_c_blank</code></td><td>空格或制表符</td></tr>
+          <tr><td><code>is_c_cntrl</code></td><td>控制字符</td></tr>
+          <tr><td><code>is_c_digit</code></td><td>数字 0–9</td></tr>
+          <tr><td><code>is_c_fullwidth</code></td><td>全角字符</td></tr>
+          <tr><td><code>is_c_graph</code></td><td>可见（非空格）字符</td></tr>
+          <tr><td><code>is_c_halfwidth</code></td><td>半角字符</td></tr>
+          <tr><td><code>is_c_lower</code></td><td>小写字母</td></tr>
+          <tr><td><code>is_c_print</code></td><td>可打印字符</td></tr>
+          <tr><td><code>is_c_punct</code></td><td>标点符号</td></tr>
+          <tr><td><code>is_c_space</code></td><td>空白</td></tr>
+          <tr><td><code>is_c_upper</code></td><td>大写字母</td></tr>
+          <tr><td><code>is_c_xdigit</code></td><td>十六进制数字</td></tr>
+          <tr><td><code>is_html_whitespace</code></td><td>HTML 空白</td></tr>
+          <tr><td><code>is_dos_file_invalid_character</code></td><td>DOS 文件名中的非法字符</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>11. 字符变换函数</h2>
+
+      <table>
+        <thead>
+          <tr><th>函数</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>to_c_lower</code></td><td>把单个字符转换为小写</td></tr>
+          <tr><td><code>to_c_upper</code></td><td>把单个字符转换为大写</td></tr>
+          <tr><td><code>to_c_halfwidth</code></td><td>把单个字符转换为半角</td></tr>
+
+          <tr><td><code>ranges::to_c_lower</code></td><td>把整个区间转换为小写</td></tr>
+          <tr><td><code>ranges::to_c_upper</code></td><td>把整个区间转换为大写</td></tr>
+          <tr><td><code>ranges::to_c_halfwidth</code></td><td>把整个区间转换为半角</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>12. 使用 char_category_family 与 char_category_traits</h2>
+
+      <h3>12.1 char_category_family 定义</h3>
+
+<pre><code class="language-cpp">
+enum class char_category_family : ::std::uint_least32_t
+{
+    c_alnum,                    // Alphanumeric characters (letters and digits)
+    c_alpha,                    // Alphabetic Character
+    c_blank,                    // Space or tab
+    c_cntrl,                    // Control characters (ASCII 0x00-0x1F, 0x7F or EBCDIC equivalents)
+    c_digit,                    // Numeric digits (0-9)
+    c_fullwidth,                // Full-width character
+    c_graph,                    // Graphical characters (alphanumeric + punctuation)
+    c_halfwidth,                // Half-width character
+    c_lower,                    // Lowercase alphabetic characters
+    c_print,                    // Printable characters (includes space)
+    c_punct,                    // Punctuation characters
+    c_space,                    // Whitespace characters (space, tab, newline, etc.)
+    c_upper,                    // Uppercase alphabetic characters
+    c_xdigit,                   // Hexadecimal digits (0-9, A-F, a-f)
+    dos_file_invalid_character, // DOS Path invalid character
+    html_whitespace             // HTML whitespace
+};
+</code></pre>
+
+      <h3>12.2 创建分类器</h3>
+
+<pre><code class="language-cpp">
+using lower_pred =
+    ::fast_io::char_category::char_category_traits&lt;
+        ::fast_io::char_category::char_category_family::c_lower,
+        false
+    &gt;;
+
+lower_pred pred{};
+bool a = pred('a');   // true
+bool b = pred('Z');   // false
+</code></pre>
+
+      <h3>12.3 取反的分类器</h3>
+
+<pre><code class="language-cpp">
+using not_lower_pred =
+    ::fast_io::char_category::char_category_traits&lt;
+        ::fast_io::char_category::char_category_family::c_lower,
+        true
+    &gt;;
+
+not_lower_pred pred{};
+bool a = pred('A');   // true (because 'A' is NOT lowercase)
+</code></pre>
+
+      <h3>12.4 配合 ::fast_io::string 使用 traits</h3>
+
+<pre><code class="language-cpp">
+::fast_io::string s{"Hello 123 World"};
+
+using digit_pred =
+    ::fast_io::char_category::char_category_traits&lt;
+        ::fast_io::char_category::char_category_family::c_digit,
+        false
+    &gt;;
+
+auto it = digit_pred::find(s.begin(), s.end());
+if(it != s.end())
+{
+    // *it is the first digit in the string
+}
+</code></pre>
+
+      <p>
+        这为你提供了一种灵活、通用的方式，在遵循执行字符集的前提下
+        对文本进行分类和搜索。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>::fast_io::char_category</code> 始终遵循执行字符集。</li>
+        <li>EBCDIC 系统使用 EBCDIC 规则；其他所有系统对码点 <code>[0,127]</code> 使用 ASCII 规则。</li>
+        <li><code>char_literal_v</code> 是从 <code>char8_t</code> 创建执行字符集字面量的主要方式。</li>
+        <li><code>char_literal</code> 与 <code>arithmetic_char_literal</code> 用于运行时的 <code>char8_t</code> 值。</li>
+        <li><code>arithmetic_char_literal_v</code> 对宽字符的算术运算很有用。</li>
+        <li>分类与变换函数都是 <strong>constexpr</strong> 且可预测的。</li>
+        <li>基于区间的函数可以就地变换整个字符串。</li>
+        <li>避免手工的范围检查；改用 <code>is_c_lower</code> 及相关函数。</li>
+        <li><code>char_category_family</code> 与 <code>char_category_traits</code> 让你可以构建通用的、感知执行字符集的谓词。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/04.dsal/01.string/" class="prev-button">← 第4.1章: string</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/04.dsal/03.vector/" class="next-button">第4.3章: vector →</a>
+    </div>
+  </main>
+</body>
+</html>
