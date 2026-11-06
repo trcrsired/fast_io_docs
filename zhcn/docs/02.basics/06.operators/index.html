@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.6章: 运算符 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.6章: 运算符</h1>
+
+    <section>
+      <h2>什么是运算符？</h2>
+      <p>
+        在 C++ 中，<strong>运算符</strong>是对一个或多个对象执行动作的符号。
+        运算符包括算术（<code>+</code>、<code>-</code>、<code>*</code>、<code>/</code>、<code>%</code>）、关系（<code>&lt;</code>、<code>&gt;</code>、<code>==</code>）、逻辑（<code>&amp;&amp;</code>、<code>||</code>、<code>!</code>）、赋值（<code>=</code>、<code>+=</code> 等）等等。
+        运算符作用于<strong>对象</strong>，而不是“变量”。
+      </p>
+    </section>
+
+    <section>
+      <h2>配合 <code>::std::size_t</code> 的算术运算符</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::std::size_t a{10};
+    ::std::size_t b{3};
+
+    println("a + b = ", a + b); // 13
+    println("a - b = ", a - b); // 7
+    println("a * b = ", a * b); // 30
+    println("a / b = ", a / b); // 3
+    println("a % b = ", a % b); // 1
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>取模运算符 <code>%</code></h2>
+      <p>
+        <code>%</code> 运算符计算除法之后的余数。
+        对无符号类型，结果是直截了当的。
+        对有符号类型，余数与左操作数（被除数）同号。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::std::int32_t x = 10;
+    ::std::int32_t y = -3;
+
+    println("10 % 3 = ", x % 3);   // 1
+    println("10 % -3 = ", x % y);  // 1 (same sign as 10)
+    println("-10 % 3 = ", -x % 3); // -1 (same sign as -10)
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>溢出与回绕</h2>
+      <p>
+        对 <code>::std::int32_t</code> 这类有符号整数类型，算术溢出是<strong>未定义行为（UB）</strong>。
+        对 <code>::std::uint32_t</code> 或 <code>::std::size_t</code> 这类无符号类型，算术以 2<sup>N</sup> 取模回绕，这是有良好定义的。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Signed overflow: UB (do not rely on this!)
+    ::std::int32_t si = 2147483647; // max 32-bit signed
+    // si = si + 1; // UB: signed overflow
+
+    // Unsigned wrapping: well-defined
+    ::std::uint32_t ui = 4294967295u; // max 32-bit unsigned
+    println("ui = ", ui);             // 4294967295
+    ui = ui + 1;                      // wraps to 0
+    println("ui after wrap = ", ui);  // 0
+}
+</code></pre>
+    </section>
+    <section>
+      <h2>一元加与一元减</h2>
+      <p>
+        <strong>一元加</strong>（<code>+a</code>）与<strong>一元减</strong>（<code>-a</code>）运算符作用于单个操作数。
+        它们与需要左右两个操作数的二元 <code>+</code> 和 <code>-</code> 不同。
+      </p>
+      <ul>
+        <li><code>+a</code> 只是原样给出 <code>a</code> 的值。很少显式使用它。</li>
+        <li><code>-a</code> 产生 <code>a</code> 的加法逆元（取负）。对有符号整数，这会翻转符号。</li>
+      </ul>
+
+    <section>
+      <h2>一元加与一元减</h2>
+      <p>
+        <strong>一元加</strong>（<code>+a</code>）与<strong>一元减</strong>（<code>-a</code>）运算符作用于单个操作数。
+        它们与需要左右两个操作数的二元 <code>+</code> 和 <code>-</code> 不同。
+      </p>
+      <ul>
+        <li><code>+a</code> 只是原样给出 <code>a</code> 的值。很少显式使用它。</li>
+        <li><code>-a</code> 产生 <code>a</code> 的加法逆元（取负）。对有符号整数，这会翻转符号。</li>
+      </ul>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::std::int32_t x{42};
+
+    println("+x = ", +x); // 42 (unary plus does nothing)
+    println("-x = ", -x); // -42 (unary minus negates the value)
+
+    // With unsigned types, -a wraps modulo 2^N
+    ::std::size_t u{5};
+    println("-u = ", -u); // wraps around (large value depending on size_t width)
+
+    // Special case: INT_LEAST32_MIN
+    ::std::int_least32_t mn{INT_LEAST32_MIN};
+    // println(-mn); // UB: negating INT_LEAST32_MIN cannot be represented in 32-bit signed
+}
+</code></pre>
+
+      <p>
+        <strong>要点：</strong>一元加实际上什么也不做，而一元减对操作数取负。
+        对无符号类型，取负以 2<sup>N</sup> 取模进行，所以 <code>-u</code> 的结果是回绕而非真正的负数。
+        对有符号类型，要小心 <code>INT_LEAST32_MIN</code>：它的绝对值无法用 32 位表示，因此 <code>-INT_LEAST32_MIN</code> 是<strong>未定义行为</strong>。
+      </p>
+    </section>
+
+
+    <section>
+      <h2>特殊情况：<code>INT_LEAST32_MIN</code></h2>
+      <p>
+        常量 <code>INT_LEAST32_MIN</code> 表示 <code>::std::int_least32_t</code>
+        能存储的最小值。在大多数系统上它是 <code>-2147483648</code>。
+      </p>
+      <p>
+        用一元减运算符对这个值取负（<code>-mn</code>）是一个危险的边缘情况：
+      </p>
+      <ul>
+        <li>从数学上讲，<code>-(-2147483648)</code> 应当是 <code>+2147483648</code>。</li>
+        <li>但 <code>::std::int_least32_t</code> 最多只能表示到 <code>+2147483647</code>。</li>
+        <li>这意味着结果无法被表示，在 C++ 中这是<strong>未定义行为（UB）</strong>。</li>
+        <li>请使用更宽的类型，例如 <code>::std::int64_t safe = -static_cast&lt;::std::int64_t&gt;(mn);</code> —— 这将在后续章节中讲解。</li>
+      </ul>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::std::int_least32_t mn{INT_LEAST32_MIN};
+    println("mn = ", mn); // prints -2147483648
+
+    // println(-mn); // UB: cannot represent +2147483648 in 32-bit signed
+}
+</code></pre>
+
+      <p>
+        <strong>要点：</strong>在 32 位有符号类型中对 <code>INT_LEAST32_MIN</code> 取负是未定义行为。
+        安全的做法是使用更宽的类型或无符号类型，但这些策略的细节将在本教程后续部分讲解。
+      </p>
+    </section>
+
+
+    <section>
+      <h2>自增与自减</h2>
+      <p>
+        C++ 提供了 <code>++</code> 与 <code>--</code> 运算符。
+        我们应当优先使用 <strong><code>++i</code></strong>（前置自增）而不是 <code>i++</code>（后置自增），因为 <code>i++</code> 会创建一个临时副本，效率更低。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::std::size_t i{5};
+
+    println("i = ", i);   // 5
+    ++i;                  // pre-increment
+    println("++i = ", i); // 6
+
+    // Post-increment pseudo-code:
+    // auto temp = i;
+    // ++i;
+    // return temp;
+
+    i = 5;
+    println("i++ returns ", i++); // prints 5 (old value)
+    println("i after i++ = ", i); // prints 6
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>比较运算符</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::std::size_t a{10};
+    ::std::size_t b{20};
+
+    println("a == b: ", a == b); // 0
+    println("a != b: ", a != b); // 1
+    println("a &lt; b: ", a &lt; b);   // 1
+    println("a &gt; b: ", a &gt; b);   // 0
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>三路比较运算符 <code>&lt;=&gt;</code></h2>
+      <p>
+        <strong>三路比较运算符</strong>（<code>&lt;=&gt;</code>）执行三方比较。
+        它返回一种序关系结果：小于、等于或大于。
+        使用 <code>fast_io</code>，你可以直接把结果打印为 <code>&lt;</code>、<code>=</code> 或 <code>&gt;</code>。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;compare&gt;
+#include &lt;cstddef&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::std::size_t a{10};
+    ::std::size_t b{20};
+
+    auto result = (a &lt;=&gt; b);
+
+    println(result); // fast_io prints &lt; (since a &lt; b)
+
+    a = 20;
+    b = 20;
+    println(a &lt;=&gt; b); // prints =
+
+    a = 30;
+    b = 20;
+    println(a &lt;=&gt; b); // prints &gt;
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>条件运算符 <code>?:</code></h2>
+      <p>
+        <strong>条件运算符</strong>（<code>?:</code>）根据条件在两个表达式之间选择。
+        它有时被称为“三元运算符”。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::std::size_t a{10};
+    ::std::size_t b{20};
+
+    ::std::size_t max = (a &gt; b) ? a : b;
+    println("max = ", max); // 20
+}
+</code></pre>
+    </section>
+
+      <h2>操作数与优先级</h2>
+      <p>
+        每个运算符作用于一个或多个<strong>操作数</strong>。
+        在 <code>a + b</code> 这样的二元运算符表达式中，<code>a</code> 是<strong>左操作数</strong>，<code>b</code> 是<strong>右操作数</strong>。
+        <code>++i</code> 这类一元运算符作用于单个操作数。
+      </p>
+      <p>
+        运算符还有<strong>优先级</strong>，它决定运算的求值顺序。
+        圆括号 <code>()</code> 优先级最高，可用于显式控制求值顺序。
+        完整的优先级表见
+        <a href="https://en.cppreference.com/w/cpp/language/operator_precedence" target="_blank">
+          cppreference：运算符优先级
+        </a>。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::std::size_t a{2};
+    ::std::size_t b{3};
+    ::std::size_t c{4};
+
+    println("a + b * c = ", a + b * c);   // multiplication first → 14
+    println("(a + b) * c = ", (a + b) * c); // parentheses force addition first → 20
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>汇总表</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>类别</th>
+            <th>运算符</th>
+            <th>示例</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>算术</td>
+            <td><code>+ - * / %</code></td>
+            <td><code>a + b</code></td>
+            <td>对对象进行基本数学运算。</td>
+          </tr>
+          <tr>
+            <td>取模</td>
+            <td><code>%</code></td>
+            <td><code>-10 % 3</code></td>
+            <td>余数与左操作数同号。</td>
+          </tr>
+          <tr>
+            <td>比较</td>
+            <td><code>== != &lt; &gt; &lt;= &gt;=</code></td>
+            <td><code>a &lt; b</code></td>
+            <td>返回布尔结果。</td>
+          </tr>
+          <tr>
+            <td>三路比较</td>
+            <td><code>&lt;=&gt;</code></td>
+            <td><code>println(a &lt;=&gt; b)</code></td>
+            <td>配合 fast_io 可打印 &lt;、= 或 &gt;。</td>
+          </tr>
+          <tr>
+            <td>逻辑</td>
+            <td><code>&amp;&amp; || !</code></td>
+            <td><code>x &amp;&amp; y</code></td>
+            <td>与布尔对象一起使用。</td>
+          </tr>
+          <tr>
+            <td>赋值</td>
+            <td><code>= += -= *= /=</code></td>
+            <td><code>a += 5</code></td>
+            <td>把算术运算与赋值结合。</td>
+          </tr>
+          <tr>
+            <td>自增/自减</td>
+            <td><code>++ --</code></td>
+            <td><code>++i</code></td>
+            <td>优先使用前置自增 <code>++i</code> 而不是后置自增 <code>i++</code>。</td>
+          </tr>
+          <tr>
+            <td>条件</td>
+            <td><code>?:</code></td>
+            <td><code>(a &gt; b) ? a : b</code></td>
+            <td>三元运算符在两个值之间选择。</td>
+          </tr>
+          <tr>
+            <td>溢出</td>
+            <td>—</td>
+            <td><code>::std::int32_t</code></td>
+            <td>有符号溢出是 UB；无符号以 2<sup>N</sup> 取模回绕。</td>
+          </tr>
+          <tr>
+            <td>优先级</td>
+            <td><code>()</code></td>
+            <td><code>(a + b) * c</code></td>
+            <td>圆括号优先级最高。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/05.assignment/" class="prev-button">← 第2.5章: 赋值</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/07.sizeof/" class="next-button">第2.7章: sizeof →</a>
+    </div>
+  </main>
+</body>
+</html>

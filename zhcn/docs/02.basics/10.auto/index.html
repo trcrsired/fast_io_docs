@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.10章: auto - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.10章: <code>auto</code></h1>
+
+    <section>
+      <h2>什么是 <code>auto</code>？</h2>
+      <p>
+        <code>auto</code> 关键字告诉编译器从初始化器推导对象的类型。
+        你不必显式写出类型，而是让编译器自行推断。
+      </p>
+    </section>
+
+    <section>
+      <h2>基础示例</h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+auto a{42zu};       // deduced as ::std::size_t
+auto b{3.14};       // deduced as double
+auto c{'x'};        // deduced as char
+auto d{true};       // deduced as bool
+</code></pre>
+      <p>
+        每个对象都用字面量初始化，编译器会自动推导出正确的类型。
+      </p>
+    </section>
+
+    <section>
+      <h2>为什么使用 <code>auto</code>？</h2>
+      <ul>
+        <li>当类型从初始化器显而易见时，减少重复书写。</li>
+        <li>类型很长或很复杂时，提升可读性。</li>
+        <li>在大量使用模板的代码中，有助于避免错误。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>局限</h2>
+      <ul>
+        <li><code>auto</code> 需要初始化器——不能在没有初始化器的情况下声明 <code>auto x;</code>。</li>
+        <li>推导出的类型未必总符合你的预期（例如窄化转换）。</li>
+        <li>要小心：除非显式添加 <code>&amp;</code> 或 <code>const&amp;</code>，<code>auto</code> 总是按值推导。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>配合 <code>auto</code> 的引用</h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t x{100zu};
+
+auto r1{x};        // deduced as ::std::size_t (copy)
+auto&amp; r2{x};       // deduced as ::std::size_t&amp; (reference)
+auto const&amp; r3{x}; // deduced as ::std::size_t const&amp; (const reference)
+</code></pre>
+      <p>
+        添加 <code>&amp;</code> 或 <code>const&amp;</code> 会把推导结果变为引用类型。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>auto</code> 从初始化器推导对象的类型。</li>
+        <li>使用 <code>auto</code> 时始终要提供初始化器。</li>
+        <li>用 <code>auto</code> 加 <code>&amp;</code> 或 <code>const&amp;</code> 来绑定引用。</li>
+        <li>提升可读性并减少重复，尤其是在复杂类型上。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/09.reference/" class="prev-button">← 第2.9章: 引用</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/11.decltype/" class="next-button">第2.11章: decltype(T) →</a>
+    </div>
+  </main>
+</body>
+</html>

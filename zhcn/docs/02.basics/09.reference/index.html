@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.9章: 引用 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.9章: 引用</h1>
+
+    <section>
+      <h2>什么是引用？</h2>
+      <p>
+        C++ 中的引用是另一个对象的别名。
+        它不创建新对象，只是为已有对象提供一个新名字。
+        在本章中，我们只讨论<strong>左值引用</strong>。
+      </p>
+    </section>
+
+    <section>
+      <h2>语法</h2>
+      <p>
+        引用在类型之后用 <code>&amp;</code> 符号声明。
+        它在初始化时必须始终绑定到一个已存在的对象上：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t x{42zu};
+::std::size_t&amp; ref{x}; // ref is a reference bound to object x
+</code></pre>
+      <p>
+        这里，<code>ref</code> 并不是一个独立的对象。它是 <code>x</code> 的另一个名字。
+      </p>
+    </section>
+
+    <section>
+      <h2>基本行为</h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t a{10zu};
+::std::size_t&amp; r{a}; // r bound to object a
+
+r = 20zu; // modifies object a, because r refers to a
+// now a == 20
+</code></pre>
+      <p>
+        通过引用赋值会改变原对象。
+        引用必须在声明时初始化，且不能重新绑定。
+      </p>
+    </section>
+
+    <section>
+      <h2>常量引用</h2>
+      <p>
+        你也可以把引用声明为 <code>T const&amp;</code>。
+        这意味着不能通过该引用来修改原对象。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t b{30zu};
+::std::size_t const&amp; cr{b}; // const reference bound to object b
+
+// cr = 40zu; // error: cannot assign through const reference
+</code></pre>
+    </section>
+
+    <section>
+      <h2><code>T const&amp;</code> 的生命周期延长</h2>
+      <p>
+        C++ 中有一条特殊规则：当你把 <code>T const&amp;</code> 绑定到一个临时对象上时，
+        该临时对象的生命周期会被延长到与引用的生命周期相同。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t const&amp; r{42zu}; // binds to a temporary object
+// The temporary object lives as long as r does
+</code></pre>
+      <p>
+        如果没有这条规则，临时对象会在整个表达式结束时被销毁，
+        从而使引用悬空。生命周期延长让 <code>T const&amp;</code> 与临时对象配合使用是安全的。
+      </p>
+    </section>
+
+    <section>
+      <h2>小心 <code>T &amp;a, b;</code></h2>
+      <p>
+        一个常见错误是在一行中同时声明多个对象并使用引用：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t obj1{1zu};
+::std::size_t obj2{2zu};
+
+::std::size_t &amp;a{obj1}, b{obj2};
+</code></pre>
+      <p>
+        在这个声明中：
+      </p>
+      <ul>
+        <li><code>a</code> 是绑定到 <code>obj1</code> 的引用。</li>
+        <li><code>b</code> 只是一个普通的 <code>::std::size_t</code> 对象，用 <code>obj2</code> 初始化。</li>
+      </ul>
+      <p>
+        <code>&amp;</code> 只绑定到紧跟在它后面的那个名字。
+        若要把两者都声明为引用，你必须写成：
+      </p>
+      <pre><code class="language-cpp">
+::std::size_t obj3{3zu};
+::std::size_t obj4{4zu};
+
+::std::size_t &amp;c{obj3}, &amp;d{obj4}; // both c and d are references
+</code></pre>
+      <p>
+        最佳实践：每行只声明一个引用，以避免混淆。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>引用是已有对象的别名。</li>
+        <li>在类型之后用 <code>&amp;</code> 声明。</li>
+        <li>必须在声明时初始化，且不能重新绑定。</li>
+        <li>通过引用赋值会修改原对象。</li>
+        <li>使用 <code>T const&amp;</code> 来防止修改。</li>
+        <li><code>T const&amp;</code> 会延长它所绑定的临时对象的生命周期。</li>
+        <li>要注意：<code>T &amp;a, b;</code> 只会让 <code>a</code> 成为引用，<code>b</code> 不是。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/08.const/" class="prev-button">← 第2.8章: const</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/10.auto/" class="next-button">第2.10章: auto →</a>
+    </div>
+  </main>
+</body>
+</html>

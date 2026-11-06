@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.7章: sizeof - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.7章: <code>sizeof</code></h1>
+
+    <section>
+      <h2>什么是 <code>sizeof</code>？</h2>
+      <p>
+        C++ 中的 <code>sizeof</code> 运算符返回某个类型或对象的大小（以字节计）。
+        它的结果类型始终是 <code>::std::size_t</code>，这是一个无符号整数类型，保证能容纳任何对象大小。
+        对基础类型而言，<code>sizeof</code> 在编译期求值，是一个常量表达式。
+      </p>
+    </section>
+
+    <section>
+      <h2>基础示例</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;cstdfloat&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::std::size_t sz1 = sizeof(::std::size_t);
+    ::std::size_t sz2 = sizeof(::std::int32_t);
+    ::std::size_t sz3 = sizeof(double);
+    ::std::size_t sz4 = sizeof(::std::float64_t);
+    ::std::size_t sz5 = sizeof(::std::float32_t);
+    ::std::size_t sz6 = sizeof(::std::bfloat_t);
+
+    println("sizeof(::std::size_t) = ", sz1);   // equals architecture byte size (8 on 64-bit, 4 on 32-bit)
+    println("sizeof(::std::int32_t) = ", sz2);  // formula: 32/8 = 4
+    println("sizeof(double) = ", sz3);          // typically 8
+    println("sizeof(::std::float64_t) = ", sz4); // 64/8 = 8
+    println("sizeof(::std::float32_t) = ", sz5); // 32/8 = 4
+    println("sizeof(::std::bfloat_t) = ", sz6);  // 16/8 = 2
+}
+</code></pre>
+
+      <p>
+        <strong>要点：</strong><code>sizeof</code> 的结果始终是 <code>::std::size_t</code> 值。
+        在典型的 64 位系统上：
+      </p>
+      <ul>
+        <li><code>sizeof(::std::size_t)</code> = 8 字节（架构字长）</li>
+        <li><code>sizeof(::std::int32_t)</code> = 32/8 = 4 字节</li>
+        <li><code>sizeof(double)</code> = 8 字节</li>
+        <li><code>sizeof(::std::float64_t)</code> = 64/8 = 8 字节</li>
+        <li><code>sizeof(::std::float32_t)</code> = 32/8 = 4 字节</li>
+        <li><code>sizeof(::std::bfloat_t)</code> = 16/8 = 2 字节</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>公式</h2>
+      <p>
+        对固定宽度的整数与浮点类型，大小遵循一个简单的公式：
+      </p>
+      <ul>
+        <li><code>sizeof(::std::intXX_t)</code> = XX / 8</li>
+        <li><code>sizeof(::std::float32_t)</code> = 32 / 8 = 4</li>
+        <li><code>sizeof(::std::float64_t)</code> = 64 / 8 = 8</li>
+        <li><code>sizeof(::std::bfloat_t)</code> = 16 / 8 = 2</li>
+      </ul>
+      <p>
+        对 <code>::std::size_t</code> 而言，大小等于架构的字节宽度：
+        32 位系统上是 4 字节，64 位系统上是 8 字节。
+      </p>
+    </section>
+
+    <section>
+      <h2>运算符特性</h2>
+      <ul>
+        <li>对基础类型，<code>sizeof</code> 在编译期求值。</li>
+        <li>它不会求值其操作数——没有运行时副作用。</li>
+        <li>结果类型始终是 <code>::std::size_t</code>。</li>
+        <li>作用于类型时必须加圆括号，作用于对象时圆括号可选。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>延伸阅读</h2>
+      <p>
+        完整细节见
+        <a href="https://en.cppreference.com/w/cpp/language/sizeof" target="_blank">
+          cppreference：sizeof
+        </a> 以及
+        <a href="https://en.cppreference.com/w/cpp/types/floating-point" target="_blank">
+          cppreference：固定宽度浮点类型
+        </a>。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/06.operators/" class="prev-button">← 第2.6章: 运算符</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/08.const/" class="next-button">第2.8章: const →</a>
+    </div>
+  </main>
+</body>
+</html>

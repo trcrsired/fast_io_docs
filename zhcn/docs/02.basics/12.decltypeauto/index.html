@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.12章: decltype(auto) - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.12章: <code>decltype(auto)</code></h1>
+
+    <section>
+      <h2>什么是 <code>decltype(auto)</code>？</h2>
+      <p>
+        <code>decltype(auto)</code> 关键字结合了 <code>auto</code> 与 <code>decltype</code> 的行为。
+        它推导表达式的类型，但像 <code>decltype</code> 一样保留引用与 <code>const</code> 限定符。
+      </p>
+    </section>
+
+    <section>
+      <h2>基础示例</h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t x{42zu};
+
+auto a{x};            // deduced as ::std::size_t (copy)
+decltype(auto) b{x};  // deduced as ::std::size_t& (reference)
+</code></pre>
+      <p>
+        <code>auto</code> 会剥离引用，而 <code>decltype(auto)</code> 会保留它们。
+      </p>
+    </section>
+
+    <section>
+      <h2>返回类型</h2>
+      <p>
+        我们稍后会详细介绍函数。
+        不过这里先展示 <code>decltype(auto)</code> 与函数的配合，因为返回类型是最常见的使用场景。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t global{100zu};
+
+auto get_copy() {
+    return global; // returns ::std::size_t (copy)
+}
+
+decltype(auto) get_ref() {
+    return (global); // returns ::std::size_t& (reference)
+}
+</code></pre>
+      <p>
+        使用 <code>decltype(auto)</code> 可以确保：如果你返回引用，调用者拿到的就是引用，而不是副本。
+      </p>
+    </section>
+
+    <section>
+      <h2>⚠️ 小心：圆括号很重要</h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t y{200zu};
+
+decltype(auto) c{y};   // deduced as ::std::size_t (copy)
+decltype(auto) d{(y)}; // deduced as ::std::size_t& (reference)
+</code></pre>
+      <p>
+        正如 <code>decltype</code> 一样，圆括号会改变含义：
+      </p>
+      <ul>
+        <li><code>decltype(auto) c{y};</code> → <code>y</code> 的声明类型（副本）。</li>
+        <li><code>decltype(auto) d{(y)};</code> → 左值表达式，因此推导为引用。</li>
+      </ul>
+      <p>
+        使用 <code>decltype(auto)</code> 时务必留意圆括号。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>decltype(auto)</code> 像 <code>decltype</code> 一样推导类型，但拥有 <code>auto</code> 的便利。</li>
+        <li>保留引用与 <code>const</code> 限定符。</li>
+        <li>在函数返回类型中最有用，可避免意外的副本。</li>
+        <li>表达式外的圆括号会改变推导结果：<code>x</code> 与 <code>(x)</code> 不同。</li>
+        <li>函数将在后面讲解，但这个预告说明了 <code>decltype(auto)</code> 为何重要。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/11.decltype/" class="prev-button">← 第2.11章: decltype(T)</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/13.casting/" class="next-button">第2.13章: 类型转换 →</a>
+    </div>
+  </main>
+</body>
+</html>

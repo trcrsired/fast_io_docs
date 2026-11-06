@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.3章: 字面量 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.3章: 字面量</h1>
+
+    <section>
+      <h2>什么是字面量？</h2>
+      <p>
+        <strong>字面量</strong>是直接写在代码中的固定值。
+        与变量不同，字面量不会改变——它们是嵌入程序中的常量。
+      </p>
+    </section>
+
+    <section>
+      <h2>示例</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;stdfloat&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Integer literal assigned to ::std::size_t
+    ::std::size_t number = 42;
+    println(number); // prints 42
+
+    // Floating point literal assigned to ::std::float64_t
+    ::std::float64_t pi = 3.14;
+    println(pi); // prints 3.14
+
+    // Character literal
+    println('A');        // prints 65 (ASCII code)
+    println(chvw('A'));  // prints A
+
+    // Hexadecimal escape sequence gives value directly
+    println('\x41');     // prints 65
+    println(chvw('\x41')); // prints A
+
+    // Assigning character literal 'A' to different integer types
+    char c = 'A';
+    ::std::size_t b = 'A';
+    ::std::uint_least16_t u16 = 'A';
+    ::std::int_least32_t i32 = 'A';
+
+    println(c);          // prints 65
+    println(b);          // prints 65
+    println(u16);        // prints 65
+    println(i32);        // prints 65
+    println(chvw(c));    // prints A
+
+    // UTF-specific character types
+    char8_t u8ch = u8'A';
+    char16_t u16ch = u'A';
+    char32_t u32ch = U'A';
+
+    println(u8ch);       // prints 65
+    println(u16ch);      // prints 65
+    println(u32ch);      // prints 65
+    println(chvw(u8ch)); // prints A
+    println(chvw(u16ch));// prints A
+    println(chvw(u32ch));// prints A
+
+    // Boolean literals
+    println(true, " ", false);             // prints 1 0
+    println(boolalpha(true), " ", boolalpha(false)); // prints true false
+
+    // String literals (adjacent concatenation)
+    print("Hello"
+          "World"
+          "from C++\n");
+
+    // Multiline string literals
+    print("Hello\n"
+          "World\n"
+          "from C++\n");
+
+    // UTF string literals must use code_cvt
+    println(code_cvt(u8"Hello UTF-8"));
+    println(code_cvt(u"Hello UTF-16"));
+    println(code_cvt(U"Hello UTF-32"));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>转义序列</h2>
+      <p>
+        转义序列让你能在字符串和字符字面量中表示特殊字符。
+        它们以反斜杠 <code>\</code> 开头。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>转义序列</th>
+            <th>含义</th>
+            <th>示例</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>\n</code></td><td>换行</td><td><code>"Hello\nWorld"</code></td></tr>
+          <tr><td><code>\t</code></td><td>水平制表符</td><td><code>"A\tB\tC"</code></td></tr>
+          <tr><td><code>\r</code></td><td>回车</td><td><code>"Line1\rLine2"</code></td></tr>
+          <tr><td><code>\v</code></td><td>垂直制表符</td><td><code>"Hello\vWorld"</code></td></tr>
+          <tr><td><code>\\</code></td><td>反斜杠</td><td><code>"Backslash: \\"</code></td></tr>
+          <tr><td><code>\"</code></td><td>双引号</td><td><code>"Quote: \"Hello\""</code></td></tr>
+          <tr><td><code>\'</code></td><td>单引号</td><td><code>"It\'s fine"</code></td></tr>
+          <tr><td><code>\x41</code></td><td>十六进制值 0x41</td><td><code>'\x41'</code> → A</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>原始字符串字面量</h2>
+      <p>
+        原始字符串字面量让你无需转义反斜杠或引号即可书写文本。
+        它们以 <code>R"( ... )"</code> 开头，并可跨越多行。
+        也支持 UTF 前缀（<code>u8R</code>、<code>uR</code>、<code>UR</code>）。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Multiline raw string literal
+    println(R"(Line1
+Line2
+Line3)");
+
+    // Raw string with quotes and backslashes
+    println(R"(Path: C:\Users\Name
+Quote: "Hello World")");
+
+    // UTF raw string literals
+    println(code_cvt(u8R"(Hello UTF-8 raw)"));
+    println(code_cvt(uR"(Hello UTF-16 raw)"));
+    println(code_cvt(UR"(Hello UTF-32 raw)"));
+
+    // Raw string with custom delimiter
+    println(R"abc(This is a raw string with a custom delimiter)abc");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>其他字符类型的多行字符串字面量</h2>
+      <p>
+        UTF 字符串字面量（<code>u8"..."</code>、<code>u"..."</code>、<code>U"..."</code>）也可以跨越多行。
+        相邻的字面量会在编译期拼接起来。
+        使用 <code>fast_io</code> 打印时，要把它们包在 <code>code_cvt(...)</code> 里，因为默认设备期望 <code>char</code>。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    println(code_cvt(u8"Hello\n"
+                     u8"World\n"
+                     u8"from UTF-8"));
+
+    println(code_cvt(u"Hello\n"
+                     u"World\n"
+                     u"from UTF-16"));
+
+    println(code_cvt(U"Hello\n"
+                     U"World\n"
+                     U"from UTF-32"));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>print 与 println</h2>
+      <p>
+        在 <code>fast_io</code> 中，<code>print</code> 和 <code>println</code> 都会把输出写到屏幕上。
+        区别很简单：
+      </p>
+      <ul>
+        <li><code>print(...)</code> —— 原样打印你给它的内容。</li>
+        <li><code>println(...)</code> —— 打印你给它的内容<strong>并在末尾额外加一个 <code>"\n"</code></strong>。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>二进制、十六进制与八进制字面量</h2>
+      <p>
+        除了十进制数字，C++ 还允许你以<strong>二进制</strong>、<strong>十六进制</strong>和<strong>八进制</strong>
+        形式书写整数字面量。
+        这在处理位模式、内存地址或底层数据时很有用。
+      </p>
+
+      <ul>
+        <li><code>0b...</code> → 二进制字面量（基 2）</li>
+        <li><code>0x...</code> → 十六进制字面量（基 16）</li>
+        <li><code>0...</code> → 八进制字面量（基 8）</li>
+      </ul>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Binary literal
+    ::std::uint_least32_t bin = 0b1010;   // decimal 10
+    println("Binary 0b1010 = ", bin);
+
+    // Hexadecimal literal
+    ::std::uint_least32_t hex = 0x1F;     // decimal 31
+    println("Hex 0x1F = ", hex);
+
+    // Octal literal
+    ::std::uint_least32_t oct = 077;      // decimal 63
+    println("Octal 077 = ", oct);
+}
+</code></pre>
+
+      <p>
+        输出：
+      </p>
+      <pre><code>
+Binary 0b1010 = 10
+Hex 0x1F = 31
+Octal 077 = 63
+</code></pre>
+
+      <p>
+        <strong>注意：</strong>这些前缀是字面量语法本身的一部分。
+        无论怎么写，值都以普通整数形式存储。
+      </p>
+    </section>
+
+
+<section>
+  <h2>以不同进制打印数字</h2>
+  <p>
+    C++ 允许你用十进制、二进制（<code>0b...</code>）、十六进制（<code>0x...</code>）和八进制（<code>0...</code>）书写整数字面量。
+    使用 <code>fast_io</code> 打印时，你可以用操纵器控制输出进制。
+    与 <code>std::cout</code> 不同，<code>fast_io</code> <strong>不会</strong>自动加上 <code>0x</code> 或 <code>0b</code> 之类的前缀——它只打印数字。
+  </p>
+
+<section>
+  <h2>以不同进制打印数字</h2>
+  <p>
+    C++ 允许你用十进制、二进制（<code>0b...</code>）、十六进制（<code>0x...</code>）和八进制（<code>0...</code>）书写整数字面量。
+    使用 <code>fast_io</code> 打印时，你可以用操纵器控制输出进制。
+    <code>fast_io</code> 只打印数字——它不会加上 <code>0x</code> 或 <code>0b</code> 之类的前缀。
+    <code>base&lt;N&gt;</code> 操纵器支持从 2 到 36 的任意进制。
+  </p>
+
+  <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::std::uint_least32_t x = 255;   // our test value
+
+    println(
+        "Decimal: ", x, "\n"              // 255
+
+        "Hex: ", hex(x), "\n"             // ff
+        "Hex upper: ", hexupper(x), "\n"  // FF
+
+        "Binary: ", bin(x), "\n"          // 11111111
+        "Binary upper: ", binupper(x), "\n" // 11111111
+
+        "Octal: ", oct(x), "\n"           // 377
+        "Octal (literal 8): ", oct(8), "\n" // prints 10
+
+        "Base 2: ", base&lt;2&gt;(x), "\n"      // 11111111
+        "Base 8: ", base&lt;8&gt;(x), "\n"      // 377
+        "Base 16: ", base&lt;16&gt;(x), "\n"    // ff
+        "Base 35 upper: ", baseupper&lt;35&gt;(x), "\n" // 7U
+        "Base 36: ", base&lt;36&gt;(x)     // 73
+    );
+}
+</code></pre>
+
+  <p>
+    <strong>注意：</strong>这些操纵器只改变数字的显示方式。
+    无论以何种进制输出，存储的值都仍是同一个整数。
+  </p>
+</section>
+
+</code></pre>
+
+  <p>
+    输出：
+  </p>
+  <pre><code>
+Decimal: 255
+Hex: ff
+Hex upper: FF
+Binary: 11111111
+Binary upper: 11111111
+Octal: 377
+Octal (base 8): 10
+Base 36: 73
+Base 35 upper: 7U
+</code></pre>
+
+  <p>
+    <strong>注意：</strong>这些操纵器只改变数字的显示方式。
+    无论你以十进制、十六进制、二进制、八进制还是其他进制打印，存储的值始终是同一个整数。
+  </p>
+</section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/02.datatypes/" class="prev-button">← 第2.2章: 数据类型</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/04.initialization/" class="next-button">第2.4章: 初始化 →</a>
+    </div>
+  </main>
+</body>
+</html>

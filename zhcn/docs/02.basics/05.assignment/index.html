@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.5章: 赋值 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.5章: 赋值</h1>
+
+    <section>
+      <h2>什么是赋值？</h2>
+      <p>
+        在 C++ 中，<strong>赋值</strong>指的是在对象已经初始化之后，给它一个新的值。
+        <strong>赋值不是初始化。</strong>初始化发生在对象被创建并获得第一个值的时候。
+        赋值发生在之后，当你替换该对象中存储的值时。
+      </p>
+    </section>
+
+    <section>
+      <h2>赋值示例</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Initialization
+    ::std::size_t a{10};             // object a initialized to 10
+    println("a = ", a);              // prints 10
+
+    // Assignment
+    a = 20;                          // assign new value to a
+    println("a = ", a);              // prints 20
+
+    // Multiple assignments
+    ::std::int_least32_t b{5};       // initialized to 5
+    println("b = ", b);              // prints 5
+    b = 15;                          // assigned new value
+    println("b = ", b);              // prints 15
+    b = b + 10;                      // assigned result of expression
+    println("b = ", b);              // prints 25
+
+    // Boolean assignment
+    bool flag{false};                // initialized to false
+    println("flag = ", flag);        // prints 0
+    flag = true;                     // assigned new value
+    println("flag = ", flag);        // prints 1
+
+    // Assignment between objects
+    ::std::size_t x{100};
+    ::std::size_t y{200};
+    println("x = ", x, " y = ", y);  // prints 100 200
+    x = y;                           // assign value of y to x
+    println("x = ", x, " y = ", y);  // prints 200 200
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>赋值 vs 初始化</h2>
+      <p>
+        区分<strong>初始化</strong>和<strong>赋值</strong>很重要：
+      </p>
+      <ul>
+        <li><strong>初始化</strong>在对象被创建的那一刻给它第一个值。</li>
+        <li><strong>赋值</strong>替换一个已存在对象的值。</li>
+      </ul>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    int i = 5;       // initialization
+    println("i = ", i);
+
+    i = 10;          // assignment
+    println("i = ", i);
+}
+</code></pre>
+
+      <p>
+        <strong>要点：</strong>初始化只发生一次，即在对象被创建时。
+        赋值在对象的生命周期内可以发生许多次。
+      </p>
+    </section>
+
+    <section>
+      <h2>左值与右值</h2>
+      <p>
+        要理解赋值，我们需要了解<strong>左值</strong>（lvalue）与<strong>右值</strong>（rvalue）的概念：
+      </p>
+      <ul>
+        <li><strong>左值</strong>（left value）：指代某个内存位置、且可以出现在赋值左侧的表达式。
+            例如：具名对象如 <code>x</code>，解引用指针如 <code>*p</code>。</li>
+        <li><strong>右值</strong>（right value）：不会在表达式之后继续存在的临时值或字面量。
+            例如：<code>42</code>、<code>x + y</code>、<code>3.14</code>。</li>
+      </ul>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    int x{5};          // x is an lvalue
+    int y{10};         // y is an lvalue
+
+    x = y;             // OK: lvalue (x) = lvalue (y)
+    println("x = ", x);
+
+    x = 42;            // OK: lvalue (x) = rvalue (42)
+    println("x = ", x);
+
+    // 42 = x;         // ERROR: rvalue cannot be on the left-hand side
+}
+</code></pre>
+
+      <p>
+        <strong>要点：</strong>赋值左侧必须是<strong>左值</strong>。
+        右侧既可以是左值也可以是右值。
+        这一区分在 C++ 中是根本性的，在学习引用与移动语义时会更加重要。
+      </p>
+    </section>
+
+    <section>
+      <h2>对比表</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>概念</th>
+            <th>时机</th>
+            <th>语法</th>
+            <th>示例</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>初始化</td>
+            <td>对象创建时</td>
+            <td><code>=</code>、<code>()</code>、<code>{}</code></td>
+            <td><code>int x{5};</code></td>
+            <td>给对象第一个值。</td>
+          </tr>
+          <tr>
+            <td>赋值</td>
+            <td>对象已存在之后</td>
+            <td><code>=</code></td>
+            <td><code>x = 10;</code></td>
+            <td>替换对象当前的值。</td>
+          </tr>
+          <tr>
+            <td>左值</td>
+            <td>指代内存位置</td>
+            <td>可出现在左侧</td>
+            <td><code>x = 42;</code></td>
+            <td>具名对象、解引用的指针。</td>
+          </tr>
+          <tr>
+            <td>右值</td>
+            <td>临时值</td>
+            <td>可出现在右侧</td>
+            <td><code>x = y + 2;</code></td>
+            <td>字面量、临时结果。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/04.initialization/" class="prev-button">← 第2.4章: 初始化</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/06.operators/" class="next-button">第2.6章: 运算符 →</a>
+    </div>
+  </main>
+</body>
+</html>

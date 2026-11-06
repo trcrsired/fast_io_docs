@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.11章: decltype(T) - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.11章: <code>decltype(T)</code></h1>
+
+    <section>
+      <h2>什么是 <code>decltype</code>？</h2>
+      <p>
+        <code>decltype</code> 关键字检查表达式的类型并产出该类型。
+        与从初始化器推导的 <code>auto</code> 不同，<code>decltype</code> 在不创建对象的情况下给出表达式的精确类型。
+      </p>
+    </section>
+
+    <section>
+      <h2>基础示例</h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t x{42zu};
+
+decltype(x) a{100zu};     // a has type ::std::size_t
+decltype(42zu) b{200zu};  // b has type ::std::size_t
+decltype(x + 1) c{300zu}; // c has type ::std::size_t
+</code></pre>
+      <p>
+        <code>decltype</code> 取圆括号内表达式的类型，并用它来做声明。
+      </p>
+    </section>
+
+    <section>
+      <h2>与 <code>auto</code> 的区别</h2>
+      <ul>
+        <li><code>auto</code> 从初始化器推导类型。</li>
+        <li><code>decltype</code> 检查表达式的类型，即使没有初始化也可以。</li>
+        <li><code>auto</code> 可能会调整类型（例如剥离引用），而 <code>decltype</code> 会精确保留它们。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>配合 <code>decltype</code> 的引用</h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t y{500zu};
+::std::size_t& ry{y};
+
+decltype(ry) d{y}; // d has type ::std::size_t& (reference)
+</code></pre>
+      <p>
+        <code>decltype</code> 保留引用类型。如果表达式是引用，声明的对象也会是引用。
+      </p>
+    </section>
+
+    <section>
+      <h2>配合 <code>decltype</code> 的 const</h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t const z{600zu};
+
+decltype(z) e{700zu}; // e has type ::std::size_t const
+</code></pre>
+      <p>
+        <code>decltype</code> 也会保留被检查表达式上的 <code>const</code> 限定符。
+      </p>
+    </section>
+
+    <section>
+      <h2>⚠️ 小心：<code>decltype(x)</code> vs <code>decltype((x))</code></h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+
+::std::size_t v{800zu};
+
+decltype(v) a{900zu};   // a has type ::std::size_t
+decltype((v)) b{v};     // b has type ::std::size_t& (reference)
+</code></pre>
+      <p>
+        这一差异来自 <code>decltype</code> 规则对表达式的处理方式：
+      </p>
+      <ul>
+        <li><code>decltype(x)</code> —— 当对象的名字不带括号出现时，类型就是该对象的声明类型（此处是 <code>::std::size_t</code>）。</li>
+        <li><code>decltype((x))</code> —— 当表达式被括号包裹时，它被当作左值表达式。
+            类型变为 <code>T&amp;</code>（此处是 <code>::std::size_t&amp;</code>）。</li>
+      </ul>
+      <p>
+        简而言之：<code>decltype(x)</code> 给出声明类型，而 <code>decltype((x))</code> 给出引用类型，因为表达式 <code>(x)</code> 是一个左值。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>decltype</code> 产出表达式的类型。</li>
+        <li>与 <code>auto</code> 不同，它不需要初始化器。</li>
+        <li><code>decltype</code> 保留引用与 <code>const</code> 限定符。</li>
+        <li><code>decltype(x)</code> 是 <code>x</code> 的声明类型。</li>
+        <li><code>decltype((x))</code> 是引用类型，因为 <code>(x)</code> 是左值表达式。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/10.auto/" class="prev-button">← 第2.10章: auto</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/12.decltypeauto/" class="next-button">第2.12章: decltype(auto) →</a>
+    </div>
+  </main>
+</body>
+</html>

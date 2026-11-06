@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.4章: 初始化 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.4章: 初始化</h1>
+
+    <section>
+      <h2>什么是对象？</h2>
+      <p>
+        在 C++ 中，<strong>对象</strong>是一块带有类型的存储区域。
+        每个对象都有一个类型，它决定了该对象能持有哪些值，以及哪些操作是合法的。
+        当我们声明一个对象时，我们为它预留了内存；当我们<strong>初始化</strong>它时，我们给它第一个值。
+        初始化确保对象从确定的状态开始，而不是含有不确定的数据。
+      </p>
+    </section>
+
+    <section>
+      <h2>初始化风格</h2>
+      <p>
+        C++ 提供了多种初始化风格。
+        在现代 C++ 中，我们应当<strong>优先使用 <code>{}</code> 的统一初始化</strong>，因为它一致，并能防止窄化转换。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;stdfloat&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // 1. Copy initialization with =
+    ::std::size_t a = 42;            // object a initialized to 42
+    println("a = ", a);              // prints 42
+
+    // 2. Direct initialization with ()
+    ::std::int_least32_t b(100);     // object b initialized to 100
+    println("b = ", b);              // prints 100
+
+    // 3. Uniform initialization with {}
+    ::std::float64_t pi{3.14159};    // object pi initialized to 3.14159
+    println("pi = ", pi);            // prints 3.14159
+
+    // 4. Zero initialization with {}
+    ::std::uint_least16_t u{};       // object u initialized to 0
+    println("u = ", u);              // prints 0
+
+    // 5. Copy initialization from another object
+    ::std::size_t c = a;             // object c initialized with value of a
+    println("c = ", c);              // prints 42
+
+    // 6. Multiple objects initialized together
+    ::std::size_t m = 1, n = 2, o = 3;
+    println("m = ", m, " n = ", n, " o = ", o); // prints 1 2 3
+
+    // 7. Boolean initialization
+    bool flag = true;                // object flag initialized to true
+    println("flag = ", flag);        // prints 1
+    println("flag (boolalpha) = ", boolalpha(flag)); // prints true
+
+    // 8. Typed integer literals with suffixes
+    ::std::size_t sz = 30zu;         // literal 30 as ::std::size_t
+    println("sz = ", sz);            // prints 30
+
+    unsigned int ui = 42u;           // literal 42 as unsigned int
+    println("ui = ", ui);            // prints 42
+
+    long long big = 1000000ll;       // literal as long long
+    println("big = ", big);          // prints 1000000
+
+    // 9. Floating-point literals with suffixes
+    float f = 3.14f;                 // literal as float
+    double d = 3.14;                 // literal as double (default)
+    long double ld = 3.14L;          // literal as long double
+
+    println("f = ", f);              // prints 3.14
+    println("d = ", d);              // prints 3.14
+    println("ld = ", ld);            // prints 3.14
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>拷贝初始化 vs 直接初始化</h2>
+      <p>
+        乍看之下，<strong>拷贝初始化</strong>（<code>=</code>）与<strong>直接初始化</strong>（<code>()</code>）很相似。
+        二者都给对象赋初值，但它们并不相同：
+      </p>
+
+      <ul>
+        <li><strong>拷贝初始化</strong>使用 <code>=</code>。它可能允许隐式转换，并可能调用转换构造函数。</li>
+        <li><strong>直接初始化</strong>使用 <code>()</code>。它更严格，并优先选择与实参精确匹配的构造函数。</li>
+      </ul>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;string&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Copy initialization allows implicit conversions
+    ::std::string s1 = "Hello";   // const char* converted to std::string
+    println("s1 = ", s1);
+
+    // Direct initialization calls constructor directly
+    ::std::string s2("World");
+    println("s2 = ", s2);
+
+    // Narrowing conversions
+    int i1 = 3.5;   // copy initialization, allowed (truncated to 3)
+    // int i2(3.5); // direct initialization, error: narrowing not allowed
+}
+</code></pre>
+
+      <p>
+        <strong>要点：</strong>拷贝初始化更宽松，可能执行隐式转换。
+        直接初始化更严格。
+        在现代 C++ 中，我们应当<strong>优先使用 <code>{}</code> 的统一初始化</strong>，因为它一致，并能防止窄化转换。
+      </p>
+    </section>
+
+    <section>
+      <h2>使用宏表示带类型的常量</h2>
+      <p>
+        除了 <code>zu</code> 或 <code>ll</code> 这类后缀，C++ 还在
+        <code>&lt;cinttypes&gt;</code> 中提供了宏，用于创建精确整数类型的常量。
+        当你想保证字面量在跨平台时具有确定的类型时，这些宏很有用。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cinttypes&gt;
+#include &lt;cstdint&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Constant of type ::std::uint_least32_t
+    ::std::uint_least32_t x = UINT_LEAST32_C(20);
+    println("x = ", x); // prints 20
+
+    // Constant of type ::std::int_least64_t
+    ::std::int_least64_t y = INT_LEAST64_C(1000000);
+    println("y = ", y); // prints 1000000
+}
+</code></pre>
+
+      <p>
+        这些宏会展开为类型正确的字面量。
+        例如，<code>UINT_LEAST32_C(20)</code> 保证该常量是
+        <code>::std::uint_least32_t</code> 类型，与底层平台无关。
+      </p>
+    </section>
+
+    <section>
+      <h2>各种初始化风格对比</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>风格</th>
+            <th>语法</th>
+            <th>示例</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>拷贝初始化</td>
+            <td><code>=</code></td>
+            <td><code>int x = 5;</code></td>
+            <td>传统风格，可能允许隐式转换。</td>
+          </tr>
+          <tr>
+            <td>直接初始化</td>
+            <td><code>()</code></td>
+            <td><code>int x(5);</code></td>
+            <td>构造函数风格，比拷贝更严格。</td>
+          </tr>
+                    <tr>
+            <td>统一初始化</td>
+            <td><code>{}</code></td>
+            <td><code>int x{5};</code></td>
+            <td><strong>现代 C++ 中首选</strong>，可防止窄化转换。</td>
+          </tr>
+          <tr>
+            <td>零初始化</td>
+            <td><code>{}</code></td>
+            <td><code>int x{};</code></td>
+            <td>初始化为 0（或等价物）。</td>
+          </tr>
+          <tr>
+            <td>从对象拷贝</td>
+            <td><code>= other</code></td>
+            <td><code>int y = x;</code></td>
+            <td>用另一个对象的值初始化。</td>
+          </tr>
+          <tr>
+            <td>多个对象</td>
+            <td><code>int a=1, b=2;</code></td>
+            <td><code>int a=1, b=2;</code></td>
+            <td>紧凑地声明多个对象。</td>
+          </tr>
+          <tr>
+            <td>布尔</td>
+            <td><code>= true</code></td>
+            <td><code>bool flag = true;</code></td>
+            <td>初始化为 true/false。</td>
+          </tr>
+          <tr>
+            <td>带类型的整数字面量</td>
+            <td><code>zu, u, l, ll</code></td>
+            <td><code>auto n = 30zu;</code></td>
+            <td>后缀指定确切的整数类型。</td>
+          </tr>
+          <tr>
+            <td>浮点字面量</td>
+            <td><code>f, L</code></td>
+            <td><code>float f = 3.14f;</code></td>
+            <td>后缀指定 float 或 long double。</td>
+          </tr>
+          <tr>
+            <td>带类型的常量宏</td>
+            <td><code>UINT_LEAST32_C(...)</code></td>
+            <td><code>auto x = UINT_LEAST32_C(20);</code></td>
+            <td>来自 &lt;cinttypes&gt; 的宏可跨平台保证确切的整数类型。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/03.literals/" class="prev-button">← 第2.3章: 字面量</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/05.assignment/" class="next-button">第2.5章: 赋值 →</a>
+    </div>
+  </main>
+</body>
+</html>

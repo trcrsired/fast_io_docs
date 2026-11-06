@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2.8章: const - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第2.8章: <code>const</code></h1>
+
+    <section>
+      <h2>什么是 <code>const</code>？</h2>
+      <p>
+        <code>const</code> 关键字把变量标记为不可变：一旦初始化，它的值就不能改变。
+        它提升正确性与清晰度，但不影响性能。
+      </p>
+    </section>
+
+    <section>
+      <h2><code>const</code> 的规则</h2>
+      <p>
+        完整规则是：<code>const</code> 作用于它左边的东西。
+        如果左边什么都没有，则它作用于右边的东西。
+      </p>
+      <p>
+        因此，我们可以把规则简化为：
+        <code>const</code> 作用于左边。就这样。
+      </p>
+      <p>
+        所以，推荐的写法是 <code>T const</code>，而不是 <code>const T</code>。
+        类型在前，限定符在后。
+      </p>
+      <p>
+        有些人认为 <code>clang-tidy</code> 这类工具甚至应当提供一个开关，
+        当用户写 <code>const T</code> 而不是 <code>T const</code> 时给出警告。
+      </p>
+    </section>
+
+    <section>
+      <h2>示例</h2>
+      <pre><code class="language-cpp">
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+
+::std::int32_t  const a{42};     // constant 32-bit integer
+::std::size_t   const n{100};    // constant size_t
+double          const pi{3.14};  // constant double
+char            const nl{'\n'};  // constant char
+
+// Do NOT write: const ::std::int32_t wrong{42};
+// Preferred:    ::std::int32_t const a{42};
+</code></pre>
+    </section>
+
+    <section>
+      <h2><code>const</code> 与性能</h2>
+      <p>
+        一个常见误解是使用 <code>const</code> 会让代码更快。
+        这是错误的。现代编译器早已基于使用情况和生命周期进行优化，
+        与变量是否被声明为 <code>const</code> 无关。
+      </p>
+      <p>
+        <code>const</code> 的目的是正确性与清晰度——它防止意外修改，
+        并传达意图。它不是性能特性。
+      </p>
+      <p>
+        更多讨论见
+        <a href="https://theartofmachinery.com/2019/08/12/c_const_isnt_for_performance.html" target="_blank">
+          The Art of Machinery：C const 与性能无关
+        </a>。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>const</code> 作用于左边。就这样。</li>
+        <li>始终把常量声明为 <code>T const</code>，而不是 <code>const T</code>。</li>
+        <li>常量必须在声明时初始化。</li>
+        <li><code>const</code> 提升正确性与清晰度，而不是性能。</li>
+        <li>有些开发者希望 <code>clang-tidy</code> 这类工具强制执行这种风格。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/02.basics/07.sizeof/" class="prev-button">← 第2.7章: sizeof</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/02.basics/09.reference/" class="next-button">第2.9章: 引用 →</a>
+    </div>
+  </main>
+</body>
+</html>
