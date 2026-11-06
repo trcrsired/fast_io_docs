@@ -68,11 +68,14 @@
     </section>
 
     <section>
-      <h2>2. Exception handling is not zero‑overhead</h2>
+      <h2>2. Legacy exception handling is not zero‑overhead</h2>
 
       <p>
-        C++ exception handling is often marketed as “zero‑overhead” because the
-        happy path contains no explicit checks. But this ignores the real costs:
+        <strong>Legacy exceptions</strong> are the <code>throw</code> /
+        <code>try</code> / <code>catch</code> machinery — the model that
+        <a href="/docs/03.statements/16.herbceptions/">herbceptions</a> replace.
+        It is often marketed as “zero‑overhead” because the happy path contains
+        no explicit checks. But this ignores the real costs:
       </p>
 
       <ul>
@@ -95,7 +98,7 @@
       </p>
 
       <p>
-        So the claim that EH is “zero‑overhead” is simply false.
+        So the claim that legacy EH is “zero‑overhead” is simply false.
       </p>
 
       <p>
@@ -197,7 +200,7 @@
 
       <p>
         We will discuss this more in the chapter on Freestanding and Progressive
-        Web Apps, and how mobile app sandboxing (Android, iOS, UWP) makes native
+        Web Apps, and how app sandboxing (Android, iOS, UWP) makes native
         apps slower to start, slower to update, and harder to distribute.
       </p>
     </section>
@@ -210,7 +213,7 @@
       </p>
 
       <ul>
-        <li>smaller (under 100 KB)</li>
+        <li>smaller (under 400 KB)</li>
         <li>faster to start (browser already running)</li>
         <li>cross‑platform by default</li>
         <li>more secure (browser sandbox)</li>
@@ -226,7 +229,7 @@
 
       <p>
         My PWA Player is a concrete demonstration of this. The player itself is under
-        100 KB, while the browser’s media engine — written in highly optimized
+        400 KB, while the browser’s media engine — written in highly optimized
         C/C++/assembly — is already loaded in memory and shared across processes.
         The PWA does not re‑implement a media engine; it simply uses the one the
         browser already provides.
@@ -250,7 +253,7 @@
       <h2>8. Economic cost is real overhead</h2>
 
       <p>
-        Adding features like exception handling consumes:
+        Adding features like legacy exception handling consumes:
       </p>
 
       <ul>
@@ -299,7 +302,7 @@
       <ul>
         <li>“Zero‑overhead” and “zero‑cost” are slogans, not engineering terms.</li>
         <li>They are often used to shut down discussion rather than encourage it.</li>
-        <li>Exception handling, lambdas, span, and string_view all have real costs.</li>
+        <li>Legacy exception handling, lambdas, span, and string_view all have real costs.</li>
         <li>Binary size, icache pressure, and relocation cost matter.</li>
         <li>Platform differences matter; nothing is universally zero‑overhead.</li>
         <li>C++ is used for portability far more than for performance.</li>
