@@ -1,0 +1,29 @@
+1|第14.5章: 移动构造函数 - 使用 fast_io 学习 C++ 教程
+2|第14.5章: 移动构造函数：接管资源
+3|1. 对拥有者来说移动意味着什么
+4|复制必须产生第二个描述符，因为两个对象都要活下去。移动则不必：源对象即将被销毁，所以目标可以直接<strong>接管描述符</strong>，并把源对象留空。
+5|没有系统调用，没有内核表里的第二个条目，也不会失败：两次 <code>int</code> 写入。这就是语言引入 <code>&amp;&amp;</code> 参数的全部理由。
+6|两行都重要。没有第二行，描述符就会有两个所有者：目标会关闭它，然后源的析构函数会再次关闭同一个数字 &mdash; 可能那时它已经被交给一个无关的文件了。
+7|2. 如果你不写，<code>std::move</code> 会去复制
+8|这是每个人都会踩一次的陷阱。<code>::std::move</code> 什么也不移动；它是一次到右值引用的强制转换，它所做的只是让移动构造函数<em>成为候选</em>。如果没有移动构造函数，就会改用复制构造函数，而这并不是错误：
+9|<code>a</code> 仍然拥有 <code>3</code>，<code>b</code> 拥有一个新复制出来的 <code>4</code>。这次移动悄悄变成了复制 &mdash; 对文件来说是一次白费的系统调用，对更大的东西来说是白费的深拷贝。
+10|<strong>只有当你没有写复制构造函数、复制赋值、移动赋值或析构函数中的任何一个时，编译器才会生成移动构造函数。</strong>我们的类把这些全写了，所以全都要我们自己写。这也是“写五者之一，就得到五者全部”并非传说的原因：它是一条决定编译器愿意生成什么的规则。
+11|3. 为什么 <code>noexcept</code> 不是可选项
+12|在我们的类里，以及在每个拥有资源的严肃类里，移动构造函数都是 <code>noexcept</code>。这不是礼貌。容器通过移动元素来重新分配，而只有在移动不会在重新分配中途失败时，它们才能这么做。fast_io 的容器会在编译期检查这一点：
+13|把移动构造函数的 <code>noexcept</code> 改成 <code>throws</code>，你就得到针对 <code>::fast_io::vector&lt;my_posix_file&gt;</code> 的那条诊断。容器不是在吹毛求疵；如果一次重新分配的第 5 次移动失败，它没有任何办法把元素放回去。
+14|在赫布异常下，这个承诺比通常更强。<code>noexcept</code> 函数不能调用 <code>throws</code> 函数，除非它自己处理失败：
+15|所以 <code>noexcept</code> 不是一个可以在运行期违背的承诺；它是编译器通过检查函数体里每一次调用来验证的主张。即使你想，移动构造函数也不能调用 <code>::dup</code>。
+16|4. 源对象是空的，但没死
+17|移动之后 <code>other.fd_</code> 是 <code>-1</code>，而那是该类的一个<strong>有效状态</strong>，不是损坏：
+18|它的析构函数运行时什么都不关闭；
+19|<code>is_open()</code> 返回 <code>false</code>；
+20|给它赋一个新文件会让它重新打开；
+21|读取、写入或复制它会抛出 <code>::std::errc::bad_file_descriptor</code>（<a href="/docs/14.fiverules/10.movedfrom/">第14.10章</a>）。
+22|正因为这个状态，类才有默认构造函数和那个 <code>-1</code> 成员初始化器：被移出的对象必须能什么也不做地活完它的生命周期。
+23|5. 实际使用
+24|程序把一个文件移动进新对象，然后把其中两个放进 <code>::fast_io::vector</code>，而后者需要那个 <code>noexcept</code> 移动才能接受这个类型：
+25|开头那些 <code>static_assert</code> 就是五行的本章总结：该类型可移动构造不抛异常、可复制构造、<em>不</em>可复制构造不抛异常（复制一个文件确实可能失败）、析构不抛异常。把它们读作这个类的契约；程序其余部分只是在演示契约成立。
+26|6. 从 <code>const</code> 对象移动会变成复制
+27|移动构造函数接受 <code>T&amp;&amp;</code>，它不能绑定到 <code>const</code> 对象：把描述符取走会修改它。所以 <code>my_posix_file const &amp;</code> 实参会被复制，而对 <code>const</code> 对象用 <code>::std::move</code> 只会悄悄地什么都不做：
+28|这是正确的，也解释了为什么按 <code>my_posix_file</code> 按值取参数、再把它们 <code>::std::move</code> 进成员能工作：复制发生在调用处，移动发生在构造函数里。
+29|<a href="/docs/14.fiverules/04.copyassignment/" class="prev-button">&larr; 第14.4章: 复制赋值</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/14.fiverules/06.moveassignment/" class="next-button">第14.6章: 移动赋值 &rarr;</a>

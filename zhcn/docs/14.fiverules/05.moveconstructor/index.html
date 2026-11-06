@@ -3,29 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch14.5: The Move Constructor: Taking the Resource - C++ Tutorial with fast_io</title>
+  <title>第14.5章: 移动构造函数 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch14.5: The Move Constructor: Taking the Resource</h1>
+    <h1>第14.5章: 移动构造函数：接管资源</h1>
     <p class="lang-switch"><a href="/docs/14.fiverules/05.moveconstructor/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
     <section>
-      <h2>1. What Moving Means for an Owner</h2>
+      <h2>1. 对拥有者来说移动意味着什么</h2>
 
 
       <p>
-        Copying has to produce a second descriptor, because both objects survive. Moving does
-        not: the source is about to be destroyed, so the destination can simply
-        <strong>take the descriptor</strong> and leave the source empty.
+        复制必须产生第二个描述符，因为两个对象都要活下去。移动则不必：源对象即将被销毁，所以目标可以直接<strong>接管描述符</strong>，并把源对象留空。
       </p>
       <p>
-        No system call, no second entry in the kernel's table, no failure: two
-        <code>int</code> writes. That is the entire reason the language added
-        <code>&amp;&amp;</code> parameters.
+        没有系统调用，没有内核表里的第二个条目，也不会失败：两次 <code>int</code> 写入。这就是语言引入 <code>&amp;&amp;</code> 参数的全部理由。
       </p>
       <pre><code class="language-cpp">
 	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
@@ -34,21 +29,16 @@
 	}
 </code></pre>
       <p>
-        Both lines matter. Without the second one there would be two owners of the descriptor:
-        the destination would close it, and then the source's destructor would close the same
-        number again &mdash; possibly after it had been handed to an unrelated file.
+        两行都重要。没有第二行，描述符就会有两个所有者：目标会关闭它，然后源的析构函数会再次关闭同一个数字 &mdash; 可能那时它已经被交给一个无关的文件了。
       </p>
 
     </section>
     <section>
-      <h2>2. If You Do Not Write It, <code>std::move</code> Copies</h2>
+      <h2>2. 如果你不写，<code>std::move</code> 会去复制</h2>
 
 
       <p>
-        This is the trap that catches everybody once. <code>::std::move</code> moves nothing;
-        it is a cast to an rvalue reference, and all it does is make the move constructor
-        <em>eligible</em>. If there is no move constructor, the copy constructor is used
-        instead, and it is not an error:
+        这是每个人都会踩一次的陷阱。<code>::std::move</code> 什么也不移动；它是一次到右值引用的强制转换，它所做的只是让移动构造函数<em>成为候选</em>。如果没有移动构造函数，就会改用复制构造函数，而这并不是错误：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -117,45 +107,29 @@ a = 3
 b = 4, a = 3, a.is_open() = 1
 </code></pre>
       <p>
-        <code>a</code> still owns <code>3</code> and <code>b</code> owns a fresh duplicate
-        <code>4</code>. The move silently became a copy &mdash; a wasted system call for a file,
-        and a wasted deep copy for anything bigger.
+        <code>a</code> 仍然拥有 <code>3</code>，<code>b</code> 拥有一个新复制出来的 <code>4</code>。这次移动悄悄变成了复制 &mdash; 对文件来说是一次白费的系统调用，对更大的东西来说是白费的深拷贝。
       </p>
             <div class="important">
-        <strong>The compiler generates a move constructor only if you wrote none of: a copy
-          constructor, a copy assignment, a move assignment, or a destructor.</strong>
-        Our class writes all of them, so all of them are ours to write. This is also why
-        &ldquo;write one of the five, get all five&rdquo; is not folklore: it is the rule that
-        decides what the compiler is willing to generate.
-      
-      </div>
+              <strong>只有当你没有写复制构造函数、复制赋值、移动赋值或析构函数中的任何一个时，编译器才会生成移动构造函数。</strong>我们的类把这些全写了，所以全都要我们自己写。这也是“写五者之一，就得到五者全部”并非传说的原因：它是一条决定编译器愿意生成什么的规则。
+            </div>
 
     </section>
     <section>
-      <h2>3. Why <code>noexcept</code> Is Not Optional</h2>
+      <h2>3. 为什么 <code>noexcept</code> 不是可选项</h2>
 
 
       <p>
-        A move constructor is <code>noexcept</code> in our class, and in every serious class
-        that owns a resource. It is not politeness. Containers reallocate by moving their
-        elements, and they can only do that if a move cannot fail halfway through the
-        reallocation. fast_io's containers check this at compile time:
+        在我们的类里，以及在每个拥有资源的严肃类里，移动构造函数都是 <code>noexcept</code>。这不是礼貌。容器通过移动元素来重新分配，而只有在移动不会在重新分配中途失败时，它们才能这么做。fast_io 的容器会在编译期检查这一点：
       </p>
       <pre><code class="language-text">
 error: static assertion failed: vector element types must be nothrow move constructible
        or trivially relocatable
 </code></pre>
       <p>
-        Change the move constructor's <code>noexcept</code> to <code>throws</code> and that is
-        the diagnostic you get for
-        <code>::fast_io::vector&lt;my_posix_file&gt;</code>. The container is not being
-        pedantic; it has no way to put the elements back if the fifth move of a reallocation
-        fails.
+        把移动构造函数的 <code>noexcept</code> 改成 <code>throws</code>，你就得到针对 <code>::fast_io::vector&lt;my_posix_file&gt;</code> 的那条诊断。容器不是在吹毛求疵；如果一次重新分配的第 5 次移动失败，它没有任何办法把元素放回去。
       </p>
       <p>
-        With herbceptions the promise is even stronger than usual. A <code>noexcept</code>
-        function cannot call a <code>throws</code> function unless it handles the failure
-        itself:
+        在赫布异常下，这个承诺比通常更强。<code>noexcept</code> 函数不能调用 <code>throws</code> 函数，除非它自己处理失败：
       </p>
       <pre><code class="language-text">
 error: call to a 'throws' or 'return_failure{E}' function must be handled by an enclosing
@@ -163,43 +137,36 @@ error: call to a 'throws' or 'return_failure{E}' function must be handled by an 
        so the error can propagate
 </code></pre>
       <p>
-        So <code>noexcept</code> is not a promise you can break at run time; it is a claim the
-        compiler verifies by looking at every call in the body. A move constructor could not
-        call <code>::dup</code> even if you wanted it to.
+        所以 <code>noexcept</code> 不是一个可以在运行期违背的承诺；它是编译器通过检查函数体里每一次调用来验证的主张。即使你想，移动构造函数也不能调用 <code>::dup</code>。
       </p>
 
     </section>
     <section>
-      <h2>4. The Source Is Empty, Not Dead</h2>
+      <h2>4. 源对象是空的，但没死</h2>
 
 
       <p>
-        After the move, <code>other.fd_</code> is <code>-1</code>, and that is a
-        <strong>valid state</strong> of the class, not a broken one:
+        移动之后 <code>other.fd_</code> 是 <code>-1</code>，而那是该类的一个<strong>有效状态</strong>，不是损坏：
       </p>
       <ul>
-        <li>its destructor runs and closes nothing;</li>
-        <li><code>is_open()</code> returns <code>false</code>;</li>
-        <li>assigning a new file to it makes it open again;</li>
-        <li>reading, writing or copying it throws
-          <code>::std::errc::bad_file_descriptor</code>
-          (<a href="/zhcn/docs/14.fiverules/10.movedfrom/">Ch14.10</a>).</li>
+        <li>它的析构函数运行时什么都不关闭；</li>
+        <li><code>is_open()</code> 返回 <code>false</code>；</li>
+        <li>给它赋一个新文件会让它重新打开；</li>
+        <li>
+          读取、写入或复制它会抛出 <code>::std::errc::bad_file_descriptor</code>（<a href="/zhcn/docs/14.fiverules/10.movedfrom/">第14.10章</a>）。
+        </li>
       </ul>
       <p>
-        That state is why the class has a default constructor and the <code>-1</code> member
-        initializer in the first place: a moved-from object must be able to live out its
-        lifetime without doing anything.
+        正因为这个状态，类才有默认构造函数和那个 <code>-1</code> 成员初始化器：被移出的对象必须能什么也不做地活完它的生命周期。
       </p>
 
     </section>
     <section>
-      <h2>5. In Use</h2>
+      <h2>5. 实际使用</h2>
 
 
       <p>
-        The program moves a file into a new object, then puts two of them in a
-        <code>::fast_io::vector</code>, which needs the <code>noexcept</code> move to accept
-        the type at all:
+        程序把一个文件移动进新对象，然后把其中两个放进 <code>::fast_io::vector</code>，而后者需要那个 <code>noexcept</code> 移动才能接受这个类型：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -291,22 +258,16 @@ the vector holds 2 files:
   fd = 5
 </code></pre>
       <p>
-        The <code>static_assert</code>s at the top are the chapter in five lines: the type is
-        nothrow-move-constructible, copy-constructible, <em>not</em> nothrow-copy-constructible
-        (copying a file genuinely can fail), and nothrow-destructible. Read them as the class's
-        contract; the rest of the program is a demonstration that the contract holds.
+        开头那些 <code>static_assert</code> 就是五行的本章总结：该类型可移动构造不抛异常、可复制构造、<em>不</em>可复制构造不抛异常（复制一个文件确实可能失败）、析构不抛异常。把它们读作这个类的契约；程序其余部分只是在演示契约成立。
       </p>
 
     </section>
     <section>
-      <h2>6. Moving From a <code>const</code> Object Copies</h2>
+      <h2>6. 从 <code>const</code> 对象移动会变成复制</h2>
 
 
       <p>
-        A move constructor takes <code>T&amp;&amp;</code>, which cannot bind to a
-        <code>const</code> object: taking the descriptor out would modify it. So
-        <code>my_posix_file const &amp;</code> arguments are copied, and
-        <code>::std::move</code> on a <code>const</code> object quietly does nothing:
+        移动构造函数接受 <code>T&amp;&amp;</code>，它不能绑定到 <code>const</code> 对象：把描述符取走会修改它。所以 <code>my_posix_file const &amp;</code> 实参会被复制，而对 <code>const</code> 对象用 <code>::std::move</code> 只会悄悄地什么都不做：
       </p>
       <pre><code class="language-cpp">
 my_posix_file const c{"demo.txt", O_RDONLY};
@@ -314,17 +275,13 @@ my_posix_file d{::std::move(c)};   // calls the copy constructor
 // c is still open
 </code></pre>
       <p>
-        It is correct, and it is also why taking parameters by
-        <code>my_posix_file</code> (by value) and then <code>::std::move</code>-ing them into
-        members works: the copy happens at the call, the move happens in the constructor.
+        这是正确的，也解释了为什么按 <code>my_posix_file</code> 按值取参数、再把它们 <code>::std::move</code> 进成员能工作：复制发生在调用处，移动发生在构造函数里。
       </p>
 
     </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/14.fiverules/04.copyassignment/" class="prev-button">&larr; Ch14.4: Copy Assignment</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/14.fiverules/06.moveassignment/" class="next-button">Ch14.6: Move Assignment &rarr;</a>
+      <a href="/zhcn/docs/14.fiverules/04.copyassignment/" class="prev-button">&larr; 第14.4章: 复制赋值</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/14.fiverules/06.moveassignment/" class="next-button">第14.6章: 移动赋值 &rarr;</a>
     </div>
   </main>
 </body>

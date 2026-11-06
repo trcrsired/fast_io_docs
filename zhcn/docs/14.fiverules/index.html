@@ -3,127 +3,110 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch14: The Rule of Five: Copy, Move, Swap - C++ Tutorial with fast_io</title>
+  <title>第14章: 五法则：复制、移动、交换 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch14: The Rule of Five: Copy, Move, Swap</h1>
+    <h1>第14章: 五法则：复制、移动、交换</h1>
     <p class="lang-switch"><a href="/docs/14.fiverules/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
     <section>
-      <h2>1. Why This Chapter Exists</h2>
+      <h2>1. 为什么需要这一章</h2>
 
 
       <p>
-        Every class in <a href="/zhcn/docs/13.class/">Chapter 13</a> owned numbers. Copying one was
-        obviously harmless: <code>point b{a}</code> gives you two points, and nothing is
-        shared. <code>account</code> owned a balance, and copying it was still harmless.
+        <a href="/zhcn/docs/13.class/">第13章</a>里的每个类拥有的都是数字。复制一个显然无害：<code>point b{a}</code> 得到两个点，没有任何共享。<code>account</code> 拥有的是一笔余额，复制它同样无害。
       </p>
       <p>
-        The moment a class owns something the operating system handed out &mdash; a file
-        descriptor, a socket, a lock, a block of memory &mdash; that comfort ends. Two objects
-        that own the same descriptor are a bug waiting to happen, and the compiler's
-        default behaviour makes exactly that bug: it copies the number, not the resource.
+        一旦类拥有由操作系统发放的东西 &mdash; 文件描述符、socket、锁、一块内存 &mdash; 这份安心就结束了。两个对象拥有同一个描述符是一个等着发生的 bug，而编译器的默认行为制造的恰好就是这个 bug：它复制那个数字，而不是复制资源。
       </p>
       <p>
-        Such a class has to answer five questions, and this chapter is those five answers.
+        这样的类必须回答五个问题，本章就是这五个答案。
       </p>
 
     </section>
     <section>
-      <h2>2. What a Resource Is</h2>
+      <h2>2. 什么是资源</h2>
 
 
       <p>
-        A <strong>resource</strong> is anything that
+        <strong>资源</strong>是任何满足下列条件的东西：
       </p>
       <ul>
-        <li>has to be <strong>acquired</strong> before use and <strong>released</strong>
-          afterwards,</li>
-        <li>can be acquired only a limited number of times,</li>
-        <li>is <strong>identified by a handle</strong> that you pass around instead of the
-          thing itself.</li>
+        <li>
+          使用之前必须<strong>获取</strong>，使用之后必须<strong>释放</strong>，
+        </li>
+        <li>只能被获取有限次，</li>
+        <li>
+          由<strong>一个句柄</strong>标识，你传递句柄而不是传递那个东西本身。
+        </li>
       </ul>
       <p>
-        A file descriptor is the smallest useful example. <code>::open</code> returns an
-        <code>int</code>; <code>::close</code> gives it back; the process has a limited number
-        of them; and the <code>int</code> is a handle, not the file. Copying the handle does
-        <em>not</em> copy the file &mdash; it gives you a second name for the same thing, and
-        two owners of one resource is precisely the problem this chapter solves.
+        文件描述符是最小的有用例子。<code>::open</code> 返回一个 <code>int</code>；<code>::close</code> 把它还回去；进程能拥有的数量是有限的；而这个 <code>int</code> 是句柄，不是文件。复制句柄<em>不会</em>复制文件 &mdash; 它给同一个东西起了第二个名字，而一个资源有两个所有者，正是本章要解决的问题。
       </p>
 
     </section>
     <section>
-      <h2>3. The Five Special Member Functions</h2>
+      <h2>3. 五个特殊成员函数</h2>
 
 
       <p>
-        When you do not write them, the compiler writes them for you. When you write one, the
-        rest change their meaning. They are:
+        你不写它们时，编译器替你写。你写了其中一个时，其余的含义会改变。它们是：
       </p>
       <table>
         <thead>
           <tr>
-            <th>Member</th>
-            <th>Called when</th>
-            <th>Subchapter</th>
+            <th>成员</th>
+            <th>何时被调用</th>
+            <th>子章</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>destructor <code>~T()</code></td>
-            <td>an object goes out of scope, or is deleted</td>
-            <td><a href="/zhcn/docs/14.fiverules/02.destructor/">Ch14.2</a></td>
+            <td>析构函数 <code>~T()</code></td>
+            <td>对象离开作用域，或被删除</td>
+            <td><a href="/zhcn/docs/14.fiverules/02.destructor/">第14.2章</a></td>
           </tr>
           <tr>
-            <td>copy constructor <code>T(T const&amp;)</code></td>
-            <td>a new object is made from an existing one</td>
-            <td><a href="/zhcn/docs/14.fiverules/03.copyconstructor/">Ch14.3</a></td>
+            <td>复制构造函数 <code>T(T const&amp;)</code></td>
+            <td>由一个已有对象构造新对象</td>
+            <td><a href="/zhcn/docs/14.fiverules/03.copyconstructor/">第14.3章</a></td>
           </tr>
           <tr>
-            <td>copy assignment <code>operator=(T const&amp;)</code></td>
-            <td>an existing object is given another object's value</td>
-            <td><a href="/zhcn/docs/14.fiverules/04.copyassignment/">Ch14.4</a></td>
+            <td>复制赋值 <code>operator=(T const&amp;)</code></td>
+            <td>把一个已有对象赋予另一个对象的值</td>
+            <td><a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章</a></td>
           </tr>
           <tr>
-            <td>move constructor <code>T(T&amp;&amp;)</code></td>
-            <td>a new object is made from one that is about to die</td>
-            <td><a href="/zhcn/docs/14.fiverules/05.moveconstructor/">Ch14.5</a></td>
+            <td>移动构造函数 <code>T(T&amp;&amp;)</code></td>
+            <td>由一个即将消亡的对象构造新对象</td>
+            <td><a href="/zhcn/docs/14.fiverules/05.moveconstructor/">第14.5章</a></td>
           </tr>
           <tr>
-            <td>move assignment <code>operator=(T&amp;&amp;)</code></td>
-            <td>an existing object takes over from one that is about to die</td>
-            <td><a href="/zhcn/docs/14.fiverules/06.moveassignment/">Ch14.6</a></td>
+            <td>移动赋值 <code>operator=(T&amp;&amp;)</code></td>
+            <td>一个已有对象从一个即将消亡的对象接管资源</td>
+            <td><a href="/zhcn/docs/14.fiverules/06.moveassignment/">第14.6章</a></td>
           </tr>
           <tr>
             <td><code>swap</code></td>
-            <td>you ask for it by name</td>
-            <td><a href="/zhcn/docs/14.fiverules/07.swap/">Ch14.7</a></td>
+            <td>你按名字调用它</td>
+            <td><a href="/zhcn/docs/14.fiverules/07.swap/">第14.7章</a></td>
           </tr>
         </tbody>
       </table>
       <p>
-        Five of them are special members the compiler will generate; <code>swap</code> is not
-        &mdash; nobody calls it unless you write the call. It belongs here anyway, because it
-        is the one operation that lets copy assignment be <em>safe</em>
-        (<a href="/zhcn/docs/14.fiverules/08.copyandswap/">Ch14.8</a>), and because
-        <code>::std::swap</code> falls back to three moves, which is only fast and safe when
-        your moves are <code>noexcept</code>.
+        其中五个是编译器会替你生成的特殊成员；<code>swap</code> 不是 &mdash; 除非你写出调用，否则没人会调用它。它仍然属于这里，因为它是唯一一个能让复制赋值变得<em>安全</em>的操作（<a href="/zhcn/docs/14.fiverules/08.copyandswap/">第14.8章</a>），也因为 <code>::std::swap</code> 会退化成三次移动，而只有你的移动是 <code>noexcept</code> 时它才既快又安全。
       </p>
 
     </section>
     <section>
-      <h2>4. The Example: <code>my_posix_file</code></h2>
+      <h2>4. 贯穿全章的示例：<code>my_posix_file</code></h2>
 
 
       <p>
-        Every page from here on uses one running example: a class that owns a POSIX file
-        descriptor. It is a reduced version of what fast_io itself does in
-        <code>basic_posix_file</code>, keeping only what the five rules need, so that the
-        interesting code is never more than fifteen lines.
+        从这一页开始的每一页都使用同一个贯穿示例：一个拥有 POSIX 文件描述符的类。它是 fast_io 自己在 <code>basic_posix_file</code> 里所做工作的简化版本，只保留五法则需要的东西，从而让有意思的代码永远不超过十五行。
       </p>
       <pre><code class="language-cpp">
 class my_posix_file
@@ -147,15 +130,10 @@ public:
 };
 </code></pre>
       <p>
-        The path is a <code>::fast_io::cstring_view</code>, the flags are the plain POSIX
-        <code>int</code> flags (<code>O_RDONLY</code>, <code>O_WRONLY | O_CREAT</code>, ...),
-        and the body calls <code>::open</code>, <code>::dup</code> and <code>::close</code>
-        directly. Nothing is hidden behind fast_io helpers, so every rule this chapter states
-        can be checked against the code on the page.
+        路径是 <code>::fast_io::cstring_view</code>，标志是普通的 POSIX <code>int</code> 标志（<code>O_RDONLY</code>、<code>O_WRONLY | O_CREAT</code> 等），函数体直接调用 <code>::open</code>、<code>::dup</code> 和 <code>::close</code>。没有任何东西藏在 fast_io 的辅助设施后面，所以本章陈述的每一条规则都能对着页面上的代码核对。
       </p>
       <p>
-        Failures are reported the only way this tutorial reports failures
-        (<a href="/zhcn/docs/03.statements/16.herbceptions/">Ch3.16</a>):
+        失败用本教程唯一的报告方式报告（<a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>）：
       </p>
       <pre><code class="language-cpp">
 if (fd == -1) [[unlikely]]
@@ -164,99 +142,77 @@ if (fd == -1) [[unlikely]]
 }
 </code></pre>
       <p>
-        On a POSIX system the standard <code>::std::errc</code> values are the
-        <code>errno</code> values, so the cast preserves the error exactly; the handler sees
-        <code>[posix](2)No such file or directory</code> and friends.
+        在 POSIX 系统上标准的 <code>::std::errc</code> 取值就是 <code>errno</code> 的取值，所以强制转换精确保留了错误；处理者会看到 <code>[posix](2)No such file or directory</code> 之类的内容。
       </p>
 
     </section>
     <section>
-      <h2>5. The Two Ideas That Pay for the Chapter</h2>
+      <h2>5. 为本章付账的两个想法</h2>
 
 
       <p>
-        The rules themselves are bookkeeping. Two ideas make them worth learning, and they are
-        the reason this chapter exists at all.
+        规则本身只是记账。有两个想法让它们值得学，也正是本章存在的理由。
       </p>
-      <h3>The critical line</h3>
+      <h3>那条临界线</h3>
       <p>
-        Inside a function that may fail, there is a line &mdash; sometimes an obvious one,
-        sometimes a single statement &mdash; such that
+        在一个可能失败的函数内部，存在一条线 &mdash; 有时很明显，有时只是一个语句 &mdash; 使得
       </p>
       <ul>
-        <li><strong>above it:</strong> things may fail, and nothing has been modified yet;</li>
-        <li><strong>below it:</strong> nothing may fail, and the modifications happen.</li>
+        <li><strong>在它之上：</strong>允许失败，而还没有任何东西被修改；</li>
+        <li><strong>在它之下：</strong>不允许失败，修改就在那里发生。</li>
       </ul>
       <p>
-        Put every fallible step above the line and every change below it, and the operation
-        either happens completely or not at all. That is the <strong>strong exception safety
-        guarantee</strong>, and it is what
-        <a href="/zhcn/docs/14.fiverules/04.copyassignment/">Ch14.4</a> is really about.
+        把每个可能失败的步骤放到线之上、每个改动放到线之下，这个操作要么完整发生，要么完全不发生。这就是<strong>强异常安全保证</strong>，也正是<a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章</a>真正要讲的东西。
       </p>
-      <h3>Four levels of exception safety</h3>
+      <h3>异常安全的四个级别</h3>
       <p>
-        <code>nothrow</code>, <code>strong</code>, <code>basic</code>, <code>none</code>
-        &mdash; every function you write has exactly one of these, whether you thought about
-        it or not. <a href="/zhcn/docs/14.fiverules/09.exceptionsafety/">Ch14.9</a> names them,
-        classifies every member of <code>my_posix_file</code>, and shows how herbceptions turn
-        the first level from a promise into something the compiler proves.
+        <code>nothrow</code>、<code>strong</code>、<code>basic</code>、<code>none</code> &mdash; 你写的每个函数必然恰好属于其中之一，无论你是否想过这个问题。<a href="/zhcn/docs/14.fiverules/09.exceptionsafety/">第14.9章</a>为它们命名，对 <code>my_posix_file</code> 的每个成员分类，并说明赫布异常如何把第一级从一句承诺变成编译器能证明的东西。
       </p>
 
     </section>
     <section>
-      <h2>6. Conventions Used in This Chapter</h2>
+      <h2>6. 本章使用的约定</h2>
 
 
       <ul>
-        <li>Data members that are private end with an underscore: <code>fd_</code>.</li>
+        <li>私有数据成员以下划线结尾：<code>fd_</code>。</li>
         <li>
-          Every member function is either <code>noexcept</code> or <code>throws</code>
-          &mdash; there is no third option in this tutorial
-          (<a href="/zhcn/docs/06.function/16.noexceptthrows/">Ch6.16</a>). Which one it is tells
-          you the exception-safety level before you read the body.
+          每个成员函数要么是 <code>noexcept</code>，要么是 <code>throws</code> &mdash; 本教程中不存在第三个选项（<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）。它是哪一个，会在你读函数体之前就告诉你异常安全级别。
         </li>
         <li>
-          Integers are <code>::std::int_least32_t</code>, <code>::std::int_least64_t</code> or
-          <code>::std::size_t</code>; never plain <code>int</code>. The only exception is
-          <code>int main()</code>, and the POSIX API's own <code>int</code> arguments and
-          return values, which are shown as the <code>int</code> they are.
+          整数用 <code>::std::int_least32_t</code>、<code>::std::int_least64_t</code> 或 <code>::std::size_t</code>，绝不用裸 <code>int</code>。唯一的例外是 <code>int main()</code>，以及 POSIX API 自身的 <code>int</code> 参数和返回值，它们就按 <code>int</code> 展示。
         </li>
         <li>
-          Failures are herbceptions: <code>throw throws ...</code> and
-          <code>catch throws (::std::error e)</code>.
+          失败用赫布异常：<code>throw throws ...</code> 与 <code>catch throws (::std::error e)</code>。
         </li>
         <li>
-          Every complete program on these pages was compiled with
-          <code>-std=c++26 -fherbceptions -lherbceptions</code> and run; the output shown is
-          what it actually printed.
+          这些页面上的每个完整程序都用 <code>-std=c++26 -fherbceptions -lherbceptions</code> 编译并运行过；显示的输出就是它实际打印的内容。
         </li>
       </ul>
 
     </section>
     <section>
-      <h2>7. Contents</h2>
+      <h2>7. 目录</h2>
 
 
       <ul>
-        <li><a href="/zhcn/docs/14.fiverules/01.ownership/">Ch14.1: Ownership: Why a Class Needs a Destructor</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/02.destructor/">Ch14.2: The Destructor</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/03.copyconstructor/">Ch14.3: The Copy Constructor</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/04.copyassignment/">Ch14.4: Copy Assignment and the Critical Line</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/05.moveconstructor/">Ch14.5: The Move Constructor</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/06.moveassignment/">Ch14.6: Move Assignment</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/07.swap/">Ch14.7: swap</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/08.copyandswap/">Ch14.8: Copy and Swap</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/09.exceptionsafety/">Ch14.9: Exception Safety: nothrow, strong, basic, none</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/10.movedfrom/">Ch14.10: Self-Assignment and Moved-From Objects</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/11.myposixfile/">Ch14.11: The Whole Class, and fast_io's posix_file</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/01.ownership/">第14.1章: 所有权：为什么类需要析构函数</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/02.destructor/">第14.2章: 析构函数</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/03.copyconstructor/">第14.3章: 复制构造函数</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章: 复制赋值与那条临界线</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/05.moveconstructor/">第14.5章: 移动构造函数</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/06.moveassignment/">第14.6章: 移动赋值</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/07.swap/">第14.7章: swap</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/08.copyandswap/">第14.8章: 复制并交换</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/09.exceptionsafety/">第14.9章: 异常安全：nothrow、strong、basic、none</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/10.movedfrom/">第14.10章: 自赋值与已移出的对象</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/11.myposixfile/">第14.11章: 完整的类，以及 fast_io 的 posix_file</a></li>
       </ul>
 
     </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/13.class/11.puttingtogether/" class="prev-button">&larr; Ch13.11: Putting It Together</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/14.fiverules/01.ownership/" class="next-button">Ch14.1: Ownership &rarr;</a>
+      <a href="/zhcn/docs/13.class/11.puttingtogether/" class="prev-button">&larr; 第13.11章: 综合起来</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/14.fiverules/01.ownership/" class="next-button">第14.1章: 所有权 &rarr;</a>
     </div>
   </main>
 </body>

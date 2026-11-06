@@ -1,0 +1,36 @@
+1|第14.4章: 复制赋值与那条临界线 - 使用 fast_io 学习 C++ 教程
+2|第14.4章: 复制赋值与那条临界线
+3|1. 赋值不是构造
+4|<code>my_posix_file a{"demo.txt", O_RDONLY}; my_posix_file b{"other.txt", O_RDONLY};</code> 然后 <code>a = b;</code> 与 <code>my_posix_file a{b};</code> 是完全不同的操作。
+5|在赋值中，<code>a</code> <strong>已经拥有一个描述符</strong>。无论这个函数怎么做，那个描述符最终必须被关闭 &mdash; 否则它就泄漏了 &mdash; 而 <code>a</code> 最终必须拥有 <code>b</code> 的副本。所以必须发生三件事，唯一真正的问题是<em>顺序</em>：
+6|获取新描述符（<code>::dup</code>，可能失败）；
+7|释放旧的（<code>::close</code>，在我们关心的意义上不会失败）；
+8|安装新的（一次 <code>int</code> 赋值，不会失败）。
+9|2. 每个人最先写出的顺序
+10|它读起来很自然：先把旧文件处理掉，再拿新的。
+11|它有三个问题，值得分开讲。
+12|<strong>对象在新资源存在之前就被破坏了。</strong>如果 <code>::dup</code> 失败，赋值失败<em>并且</em>刚才还开着的文件也没了。调用者拿到一个损坏的对象，而且没有回头路。
+13|<strong>自赋值会毁掉文件。</strong><code>a = a</code> 关闭 <code>a</code> 的描述符，然后去复制 <code>-1</code>，以 <code>EBADF</code> 失败。完全合法的语句 <code>a = a</code> 让 <code>a</code> 被关闭并抛出异常。
+14|<strong>它看起来不是靠加一个检查就能修好的。</strong>加上 <code>if (this == &amp;other) return *this;</code> 只是掩盖第二个问题，第一个问题丝毫未动。错的是<em>顺序</em>。
+15|3. 临界线
+16|把顺序反过来，一切就各就各位了。先在一个局部变量里做可能失败的工作，此时对象还未被触碰；然后，一旦再没有会失败的操作，就提交：
+17|<strong>临界线是一个可能失败的函数内部的分界线：</strong> <br> &mdash; <strong>在它之上</strong>，操作可能失败，而<strong>还没有任何东西被修改</strong>； <br> &mdash; <strong>在它之下</strong>，操作<strong>不会失败</strong>，而它们才是修改对象的那些。 <br> 把它放在正确的位置，失败就只可能发生在还没有东西需要撤销的时候。这就是<strong>强异常安全保证</strong>，而临界线是获得它的方式。
+18|数一数两侧的语句。线上：一次 <code>::dup</code> 调用和一个检查，都可能失败，都不碰 <code>*this</code>。线下：一次 <code>reset</code> 调用，它是 <code>noexcept</code>，完成整个提交 &mdash; 关闭旧描述符、存入新的。不存在 <code>*this</code> 被赋值一半的状态，因为在旧值被触碰之后没有可失败的操作。
+19|4. 自赋值不需要特殊处理
+20|大多数教程会让你在赋值运算符开头写一个自赋值检查。用这个顺序你不需要：<code>a = a</code> 自己就能正常工作。
+21|跟踪一下。<code>::dup(a.fd_)</code> 为同一个打开的文件产生第二个描述符；检查通过；然后 <code>reset</code> 关闭旧描述符并存入新的。<code>a</code> 现在拥有<em>同一个</em>文件的<em>另一个</em>描述符。没有丢失，没有泄漏，唯一可观察到的差别是一个新数字。
+22|<strong>不要只因为大家都这么做就加那个检查。</strong>当操作无法容忍“读取自己即将销毁的东西”时才需要它 &mdash; 移动赋值正是这种情况（<a href="/docs/14.fiverules/06.moveassignment/">第14.6章</a>），因为它<em>先释放</em>，没有副本可以退回。这里的复制赋值是先复制的，所以按构造就是自赋值安全的。
+23|5. 两种顺序并排看
+24|一个程序，两个类：正确的 <code>my_posix_file</code> 和一个先关闭的 <code>naive_file</code>。它演练了自赋值、一次失败的赋值，以及同样两种情况在朴素类上的表现。
+25|四行承载了这个教训。
+26|<strong><code>a after a=a = 4, is_open = 1</code></strong> &mdash; 自赋值在没有检查的情况下成功了。数字变了，因为 <code>::dup</code> 发出的是 <code>4</code>（旧的 <code>3</code> 在同一次调用中被关闭），而文件还是同一个文件。
+27|<strong><code>a = moved_from failed: [posix](9)Bad file number</code></strong> &mdash; 赋值失败，因为右侧没有描述符（<a href="/docs/14.fiverules/10.movedfrom/">第14.10章</a>）。
+28|<strong><code>a survived = 4, is_open = 1</code></strong> &mdash; 这正是重点：失败没有改变任何东西。<code>a</code> 仍然恰好持有它在语句之前持有的东西。
+29|<strong><code>n after n=n = -1, is_open = 0</code></strong> &mdash; 朴素的类关闭了自己的文件然后失败，留下一个有效但空的对象，原本那里有一个文件。没有任何东西损坏，但调用者丢掉了它从未要求放弃的资源。
+30|6. 为什么返回类型是引用
+31|<code>operator=</code> 返回 <code>my_posix_file &amp;</code> &mdash; 对左操作对象的引用 &mdash; 实现就是 <code>return *this;</code>。这才让链式赋值成为可能：
+32|改成按值返回就崩了：那个表达式会变成 <code>a</code> 的<em>副本</em>，于是链式赋值会复制一个描述符再把那个副本扔掉。永远返回 <code>*this</code>。
+33|7. 什么时候不该有赋值
+34|并非每个资源都能被替换。一把锁不能重新指向另一把锁；一个进行中的打开操作不能被从调用者脚下换掉。对这样的类型，正确答案是 <code>= delete</code>，与复制构造函数完全一样（<a href="/docs/14.fiverules/03.copyconstructor/">第14.3章</a>），而编译器会在调用点告诉你，而不是在凌晨三点。
+35|删除复制赋值<em>并不</em>意味着对象不能被复制 &mdash; 那是复制构造函数的事。它意味着对象不能被<strong>重新赋值</strong>，这是一个更弱的陈述。
+36|<a href="/docs/14.fiverules/03.copyconstructor/" class="prev-button">&larr; 第14.3章: 复制构造函数</a> <a href="/" class="main-button">&uarr; 主页</a> <a href="/docs/14.fiverules/05.moveconstructor/" class="next-button">第14.5章: 移动构造函数 &rarr;</a>

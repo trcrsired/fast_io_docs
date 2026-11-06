@@ -3,31 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch14.3: The Copy Constructor: Two Objects, Two Resources - C++ Tutorial with fast_io</title>
+  <title>第14.3章: 复制构造函数 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch14.3: The Copy Constructor: Two Objects, Two Resources</h1>
+    <h1>第14.3章: 复制构造函数：两个对象，两份资源</h1>
     <p class="lang-switch"><a href="/docs/14.fiverules/03.copyconstructor/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
     <section>
-      <h2>1. What a Copy Has to Mean</h2>
+      <h2>1. 复制必须意味着什么</h2>
 
 
       <p>
-        The destructor answers &ldquo;who releases it&rdquo;. The copy constructor answers the
-        next question: when a <em>new</em> object is made from an existing one, what does the
-        new object own?
+        析构函数回答“谁释放它”。复制构造函数回答下一个问题：当一个<em>新</em>对象由已有对象构造出来时，新对象拥有什么？
       </p>
       <p>
-        For <code>point</code> in <a href="/zhcn/docs/13.class/">Chapter 13</a> the answer was
-        trivial: its own two numbers. For an owner the answer must be
-        <strong>&ldquo;its own resource&rdquo;</strong>, and the only way to get a second
-        descriptor for the same open file is to ask the kernel for one:
-        <code>::dup</code>.
+        对<a href="/zhcn/docs/13.class/">第13章</a>的 <code>point</code> 来说答案很简单：它自己的两个数字。对拥有者来说，答案必须是<strong>“它自己的资源”</strong>，而为一个已打开的文件取得第二个描述符的唯一办法，是向内核要一个：<code>::dup</code>。
       </p>
       <pre><code class="language-cpp">
 int dup(int fd);              // a new descriptor for the same open file
@@ -36,14 +29,11 @@ int dup2(int fd, int newfd);  // make newfd refer to the same open file
 
     </section>
     <section>
-      <h2>2. What the Compiler Writes If You Say Nothing</h2>
+      <h2>2. 你什么都不写时编译器会写什么</h2>
 
 
       <p>
-        A class with no copy constructor gets one generated for it, and the generated one does
-        the same thing it does for <code>point</code>: it copies each member. For an
-        <code>int</code> that means the number is copied. The number is not the descriptor
-        &mdash; it is only the name of one.
+        没有复制构造函数的类会得到一个自动生成的版本，而生成的那个对 <code>point</code> 做的事一样：复制每个成员。对 <code>int</code> 来说就是把数字复制一份。数字不是描述符 &mdash; 它只是一个描述符的名字。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -105,27 +95,15 @@ after b died, a = 3, still valid = 0
 c = 3, the number came back
 </code></pre>
       <p>
-        <code>b</code> has the same <code>int</code>, so it has the same owner's claim, so it
-        closes the descriptor when it dies. After that line <code>a</code> still holds
-        <code>3</code> and <code>3</code> is no longer open: <code>a</code> is a
-        <strong>dangling owner</strong>. Every later use of it fails with
-        <code>EBADF</code>, and its destructor will close descriptor <code>3</code> a second
-        time &mdash; which by then may belong to a completely different file, as the last two
-        lines of the output show. Closing somebody else's file is one of the nastiest bugs
-        there is, because the symptom appears far away from the mistake.
+        <code>b</code> 有同样的 <code>int</code>，所以它有同一个所有者的主张，所以它消亡时会关闭那个描述符。那一行之后 <code>a</code> 仍然持有 <code>3</code>，而 <code>3</code> 已经不再打开：<code>a</code> 成了一个<strong>悬空的拥有者</strong>。之后每次使用它都会以 <code>EBADF</code> 失败，而它的析构函数会第二次关闭描述符 <code>3</code> &mdash; 那时它可能已经属于完全不同的文件了，正如输出的最后两行所示。关闭别人的文件是最恶毒的 bug 之一，因为症状出现的地方离错误很远。
       </p>
             <div class="important">
-        <strong>The compiler's copy is member-wise, and a member-wise copy of a handle is
-          always wrong.</strong>
-        This is the reason the rule of five exists at all: you cannot take the generated copy
-        <em>and</em> the generated destructor. Once one of the five is yours, you own all of
-        them.
-      
-      </div>
+              <strong>编译器生成的复制是逐成员的，而对句柄的逐成员复制永远是错的。</strong>这就是五法则存在的理由：你不能同时要编译器生成的复制<em>和</em>生成的析构函数。五者之一属于你之后，五个全都属于你。
+            </div>
 
     </section>
     <section>
-      <h2>3. The Copy Constructor: A Descriptor of Its Own</h2>
+      <h2>3. 复制构造函数：自己的描述符</h2>
 
 
       <pre><code class="language-cpp">
@@ -138,43 +116,30 @@ c = 3, the number came back
 	}
 </code></pre>
       <p>
-        Read it in three parts.
+        分三部分来读。
       </p>
       <ul>
         <li>
-          <strong>The parameter is <code>const&amp;</code>.</strong> A copy constructor must
-          not modify what it copies; if it did, <code>my_posix_file const &amp;</code>
-          parameters could not be copied, and <code>const</code> objects would be second-class.
+          <strong>参数是 <code>const&amp;</code>。</strong>复制构造函数不能修改它复制的东西；如果它能，<code>my_posix_file const &amp;</code> 参数就无法被复制，<code>const</code> 对象就会变成二等公民。
         </li>
         <li>
-          <strong><code>::dup</code> happens in the member initializer list.</strong> It is
-          the only place the member is initialized
-          (<a href="/zhcn/docs/13.class/06.constructors/">Ch13.6</a>), and doing the fallible call
-          there means nothing has been modified yet when it runs.
+          <strong><code>::dup</code> 发生在成员初始化列表里。</strong>那是成员被初始化的唯一地方（<a href="/zhcn/docs/13.class/06.constructors/">第13.6章</a>），而把可能失败的调用放在那里，意味着它运行时还什么都没有被修改。
         </li>
         <li>
-          <strong><code>throws</code>, because <code>::dup</code> can fail.</strong> It fails
-          with <code>EMFILE</code> when the process has too many descriptors open and with
-          <code>EBADF</code> when the source has none &mdash; which is exactly what copying a
-          moved-from file does (<a href="/zhcn/docs/14.fiverules/10.movedfrom/">Ch14.10</a>).
+          <strong>是 <code>throws</code>，因为 <code>::dup</code> 可能失败。</strong>当进程打开的描述符太多时它以 <code>EMFILE</code> 失败，当源对象没有描述符时它以 <code>EBADF</code> 失败 &mdash; 这正是复制一个被移出的文件会发生的事（<a href="/zhcn/docs/14.fiverules/10.movedfrom/">第14.10章</a>）。
         </li>
       </ul>
             <div class="note">
-        <strong>Why not close-then-open the path again?</strong>
-        Because the file need not still be at that path, and because reopening would lose the
-        file offset and the open mode. <code>::dup</code> duplicates <em>the open file</em>,
-        not the name, so it works after the file has been renamed or unlinked.
-      
-      </div>
+              <strong>为什么不先关闭再按路径重新打开？</strong>因为文件未必还在那个路径上，而且重新打开会丢掉文件偏移和打开模式。<code>::dup</code> 复制的是<em>那个已打开的文件</em>，而不是名字，所以即使文件被改名或删除它依然有效。
+            </div>
 
     </section>
     <section>
-      <h2>4. Two Descriptors, One Open File</h2>
+      <h2>4. 两个描述符，一个打开的文件</h2>
 
 
       <p>
-        What exactly does the copy share? The program below writes ten bytes to a file, then
-        copies a reader, then reads four bytes from each handle in turn:
+        复制到底共享了什么？下面的程序向文件写入十个字节，然后复制一个读者，再依次从每个句柄读四个字节：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -268,42 +233,30 @@ read from b: 4567
 read from c: 0123
 </code></pre>
       <p>
-        Look at the three reads.
+        看看这三次读取。
       </p>
       <ul>
         <li>
-          <code>a</code> and <code>b</code> have <strong>different descriptors</strong>
-          (<code>3</code> and <code>4</code>), so closing one does not close the other, and
-          each one's destructor closes exactly one descriptor. That is what makes the copy
-          safe.
+          <code>a</code> 与 <code>b</code> 拥有<strong>不同的描述符</strong>（<code>3</code> 和 <code>4</code>），所以关闭一个不会关闭另一个，各自的析构函数恰好关闭一个描述符。这正是复制安全的原因。
         </li>
         <li>
-          But they share the <strong>file offset</strong>: after <code>a</code> read
-          <code>0123</code>, <code>b</code>'s read continues at <code>4567</code>, not at the
-          beginning. <code>::dup</code> duplicates the open file description, and the offset
-          is part of it.
+          但它们共享<strong>文件偏移</strong>：在 <code>a</code> 读了 <code>0123</code> 之后，<code>b</code> 的读取从 <code>4567</code> 继续，而不是从开头。<code>::dup</code> 复制的是打开文件描述，而偏移是它的一部分。
         </li>
         <li>
-          <code>c</code> was opened separately, so it has its own open file description and
-          reads <code>0123</code> from the start.
+          <code>c</code> 是单独打开的，所以它有自己的打开文件描述，从头读到 <code>0123</code>。
         </li>
       </ul>
       <p>
-        So a copy of <code>my_posix_file</code> is an <strong>independent owner of a shared
-        stream</strong>. That is the honest semantics of the underlying system, and the class
-        should not pretend otherwise. If you need an independent offset, open the file again
-        (<code>c</code>), do not copy.
+        所以 <code>my_posix_file</code> 的副本是<strong>一个共享流的独立拥有者</strong>。这是底层系统诚实的语义，类不应当假装不是这样。如果你需要独立的偏移，就重新打开文件（<code>c</code>），而不是复制。
       </p>
 
     </section>
     <section>
-      <h2>5. When Copying Makes No Sense</h2>
+      <h2>5. 复制完全没有意义的时候</h2>
 
 
       <p>
-        For a file, duplicating the descriptor is meaningful, so we support it. For plenty of
-        resources it is not: a lock is either held or not, a buffer has one owner, an
-        <code>::open</code> in progress cannot be duplicated. Such a class says so:
+        对文件来说，复制描述符是有意义的，所以我们支持它。对许多资源来说并非如此：一把锁要么被持有要么没有，一个缓冲区只有一个所有者，一个进行中的 <code>::open</code> 无法被复制。这样的类就明确说出来：
       </p>
       <pre><code class="language-cpp">
 class my_lock
@@ -314,32 +267,23 @@ public:
 };
 </code></pre>
       <p>
-        Anyone who tries to copy it gets a compile-time refusal instead of a double
-        <code>::close</code> at run time:
+        任何试图复制它的人都会得到编译期拒绝，而不是运行期的两次 <code>::close</code>：
       </p>
       <pre><code class="language-text">
 error: use of deleted function 'my_lock::my_lock(const my_lock&amp;)'
-note: declared here
+note:   declared here
 </code></pre>
       <p>
-        fast_io does the same where ownership cannot be duplicated: its
-        <code>posix_file_factory</code> &mdash; the object that holds a fresh descriptor until
-        a file object takes it over &mdash; deletes its copy constructor and copy assignment
-        for exactly this reason.
+        fast_io 在所有权无法复制的地方也这样做：它的 <code>posix_file_factory</code> &mdash; 那个在文件对象接管之前持有新描述符的对象 &mdash; 正是因为这个理由删除了复制构造函数和复制赋值。
       </p>
             <div class="note">
-        <strong>Copying is a promise about ownership, not about bytes.</strong>
-        &ldquo;Can this be copied?&rdquo; and &ldquo;what does the copy mean?&rdquo; are the same
-        question. If you cannot answer the second in one sentence, delete the copy.
-      
-      </div>
+              <strong>复制是关于所有权的承诺，不是关于字节的承诺。</strong>“这个能被复制吗？”与“副本意味着什么？”是同一个问题。如果你不能用一句话回答第二个问题，就删掉复制。
+            </div>
 
     </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/14.fiverules/02.destructor/" class="prev-button">&larr; Ch14.2: The Destructor</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/14.fiverules/04.copyassignment/" class="next-button">Ch14.4: Copy Assignment &rarr;</a>
+      <a href="/zhcn/docs/14.fiverules/02.destructor/" class="prev-button">&larr; 第14.2章: 析构函数</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/14.fiverules/04.copyassignment/" class="next-button">第14.4章: 复制赋值 &rarr;</a>
     </div>
   </main>
 </body>

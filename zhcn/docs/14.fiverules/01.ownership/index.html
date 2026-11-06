@@ -3,45 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch14.1: Ownership: Why a Class Needs a Destructor - C++ Tutorial with fast_io</title>
+  <title>第14.1章: 所有权 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch14.1: Ownership: Why a Class Needs a Destructor</h1>
+    <h1>第14.1章: 所有权：为什么类需要析构函数</h1>
     <p class="lang-switch"><a href="/docs/14.fiverules/01.ownership/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
     <section>
-      <h2>1. A Descriptor Is a Resource</h2>
+      <h2>1. 描述符就是资源</h2>
 
 
       <p>
-        <code>::open</code> hands you an <code>int</code>. It is not a number you may do
-        arithmetic on; it is a <strong>handle</strong> on something the kernel owns. Three
-        properties make it a resource:
+        <code>::open</code> 交给你一个 <code>int</code>。它不是你可以随便做算术的数字，而是内核所拥有的某个东西的<strong>句柄</strong>。三个性质使它成为资源：
       </p>
       <ul>
-        <li><strong>It must be released.</strong> The kernel keeps a table of open files per
-          process, and it is finite. An <code>int</code> that is never
-          <code>::close</code>d leaks a slot of that table.</li>
-        <li><strong>It has exactly one meaning while it is alive.</strong> The number stays
-          valid until you close it; after that the same number is free, and the next
-          <code>::open</code> anywhere in the program may hand it out again.</li>
-        <li><strong>It is not the file.</strong> Two descriptors can name the same file, and
-          two copies of the number name the same descriptor. Both facts matter in this
-          chapter.</li>
+        <li>
+          <strong>它必须被释放。</strong>内核为每个进程维护一张打开文件的表，它的大小是有限的。一个从不 <code>::close</code> 的 <code>int</code> 会泄漏那张表的一个槽位。
+        </li>
+        <li>
+          <strong>它在存活期间只有一个含义。</strong>这个数字在你关闭它之前一直有效；此后同一个数字就空出来了，程序中任何地方下一次 <code>::open</code> 都可能再次发出它。
+        </li>
+        <li>
+          <strong>它不是文件。</strong>两个描述符可以指名同一个文件，而同一个数字的两份拷贝指名同一个描述符。这两个事实在本章都很重要。
+        </li>
       </ul>
 
     </section>
     <section>
-      <h2>2. What a Bare <code>int</code> Does</h2>
+      <h2>2. 一个裸 <code>int</code> 会怎样</h2>
 
 
       <p>
-        A plain variable has no idea it owns anything. Nothing closes it, so it lives until
-        the process dies:
+        一个普通变量完全不知道自己拥有什么。没有东西关闭它，于是一直活到进程结束：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -82,106 +78,88 @@ int main()
 {
 	// A bare int does not know it owns an operating system resource.
 	::std::int_least32_t raw{::open("demo.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644)};
-	println("bare int: ", raw);
+	println("bare int:  ", raw);
 
 	// Nothing closes everything. The descriptor is leaked for the rest of the run.
 	my_posix_file managed{"demo.txt", O_RDONLY};
-	println("managed: ", managed.native_handle());
+	println("managed:   ", managed.native_handle());
 
 	{
 		my_posix_file scoped{"demo.txt", O_RDONLY};
-		println("in scope: ", scoped.native_handle());
+		println("in scope:  ", scoped.native_handle());
 	} // the destructor runs here
 	my_posix_file after{"demo.txt", O_RDONLY};
-	println("after: ", after.native_handle());
+	println("after:     ", after.native_handle());
 }
 </code></pre>
-      <p>Output:</p>
+      <p>输出：</p>
       <pre><code class="language-text">
-bare int: 3
-managed: 4
-in scope: 5
-after: 5
+bare int:  3
+managed:   4
+in scope:  5
+after:     5
 </code></pre>
       <p>
-        Read the numbers. The bare <code>int</code> took descriptor <code>3</code> and stayed
-        there for the whole run, so every later open got a fresh number:
-        <code>4</code>, then <code>5</code>. The managed file inside the block took
-        <code>5</code> and, when the block ended, gave <code>5</code> back &mdash;
-        which is why the next open receives <code>5</code> again and not <code>6</code>.
+        读一下这些数字。裸 <code>int</code> 拿走了描述符 <code>3</code> 并在整个运行期间占着它，所以之后每次 open 都得到一个新数字：<code>4</code>，然后是 <code>5</code>。块内那个受管理的文件拿到了 <code>5</code>，而当块结束时它把 <code>5</code> 还了回去 &mdash; 这就是为什么下一次 open 又收到 <code>5</code> 而不是 <code>6</code>。
       </p>
       <p>
-        That reuse is the proof that the destructor ran. Nothing in the program calls
-        <code>::close</code> explicitly; the object is responsible for its own descriptor, and
-        the responsibility is discharged automatically.
+        这种复用正是析构函数运行过的证据。程序里没有任何地方显式调用 <code>::close</code>；对象对自己的描述符负责，而这份责任被自动履行。
       </p>
             <div class="important">
-        <strong>Owning means: everybody who can reach the object, however they leave the
-          scope, gets the resource released.</strong>
-        A <code>return</code>, a <code>throw throws</code>, a <code>break</code>, a normal
-        fall-through &mdash; the destructor runs in all of them. An explicit
-        <code>::close</code> at the end of a function runs in none of the first three.
-      
-      </div>
+              <strong>拥有意味着：任何能够到达该对象的人，无论以何种方式离开作用域，资源都会被释放。</strong>一次 <code>return</code>、一次 <code>throw throws</code>、一次 <code>break</code>、一次正常的落出 &mdash; 析构函数在所有这些情形中都会运行。而函数末尾显式的 <code>::close</code> 在前三种情形里一次都不会运行。
+            </div>
 
     </section>
     <section>
-      <h2>3. The Five Questions</h2>
+      <h2>3. 五个问题</h2>
 
 
       <p>
-        A class that owns a descriptor has to say what happens in these five situations. There
-        is no escape: if you say nothing, the compiler answers all five for you, and its
-        answers are wrong for a resource.
+        拥有描述符的类必须说明在这五种情形下会发生什么。无处可逃：如果你什么都不说，编译器替你回答全部五个，而它对资源给出的答案都是错的。
       </p>
       <table>
         <thead>
-          <tr><th>Question</th><th>Written as</th><th>Wrong default</th></tr>
+          <tr><th>问题</th><th>写法</th><th>错误的默认行为</th></tr>
         </thead>
         <tbody>
           <tr>
-            <td>When the object dies, who frees the descriptor?</td>
+            <td>对象消亡时，谁释放描述符？</td>
             <td><code>~my_posix_file()</code></td>
-            <td>nobody: the descriptor leaks</td>
+            <td>没人：描述符泄漏</td>
           </tr>
           <tr>
-            <td>When a new object is made from an existing one, what happens?</td>
+            <td>由已有对象构造新对象时发生什么？</td>
             <td><code>my_posix_file(my_posix_file const &amp;)</code></td>
-            <td>the number is copied: two owners, one descriptor</td>
+            <td>数字被复制：两个所有者，一个描述符</td>
           </tr>
           <tr>
-            <td>When an existing object is assigned from another, what happens?</td>
+            <td>把另一个对象赋给已有对象时发生什么？</td>
             <td><code>operator=(my_posix_file const &amp;)</code></td>
-            <td>the old descriptor leaks and the new one is shared</td>
+            <td>旧描述符泄漏，而新的那个被共享</td>
           </tr>
           <tr>
-            <td>When a dying object is used to build a new one, can we just take it?</td>
+            <td>用一个将亡对象构造新对象时，我们能直接接管吗？</td>
             <td><code>my_posix_file(my_posix_file &amp;&amp;)</code></td>
-            <td>it copies instead, which is correct but wasteful</td>
+            <td>它会去复制，正确但浪费</td>
           </tr>
           <tr>
-            <td>When an existing object takes over from a dying one, what happens?</td>
+            <td>已有对象从一个将亡对象接管时发生什么？</td>
             <td><code>operator=(my_posix_file &amp;&amp;)</code></td>
-            <td>it copies instead, and leaks the old descriptor</td>
+            <td>它会去复制，并且泄漏旧描述符</td>
           </tr>
         </tbody>
       </table>
       <p>
-        Write all five and you have the <strong>rule of five</strong>. Write none and have the
-        compiler generate all of them &mdash; the
-        <strong>rule of zero</strong> &mdash; which is the better outcome, but only possible
-        when every member is already a well-behaved value. A raw descriptor is not
-        (<a href="/zhcn/docs/14.fiverules/11.myposixfile/">Ch14.11</a> comes back to this).
+        把五个都写出来，你就有了<strong>五法则</strong>。一个都不写、让编译器生成全部 &mdash; 这是<strong>零法则</strong> &mdash; 是更好的结果，但只有当每个成员本身都是行为良好的值时才有可能。裸描述符不是（<a href="/zhcn/docs/14.fiverules/11.myposixfile/">第14.11章</a>会回到这一点）。
       </p>
 
     </section>
     <section>
-      <h2>4. What We Are Going to Build</h2>
+      <h2>4. 我们要构建的东西</h2>
 
 
       <p>
-        The class stays small on purpose. It holds one <code>int</code>, and everything else is
-        the five rules:
+        这个类刻意保持很小。它持有一个 <code>int</code>，其余全都是那五条规则：
       </p>
       <pre><code class="language-cpp">
 class my_posix_file
@@ -210,17 +188,13 @@ public:
 };
 </code></pre>
       <p>
-        The sentinel <code>-1</code> is doing real work: it is the difference between
-        &ldquo;I own a file&rdquo; and &ldquo;I own nothing&rdquo;. Without it there would be
-        no way to leave a moved-from object in a state where its destructor can run safely.
+        哨兵值 <code>-1</code> 在真正干活：它是“我拥有一个文件”与“我什么都不拥有”之间的区别。没有它，就无法把一个被移出的对象留在一个析构函数能安全运行的状态。
       </p>
 
     </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/14.fiverules/" class="prev-button">&larr; Ch14: The Rule of Five</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/14.fiverules/02.destructor/" class="next-button">Ch14.2: The Destructor &rarr;</a>
+      <a href="/zhcn/docs/14.fiverules/" class="prev-button">&larr; 第14章: 五法则</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/14.fiverules/02.destructor/" class="next-button">第14.2章: 析构函数 &rarr;</a>
     </div>
   </main>
 </body>

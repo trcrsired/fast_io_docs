@@ -3,44 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch14.4: Copy Assignment and the Critical Line - C++ Tutorial with fast_io</title>
+  <title>第14.4章: 复制赋值与那条临界线 - 使用 fast_io 学习 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch14.4: Copy Assignment and the Critical Line</h1>
+    <h1>第14.4章: 复制赋值与那条临界线</h1>
     <p class="lang-switch"><a href="/docs/14.fiverules/04.copyassignment/">English</a></p>
-    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
     <section>
-      <h2>1. Assignment Is Not Construction</h2>
+      <h2>1. 赋值不是构造</h2>
 
 
       <p>
-        <code>my_posix_file a{"demo.txt", O_RDONLY}; my_posix_file b{"other.txt", O_RDONLY};</code>
-        then <code>a = b;</code> is a completely different operation from
-        <code>my_posix_file a{b};</code>.
+        <code>my_posix_file a{"demo.txt", O_RDONLY}; my_posix_file b{"other.txt", O_RDONLY};</code> 然后 <code>a = b;</code> 与 <code>my_posix_file a{b};</code> 是完全不同的操作。
       </p>
       <p>
-        In the assignment, <code>a</code> <strong>already owns a descriptor</strong>. Whatever
-        the function does, that descriptor must end up closed &mdash; otherwise it leaks &mdash;
-        and <code>a</code> must end up owning a duplicate of <code>b</code>'s. So three things
-        have to happen, and the only real question is <em>in what order</em>:
+        在赋值中，<code>a</code> <strong>已经拥有一个描述符</strong>。无论这个函数怎么做，那个描述符最终必须被关闭 &mdash; 否则它就泄漏了 &mdash; 而 <code>a</code> 最终必须拥有 <code>b</code> 的副本。所以必须发生三件事，唯一真正的问题是<em>顺序</em>：
       </p>
       <ul>
-        <li>acquire the new descriptor (<code>::dup</code>, can fail);</li>
-        <li>release the old one (<code>::close</code>, cannot fail in any way we care about);</li>
-        <li>install the new one (an <code>int</code> assignment, cannot fail).</li>
+        <li>获取新描述符（<code>::dup</code>，可能失败）；</li>
+        <li>释放旧的（<code>::close</code>，在我们关心的意义上不会失败）；</li>
+        <li>安装新的（一次 <code>int</code> 赋值，不会失败）。</li>
       </ul>
 
     </section>
     <section>
-      <h2>2. The Order Everyone Writes First</h2>
+      <h2>2. 每个人最先写出的顺序</h2>
 
 
       <p>
-        It reads naturally: get rid of the old file, then take the new one.
+        它读起来很自然：先把旧文件处理掉，再拿新的。
       </p>
       <pre><code class="language-cpp">
 	// WRONG
@@ -59,36 +53,27 @@
 	}
 </code></pre>
       <p>
-        Three things are wrong with it, and they are worth separating.
+        它有三个问题，值得分开讲。
       </p>
       <ul>
         <li>
-          <strong>The object is destroyed before the new resource exists.</strong> If
-          <code>::dup</code> fails, the assignment fails <em>and</em> the file that was open a
-          moment ago is gone. The caller is left with a broken object and no way back.
+          <strong>对象在新资源存在之前就被破坏了。</strong>如果 <code>::dup</code> 失败，赋值失败<em>并且</em>刚才还开着的文件也没了。调用者拿到一个损坏的对象，而且没有回头路。
         </li>
         <li>
-          <strong>Self-assignment destroys the file.</strong> <code>a = a</code> closes
-          <code>a</code>'s descriptor and then duplicates <code>-1</code>, which fails with
-          <code>EBADF</code>. The perfectly legal statement <code>a = a</code> leaves
-          <code>a</code> closed and throws.
+          <strong>自赋值会毁掉文件。</strong><code>a = a</code> 关闭 <code>a</code> 的描述符，然后去复制 <code>-1</code>，以 <code>EBADF</code> 失败。完全合法的语句 <code>a = a</code> 让 <code>a</code> 被关闭并抛出异常。
         </li>
         <li>
-          <strong>It looks like it cannot be fixed by adding a check.</strong> Adding
-          <code>if (this == &amp;other) return *this;</code> hides the second problem and
-          leaves the first one untouched. The <em>order</em> is what is wrong.
+          <strong>它看起来不是靠加一个检查就能修好的。</strong>加上 <code>if (this == &amp;other) return *this;</code> 只是掩盖第二个问题，第一个问题丝毫未动。错的是<em>顺序</em>。
         </li>
       </ul>
 
     </section>
     <section>
-      <h2>3. The Critical Line</h2>
+      <h2>3. 临界线</h2>
 
 
       <p>
-        Reverse the order and everything falls into place. Do the fallible work first, into a
-        local variable, while the object is still untouched; then, once nothing can fail any
-        more, commit:
+        把顺序反过来，一切就各就各位了。先在一个局部变量里做可能失败的工作，此时对象还未被触碰；然后，一旦再没有会失败的操作，就提交：
       </p>
       <pre><code class="language-cpp">
 	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
@@ -104,63 +89,34 @@
 	}
 </code></pre>
             <div class="important">
-        <strong>The critical line is the boundary inside a function that may fail:</strong>
-        <br>
-        &mdash; <strong>above it</strong>, operations may fail, and <strong>nothing has been
-          modified</strong> yet;
-        <br>
-        &mdash; <strong>below it</strong>, operations <strong>cannot fail</strong>, and they
-        are the ones that modify the object.
-        <br>
-        Put it in the right place and a failure can only happen while there is still nothing to
-        undo. That is what the <strong>strong exception safety guarantee</strong> is, and the
-        critical line is how you get it.
-      
-      </div>
+              <strong>临界线是一个可能失败的函数内部的分界线：</strong> <br> &mdash; <strong>在它之上</strong>，操作可能失败，而<strong>还没有任何东西被修改</strong>； <br> &mdash; <strong>在它之下</strong>，操作<strong>不会失败</strong>，而它们才是修改对象的那些。 <br> 把它放在正确的位置，失败就只可能发生在还没有东西需要撤销的时候。这就是<strong>强异常安全保证</strong>，而临界线是获得它的方式。
+            </div>
       <p>
-        Count the statements on each side. Above: a call to <code>::dup</code> and a check,
-        both fallible, neither touching <code>*this</code>. Below: one call to
-        <code>reset</code>, which is <code>noexcept</code> and does the whole commit &mdash;
-        close the old descriptor, store the new one. There is no state in which
-        <code>*this</code> is half-assigned, because there is no fallible operation after the
-        old value has been touched.
+        数一数两侧的语句。线上：一次 <code>::dup</code> 调用和一个检查，都可能失败，都不碰 <code>*this</code>。线下：一次 <code>reset</code> 调用，它是 <code>noexcept</code>，完成整个提交 &mdash; 关闭旧描述符、存入新的。不存在 <code>*this</code> 被赋值一半的状态，因为在旧值被触碰之后没有可失败的操作。
       </p>
 
     </section>
     <section>
-      <h2>4. Self-Assignment Needs No Special Case</h2>
+      <h2>4. 自赋值不需要特殊处理</h2>
 
 
       <p>
-        Most tutorials tell you to start an assignment operator with a self-assignment check.
-        With this order you do not need one: <code>a = a</code> works by itself.
+        大多数教程会让你在赋值运算符开头写一个自赋值检查。用这个顺序你不需要：<code>a = a</code> 自己就能正常工作。
       </p>
       <p>
-        Trace it. <code>::dup(a.fd_)</code> produces a second descriptor for the same open
-        file; the check passes; then <code>reset</code> closes the old descriptor and stores
-        the new one. <code>a</code> now owns a <em>different</em> descriptor for the
-        <em>same</em> file. Nothing was lost, nothing leaked, and the only observable
-        difference is a new number.
+        跟踪一下。<code>::dup(a.fd_)</code> 为同一个打开的文件产生第二个描述符；检查通过；然后 <code>reset</code> 关闭旧描述符并存入新的。<code>a</code> 现在拥有<em>同一个</em>文件的<em>另一个</em>描述符。没有丢失，没有泄漏，唯一可观察到的差别是一个新数字。
       </p>
             <div class="note">
-        <strong>Do not add the check just because everyone does.</strong>
-        It is needed when the operation cannot tolerate reading what it is about to destroy
-        &mdash; move assignment is exactly such a case
-        (<a href="/zhcn/docs/14.fiverules/06.moveassignment/">Ch14.6</a>), because it <em>releases
-        first</em> and has no copy to fall back on. Copy assignment here duplicates first, so
-        it is self-safe by construction.
-      
-      </div>
+              <strong>不要只因为大家都这么做就加那个检查。</strong>当操作无法容忍“读取自己即将销毁的东西”时才需要它 &mdash; 移动赋值正是这种情况（<a href="/zhcn/docs/14.fiverules/06.moveassignment/">第14.6章</a>），因为它<em>先释放</em>，没有副本可以退回。这里的复制赋值是先复制的，所以按构造就是自赋值安全的。
+            </div>
 
     </section>
     <section>
-      <h2>5. Both Orders, Side by Side</h2>
+      <h2>5. 两种顺序并排看</h2>
 
 
       <p>
-        One program, two classes: the correct <code>my_posix_file</code> and a
-        <code>naive_file</code> that closes first. It exercises self-assignment, a failing
-        assignment, and the same two cases on the naive class.
+        一个程序，两个类：正确的 <code>my_posix_file</code> 和一个先关闭的 <code>naive_file</code>。它演练了自赋值、一次失败的赋值，以及同样两种情况在朴素类上的表现。
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -330,42 +286,30 @@ n=n failed: [posix](9)Bad file number
 n after n=n = -1, is_open = 0
 </code></pre>
       <p>
-        Four lines carry the lesson.
+        四行承载了这个教训。
       </p>
       <ul>
         <li>
-          <strong><code>a after a=a = 4, is_open = 1</code></strong> &mdash; self-assignment
-          worked with no check. The number changed because <code>::dup</code> handed out
-          <code>4</code> (the old <code>3</code> was closed in the same call), and the file is
-          the same file.
+          <strong><code>a after a=a = 4, is_open = 1</code></strong> &mdash; 自赋值在没有检查的情况下成功了。数字变了，因为 <code>::dup</code> 发出的是 <code>4</code>（旧的 <code>3</code> 在同一次调用中被关闭），而文件还是同一个文件。
         </li>
         <li>
-          <strong><code>a = moved_from failed: [posix](9)Bad file number</code></strong>
-          &mdash; the assignment failed, because the right-hand side had no descriptor
-          (<a href="/zhcn/docs/14.fiverules/10.movedfrom/">Ch14.10</a>).
+          <strong><code>a = moved_from failed: [posix](9)Bad file number</code></strong> &mdash; 赋值失败，因为右侧没有描述符（<a href="/zhcn/docs/14.fiverules/10.movedfrom/">第14.10章</a>）。
         </li>
         <li>
-          <strong><code>a survived = 4, is_open = 1</code></strong> &mdash; and that is the
-          whole point: the failure changed nothing. <code>a</code> still holds exactly what it
-          held before the statement.
+          <strong><code>a survived = 4, is_open = 1</code></strong> &mdash; 这正是重点：失败没有改变任何东西。<code>a</code> 仍然恰好持有它在语句之前持有的东西。
         </li>
         <li>
-          <strong><code>n after n=n = -1, is_open = 0</code></strong> &mdash; the naive class
-          closed its own file and then failed, leaving a valid but empty object where a file
-          used to be. Nothing is corrupt, but the caller lost a resource it never asked to
-          give up.
+          <strong><code>n after n=n = -1, is_open = 0</code></strong> &mdash; 朴素的类关闭了自己的文件然后失败，留下一个有效但空的对象，原本那里有一个文件。没有任何东西损坏，但调用者丢掉了它从未要求放弃的资源。
         </li>
       </ul>
 
     </section>
     <section>
-      <h2>6. Why the Return Type Is a Reference</h2>
+      <h2>6. 为什么返回类型是引用</h2>
 
 
       <p>
-        <code>operator=</code> returns <code>my_posix_file &amp;</code> &mdash; a reference to
-        the left-hand object &mdash; and <code>return *this;</code> is the implementation. That
-        is what makes chained assignment work at all:
+        <code>operator=</code> 返回 <code>my_posix_file &amp;</code> &mdash; 对左操作对象的引用 &mdash; 实现就是 <code>return *this;</code>。这才让链式赋值成为可能：
       </p>
       <pre><code class="language-cpp">
 a = b = c;      // means a = (b = c), with b = c yielding b
@@ -373,39 +317,29 @@ a = b = c;      // means a = (b = c), with b = c yielding b
 (a = b).read_some(buf, n);   // the result of the assignment is a
 </code></pre>
       <p>
-        Return by value and this breaks: the expression would be a <em>copy</em> of
-        <code>a</code>, so chaining would duplicate a descriptor and throw away the duplicate.
-        Return <code>*this</code>, always.
+        改成按值返回就崩了：那个表达式会变成 <code>a</code> 的<em>副本</em>，于是链式赋值会复制一个描述符再把那个副本扔掉。永远返回 <code>*this</code>。
       </p>
 
     </section>
     <section>
-      <h2>7. When Assignment Should Not Exist</h2>
+      <h2>7. 什么时候不该有赋值</h2>
 
 
       <p>
-        Not every resource can be replaced. A lock cannot be re-pointed at another lock; an
-        open operation cannot be swapped out from under its caller. For such types the right
-        answer is <code>= delete</code>, exactly as with the copy constructor
-        (<a href="/zhcn/docs/14.fiverules/03.copyconstructor/">Ch14.3</a>), and the compiler says so
-        at the call site instead of at 3 a.m.
+        并非每个资源都能被替换。一把锁不能重新指向另一把锁；一个进行中的打开操作不能被从调用者脚下换掉。对这样的类型，正确答案是 <code>= delete</code>，与复制构造函数完全一样（<a href="/zhcn/docs/14.fiverules/03.copyconstructor/">第14.3章</a>），而编译器会在调用点告诉你，而不是在凌晨三点。
       </p>
       <pre><code class="language-cpp">
 	my_lock &amp;operator=(my_lock const &amp;) = delete;
 	my_lock &amp;operator=(my_lock &amp;amp;&amp;amp;) = delete;
 </code></pre>
       <p>
-        Deleting copy assignment does <em>not</em> mean the object cannot be copied &mdash;
-        that is the copy constructor's business. It means the object cannot be
-        <strong>reassigned</strong>, which is a weaker statement.
+        删除复制赋值<em>并不</em>意味着对象不能被复制 &mdash; 那是复制构造函数的事。它意味着对象不能被<strong>重新赋值</strong>，这是一个更弱的陈述。
       </p>
 
     </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/14.fiverules/03.copyconstructor/" class="prev-button">&larr; Ch14.3: The Copy Constructor</a>
-      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/14.fiverules/05.moveconstructor/" class="next-button">Ch14.5: The Move Constructor &rarr;</a>
+      <a href="/zhcn/docs/14.fiverules/03.copyconstructor/" class="prev-button">&larr; 第14.3章: 复制构造函数</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/14.fiverules/05.moveconstructor/" class="next-button">第14.5章: 移动构造函数 &rarr;</a>
     </div>
   </main>
 </body>
