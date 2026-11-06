@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5.16章: 指针最佳实践 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第5.16章: 指针最佳实践</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        在学习了指针如何工作以及需要避免的许多陷阱之后，本章
+        总结在现代 C++ 中安全、清晰地使用指针的最佳实践。
+      </p>
+
+      <p>你将学到：</p>
+
+      <ul>
+        <li>如何正确地初始化指针</li>
+        <li>如何使用 const 正确性</li>
+        <li>如何安全地获取地址</li>
+        <li>如何从迭代器中取出原始指针</li>
+        <li>如何安全地做类型双关</li>
+        <li>如何正确地使用内存函数</li>
+        <li>如何安全地清除机密数据</li>
+        <li>如何写出清晰、可维护的指针代码</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. 始终初始化指针</h2>
+      <p>
+        指针应始终初始化为有效对象，或者初始化为
+        <code>nullptr</code>。
+      </p>
+
+<pre><code class="language-cpp">
+int x{42};
+int *p = ::std::addressof(x);   // ✔ good
+
+int *q{};                       // ✔ initialized to nullptr
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. 只读数据使用 T const*</h2>
+      <p>
+        这遵循第2.8章的规则：<strong><code>const</code> 作用于左边。
+        就这样。</strong>
+      </p>
+
+<pre><code class="language-cpp">
+char const *s = "Hello";   // ✔ correct for C-style strings
+</code></pre>
+
+      <p>
+        const 正确性可防止意外修改。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 使用 ::std::addressof 而不是 &</h2>
+      <p>
+        <code>&</code> 可以被重载。<code>::std::addressof</code> 总是返回
+        对象的真实地址。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 对迭代器使用 ::std::to_address</h2>
+      <p>
+        <code>::std::to_address</code> 从任何行为类似指针的迭代器中
+        取出原始指针。
+      </p>
+
+<pre><code class="language-cpp">
+auto it = v.begin();
+int *p = ::std::to_address(it);   // ✔ universal pointer extraction
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. 类型双关使用 memcpy 或 ::std::bit_cast</h2>
+      <p>
+        永远不要用 <code>reinterpret_cast</code> 做类型双关。它会违反严格
+        别名规则（第5.13章）。
+      </p>
+
+<pre><code class="language-cpp">
+float f{1.0f};
+std::uint32_t u = ::std::bit_cast&lt;std::uint32_t&gt;(f);   // ✔ safe
+</code></pre>
+    </section>
+
+    <section>
+      <h2>6. 不确定是否重叠时使用 memmove</h2>
+      <p>
+        对重叠内存使用 <code>memcpy</code> 是未定义行为。
+        <code>memmove</code> 始终安全。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 调用内存函数之前始终检查 size != 0</h2>
+      <p>
+        用 <code>nullptr</code> 配非零大小调用 <code>memcpy</code>、<code>memmove</code>、
+        <code>memcmp</code> 或 <code>memchr</code> 是未定义
+        行为。
+      </p>
+
+<pre><code class="language-cpp">
+if (n != 0) {
+    ::std::memcpy(dst, src, n);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>8. 机密数据使用 ::fast_io::secure_clear</h2>
+      <p>
+        <code>memset</code> 可能被优化掉。
+        <code>::fast_io::secure_clear</code> 保证内存确实被擦除。
+      </p>
+
+<pre><code class="language-cpp">
+char secret[32]{};
+::fast_io::secure_clear(secret, sizeof(secret));   // ✔ secure
+</code></pre>
+    </section>
+
+    <section>
+      <h2>9. 保持指针算术简单</h2>
+      <p>
+        尽可能优先使用索引。避免花哨的指针技巧。
+      </p>
+    </section>
+
+    <section>
+      <h2>10. 尊重对象的生命周期</h2>
+      <p>
+        指针不会延长它所指向对象的生命周期。
+      </p>
+    </section>
+
+    <section>
+      <h2>11. 避免 reinterpret_cast</h2>
+      <p>
+        它几乎总是错的。
+        请改用 <code>memcpy</code> 或 <code>::std::bit_cast</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>12. 尽可能优先使用更高层的抽象</h2>
+      <p>
+        指针很强大但也很危险。请有意识地使用它们，而不是随手使用。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>把指针初始化为有效对象或 <code>nullptr</code>。</li>
+        <li>只读数据使用 <code>T const*</code>。</li>
+        <li>使用 <code>::std::addressof</code> 与 <code>::std::to_address</code>。</li>
+        <li>类型双关使用 <code>memcpy</code> 或 <code>::std::bit_cast</code>。</li>
+        <li>不确定是否重叠时使用 <code>memmove</code>。</li>
+        <li>调用内存函数之前始终检查 <code>size != 0</code>。</li>
+        <li>擦除机密数据使用 <code>::fast_io::secure_clear</code>。</li>
+        <li>保持指针算术简单，并尊重生命周期。</li>
+        <li>避免 <code>reinterpret_cast</code>。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/05.pointerscarray/15.pointerpitfalls/" class="prev-button">← 第5.15章: 常见指针陷阱</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/06.function/" class="next-button">第6章: 函数 →</a>
+    </div>
+  </main>
+</body>
+</html>

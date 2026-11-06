@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5.13章: 严格别名规则 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第5.13章: 严格别名规则</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        <strong>严格别名规则</strong>是 C++ 中最微妙、最危险的部分之一。
+        它允许编译器假定：指向<strong>不同且不相关类型</strong>的指针
+        永远不会引用同一块内存。
+      </p>
+
+      <p class="important">
+        <strong>
+          在实践中，严格别名规则常常被程序员忽视、
+          误解，或者无意中违反。
+        </strong>
+      </p>
+
+      <p>
+        违反该规则会导致未定义行为，即使代码“看起来正确”，
+        也可能悄无声息地产生错误结果。
+      </p>
+
+      <p>在本章中，你将学到：</p>
+
+      <ul>
+        <li>别名是什么意思</li>
+        <li>严格别名规则说了什么</li>
+        <li>为什么该规则在真实代码中常被忽视</li>
+        <li>别名何时被允许</li>
+        <li>别名何时被禁止</li>
+        <li>为什么基于指针的类型双关很危险</li>
+        <li>如何安全地检查原始字节</li>
+        <li>如何使用 <code>::std::bit_cast</code> 安全地重新解释位</li>
+        <li>如何把 <code>[[__gnu__::__may_alias__]]</code> 作为最后的逃生口</li>
+        <li>到哪里进一步学习（Timur Doumler 的 CppCon 2019 演讲）</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. 什么是别名？</h2>
+      <p>
+        当两个指针指向同一个对象时，它们互为<strong>别名</strong>。
+      </p>
+
+<pre><code class="language-cpp">
+int x{42};
+
+int *p = ::std::addressof(x);
+int *q = ::std::addressof(x);   // p and q alias the same int
+</code></pre>
+
+      <p>
+        如果其中一个修改了对象，另一个就会看到变化。
+        当这些指针具有<strong>不同类型</strong>时，别名就变得危险了。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 严格别名规则说了什么</h2>
+      <p class="important">
+        <strong>
+          编译器可以假定：指向不相关类型的指针不会别名同一对象。
+        </strong>
+      </p>
+
+      <p>
+        “不相关类型”指的是不属于以下情况的类型：
+      </p>
+
+<ul>
+  <li>同一类型（忽略 <code>const</code> / <code>volatile</code>）</li>
+  <li>彼此的限定版本</li>
+  <li>同一 struct/class 层次中的成员</li>
+  <li>
+    <code>char</code>、<code>unsigned char</code> 或 <code>std::byte</code> 可用于
+    检查任何对象的原始字节
+  </li>
+  <li>
+    <strong>重要：</strong><code>signed char</code>、
+    <code>uint8_t</code>、<code>uint_least8_t</code> 和 <code>char8_t</code>
+    <strong>不能</strong>用于检查原始字节。
+    它们是彼此不同的类型，且<em>不</em>享有特殊的别名豁免。
+  </li>
+</ul>
+
+      <p>
+        如果你通过指向不相关类型的指针访问某个对象，编译器就有权
+        假定这种访问永远不会发生 → 未定义行为。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 为什么严格别名规则常被忽视</h2>
+      <p>
+        许多程序员来自那些类型双关无害的语言，或者他们
+        从旧书中学会了使用 <code>reinterpret_cast</code> 风格技巧的 C。
+      </p>
+
+      <p>
+        结果就是，真实世界的代码库经常包含：
+      </p>
+
+      <ul>
+        <li>不相关类型之间的指针转换</li>
+        <li>通过联合体进行类型双关</li>
+        <li>用错误的指针类型重新解释内存</li>
+      </ul>
+
+      <p>
+        这些写法在某些编译器或架构上可能“看起来能工作”，但它们
+        仍是未定义行为，在优化下可能失效。
+      </p>
+
+      <p class="important">
+        <strong>
+          严格别名违规常常看起来能工作，这一事实并不能让它们变得安全。
+        </strong>
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 允许的别名</h2>
+
+      <h3>同一类型（忽略 const）</h3>
+
+<pre><code class="language-cpp">
+int x{42};
+
+int *p = ::std::addressof(x);
+int const *q = ::std::addressof(x);   // ok
+</code></pre>
+
+      <h3>char / unsigned char / std::byte 视图</h3>
+
+<pre><code class="language-cpp">
+int x{0x12345678};
+
+unsigned char *bytes =
+    reinterpret_cast<unsigned char*>(::std::addressof(x));
+</code></pre>
+
+      <p>
+        读取这些字节始终是允许的。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 禁止的别名（未定义行为）</h2>
+
+      <h3>通过不相关类型的指针访问对象</h3>
+
+<pre><code class="language-cpp">
+float f{1.0f};
+
+int *p = reinterpret_cast&lt;int*&gt;(::std::addressof(f));
+
+// *p = 0;   // ❌ undefined behavior
+</code></pre>
+
+      <h3>通过 reinterpret_cast 转换后的指针进行类型双关</h3>
+
+<pre><code class="language-cpp">
+int x{42};
+
+float *pf = reinterpret_cast&lt;float*&gt;(::std::addressof(x));
+
+// float y = *pf;   // ❌ undefined behavior
+</code></pre>
+    </section>
+
+    <section>
+      <h2>6. 为什么存在严格别名规则</h2>
+      <p>
+        严格别名规则使编译器能进行激进的优化。
+      </p>
+
+      <p>
+        如果编译器能假定不相关类型的指针不互为别名，它就能：
+      </p>
+
+      <ul>
+        <li>让值在寄存器中停留更久</li>
+        <li>重排载入与存储</li>
+        <li>消除冗余的内存访问</li>
+      </ul>
+
+      <p>
+        违反该规则会打破这些假定，导致不可预测的行为。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 检查原始内存的安全方式</h2>
+      <p>
+        以下写法始终是安全的：
+      </p>
+
+      <ul>
+        <li>只通过其自身类型（或 cv 限定变体）的指针访问对象</li>
+        <li>使用 <code>char</code>、<code>unsigned char</code> 或 <code>std::byte</code> 检查原始字节</li>
+        <li>避免基于指针的类型双关</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>8. 用 ::std::bit_cast 安全地进行类型双关</h2>
+      <p>
+        在<a href="/zhcn/docs/02.basics/13.casting/">第2.13章: 类型转换</a>中，我们介绍了
+        <code>::std::bit_cast</code>，作为重新解释对象原始位的现代、安全方式。
+        它是危险的基于指针类型双关的正确替代品。
+      </p>
+
+      <p class="important">
+        <strong>
+          如果你需要把一个值的位重新解释为另一种类型，
+          请使用 <code>::std::bit_cast</code>。不要使用指针转换。
+        </strong>
+      </p>
+
+<pre><code class="language-cpp">
+#include &lt;bit&gt;
+
+float f{1.0f};
+
+// Safe: reinterpret the bits of float as std::uint32_t
+std::uint32_t u = ::std::bit_cast&lt;std::uint32_t&gt;(f);
+</code></pre>
+
+      <h3>错误（未定义行为）</h3>
+
+<pre><code class="language-cpp">
+float f{1.0f};
+std::uint32_t *p = reinterpret_cast&lt;std::uint32_t*&gt;(::std::addressof(f));
+
+// std::uint32_t u = *p;   // ❌ undefined behavior
+</code></pre>
+
+      <h3>正确</h3>
+
+<pre><code class="language-cpp">
+float f{1.0f};
+std::uint32_t u = ::std::bit_cast&lt;std::uint32_t&gt;(f);   // ✔ safe
+</code></pre>
+    </section>
+
+    <section>
+      <h2>9. 作为最后手段：[[__gnu__::__may_alias__]]（GCC 扩展）</h2>
+      <p>
+        如果你确实必须通过指针建立别名，GCC 提供了一个非标准的逃生口：
+        <code>[[__gnu__::__may_alias__]]</code>。
+      </p>
+
+      <p class="important">
+        <strong>
+          这不是标准 C++。它不可移植，只应由完全理解
+          严格别名规则的专家使用。
+        </strong>
+      </p>
+
+<pre><code class="language-cpp">
+// Detect whether [[__gnu__::__may_alias__]] is supported (GCC and Clang)
+#if __has_cpp_attribute(__gnu__::__may_alias__)
+#  define MAY_ALIAS [[__gnu__::__may_alias__]]
+#else
+#  define MAY_ALIAS
+#endif
+
+// Create an alias type for "int*" that is allowed to alias anything
+using may_alias_int_ptr = int * MAY_ALIAS;
+
+float f{1.0f};
+
+// Allowed by GCC and Clang (non-portable)
+may_alias_int_ptr p = reinterpret_cast<may_alias_int_ptr>(::std::addressof(f));
+
+// GCC/Clang will not assume this violates strict aliasing
+int bits = *p;
+</code></pre>
+
+      <p>
+        该属性只对那个类型禁用严格别名规则。
+      </p>
+
+      <p class="important">
+        <strong>
+          尽可能优先使用 <code>::std::bit_cast</code>。
+        </strong>
+      </p>
+    </section>
+
+    <section>
+      <h2>10. 推荐演讲：现代 C++ 中的类型双关</h2>
+      <p>
+        要深入了解严格别名与类型双关的现代解释，请观看
+        Timur Doumler 在 CppCon 2019 的这场演讲：
+      </p>
+
+      <p><strong>“Type punning in modern C++ – Timur Doumler – CppCon 2019”</strong></p>
+
+      <div class="video-container">
+        <iframe
+          width="560"
+          height="315"
+          src="https://www.youtube.com/embed/_qzMpk-22cc"
+          title="Type punning in modern C++ - Timur Doumler - CppCon 2019"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen>
+        </iframe>
+      </div>
+
+      <p>
+        你现在不必理解每一个细节。
+        暂时把注意力放在核心信息上：
+        <strong>通过指针进行类型双关是危险的，而严格别名规则正是原因</strong>。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>严格别名规则很微妙，在真实代码中常被忽视。</li>
+        <li>通过不相关类型的指针访问对象是未定义行为。</li>
+        <li><code>char</code>、<code>unsigned char</code> 与 <code>std::byte</code> 可以安全检查原始字节；<code>signed char</code>、<code>uint8_t</code>、<code>uint_least8_t</code> 与 <code>char8_t</code> 则不可以。</li>
+        <li>基于指针的类型双关几乎总是未定义行为。</li>
+        <li><code>::std::bit_cast</code> 是重新解释位的现代、安全方式。</li>
+        <li><code>[[__gnu__::__may_alias__]]</code> 是 GCC/Clang 专属的逃生口；它不可移植，不应当依赖它。</li>
+        <li>严格别名规则使编译器能进行激进优化。</li>
+        <li>观看 Timur Doumler 的 CppCon 2019 演讲可获得更深理解。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/05.pointerscarray/12.pointersandcontainers/" class="prev-button">← 第5.12章: 指针与 vector、array 和 string</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/05.pointerscarray/14.memfunctions/" class="next-button">第5.14章: memcpy、memset、memcmp →</a>
+    </div>
+  </main>
+</body>
+</html>

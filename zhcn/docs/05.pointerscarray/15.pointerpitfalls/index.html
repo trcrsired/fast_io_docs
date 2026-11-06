@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5.15章: 常见指针陷阱 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第5.15章: 常见指针陷阱</h1>
+
+    <section>
+      <h2>概述</h2>
+      <p>
+        指针很强大，但极其容易被误用。C++ 程序中的许多缺陷
+        都来自对指针有效性、生命周期、别名、对齐以及算术的错误假设。
+        本章汇总最常见的错误，以便你能避开它们。
+      </p>
+
+      <p>你将学到：</p>
+
+      <ul>
+        <li>悬垂指针</li>
+        <li>空指针误用</li>
+        <li>差一错误</li>
+        <li>未对齐的指针</li>
+        <li>严格别名违规</li>
+        <li>内存重叠的危险</li>
+        <li>指针算术错误</li>
+        <li>生命周期问题</li>
+        <li>类型双关错误</li>
+        <li>内存函数的错误使用</li>
+        <li>指针比较陷阱</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. 悬垂指针</h2>
+      <p>
+        悬垂指针指向一个已经不存在的对象。
+      </p>
+
+<pre><code class="language-cpp">
+int const *p;
+
+{
+    int x{42};
+    p = ::std::addressof(x);
+} // x is destroyed here
+
+// *p;   // ❌ dangling pointer
+</code></pre>
+
+      <p>
+        指针只在它所指向的对象存活期间有效。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 空指针误用</h2>
+      <p>
+        解引用 <code>nullptr</code> 永远是未定义行为。
+      </p>
+
+<pre><code class="language-cpp">
+int *p{nullptr};
+
+// *p = 10;   // ❌ undefined behavior
+</code></pre>
+
+      <p>
+        另外，把 <code>nullptr</code> 配非零大小传给 <code>memcpy</code>、<code>memmove</code>、
+        <code>memcmp</code> 或 <code>memchr</code> 也是未定义
+        行为（见第5.14章）。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 差一错误</h2>
+      <p>
+        指针算术以所指类型为单位移动。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{1,2,3};
+
+int *p = a;
+int *end = a + 3;   // one past the end (valid but not dereferenceable)
+
+// *end;   // ❌ undefined behavior
+</code></pre>
+
+      <p>
+        只有区间 <code>[a, a + 3)</code> 可用于解引用。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 未对齐的指针</h2>
+      <p>
+        某些类型要求比其他类型更严格的对齐。把指针转换为对齐要求
+        更严格的类型可能导致未定义行为。
+      </p>
+
+<pre><code class="language-cpp">
+unsigned char buffer[8]{};
+
+// int *p = reinterpret_cast<int*>(buffer + 1);   // ❌ misaligned
+</code></pre>
+
+      <p>
+        对大多数类型，未对齐访问是不允许的。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 严格别名违规</h2>
+      <p>
+        通过不相关类型的指针访问对象是未定义
+        行为（见第5.13章）。
+      </p>
+
+<pre><code class="language-cpp">
+float f{1.0f};
+int *p = reinterpret_cast<int*>(::std::addressof(f));
+
+// *p;   // ❌ strict aliasing violation
+</code></pre>
+    </section>
+
+    <section>
+      <h2>6. 内存重叠的危险</h2>
+      <p>
+        对重叠的内存使用 <code>memcpy</code> 是未定义行为。
+      </p>
+
+<pre><code class="language-cpp">
+// memcpy(dst, src, n);   // ❌ if ranges overlap
+</code></pre>
+
+      <p>
+        不确定时请使用 <code>memmove</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 指针算术错误</h2>
+      <p>
+        指针算术以所指类型为单位，而不是以字节为单位。
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{1,2,3};
+
+int *p = a;
+int *q = p + 1;   // moves by sizeof(int) bytes
+</code></pre>
+
+      <p>
+        另外，<code>sizeof(pointer)</code> 不是所指对象的大小。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 生命周期问题</h2>
+      <p>
+        指针并不会延长它所指向对象的生命周期。
+      </p>
+
+<pre><code class="language-cpp">
+int const *p;
+
+{
+    int x{10};
+    p = ::std::addressof(x);
+}
+
+// *p;   // ❌ x is gone
+</code></pre>
+    </section>
+
+    <section>
+      <h2>9. 类型双关错误</h2>
+      <p>
+        用 <code>reinterpret_cast</code> 做类型双关几乎总是未定义
+        行为。请改用 <code>memcpy</code> 或 <code>::std::bit_cast</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>10. 内存函数的错误使用</h2>
+      <p>
+        常见错误包括：
+      </p>
+
+      <ul>
+        <li>忘记检查 <code>size != 0</code></li>
+        <li>用非零大小搭配 <code>nullptr</code></li>
+        <li>对重叠内存使用 <code>memcpy</code></li>
+        <li>用 <code>memset</code> 清除机密数据（可能被优化掉）</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>11. 指针比较陷阱</h2>
+      <p>
+        顺序比较（<code>&lt;</code>、<code>&gt;</code>）只对指向同一数组的
+        指针有效。
+      </p>
+
+<pre><code class="language-cpp">
+// p < q;   // ❌ undefined behavior if p and q are unrelated
+</code></pre>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>指针只在它所指向的对象存活期间有效。</li>
+        <li>永远不要解引用 <code>nullptr</code>。</li>
+        <li>指针算术很容易被误用。</li>
+        <li>未对齐与严格别名违规会导致未定义行为。</li>
+        <li>重叠内存请使用 <code>memmove</code>。</li>
+        <li>类型双关请使用 <code>memcpy</code> 或 <code>::std::bit_cast</code>。</li>
+        <li>擦除机密数据请使用 <code>::fast_io::secure_clear</code>。</li>
+        <li>指针比较只在同一数组内有效。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/05.pointerscarray/14.memfunctions/" class="prev-button">← 第5.14章: 内存函数</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/05.pointerscarray/16.pointerbestpractices/" class="next-button">第5.16章: 最佳实践 →</a>
+    </div>
+  </main>
+</body>
+</html>
