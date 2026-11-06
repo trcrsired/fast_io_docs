@@ -284,7 +284,109 @@ int main()
         differ visibly: the unixcall path yields <code>unix_fd + 1</code>, the NT
         path yields the process&rsquo;s <code>StandardOutput</code> handle, and
         both are wrapped as a host fd so the rest of your code cannot tell them
-        apart.
+        apart. That <code>+1</code> is not cosmetic &mdash; read
+        <a href="#fd-bias">the next section</a> before you pass a host fd
+        anywhere.
+      </p>
+    </section>
+
+    <section id="fd-bias">
+      <h2>A Host fd Is Not a Unix fd: the <code>+1</code> Bias</h2>
+      <p>
+        This is the one place where guessing produces silently wrong I/O. On the
+        implementations that carry a POSIX descriptor, the number inside a
+        <code>::fast_io::wine_host_fd_t</code> is the real descriptor
+        <strong>plus one</strong>:
+      </p>
+      <pre><code class="language-text">
+host_fd = unix_fd + 1     // encoding, done once at the boundary
+unix_fd = host_fd - 1     // decoding, done once at the boundary
+</code></pre>
+      <p>
+        So <code>::fast_io::wine_stdout().native_handle()</code> is
+        <code>2</code>, not <code>1</code>; <code>wine_stdin()</code> is
+        <code>1</code> and <code>wine_stderr()</code> is <code>3</code>. And
+        <code>0</code> is not a descriptor at all &mdash; it is
+        &ldquo;nothing&rdquo;. That is the whole reason for the bias: a negative
+        descriptor has to be expressible as an unsigned <code>host_fd</code>,
+        and without it real descriptor <code>0</code> and the null sentinel
+        would collide. Decoding rejects <code>0</code> with
+        <code>EBADF</code> for the same reason.
+      </p>
+      <p>
+        Forgetting the bias does not fail loudly &mdash; it addresses the
+        <em>neighbour</em>. Hand fd <code>1</code> to something that expects a
+        host fd and it is decoded as descriptor <code>0</code>, so writes land
+        on stdin, and a <code>close()</code> shuts a descriptor you never
+        opened. Nothing reports an error; the wrong stream simply receives your
+        bytes.
+      </p>
+      <p>
+        The bias is also <strong>implementation-defined</strong>, which is why
+        you should not decode by hand when you can avoid it. Ask
+        <code>::fast_io::wine::wine_unix_is_unix()</code>: nonzero means the
+        calls run through the unix backend (<code>libwineunix.so</code> under
+        Wine) and the numbers are biased descriptors; zero means the NT backend,
+        where the same <code>host_fd</code> slot holds a Windows
+        <code>HANDLE</code> reinterpreted as an integer, with no bias at all.
+        The same applies to directory descriptors: do not write
+        <code>-100</code> or <code>0</code> yourself, call
+        <code>::fast_io::wine::wine_unix_at_fdcwd()</code>, which is
+        <code>AT_FDCWD + 1</code> on one backend and a <code>-3</code> sentinel
+        on the other.
+      </p>
+      <p>
+        When you really do need the descriptor back, the conversion is one
+        subtraction &mdash; and the order matters, because
+        <code>::fast_io::wine_host_fd_t</code> is unsigned:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+// Recover the descriptor a unix-backend host fd names. Only meaningful when
+// wine_unix_is_unix() is nonzero: on the nt backend host_fd is a HANDLE and
+// no bias was ever applied.
+int host_fd_to_unix_fd(::fast_io::wine_host_fd_t host_fd) throws
+{
+    if (host_fd == 0)
+    {
+        // 0 is the null sentinel, never stdin.
+        throw throws ::std::errc::bad_file_descriptor;
+    }
+    // Decode first: host_fd is unsigned, so subtracting from a biased negative
+    // descriptor wraps, and the sign is only meaningful after the cast.
+    int unix_fd{static_cast&lt;int&gt;(host_fd - 1)};
+    if (unix_fd &lt; 0)
+    {
+        throw throws ::std::errc::bad_file_descriptor;
+    }
+    return unix_fd;
+}
+
+int main()
+{
+    try
+    {
+        int const fd{host_fd_to_unix_fd(::fast_io::wine_stdout().native_handle())};
+        // 2 - 1 == 1: stdout, as the host libc numbers it.
+        ::fast_io::perrln("wine stdout is host fd ", fd);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
+}
+</code></pre>
+      <p>
+        Note that this helper is for <em>descriptors</em>. A directory token from
+        <code>wine_unix_at_fdcwd()</code> decodes to <code>AT_FDCWD</code>
+        itself <code>(-100)</code>, so a real implementation keeps that one
+        negative value instead of rejecting it &mdash; the <code>fast_io</code>
+        side never needs to, because <code>host_dirfd</code> parameters are
+        passed straight back to the DLL.
       </p>
     </section>
 

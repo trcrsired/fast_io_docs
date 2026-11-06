@@ -241,7 +241,91 @@ int main()
 }
 </code></pre>
       <p>
-        <code>::fast_io::wine_stdout()</code>、<code>wine_stdin()</code> 与 <code>wine_stderr()</code> 是这一层的标准流观察者，也是两种 DLL 实现唯一肉眼可见的差别：unixcall 路径给出 <code>unix_fd + 1</code>，NT 路径给出进程的 <code>StandardOutput</code> 句柄，两者都被包装成宿主 fd，所以你的其余代码分辨不出它们的区别。
+        <code>::fast_io::wine_stdout()</code>、<code>wine_stdin()</code> 与 <code>wine_stderr()</code> 是这一层的标准流观察者，也是两种 DLL 实现唯一肉眼可见的差别：unixcall 路径给出 <code>unix_fd + 1</code>，NT 路径给出进程的 <code>StandardOutput</code> 句柄，两者都被包装成宿主 fd，所以你的其余代码分辨不出它们的区别。那个 <code>+1</code> 并非装饰 &mdash; 在把宿主 fd 交给任何地方之前，先读<a href="#fd-bias">下一节</a>。
+      </p>
+    </section>
+
+    <section id="fd-bias">
+      <h2>宿主 fd 不是 Unix fd：<code>+1</code> 偏移</h2>
+      <p>
+        这是整个接口里唯一一处“靠猜就会静默做错 I/O”的地方。在传递 POSIX 文件描述符的那几种实现上，
+        <code>::fast_io::wine_host_fd_t</code> 里的数字是真正的文件描述符<strong>再加一</strong>：
+      </p>
+      <pre><code class="language-text">
+host_fd = unix_fd + 1     // encoding, done once at the boundary
+unix_fd = host_fd - 1     // decoding, done once at the boundary
+</code></pre>
+      <p>
+        所以 <code>::fast_io::wine_stdout().native_handle()</code> 是 <code>2</code> 而不是 <code>1</code>；
+        <code>wine_stdin()</code> 是 <code>1</code>，<code>wine_stderr()</code> 是 <code>3</code>。
+        而 <code>0</code> 根本不是文件描述符 &mdash; 它表示“什么都没有”。这整桩偏移就是为了这件事：
+        负的文件描述符必须能用无符号的 <code>host_fd</code> 表达，若不偏移，真正的文件描述符 <code>0</code>
+        就会和“空”这个哨兵撞成同一个数。解码时拒绝 <code>0</code> 并报 <code>EBADF</code>，原因也是同一个。
+      </p>
+      <p>
+        忘了偏移不会大声报错 &mdash; 它会指向<em>隔壁</em>那个描述符。把 fd <code>1</code> 交给一个期望宿主 fd 的地方，
+        它会被解码成描述符 <code>0</code>，于是写操作落到 stdin 上，而一次 <code>close()</code> 关掉的是你从未打开的描述符。
+        没有任何地方会报错，只是错误的流收到了你的字节。
+      </p>
+      <p>
+        这桩偏移还是<strong>实现定义</strong>的，所以能不解码就不要自己解码。问一下
+        <code>::fast_io::wine::wine_unix_is_unix()</code>：非零表示调用走 unix 后端（Wine 下的
+        <code>libwineunix.so</code>），这些数字是偏移过的描述符；零表示 NT 后端，同一个
+        <code>host_fd</code> 槽里装的是被重新解释成整数的 Windows <code>HANDLE</code>，一点偏移都没有。
+        目录描述符也一样：不要自己写 <code>-100</code> 或 <code>0</code>，调用
+        <code>::fast_io::wine::wine_unix_at_fdcwd()</code> &mdash; 它在一个后端上是
+        <code>AT_FDCWD + 1</code>，在另一个后端上是 <code>-3</code> 哨兵。
+      </p>
+      <p>
+        当你确实需要拿回描述符时，转换就是一次减法 &mdash; 而顺序很要紧，因为
+        <code>::fast_io::wine_host_fd_t</code> 是无符号的：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+// Recover the descriptor a unix-backend host fd names. Only meaningful when
+// wine_unix_is_unix() is nonzero: on the nt backend host_fd is a HANDLE and
+// no bias was ever applied.
+int host_fd_to_unix_fd(::fast_io::wine_host_fd_t host_fd) throws
+{
+    if (host_fd == 0)
+    {
+        // 0 is the null sentinel, never stdin.
+        throw throws ::std::errc::bad_file_descriptor;
+    }
+    // Decode first: host_fd is unsigned, so subtracting from a biased negative
+    // descriptor wraps, and the sign is only meaningful after the cast.
+    int unix_fd{static_cast&lt;int&gt;(host_fd - 1)};
+    if (unix_fd &lt; 0)
+    {
+        throw throws ::std::errc::bad_file_descriptor;
+    }
+    return unix_fd;
+}
+
+int main()
+{
+    try
+    {
+        int const fd{host_fd_to_unix_fd(::fast_io::wine_stdout().native_handle())};
+        // 2 - 1 == 1: stdout, as the host libc numbers it.
+        ::fast_io::perrln("wine stdout is host fd ", fd);
+    }
+    catch throws (::std::error e)
+    {
+        ::fast_io::perrln(e);
+        return 1;
+    }
+    return 0;
+}
+</code></pre>
+      <p>
+        注意这个辅助函数是用来处理<em>文件描述符</em>的。来自
+        <code>wine_unix_at_fdcwd()</code> 的目录令牌解出来正是 <code>AT_FDCWD</code>
+        本身 <code>(-100)</code>，所以真正的实现会保留这个负值而不是拒绝它 &mdash;
+        <code>fast_io</code> 这一侧从来不需要这么做，因为 <code>host_dirfd</code> 参数
+        会原样交回给 DLL。
       </p>
     </section>
 
