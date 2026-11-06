@@ -325,8 +325,16 @@ int main()
         DWORD written{};
         BOOL ok{::WriteFile(h, buffer, static_cast&lt;DWORD&gt;(sizeof(buffer) - 1), &amp;written, nullptr)};
 
-        if (!ok || written != sizeof(buffer) - 1) {
-            // handle error
+        if (!ok)
+        {
+            // BOOL-returning APIs report failure out of band: the reason is in the
+            // thread's last-error slot, never in the return value.
+            throw throws static_cast&lt;::std::win32_errc&gt;(::GetLastError());
+        }
+        if (written != sizeof(buffer) - 1)
+        {
+            // A short write is not a Win32 error: the device simply took fewer bytes.
+            throw throws ::std::errc::io_error;
         }
 
         // wf's destructor calls CloseHandle(h) automatically when it goes out of scope.
@@ -340,6 +348,15 @@ int main()
     return 0;
 }
 </code></pre>
+      <p>
+        Two of those lines do the actual reporting. <code>WriteFile</code> answers with a
+        <code>BOOL</code> and leaves the reason in the thread&rsquo;s last-error slot, so the
+        reason is fetched with <code>GetLastError()</code> and thrown as a
+        <code>::std::win32_errc</code>. That domain <em>is</em> the <code>ERROR_*</code> value,
+        so one <code>static_cast</code> is the whole conversion and nothing is lost between the
+        API that failed and the handler that prints it. A short write is not a Win32 failure at
+        all, so it gets the portable <code>::std::errc::io_error</code> instead.
+      </p>
       <p>
         The same principle applies to reading:
       </p>
@@ -394,8 +411,9 @@ int main()
 
         // Seek to offset 100 from the beginning of the file
         BOOL ok{::SetFilePointerEx(h, distanceToMove, nullptr, FILE_BEGIN)};
-        if (!ok) {
-            // handle error
+        if (!ok)
+        {
+            throw throws static_cast&lt;::std::win32_errc&gt;(::GetLastError());
         }
 
         // Now read or write from the new position

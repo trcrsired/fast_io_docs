@@ -294,8 +294,16 @@ int main()
         DWORD written{};
         BOOL ok{::WriteFile(h, buffer, static_cast&lt;DWORD&gt;(sizeof(buffer) - 1), &amp;written, nullptr)};
 
-        if (!ok || written != sizeof(buffer) - 1) {
-            // handle error
+        if (!ok)
+        {
+            // BOOL-returning APIs report failure out of band: the reason is in the
+            // thread's last-error slot, never in the return value.
+            throw throws static_cast&lt;::std::win32_errc&gt;(::GetLastError());
+        }
+        if (written != sizeof(buffer) - 1)
+        {
+            // A short write is not a Win32 error: the device simply took fewer bytes.
+            throw throws ::std::errc::io_error;
         }
 
         // wf's destructor calls CloseHandle(h) automatically when it goes out of scope.
@@ -309,6 +317,13 @@ int main()
     return 0;
 }
 </code></pre>
+      <p>
+        真正负责上报的正是那两行。<code>WriteFile</code> 用 <code>BOOL</code> 回答问题，把原因留在线程的 last-error 槽里，
+        所以要用 <code>GetLastError()</code> 把原因取出来，再以 <code>::std::win32_errc</code> 抛出。
+        这个错误域<em>就是</em> <code>ERROR_*</code> 的取值，因此一个 <code>static_cast</code> 就是全部的转换，
+        失败的 API 与打印它的处理器之间没有丢失任何信息。短写根本不是 Win32 的失败，
+        所以给它用的是可移植的 <code>::std::errc::io_error</code>。
+      </p>
       <p>
         同样的原则也适用于读取：
       </p>
@@ -363,8 +378,9 @@ int main()
 
         // Seek to offset 100 from the beginning of the file
         BOOL ok{::SetFilePointerEx(h, distanceToMove, nullptr, FILE_BEGIN)};
-        if (!ok) {
-            // handle error
+        if (!ok)
+        {
+            throw throws static_cast&lt;::std::win32_errc&gt;(::GetLastError());
         }
 
         // Now read or write from the new position
