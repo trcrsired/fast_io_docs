@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch8.3: Iterator Categories - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch8.3: Iterator Categories</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Overview</h2>
+
+      <p>
+        Iterators are the “cursors” that move through a range.  
+        A range <strong>produces</strong> iterators; an iterator <strong>represents a position</strong> inside a range.
+      </p>
+
+      <p>
+        Just like ranges, iterators form a <strong>capability hierarchy</strong>.
+        Each stronger iterator category includes all capabilities of the weaker ones.
+      </p>
+
+      <p>
+        In this chapter, you will learn:
+      </p>
+
+      <ul>
+        <li>the full iterator category hierarchy</li>
+        <li>the readable chain from <code>input_iterator</code> to <code>contiguous_iterator</code></li>
+        <li>the separate writable branch <code>output_iterator</code></li>
+        <li>why pointers to object types are the strongest readable iterators</li>
+        <li>why some pointers do not model any iterator category</li>
+        <li>how <code>to_address</code> defines contiguity</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. The full iterator hierarchy</h2>
+
+      <p>
+        All iterator categories refine the base concept <code>input_or_output_iterator</code>.
+        From there, the hierarchy splits into a readable chain and a separate writable branch:
+      </p>
+
+<pre><code>
+input_or_output_iterator
+│
+├── input_iterator
+│     │
+│     ├── forward_iterator
+│     │
+│     ├── bidirectional_iterator
+│     │
+│     ├── random_access_iterator
+│     │
+│     └── contiguous_iterator   ← pointers to object types live here
+│
+└── output_iterator   (separate writable branch)
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. Ranges and iterators: how they relate</h2>
+
+      <p>
+        A <strong>range</strong> is an object that produces two iterators:
+      </p>
+
+      <ul>
+        <li>a begin iterator (first position)</li>
+        <li>an end iterator (one past the last position)</li>
+      </ul>
+
+      <p>
+        A range does not store positions.  
+        An iterator does not store a collection.
+      </p>
+
+      <p>
+        They are complementary:
+      </p>
+
+      <ul>
+        <li>A range describes <em>what</em> you can traverse.</li>
+        <li>An iterator describes <em>where</em> you are during traversal.</li>
+      </ul>
+
+      <p>
+        A range is defined by:
+      </p>
+
+<pre><code class="language-cpp">
+auto it  = begin(r);
+auto end = end(r);
+</code></pre>
+
+      <p>
+        An iterator is defined by:
+      </p>
+
+<pre><code class="language-cpp">
+++it;   // move to next position
+*it;    // access the element at that position
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. input_or_output_iterator</h2>
+
+      <p>
+        This is the <strong>root</strong> of the iterator hierarchy.
+        Every iterator is either readable, writable, or both.
+      </p>
+
+      <p>
+        All other iterator categories refine this one.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. input_iterator</h2>
+
+      <p>
+        The smallest readable iterator category. An input_iterator supports:
+      </p>
+
+      <ul>
+        <li>reading elements once</li>
+        <li>moving forward only</li>
+        <li>single‑pass traversal</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>5. forward_iterator</h2>
+
+      <p>
+        A forward_iterator has all capabilities of an input_iterator and additionally supports:
+      </p>
+
+      <ul>
+        <li>multiple passes over the same elements</li>
+        <li>revisiting elements in the same order</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>6. bidirectional_iterator</h2>
+
+      <p>
+        A bidirectional_iterator has all capabilities of a forward_iterator and additionally supports:
+      </p>
+
+      <ul>
+        <li>moving backward as well as forward</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>7. random_access_iterator</h2>
+
+      <p>
+        A random_access_iterator has all capabilities of a bidirectional_iterator and additionally supports:
+      </p>
+
+      <ul>
+        <li>constant‑time jumps to any position</li>
+        <li>indexing with <code>it[n]</code></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>8. contiguous_iterator</h2>
+
+      <p>
+        A contiguous_iterator has all capabilities of a random_access_iterator and additionally
+        guarantees that the elements it refers to occupy adjacent addresses in the program’s
+        abstract address space.
+      </p>
+
+      <p>
+        When the iterator refers to a real element (not the end position), the following holds:
+      </p>
+
+<pre><code class="language-cpp">
+::std::to_address(it + 1) == ::std::to_address(it) + 1
+</code></pre>
+
+      <h3>Pointers as contiguous_iterators</h3>
+
+      <p>
+        Pointers to <strong>object types</strong> (such as <code>int*</code> or <code>char*</code>)
+        are the canonical example of contiguous_iterators.
+      </p>
+
+      <p>
+        However, not all pointers are iterators:
+      </p>
+
+      <ul>
+        <li><code>void*</code> cannot be incremented or dereferenced as an element type</li>
+        <li>function pointers cannot be incremented or dereferenced</li>
+      </ul>
+
+      <h3>Example: ::fast_io::vector&lt;int&gt;::iterator</h3>
+
+<pre><code class="language-cpp">
+void analyze_vector_iterator(::fast_io::vector&lt;int&gt;::iterator it)
+{
+    if constexpr(::std::contiguous_iterator&lt;decltype(it)&gt;)
+        print("vector::iterator is a contiguous iterator\n");
+
+    if constexpr(::std::random_access_iterator&lt;decltype(it)&gt;)
+        print("vector::iterator is a random_access iterator\n");
+
+    if constexpr(::std::bidirectional_iterator&lt;decltype(it)&gt;)
+        print("vector::iterator is a bidirectional iterator\n");
+
+    if constexpr(::std::forward_iterator&lt;decltype(it)&gt;)
+        print("vector::iterator is a forward iterator\n");
+
+    if constexpr(::std::input_iterator&lt;decltype(it)&gt;)
+        print("vector::iterator is an input iterator\n");
+
+    if constexpr(::std::output_iterator&lt;decltype(it), int&gt;)
+        print("vector::iterator is an output iterator for int\n");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>9. output_iterator (separate branch)</h2>
+
+      <p>
+        An output_iterator is the writable counterpart of an input_iterator.
+        It allows writing elements but does not require reading from the iterator.
+      </p>
+
+      <p>
+        It is <strong>not part of the readable hierarchy</strong>.
+      </p>
+    </section>
+
+    <section>
+      <h2>10. Detecting iterator categories with <code>if constexpr</code></h2>
+
+<pre><code class="language-cpp">
+void analyze_iterator(int* it)
+{
+    if constexpr(::std::contiguous_iterator&lt;decltype(it)&gt;)
+        print("pointer is a contiguous iterator\n");
+
+    if constexpr(::std::random_access_iterator&lt;decltype(it)&gt;)
+        print("pointer is a random_access iterator\n");
+
+    if constexpr(::std::bidirectional_iterator&lt;decltype(it)&gt;)
+        print("pointer is a bidirectional iterator\n");
+
+    if constexpr(::std::forward_iterator&lt;decltype(it)&gt;)
+        print("pointer is a forward iterator\n");
+
+    if constexpr(::std::input_iterator&lt;decltype(it)&gt;)
+        print("pointer is an input iterator\n");
+
+    if constexpr(::std::output_iterator&lt;decltype(it), int&gt;)
+        print("pointer is an output iterator for int\n");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+
+      <ul>
+        <li><code>input_or_output_iterator</code> is the root concept.</li>
+        <li>The readable hierarchy goes from <code>input_iterator</code> up to <code>contiguous_iterator</code>.</li>
+        <li><code>output_iterator</code> is a separate writable branch.</li>
+        <li>Pointers to object types are contiguous_iterators.</li>
+        <li><code>void*</code> and function pointers are not iterators.</li>
+        <li>Ranges produce iterators; iterators represent positions.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/08.algorithm/02.rangecategories/" class="prev-button">← Ch8.2: Range Categories</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/08.algorithm/04.iteratoralgorithms/" class="next-button">Ch8.4: Algorithm Basics →</a>
+    </div>
+
+  </main>
+</body>
+</html>

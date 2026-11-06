@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch10.11: Element Types, Error Specifications, and Validity - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch10.11: Element Types, Error Specifications, and Validity</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>1. What the Key May Be</h2>
+      <p>
+        The key type parameter is constrained to integral character types. In
+        practice that means the five the aliases cover:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Alias prefix</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>char</code></td><td><code>str_</code></td></tr>
+          <tr><td><code>wchar_t</code></td><td><code>wstr_</code></td></tr>
+          <tr><td><code>char8_t</code></td><td><code>u8str_</code></td></tr>
+          <tr><td><code>char16_t</code></td><td><code>u16str_</code></td></tr>
+          <tr><td><code>char32_t</code></td><td><code>u32str_</code></td></tr>
+        </tbody>
+      </table>
+      <p>
+        A key is a sequence of those units, compared byte by byte. There is no
+        encoding awareness: a <code>u32str_btree_map</code> compares code points,
+        and a <code>str_</code> container compares UTF-8 bytes. For UTF-8, byte-wise
+        ordering happens to agree with code point ordering, which is why the
+        <code>str_</code> family is the right default even for UTF-8 text.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. What the Mapped Type May Be</h2>
+      <p>
+        Map values must be <strong>nothrow move constructible</strong> and
+        <strong>nothrow move assignable</strong>. This is a class-level constraint,
+        checked the moment you name the type:
+      </p>
+      <pre><code class="language-text">
+error: template constraint failure for
+  'template&lt;class chtype, class mappedtype, class Allocator, long unsigned int keys_number&gt;
+   requires (integral&lt;chtype&gt;) &amp;&amp; (keys_number != 0 &amp;&amp; (keys_number &amp; 1) == 0 &amp;&amp;
+   (is_nothrow_move_constructible_v&lt;mappedtype&gt;) &amp;&amp;
+   (is_nothrow_move_assignable_v&lt;mappedtype&gt;))
+   class fast_io::containers::basic_str_btree_map'
+note: constraints not satisfied
+</code></pre>
+      <p>
+        The reason is the same one behind every <code>fast_io</code> container: when
+        a node splits, values are relocated. A relocation that can fail would leave
+        the container in a half-moved state with no way to describe it, so the
+        requirement is moved to compile time. Types with a <code>noexcept</code>
+        move &mdash; <code>::std::size_t</code>, <code>::fast_io::string</code>,
+        <code>::fast_io::vector</code>, most of what you will store &mdash; satisfy it
+        automatically.
+      </p>
+      <div class="note">
+        <strong>Copying may still throw.</strong> The constraint is only about moves.
+        A value type with a throwing copy constructor is fine, and it simply makes
+        the copying insert overload
+        <code>throws</code> &mdash; see Section 3.
+      </div>
+    </section>
+
+    <section>
+      <h2>3. Error Specifications</h2>
+      <p>
+        With the default allocators, a container of nothrow-movable values is
+        <strong>entirely <code>noexcept</code></strong>: every insert, every erase,
+        every lookup, every iterator operation. You can verify that at compile time
+        instead of trusting the documentation:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::str_btree_map&lt;::std::size_t&gt; m;
+
+static_assert(noexcept(m.insert_key("x", 1zu)));
+static_assert(noexcept(m.insert_key_or_assign("x", 1zu)));
+static_assert(noexcept(m.emplace_key("x", 1zu)));
+static_assert(noexcept(m.find("x")));
+static_assert(noexcept(m.erase_key("x")));
+static_assert(noexcept(m.clear()));
+</code></pre>
+      <p>
+        A failed allocation in that configuration <em>terminates</em> the program; it
+        does not throw. That is the deliberate default: running out of memory is not
+        a condition a string container can recover from, so the runtime does not
+        pretend otherwise.
+      </p>
+      <p>
+        Two things can make a member <code>throws</code> instead, and both are
+        visible in the type, not in a comment:
+      </p>
+      <ol>
+        <li>
+          <strong>The value type can throw where the operation constructs it.</strong>
+          A copy constructor that can throw makes
+          <code>insert_key(key, lvalue)</code> a <code>throws</code> function; a
+          constructor that can throw makes the <code>emplace_key</code> overload
+          that calls it <code>throws</code>.
+        </li>
+        <li>
+          <strong>You chose a throwing allocator.</strong> Wrapping the allocator
+          with flags turns allocation failure and contract violations into
+          herbceptions.
+        </li>
+      </ol>
+      <pre><code class="language-cpp">
+using throwing_alloc = ::fast_io::generic_allocator_adapter&lt;
+	::fast_io::native_global_allocator,
+	::fast_io::allocator_adapter_flags::throws_on_allocation_failure |
+	::fast_io::allocator_adapter_flags::throws_on_violations&gt;;
+
+::fast_io::containers::basic_str_btree_set&lt;char, throwing_alloc&gt; ts;
+static_assert(!noexcept(ts.insert_key("x")));   // may throw on allocation failure
+static_assert(!noexcept(ts.front()));           // may throw on an empty container
+</code></pre>
+      <p>
+        The interesting part is what a <em>checked</em> operation reports. Reading
+        <code>front()</code> of an empty container is a bug in your program, not a
+        runtime condition &mdash; but if you asked for errors to be reportable, it is
+        reported as <code>::std::errc::invalid_argument</code> in the POSIX domain:
+      </p>
+      <pre><code class="language-cpp">
+try
+{
+	perrln(ts.front());   // ts is empty
+}
+catch throws (::std::error e)
+{
+	perrln("caught");
+	perrln(e);
+}
+</code></pre>
+      <pre><code class="language-text">
+caught
+[posix](22)Invalid argument
+</code></pre>
+      <div class="important">
+        <strong>You do not have to handle anything.</strong> With the default
+        allocators &mdash; which is what <code>::fast_io::str_btree_map</code> and
+        friends use &mdash; the containers are <code>noexcept</code> and there is no
+        <code>try</code>/<code>catch throws</code> anywhere in your code. Throwing
+        allocators exist for the programs that need a recoverable path, and they must
+        be opted into explicitly.
+      </div>
+    </section>
+
+    <section>
+      <h2>4. Writing Your Own Signatures</h2>
+      <p>
+        Because the specifications are conditional, the rule from
+        <a href="/zhcn/docs/06.function/16.noexceptthrows/">Ch6.16</a> does the work for
+        you: a function that only reads from a container is <code>noexcept</code>, and
+        a function that inserts is <code>noexcept</code> unless the container can
+        throw.
+      </p>
+      <pre><code class="language-cpp">
+// reads only: contains/find/iteration are noexcept
+bool is_known(::fast_io::str_btree_set const &s, ::fast_io::string_view w) noexcept
+{
+	return s.contains(w);
+}
+
+// inserts: still noexcept with the default allocator
+void remember(::fast_io::str_btree_set &s, ::fast_io::string_view w) noexcept
+{
+	s.insert_key(w);
+}
+</code></pre>
+      <p>
+        When the mapped type can throw, the compiler refuses the second shape and
+        tells you why:
+      </p>
+      <pre><code class="language-text">
+error: an unhandled herbceptions failure cannot leave a function without a
+       herbceptions specification
+</code></pre>
+      <p>
+        Mark that function <code>throws</code> and the error goes away &mdash; there is
+        never a reason to fall back to legacy exceptions or to
+        <code>catch (...)</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. What Stays Valid</h2>
+      <p>
+        Iterators, key views and mapped references point into the container&rsquo;s
+        own storage. The rules below are short, and following them is the whole of
+        memory safety with these types.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Effect on iterators and views</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Lookup (<code>contains</code>, <code>find</code>, <code>lower_bound</code>, iteration)</td>
+            <td>Nothing is invalidated. Lookups only read.</td>
+          </tr>
+          <tr>
+            <td>Insert (B-tree family)</td>
+            <td>The inserted element&rsquo;s own iterator is new; existing keys keep their identity, so views of other elements survive.</td>
+          </tr>
+          <tr>
+            <td>Insert (Swiss family)</td>
+            <td>A growth rehashes every key. Treat all iterators and views as gone once the table grows.</td>
+          </tr>
+          <tr>
+            <td>Erase</td>
+            <td>Everything referring to the erased element dies. Only the returned iterator is known-good.</td>
+          </tr>
+          <tr>
+            <td><code>clear()</code>, <code>clear_destroy()</code>, destruction</td>
+            <td>Everything dies.</td>
+          </tr>
+          <tr>
+            <td>Move, copy-assign, swap</td>
+            <td>Iterators into the moved-from container are gone; re-look the keys up.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        In practice: <strong>do not hold an iterator or a key view across a
+        modification</strong>. Look the key up again &mdash; the lookup is the cheap
+        operation you chose this container for in the first place.
+      </p>
+      <pre><code class="language-cpp">
+// safe: the view is used immediately
+println(s.contains("alpha"));
+
+// unsafe: the view outlives the modification it was taken before
+::fast_io::cstring_view kept{*s.find("alpha")};
+s.insert_key("something else");
+// kept may be dangling here
+</code></pre>
+      <p>
+        Keys that are <em>copied out</em> are of course fine forever &mdash; a
+        <code>::fast_io::string</code> built from <code>e.key()</code> is your own
+        storage and has nothing to do with the container any more.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>Keys are integral character types: <code>char</code>, <code>wchar_t</code>, <code>char8_t</code>, <code>char16_t</code>, <code>char32_t</code>; comparison is byte-wise.</li>
+        <li>Mapped values must be nothrow-move-constructible and nothrow-move-assignable, enforced by the class constraint.</li>
+        <li>With default allocators, every container operation is <code>noexcept</code>; allocation failure terminates.</li>
+        <li>A throwing value operation, or a throwing allocator adapter, makes exactly those members <code>throws</code> &mdash; never the whole container.</li>
+        <li>Contract violations (<code>front()</code> on empty, out-of-range <code>nth_element</code>) terminate, or throw <code>::std::errc::invalid_argument</code> in a throwing configuration.</li>
+        <li>Functions that only read are <code>noexcept</code>; inserters are <code>noexcept</code> unless the value type or allocator can throw, and then they are <code>throws</code>.</li>
+        <li>Never keep an iterator or key view across a modification; look the key up again.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/10.associativecontainers/10.choose/" class="prev-button">&larr; Ch10.10: Choosing a Container</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/11.io/" class="next-button">Ch11: I/O &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

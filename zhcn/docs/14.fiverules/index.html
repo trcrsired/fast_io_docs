@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch14: The Rule of Five: Copy, Move, Swap - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch14: The Rule of Five: Copy, Move, Swap</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+    <section>
+      <h2>1. Why This Chapter Exists</h2>
+
+
+      <p>
+        Every class in <a href="/zhcn/docs/13.class/">Chapter 13</a> owned numbers. Copying one was
+        obviously harmless: <code>point b{a}</code> gives you two points, and nothing is
+        shared. <code>account</code> owned a balance, and copying it was still harmless.
+      </p>
+      <p>
+        The moment a class owns something the operating system handed out &mdash; a file
+        descriptor, a socket, a lock, a block of memory &mdash; that comfort ends. Two objects
+        that own the same descriptor are a bug waiting to happen, and the compiler's
+        default behaviour makes exactly that bug: it copies the number, not the resource.
+      </p>
+      <p>
+        Such a class has to answer five questions, and this chapter is those five answers.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. What a Resource Is</h2>
+
+
+      <p>
+        A <strong>resource</strong> is anything that
+      </p>
+      <ul>
+        <li>has to be <strong>acquired</strong> before use and <strong>released</strong>
+          afterwards,</li>
+        <li>can be acquired only a limited number of times,</li>
+        <li>is <strong>identified by a handle</strong> that you pass around instead of the
+          thing itself.</li>
+      </ul>
+      <p>
+        A file descriptor is the smallest useful example. <code>::open</code> returns an
+        <code>int</code>; <code>::close</code> gives it back; the process has a limited number
+        of them; and the <code>int</code> is a handle, not the file. Copying the handle does
+        <em>not</em> copy the file &mdash; it gives you a second name for the same thing, and
+        two owners of one resource is precisely the problem this chapter solves.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. The Five Special Member Functions</h2>
+
+
+      <p>
+        When you do not write them, the compiler writes them for you. When you write one, the
+        rest change their meaning. They are:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Called when</th>
+            <th>Subchapter</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>destructor <code>~T()</code></td>
+            <td>an object goes out of scope, or is deleted</td>
+            <td><a href="/zhcn/docs/14.fiverules/02.destructor/">Ch14.2</a></td>
+          </tr>
+          <tr>
+            <td>copy constructor <code>T(T const&amp;)</code></td>
+            <td>a new object is made from an existing one</td>
+            <td><a href="/zhcn/docs/14.fiverules/03.copyconstructor/">Ch14.3</a></td>
+          </tr>
+          <tr>
+            <td>copy assignment <code>operator=(T const&amp;)</code></td>
+            <td>an existing object is given another object's value</td>
+            <td><a href="/zhcn/docs/14.fiverules/04.copyassignment/">Ch14.4</a></td>
+          </tr>
+          <tr>
+            <td>move constructor <code>T(T&amp;&amp;)</code></td>
+            <td>a new object is made from one that is about to die</td>
+            <td><a href="/zhcn/docs/14.fiverules/05.moveconstructor/">Ch14.5</a></td>
+          </tr>
+          <tr>
+            <td>move assignment <code>operator=(T&amp;&amp;)</code></td>
+            <td>an existing object takes over from one that is about to die</td>
+            <td><a href="/zhcn/docs/14.fiverules/06.moveassignment/">Ch14.6</a></td>
+          </tr>
+          <tr>
+            <td><code>swap</code></td>
+            <td>you ask for it by name</td>
+            <td><a href="/zhcn/docs/14.fiverules/07.swap/">Ch14.7</a></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Five of them are special members the compiler will generate; <code>swap</code> is not
+        &mdash; nobody calls it unless you write the call. It belongs here anyway, because it
+        is the one operation that lets copy assignment be <em>safe</em>
+        (<a href="/zhcn/docs/14.fiverules/08.copyandswap/">Ch14.8</a>), and because
+        <code>::std::swap</code> falls back to three moves, which is only fast and safe when
+        your moves are <code>noexcept</code>.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. The Example: <code>my_posix_file</code></h2>
+
+
+      <p>
+        Every page from here on uses one running example: a class that owns a POSIX file
+        descriptor. It is a reduced version of what fast_io itself does in
+        <code>basic_posix_file</code>, keeping only what the five rules need, so that the
+        interesting code is never more than fifteen lines.
+      </p>
+      <pre><code class="language-cpp">
+class my_posix_file
+{
+	int fd_{-1};
+
+public:
+	my_posix_file() noexcept = default;
+	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws;
+	my_posix_file(my_posix_file const &amp;other) throws;
+	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws;
+	my_posix_file(my_posix_file &amp;&amp;other) noexcept;
+	my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept;
+	~my_posix_file() noexcept;
+	void swap(my_posix_file &amp;other) noexcept;
+
+	[[nodiscard]] bool is_open() const noexcept;
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept;
+	::std::size_t read_some(char *buf, ::std::size_t n) throws;
+	::std::size_t write_some(char const *buf, ::std::size_t n) throws;
+};
+</code></pre>
+      <p>
+        The path is a <code>::fast_io::cstring_view</code>, the flags are the plain POSIX
+        <code>int</code> flags (<code>O_RDONLY</code>, <code>O_WRONLY | O_CREAT</code>, ...),
+        and the body calls <code>::open</code>, <code>::dup</code> and <code>::close</code>
+        directly. Nothing is hidden behind fast_io helpers, so every rule this chapter states
+        can be checked against the code on the page.
+      </p>
+      <p>
+        Failures are reported the only way this tutorial reports failures
+        (<a href="/zhcn/docs/03.statements/16.herbceptions/">Ch3.16</a>):
+      </p>
+      <pre><code class="language-cpp">
+if (fd == -1) [[unlikely]]
+{
+	throw throws static_cast&lt;::std::errc&gt;(errno);
+}
+</code></pre>
+      <p>
+        On a POSIX system the standard <code>::std::errc</code> values are the
+        <code>errno</code> values, so the cast preserves the error exactly; the handler sees
+        <code>[posix](2)No such file or directory</code> and friends.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. The Two Ideas That Pay for the Chapter</h2>
+
+
+      <p>
+        The rules themselves are bookkeeping. Two ideas make them worth learning, and they are
+        the reason this chapter exists at all.
+      </p>
+      <h3>The critical line</h3>
+      <p>
+        Inside a function that may fail, there is a line &mdash; sometimes an obvious one,
+        sometimes a single statement &mdash; such that
+      </p>
+      <ul>
+        <li><strong>above it:</strong> things may fail, and nothing has been modified yet;</li>
+        <li><strong>below it:</strong> nothing may fail, and the modifications happen.</li>
+      </ul>
+      <p>
+        Put every fallible step above the line and every change below it, and the operation
+        either happens completely or not at all. That is the <strong>strong exception safety
+        guarantee</strong>, and it is what
+        <a href="/zhcn/docs/14.fiverules/04.copyassignment/">Ch14.4</a> is really about.
+      </p>
+      <h3>Four levels of exception safety</h3>
+      <p>
+        <code>nothrow</code>, <code>strong</code>, <code>basic</code>, <code>none</code>
+        &mdash; every function you write has exactly one of these, whether you thought about
+        it or not. <a href="/zhcn/docs/14.fiverules/09.exceptionsafety/">Ch14.9</a> names them,
+        classifies every member of <code>my_posix_file</code>, and shows how herbceptions turn
+        the first level from a promise into something the compiler proves.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. Conventions Used in This Chapter</h2>
+
+
+      <ul>
+        <li>Data members that are private end with an underscore: <code>fd_</code>.</li>
+        <li>
+          Every member function is either <code>noexcept</code> or <code>throws</code>
+          &mdash; there is no third option in this tutorial
+          (<a href="/zhcn/docs/06.function/16.noexceptthrows/">Ch6.16</a>). Which one it is tells
+          you the exception-safety level before you read the body.
+        </li>
+        <li>
+          Integers are <code>::std::int_least32_t</code>, <code>::std::int_least64_t</code> or
+          <code>::std::size_t</code>; never plain <code>int</code>. The only exception is
+          <code>int main()</code>, and the POSIX API's own <code>int</code> arguments and
+          return values, which are shown as the <code>int</code> they are.
+        </li>
+        <li>
+          Failures are herbceptions: <code>throw throws ...</code> and
+          <code>catch throws (::std::error e)</code>.
+        </li>
+        <li>
+          Every complete program on these pages was compiled with
+          <code>-std=c++26 -fherbceptions -lherbceptions</code> and run; the output shown is
+          what it actually printed.
+        </li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>7. Contents</h2>
+
+
+      <ul>
+        <li><a href="/zhcn/docs/14.fiverules/01.ownership/">Ch14.1: Ownership: Why a Class Needs a Destructor</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/02.destructor/">Ch14.2: The Destructor</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/03.copyconstructor/">Ch14.3: The Copy Constructor</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/04.copyassignment/">Ch14.4: Copy Assignment and the Critical Line</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/05.moveconstructor/">Ch14.5: The Move Constructor</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/06.moveassignment/">Ch14.6: Move Assignment</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/07.swap/">Ch14.7: swap</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/08.copyandswap/">Ch14.8: Copy and Swap</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/09.exceptionsafety/">Ch14.9: Exception Safety: nothrow, strong, basic, none</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/10.movedfrom/">Ch14.10: Self-Assignment and Moved-From Objects</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/11.myposixfile/">Ch14.11: The Whole Class, and fast_io's posix_file</a></li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/13.class/11.puttingtogether/" class="prev-button">&larr; Ch13.11: Putting It Together</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/14.fiverules/01.ownership/" class="next-button">Ch14.1: Ownership &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

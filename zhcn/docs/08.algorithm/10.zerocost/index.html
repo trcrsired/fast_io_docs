@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch8.10: Why “Zero‑Overhead” and “Zero‑Cost” Are Meaningless - C++ Tutorial</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch8.10: Why “Zero‑Overhead” and “Zero‑Cost” Are Meaningless</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Overview</h2>
+
+      <p>
+        The phrases <strong>“zero‑overhead”</strong> and <strong>“zero‑cost abstractions”</strong>
+        are repeated constantly in the C++ and Rust communities. They appear in
+        conference talks, Reddit threads, blog posts, and even standard‑committee
+        discussions. But these slogans are not engineering concepts. They are
+        marketing language — and worse, they are often used to shut down nuanced,
+        evidence‑based discussion.
+      </p>
+
+      <p>
+        In this chapter, we examine why these slogans are meaningless in practice,
+        why they are routinely misused, and why real‑world performance depends on
+        binary size, memory hierarchy, platform constraints, and economics — not
+        on slogans.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. The slogan as propaganda</h2>
+
+      <p>
+        In many online communities (r/cpp, r/rust, etc.), the phrase
+        <strong>“zero‑overhead”</strong> is used as a rhetorical weapon. Instead of
+        engaging with trade‑offs, people simply assert:
+      </p>
+
+      <blockquote>
+        “It’s zero‑overhead, so your argument is invalid.”
+      </blockquote>
+
+      <p>
+        This is not engineering. It is propaganda.  
+        It prevents discussion about:
+      </p>
+
+      <ul>
+        <li>binary size</li>
+        <li>instruction cache pressure</li>
+        <li>relocation cost</li>
+        <li>optimizer complexity</li>
+        <li>debuggability</li>
+        <li>portability</li>
+        <li>economic cost</li>
+      </ul>
+
+      <p>
+        None of these are “zero.”  
+        None of these can be optimized away.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Exception handling is not zero‑overhead</h2>
+
+      <p>
+        C++ exception handling is often marketed as “zero‑overhead” because the
+        happy path contains no explicit checks. But this ignores the real costs:
+      </p>
+
+      <ul>
+        <li>larger binary size</li>
+        <li>unwind tables and metadata</li>
+        <li>more relocation entries</li>
+        <li>reduced optimization opportunities</li>
+        <li>worse icache locality</li>
+      </ul>
+
+      <p>
+        For applications where <strong>crashing is acceptable</strong> (which is
+        most modern apps), <code>std::abort()</code> is strictly cheaper.
+      </p>
+
+      <p>
+        Linux overcommit kills processes.  
+        Android and iOS kill apps without permission.  
+        Users do not care. They keep buying phones.
+      </p>
+
+      <p>
+        So the claim that EH is “zero‑overhead” is simply false.
+      </p>
+
+      <p>
+        See Raymond Chen’s article:
+        <a href="https://devblogs.microsoft.com/oldnewthing/20220228-00/?p=106296" target="_blank">
+          “Zero-cost exceptions aren’t actually zero cost”
+        </a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Lambdas are not zero‑overhead</h2>
+
+      <p>
+        Lambdas duplicate code. Even if two lambdas contain identical bodies,
+        they generate separate instantiations. This increases:
+      </p>
+
+      <ul>
+        <li>binary size</li>
+        <li>instruction cache pressure</li>
+        <li>relocation cost</li>
+      </ul>
+
+      <p>
+        Larger binaries are slower to load, slower to map, and harder for the
+        optimizer to reason about. None of this is “zero‑overhead.”
+      </p>
+    </section>
+
+    <section>
+    <h2>4. span and string_view are not zero‑overhead on Windows x64</h2>
+
+    <p>
+        A common claim is that <code>std::span</code> and <code>std::string_view</code>
+        are “zero‑overhead” abstractions. This is not true on Windows x86‑64, and the
+        reason is very concrete: the Windows x64 calling convention only passes
+        arguments of size 1, 2, 4, or 8 bytes in registers.
+    </p>
+
+    <p>
+        Both <code>std::span</code> and <code>std::string_view</code> are 16‑byte
+        aggregates (a pointer plus a size) on 64‑bit platforms. On Windows x64, such
+        16‑byte types do <strong>not</strong> qualify for register passing and are
+        therefore always passed <strong>by memory</strong>. This is purely an ABI
+        rule, not an STL or MSVC bug.
+    </p>
+
+    <p>
+        On 32‑bit (i686) and Windows on ARM, and on SysV x86‑64 (Linux, BSD, macOS),
+        16‑byte aggregates <em>can</em> be passed in registers, so the same
+        <code>span</code>/<code>string_view</code> code has different calling‑convention
+        costs across platforms. The Godbolt examples demonstrate this difference
+        clearly for 64‑bit Windows vs 32‑bit and SysV ABIs.
+    </p>
+
+    <p>
+        The key point is that “zero‑overhead” is not a universal property of an
+        abstraction; it depends on the ABI. An abstraction that looks “zero‑overhead”
+        on SysV can be measurably more expensive on Windows x64. Platform rules win
+        over slogans.
+    </p>
+    </section>
+
+
+    <section>
+      <h2>5. Instruction ordering and optimizer complexity</h2>
+
+      <p>
+        Even changing the order of instructions can affect performance.  
+        The optimizer must reason about dependencies, aliasing, and scheduling.
+      </p>
+
+      <p>
+        More abstraction → more IR → more complexity → fewer optimizations.  
+        This is overhead. It is not zero.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. C++ is used for portability, not performance</h2>
+
+      <p>
+        Many people claim C++ is used because it is “fast.”  
+        In reality, C++ is used because it is:
+      </p>
+
+      <ul>
+        <li>portable</li>
+        <li>stable</li>
+        <li>supported everywhere</li>
+        <li>compatible with existing code</li>
+      </ul>
+
+      <p>
+        Performance is often secondary.  
+        In many cases, it is irrelevant.
+      </p>
+
+      <p>
+        We will discuss this more in the chapter on Freestanding and Progressive
+        Web Apps, and how mobile app sandboxing (Android, iOS, UWP) makes native
+        apps slower to start, slower to update, and harder to distribute.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. PWAs can outperform native apps</h2>
+
+      <p>
+        Consider a simple media player. A PWA can be:
+      </p>
+
+      <ul>
+        <li>smaller (under 100 KB)</li>
+        <li>faster to start (browser already running)</li>
+        <li>cross‑platform by default</li>
+        <li>more secure (browser sandbox)</li>
+        <li>cheaper to update</li>
+      </ul>
+
+      <p>
+        Meanwhile, VLC’s installer is over 100 MB.  
+        SMPlayer is similar.  
+        Updates are expensive.  
+        Startup is slower because the entire application must be loaded from disk.
+      </p>
+
+      <p>
+        My PWA Player is a concrete demonstration of this. The player itself is under
+        100 KB, while the browser’s media engine — written in highly optimized
+        C/C++/assembly — is already loaded in memory and shared across processes.
+        The PWA does not re‑implement a media engine; it simply uses the one the
+        browser already provides.
+      </p>
+
+      <p>
+        This architecture allows a lightweight PWA to outperform heavyweight native
+        apps in startup time, update cost, and distribution convenience. It directly
+        contradicts the simplistic “C++ is always faster” narrative.
+      </p>
+
+      <p>
+        Try it here:
+        <a href="https://pwa-player.pages.dev/" target="_blank">
+          https://pwa-player.pages.dev/
+        </a>
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Economic cost is real overhead</h2>
+
+      <p>
+        Adding features like exception handling consumes:
+      </p>
+
+      <ul>
+        <li>committee time</li>
+        <li>compiler engineering resources</li>
+        <li>maintenance cost</li>
+        <li>testing cost</li>
+      </ul>
+
+      <p>
+        These resources could have been spent on:
+      </p>
+
+      <ul>
+        <li>better optimizations</li>
+        <li>better tooling</li>
+        <li>better diagnostics</li>
+        <li>better portability</li>
+      </ul>
+
+      <p>
+        Economic cost is overhead.  
+        It affects real‑world performance indirectly but significantly.
+      </p>
+
+      <p>
+        See Chandler Carruth’s CppCon 2019 talk:
+      </p>
+
+      <div class="video-container">
+        <iframe
+          width="560"
+          height="315"
+          src="https://www.youtube.com/embed/rHIkrotSwcc"
+          title="CppCon 2019: Chandler Carruth - There Are No Zero-cost Abstractions"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen>
+        </iframe>
+      </div>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+
+      <ul>
+        <li>“Zero‑overhead” and “zero‑cost” are slogans, not engineering terms.</li>
+        <li>They are often used to shut down discussion rather than encourage it.</li>
+        <li>Exception handling, lambdas, span, and string_view all have real costs.</li>
+        <li>Binary size, icache pressure, and relocation cost matter.</li>
+        <li>Platform differences matter; nothing is universally zero‑overhead.</li>
+        <li>C++ is used for portability far more than for performance.</li>
+        <li>PWAs can outperform native apps because the browser is already running.</li>
+        <li>Economic cost is overhead; committee time is not free.</li>
+        <li>There are no zero‑cost abstractions — only trade‑offs.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/08.algorithm/09.rammachine/" class="prev-button">← Ch8.9: The RAM Model &amp; Its Limits</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/09.seqcontainers/" class="next-button">Ch9: Sequence container →</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch12.1: C++ Random Engines - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch12.1: C++ Random Engines</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        C++ provides several random number engines in the <code>&lt;random&gt;</code> header. These
+        engines generate pseudo-random sequences of numbers based on an initial seed. The most
+        commonly used engines are:
+      </p>
+      <ul>
+        <li><code>::std::mt19937</code> &mdash; 32-bit Mersenne Twister</li>
+        <li><code>::std::mt19937_64</code> &mdash; 64-bit Mersenne Twister</li>
+        <li><code>::std::minstd_rand</code> &mdash; Linear congruential engine</li>
+        <li><code>::std::ranlux48</code> &mdash; Subtract-with-carry engine</li>
+      </ul>
+      <p>
+        The Mersenne Twister engines (<code>mt19937</code> and <code>mt19937_64</code>) are the most
+        widely used due to their excellent statistical properties and long period
+        (2<sup>19937</sup>-1).
+      </p>
+    </section>
+
+    <section>
+      <h2>Using std::mt19937_64</h2>
+      <p>
+        The 64-bit Mersenne Twister is suitable for most applications requiring random numbers.
+        Here's how to use it:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;random&gt;
+
+int main() {
+    using namespace ::fast_io::io;
+
+    // Create an engine with default seed
+    // WARNING: This is predictable! Always use proper seeding.
+    ::std::mt19937_64 eng;
+
+    // Generate random numbers
+    for (::std::size_t i{}; i != 10; ++i) {
+        println("Random: ", eng());
+    }
+}
+</code></pre>
+      <div class="warning">
+        <strong>Warning:</strong> Using the default constructor creates a predictable sequence. The
+        default seed is fixed (typically 5489u), so every program run produces the same "random"
+        numbers. Always use proper seeding with <code>::std::seed_seq</code> (see
+        <a href="/zhcn/docs/12.random/04.seedseq/">Ch12.4</a>).
+      </div>
+    </section>
+
+    <section>
+      <h2>Engine Properties</h2>
+      <p>
+        All C++ random engines provide these methods:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>operator()()</code></td>
+            <td>Generates the next random number in the sequence</td>
+          </tr>
+          <tr>
+            <td><code>min()</code></td>
+            <td>Returns the minimum value the engine can produce</td>
+          </tr>
+          <tr>
+            <td><code>max()</code></td>
+            <td>Returns the maximum value the engine can produce</td>
+          </tr>
+          <tr>
+            <td><code>seed()</code></td>
+            <td>Reseeds the engine with a new seed value</td>
+          </tr>
+          <tr>
+            <td><code>discard(z)</code></td>
+            <td>Advances the engine state by z steps without generating output</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Engine Comparison</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Engine</th>
+            <th>Output Type</th>
+            <th>Period</th>
+            <th>Use Case</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::std::mt19937</code></td>
+            <td>32-bit unsigned</td>
+            <td>2<sup>19937</sup>-1</td>
+            <td>General purpose, games, simulations</td>
+          </tr>
+          <tr>
+            <td><code>::std::mt19937_64</code></td>
+            <td>64-bit unsigned</td>
+            <td>2<sup>19937</sup>-1</td>
+            <td>General purpose, larger state space</td>
+          </tr>
+          <tr>
+            <td><code>::std::minstd_rand</code></td>
+            <td>32-bit unsigned</td>
+            <td>2<sup>31</sup>-1</td>
+            <td>Simple, fast, but lower quality</td>
+          </tr>
+          <tr>
+            <td><code>::std::ranlux48</code></td>
+            <td>48-bit unsigned</td>
+            <td>~10<sup>171</sup></td>
+            <td>High-quality, slower</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          C++ provides several random engines in <code>&lt;random&gt;</code>, with
+          <code>::std::mt19937_64</code> being the most commonly used.
+        </li>
+        <li>
+          Engines generate pseudo-random sequences based on an initial seed.
+        </li>
+        <li>
+          <strong>Never use the default constructor</strong> for important applications &mdash; it
+          produces predictable sequences.
+        </li>
+        <li>
+          Always seed engines properly using <code>::std::seed_seq</code> with values from a secure
+          source (see <a href="/zhcn/docs/12.random/04.seedseq/">Ch12.4</a>).
+        </li>
+        <li>
+          For cryptographically secure randomness, use <code>::fast_io::ibuf_white_hole_engine</code>
+          (see <a href="/zhcn/docs/12.random/03.ibufwhitehole/">Ch12.3</a>).
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/12.random/" class="prev-button">&larr; Ch12: random</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/12.random/02.distributions/" class="next-button">Ch12.2: Distributions &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

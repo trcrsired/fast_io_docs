@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch10.4: Looking Keys Up - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch10.4: Looking Keys Up</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>1. The Two Questions</h2>
+      <p>
+        Every lookup answers one of two questions, and there is a function for each:
+      </p>
+      <ul>
+        <li>
+          <strong>&ldquo;Is this key present?&rdquo;</strong> &mdash;
+          <code>contains(key)</code> returns <code>bool</code>. This is the
+          function you want most of the time.
+        </li>
+        <li>
+          <strong>&ldquo;Where is this key?&rdquo;</strong> &mdash;
+          <code>find(key)</code> returns an iterator, which you compare against
+          <code>cend()</code>.
+        </li>
+      </ul>
+      <p>
+        Both take a <strong>view</strong>, so nothing is allocated and nothing is
+        copied on a lookup. A string literal works directly:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io_dsal/str_btree_set.h&gt;
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+int main()
+{
+	::fast_io::str_btree_set s;
+	s.insert_key("alpha");
+	s.insert_key("beta");
+
+	println(s.contains("alpha"));   // 1
+	println(s.contains("gamma"));   // 0
+	println(s.count("beta"));       // 1 — count is 0 or 1, never more
+}
+</code></pre>
+      <pre><code class="language-text">
+1
+0
+1
+</code></pre>
+      <p>
+        <code>count</code> exists because the same code shape is written with other
+        containers where a key may repeat; here it is exactly
+        <code>contains</code> with a size as the result. Prefer
+        <code>contains</code> for a yes/no answer.
+      </p>
+      <div class="note">
+        <strong><code>find_key</code> is a synonym for <code>find</code>.</strong>
+        The B-tree containers provide both names. The Swiss-table containers provide
+        only <code>find_key</code>, because <code>find</code> would collide with the
+        plain-container convention of finding an <em>element</em> by value. Since
+        you always know what you are searching for, use <code>find_key</code> and the
+        code stays portable across all six containers.
+      </div>
+    </section>
+
+    <section>
+      <h2>2. <code>find</code> and the Iterator You Get Back</h2>
+      <p>
+        <code>find</code> returns an iterator that is either the element or
+        <code>cend()</code>. Dereferencing the element gives you a
+        <code>::fast_io::cstring_view</code> &mdash; the container&rsquo;s own copy of
+        the key:
+      </p>
+      <pre><code class="language-cpp">
+auto it{s.find("beta")};
+if (it != s.cend())
+{
+	println("found: ", *it);
+}
+else
+{
+	println("not found");
+}
+</code></pre>
+      <pre><code class="language-text">
+found: beta
+</code></pre>
+      <p>
+        Comparing against <code>cend()</code> is the idiom. There is no
+        <code>npos</code>, no index, no nullable pointer: an iterator that equals
+        <code>cend()</code> is the &ldquo;not found&rdquo; result.
+      </p>
+      <div class="warning">
+        <strong>Do not dereference <code>cend()</code>.</strong> The usual
+        <code>if (it == s.cend())</code> check is not optional politeness &mdash; an
+        iterator that is not pointing at an element has nothing to give you.
+      </div>
+    </section>
+
+    <section>
+      <h2>3. Range Queries (B-tree Family Only)</h2>
+      <p>
+        Because the B-tree keeps its keys sorted, it can answer questions about
+        <em>ranges</em> of keys. The Swiss-table containers cannot, which is the main
+        reason to pick a B-tree.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Call</th>
+            <th>Returns the position of</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>lower_bound(k)</code></td>
+            <td>the first key that is <strong>not less than</strong> <code>k</code></td>
+          </tr>
+          <tr>
+            <td><code>upper_bound(k)</code></td>
+            <td>the first key that is <strong>greater than</strong> <code>k</code></td>
+          </tr>
+          <tr>
+            <td><code>equal_range(k)</code></td>
+            <td>both, packaged as <code>.first</code> and <code>.second</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+::fast_io::str_btree_set s;
+for (auto k : {::fast_io::cstring_view("user:101"), ::fast_io::cstring_view("user:42"),
+			   ::fast_io::cstring_view("admin:7"), ::fast_io::cstring_view("user:7")})
+{
+	s.insert_key(k);
+}
+
+auto lb{s.lower_bound("user:42")};
+auto ub{s.upper_bound("user:42")};
+println("lower_bound(user:42) = ", *lb);   // user:42
+println("upper_bound(user:42) = ", *ub);   // user:7
+</code></pre>
+      <pre><code class="language-text">
+lower_bound(user:42) = user:42
+upper_bound(user:42) = user:7
+</code></pre>
+      <p>
+        Keys are compared as plain byte strings, so <code>"user:101"</code> sorts
+        <strong>before</strong> <code>"user:42"</code>: <code>'1'</code> &lt;
+        <code>'4'</code>. Sort order is lexicographic, not numeric. If you need
+        numbers to sort numerically, pad them to a fixed width or store the numeric
+        part somewhere else.
+      </p>
+
+      <h3>Scanning a prefix</h3>
+      <p>
+        &ldquo;All keys starting with <code>user:</code>&rdquo; is
+        <code>lower_bound</code> plus a loop with an early exit. <code>lower_bound</code>
+        puts you at the first candidate; you keep going while the prefix still
+        matches:
+      </p>
+      <pre><code class="language-cpp">
+for (auto it{s.lower_bound("user:")}; it != s.cend(); ++it)
+{
+	::fast_io::string_view k{*it};
+	if (!k.starts_with(::fast_io::string_view("user:")))
+	{
+		break;
+	}
+	println("  ", *it);
+}
+</code></pre>
+      <pre><code class="language-text">
+  user:101
+  user:42
+  user:7
+</code></pre>
+      <p>
+        The cost of this scan is the lookup plus one step per matching key &mdash;
+        you never walk the keys that do not match.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Complete Recipe</h2>
+      <p>
+        Put together, a lookup with a sensible fallback looks like this:
+      </p>
+      <pre><code class="language-cpp">
+bool has_user(::fast_io::str_btree_set const &db, ::fast_io::string_view name) noexcept
+{
+	return db.contains(name);
+}
+</code></pre>
+      <p>
+        Two things are worth noticing. First, the parameter is a
+        <code>::fast_io::string_view</code>, not a <code>::fast_io::string</code> and
+        not <code>::fast_io::cstring_view</code>: a lookup never needs ownership, and
+        a plain view is the weakest requirement, so every caller can pass what they
+        have. Second, the function is <code>noexcept</code> &mdash; with the default
+        allocators every lookup in all six containers is <code>noexcept</code>,
+        because a lookup cannot allocate and cannot fail (Ch10.11).
+      </p>
+      <p>
+        When the container is <code>const</code>, the iterators you get are
+        <code>const_iterator</code> &mdash; which is also what you get from a non-const
+        set, because a set&rsquo;s keys are immutable. For a map, a non-const
+        container gives you an <code>iterator</code> whose <code>mapped()</code> can
+        be written to (Ch10.7).
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>Lookups take a view: no allocation, no copy, literals work directly.</li>
+        <li><code>contains(key)</code> is the yes/no answer; <code>count(key)</code> is 0 or 1.</li>
+        <li><code>find</code> / <code>find_key</code> return an iterator; compare with <code>cend()</code>, dereference to get a <code>cstring_view</code>.</li>
+        <li>Swiss containers have <code>find_key</code> only; use that name everywhere for portable code.</li>
+        <li><code>lower_bound</code> / <code>upper_bound</code> / <code>equal_range</code> exist only on the B-tree family.</li>
+        <li>Prefix scans are <code>lower_bound(prefix)</code> plus a loop that stops when the prefix stops matching.</li>
+        <li>Keys sort byte-wise: <code>"user:101"</code> comes before <code>"user:42"</code>.</li>
+        <li>All lookups are <code>noexcept</code> with the default allocators.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/10.associativecontainers/03.contains/" class="prev-button">&larr; Ch10.3: contains()</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/10.associativecontainers/05.iterate/" class="next-button">Ch10.5: Iterating &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

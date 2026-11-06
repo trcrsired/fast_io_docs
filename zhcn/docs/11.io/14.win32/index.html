@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.14: Win32 File APIs - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.14: Win32 File APIs</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        On Windows, user-mode applications talk to the kernel through <code>kernel32.dll</code>.
+        The two entry points for opening files are:
+      </p>
+      <ul>
+        <li>
+          <code>CreateFileW</code> &mdash; the wide-character (UTF-16) variant, used on every
+          modern Windows release (NT, 2000, XP, 7, 10, 11).
+        </li>
+        <li>
+          <code>CreateFileA</code> &mdash; the ANSI variant, still encountered on the Windows 9x
+          family (95, 98, ME).
+        </li>
+      </ul>
+      <p>
+        <code>fast_io</code> hides this difference behind two types, mirroring the POSIX layer:
+      </p>
+      <ul>
+        <li>
+          <code>::fast_io::win32_file</code> &mdash; an RAII owning wrapper that calls
+          <code>CreateFileW</code> (or <code>CreateFileA</code> on 9x) in its constructor and
+          <code>CloseHandle</code> in its destructor.
+        </li>
+        <li>
+          <code>::fast_io::win32_io_observer</code> &mdash; a non-owning view over an existing
+          <code>HANDLE</code>. Trivially copyable, no destructor.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Choosing Between ANSI and Wide: win32_api_family</h2>
+      <p>
+        The Win32 layer exposes a traits type called
+        <code>::fast_io::win32_api_family</code>. It selects which variant of the API should
+        be used on a given Windows target:
+      </p>
+      <ul>
+        <li>
+          On the NT family (the default for any supported compiler today), the family picks
+          <code>CreateFileW</code> and the wide-character overloads.
+        </li>
+        <li>
+          On the 9x family, the family picks <code>CreateFileA</code> and the ANSI overloads.
+        </li>
+      </ul>
+      <p>
+        In practice you almost never need to touch <code>win32_api_family</code> directly:
+        <code>win32_file</code> consults it automatically when you pass a filename.
+      </p>
+    </section>
+
+    <section>
+      <h2>Opening a File with win32_file</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // The constructor picks CreateFileW or CreateFileA through
+    // ::fast_io::win32_api_family.
+    ::fast_io::win32_file wf(u8"hello_win32.txt", ::fast_io::open_mode::out);
+
+    print(wf, "Hello from win32_file!\n");
+
+    ::std::size_t const n{42zu};
+    println(wf, "The answer is: ", n);
+    // CloseHandle is invoked automatically when `wf` goes out of scope.
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Wrapping an Existing HANDLE</h2>
+      <p>
+        Just like <code>posix_io_observer</code>, you can build a non-owning view over a
+        <code>HANDLE</code> you obtained elsewhere:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+void write_via_handle(void* h)
+{
+    using namespace ::fast_io::iomnp;
+
+    // Non-owning: does NOT call CloseHandle on destruction.
+    ::fast_io::win32_io_observer observer{
+        static_cast&lt;::fast_io::win32_io_observer::native_handle_type&gt;(h)};
+    print(observer, "Written through a win32_io_observer\n\n");
+}
+
+int main()
+{
+    ::fast_io::win32_file wf(u8"legacy_handle.txt", ::fast_io::open_mode::out);
+    write_via_handle(wf.native_handle());
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Reading and Open-at</h2>
+      <p>
+        Reading uses <code>scan</code>. Opening relative to a directory handle uses
+        <code>NtCreateFile</code> under the hood because the Win32 API itself has no
+        <code>*at</code> equivalent:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::win32_file inpf(u8"input.txt", ::fast_io::open_mode::in);
+    ::std::size_t value{};
+    ::fast_io::io::scan(inpf, value);
+
+    ::fast_io::win32_file outpf(u8"output.txt", ::fast_io::open_mode::out);
+    println(outpf, "Read the value: ", value);
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Windows Also Has File Descriptors</h2>
+      <p>
+        A common misunderstanding is that Windows only has <code>HANDLE</code>s and no file descriptors.
+        This is incorrect. The Windows C runtime (MSVCRT, UCRT) provides POSIX-like file descriptors
+        through functions like <code>_fdopen</code>, <code>_open</code>, <code>_read</code>, <code>_write</code>,
+        and <code>_close</code>. These are declared in <code>&lt;io.h&gt;</code> and <code>&lt;fcntl.h&gt;</code>.
+      </p>
+      <p>
+        The C runtime maintains a table mapping file descriptors (small integers) to Win32 <code>HANDLE</code>s.
+        You can convert between them:
+      </p>
+      <ul>
+        <li>
+          <code>_get_osfhandle(fd)</code> &mdash; converts a file descriptor to a Win32 <code>HANDLE</code>.
+          See the
+          <a href="https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/get-osfhandle?view=msvc-170" target="_blank" rel="noopener noreferrer">Microsoft documentation</a>.
+        </li>
+        <li>
+          <code>_open_osfhandle(handle, flags)</code> &mdash; converts a Win32 <code>HANDLE</code> to a file descriptor.
+        </li>
+        <li>
+          <code>_fdopen(fd, mode)</code> &mdash; associates a C <code>FILE*</code> stream with a file descriptor.
+          See the
+          <a href="https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/fdopen-wfdopen?view=msvc-170" target="_blank" rel="noopener noreferrer">Microsoft documentation</a>.
+        </li>
+      </ul>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;io.h&gt;
+#include &lt;windows.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Windows C runtime file descriptor (not a HANDLE!)
+    int fd{::_open("data.txt", _O_RDONLY)};
+    if (fd == -1) {
+        // handle error
+    }
+
+    // Convert file descriptor to Win32 HANDLE
+    void* h{::_get_osfhandle(fd)};
+
+    // Now you can use Win32 APIs on it
+    ::fast_io::win32_io_observer observer{
+        static_cast&lt;::fast_io::win32_io_observer::native_handle_type&gt;(h)};
+    println(observer, "Using Win32 API on a C runtime fd");
+
+    // Close the file descriptor (this also closes the underlying HANDLE)
+    ::_close(fd);
+}
+</code></pre>
+      <p>
+        This proves that <strong>Windows has both file descriptors and HANDLEs</strong>. The C runtime
+        provides a POSIX-like layer on top of the Win32 API. When you call <code>_read(fd, ...)</code>,
+        the C runtime internally calls <code>ReadFile(_get_osfhandle(fd), ...)</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>The Raw Win32 I/O APIs</h2>
+      <p>
+        Before using <code>fast_io</code>'s wrappers, it helps to understand the underlying Win32 APIs.
+        These are the functions exported by <code>kernel32.dll</code>:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>API Function</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>CreateFileW(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile)</code></td>
+            <td>Open or create a file by name (wide-character / UTF-16). Returns a <code>HANDLE</code>.</td>
+          </tr>
+          <tr>
+            <td><code>CreateFileA(...)</code></td>
+            <td>ANSI variant of <code>CreateFileW</code>. Used on Windows 9x (95, 98, ME).</td>
+          </tr>
+          <tr>
+            <td><code>ReadFile(hFile, lpBuffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped)</code></td>
+            <td>Read bytes from a file handle. Returns <code>BOOL</code>; actual bytes read is written to <code>lpNumberOfBytesRead</code>.</td>
+          </tr>
+          <tr>
+            <td><code>WriteFile(hFile, lpBuffer, nNumberOfBytesToWrite, lpNumberOfBytesWritten, lpOverlapped)</code></td>
+            <td>Write bytes to a file handle. Returns <code>BOOL</code>; actual bytes written is written to <code>lpNumberOfBytesWritten</code>.</td>
+          </tr>
+          <tr>
+            <td><code>CloseHandle(hObject)</code></td>
+            <td>Close a handle. <strong>Always required</strong> &mdash; handles are a limited resource.</td>
+          </tr>
+          <tr>
+            <td><code>SetFilePointer(hFile, lDistanceToMove, lpDistanceToMoveHigh, dwMoveMethod)</code></td>
+            <td>Change the file pointer. <code>dwMoveMethod</code> is <code>FILE_BEGIN</code>, <code>FILE_CURRENT</code>, or <code>FILE_END</code>. For large files, use <code>SetFilePointerEx</code>.</td>
+          </tr>
+          <tr>
+            <td><code>GetFileSize(hFile, lpFileSizeHigh)</code></td>
+            <td>Get the size of a file. For large files, use <code>GetFileSizeEx</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        These Win32 APIs are <strong>unbuffered</strong> &mdash; each call goes through <code>kernel32.dll</code>
+        to the kernel. This makes them slow for small or frequent operations. <code>fast_io</code>'s buffered
+        types (like <code>ibuf_file</code> and <code>obuf_file</code>) wrap these calls with user-space buffering
+        for much better performance.
+      </p>
+    </section>
+
+    <section>
+      <h2>Using win32_file for RAII Even Without fast_io I/O</h2>
+      <p>
+        Even if you prefer to call the raw Win32 APIs directly (e.g., <code>ReadFile</code> and
+        <code>WriteFile</code>) instead of using <code>fast_io</code>'s <code>print</code> and <code>scan</code>,
+        you should <strong>still use <code>::fast_io::win32_file</code> for RAII</strong>. The destructor
+        guarantees <code>CloseHandle</code> is called, so you never forget to close the handle.
+      </p>
+      <p>
+        This is especially important when exceptions or early returns are involved &mdash; without RAII,
+        you must manually call <code>CloseHandle</code> on every exit path, which is error-prone.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;windows.h&gt;
+
+int main()
+{
+    // Open with win32_file for RAII, but use raw Win32 ReadFile/WriteFile
+    ::fast_io::win32_file wf(u8"data.bin", ::fast_io::open_mode::out);
+
+    // Get the raw HANDLE
+    void* h{wf.native_handle()};
+
+    // Use raw Win32 WriteFile (unbuffered, goes through kernel32.dll)
+    char const buffer[]{"Hello from raw WriteFile\n"};
+    DWORD written{};
+    BOOL ok{::WriteFile(h, buffer, static_cast&lt;DWORD&gt;(sizeof(buffer) - 1), &amp;written, nullptr)};
+
+    if (!ok || written != sizeof(buffer) - 1) {
+        // handle error
+    }
+
+    // wf's destructor calls CloseHandle(h) automatically when it goes out of scope.
+    // No need to manually call CloseHandle() here, even if we return early or throw.
+}
+</code></pre>
+      <p>
+        The same principle applies to reading:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;windows.h&gt;
+
+int main()
+{
+    ::fast_io::win32_file wf(u8"data.bin", ::fast_io::open_mode::in);
+    void* h{wf.native_handle()};
+
+    char buffer[256];
+    DWORD nread{};
+    BOOL ok{::ReadFile(h, buffer, sizeof(buffer), &amp;nread, nullptr)};
+
+    if (ok &amp;&amp; nread &gt; 0) {
+        // Process the buffer
+    }
+
+    // CloseHandle(h) is called automatically
+}
+</code></pre>
+      <p>
+        For seeking, use <code>SetFilePointerEx</code> on the native handle:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;windows.h&gt;
+
+int main()
+{
+    ::fast_io::win32_file wf(u8"data.bin",
+        ::fast_io::open_mode::in | ::fast_io::open_mode::out);
+    void* h{wf.native_handle()};
+
+    LARGE_INTEGER distanceToMove;
+    distanceToMove.QuadPart = 100;
+
+    // Seek to offset 100 from the beginning of the file
+    BOOL ok{::SetFilePointerEx(h, distanceToMove, nullptr, FILE_BEGIN)};
+    if (!ok) {
+        // handle error
+    }
+
+    // Now read or write from the new position
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Summary</h2>
+      <ul>
+        <li>
+          <code>::fast_io::win32_file</code> wraps the Win32 <code>CreateFileW</code> /
+          <code>CreateFileA</code> entry point with RAII.
+        </li>
+        <li>
+          <code>::fast_io::win32_io_observer</code> is a non-owning view over an existing
+          <code>HANDLE</code>.
+        </li>
+        <li>
+          <code>::fast_io::win32_api_family</code> selects between the ANSI and Wide variants
+          based on the target Windows family. You normally do not need to interact with it
+          directly.
+        </li>
+        <li>
+          All standard <code>fast_io</code> algorithms &mdash; <code>print</code>,
+          <code>println</code>, <code>scan</code> &mdash; work on these types.
+        </li>
+        <li>
+          <strong>Windows also has file descriptors</strong> through the C runtime (MSVCRT/UCRT),
+          not just Win32 <code>HANDLE</code>s. Use <code>_get_osfhandle(fd)</code> to convert a
+          file descriptor to a <code>HANDLE</code>, and <code>_open_osfhandle(handle, flags)</code>
+          to convert back.
+        </li>
+        <li>
+          The raw Win32 APIs are <code>CreateFileW</code> (or <code>CreateFileA</code> on 9x),
+          <code>ReadFile</code>, <code>WriteFile</code>, <code>CloseHandle</code>,
+          <code>SetFilePointerEx</code>, and <code>GetFileSizeEx</code>. These are unbuffered
+          and go through <code>kernel32.dll</code>.
+        </li>
+        <li>
+          <strong>Even if you call the raw Win32 APIs directly</strong> (e.g., <code>ReadFile</code>
+          and <code>WriteFile</code>), <strong>still use <code>::fast_io::win32_file</code> for RAII</strong>
+          to guarantee <code>CloseHandle</code> is called automatically. This prevents resource leaks,
+          especially with exceptions or early returns.
+        </li>
+        <li>
+          For more details on the Win32 file APIs, see the
+          <a href="https://learn.microsoft.com/en-us/windows/win32/api/fileapi/" target="_blank" rel="noopener noreferrer">Microsoft documentation</a>.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/11.io/13.posix/" class="prev-button">&larr; Ch11.13: POSIX File APIs</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/11.io/15.nt/" class="next-button">Ch11.15: NT File APIs &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

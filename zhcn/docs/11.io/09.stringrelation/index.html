@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.9: Relationship with String - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.9: Relationship with String</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>One System, Everywhere</h2>
+      <p>
+        The <code>concat_fast_io</code> and <code>to&lt;T&gt;</code> APIs introduced
+        in <a href="/zhcn/docs/09.seqcontainers/12.string/">Ch9.12</a> are not a separate
+        string-formatting pipeline &mdash; they are <em>the same</em> I/O system that
+        powers <code>print</code>, <code>println</code>, and <code>scan</code>. Every
+        string operation in <code>fast_io</code> funnels through the library's core
+        I/O layer.
+      </p>
+      <p>
+        This means the customisation points you learned for console and file output
+        &mdash; <code>print_define</code> and <code>print_reserve_define</code>
+        &mdash; automatically make your types work with string APIs too. There is
+        nothing extra to implement.
+      </p>
+    </section>
+
+    <section>
+      <h2>concat_fast_io Uses print_reserve_define</h2>
+      <p>
+        When you call <code>concat_fast_io</code>, the library formats each argument
+        into a string by invoking the same <code>print_reserve_define</code> (or
+        <code>print_define</code>) that <code>println</code> uses. If your type is
+        printable to the console, it is printable into a string &mdash; for free.
+      </p>
+      <p>
+        For example, suppose we defined <code>print_reserve_define</code> for a
+        <code>Point</code> struct back in
+        <a href="/zhcn/docs/11.io/02.customtypes/">Ch11.2</a>:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+
+struct Point {
+    double x;
+    double y;
+};
+
+inline constexpr void print_reserve_define(::fast_io::io_reserve_type_t&lt;char, Point&gt;,
+                                           char* iter,
+                                           Point const&amp; p) {
+    // Format: "(x, y)"
+    *iter++ = '(';
+    iter = ::fast_io::detail::print_reserve_integral(iter, p.x);
+    *iter++ = ',';
+    *iter++ = ' ';
+    iter = ::fast_io::detail::print_reserve_integral(iter, p.y);
+    *iter++ = ')';
+}
+
+int main() {
+    using namespace ::fast_io::iomnp;
+    Point p{3.0, 4.0};
+
+    // Works on the console
+    println("Console: ", p);
+
+    // Also works in concat_fast_io &mdash; same customisation point
+    ::fast_io::string s = ::fast_io::concat_fast_io("Point: ", p);
+    // s == "Point: (3, 4)"
+
+    println(s);
+}
+</code></pre>
+      <p>
+        No separate <code>to_string</code> function, no
+        <code>std::format</code> specialisation, no <code>operator&lt;&lt;</code>
+        overload. One definition, every output target.
+      </p>
+    </section>
+
+    <section>
+      <h2>to&lt;T&gt; Uses the Same I/O Pipeline</h2>
+      <p>
+        <code>to&lt;T&gt;</code> works in two stages, both of which go through the
+        standard I/O pipeline:
+      </p>
+      <ol>
+        <li>
+          <strong>Format</strong> &mdash; the arguments are formatted into a
+          temporary string using <code>concat_fast_io</code> (and therefore
+          <code>print_reserve_define</code>).
+        </li>
+        <li>
+          <strong>Parse</strong> &mdash; the resulting string is scanned into the
+          target type <code>T</code> using <code>scan_define</code>, the same
+          customisation point that <code>scan</code> uses.
+        </li>
+      </ol>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+    // Format 42 as a string ("42"), then parse it back as a double
+    double d = ::fast_io::to&lt;double&gt;(42);  // d == 42.0
+
+    // Concatenate multiple arguments, then parse the result
+    ::std::size_t n = ::fast_io::to&lt;::std::size_t&gt;(1zu, 23zu);
+    // "1" + "23" -> "123" -> 123
+
+    println("d = ", d, ", n = ", n);
+}
+</code></pre>
+      <p>
+        Because both stages reuse the standard pipeline, any custom type that
+        implements <code>print_reserve_define</code> <em>and</em>
+        <code>scan_define</code> can round-trip through <code>to&lt;T&gt;</code>
+        without any additional glue code.
+      </p>
+    </section>
+
+    <section>
+      <h2>concat_std: Formatting to C++ std::string</h2>
+      <p>
+        In <a href="/zhcn/docs/09.seqcontainers/16.std/">Ch9.16</a>, we introduced C++
+        Standard Library containers, including <code>::std::string</code>. If you
+        need to interoperate with C++ Standard Library code that expects
+        <code>::std::string</code>, <code>fast_io</code> provides
+        <code>::fast_io::concat_std</code> &mdash; which works exactly like
+        <code>concat_fast_io</code> but produces a <code>::std::string</code>
+        instead of a <code>::fast_io::string</code>.
+      </p>
+      <p>
+        Just like <code>concat_fast_io</code>, <code>concat_std</code> uses the
+        same <code>print_reserve_define</code> customisation points. Any type
+        that works with <code>println</code> or <code>concat_fast_io</code>
+        automatically works with <code>concat_std</code>.
+      </p>
+      <p>
+        There are also character-type variants for UTF-8, UTF-16, UTF-32, and
+        wide strings:
+      </p>
+      <ul>
+        <li><code>::fast_io::concat_std</code> &mdash; produces <code>::std::string</code> (<code>char</code>)</li>
+        <li><code>::fast_io::u8concat_std</code> &mdash; produces <code>::std::u8string</code> (<code>char8_t</code>)</li>
+        <li><code>::fast_io::u16concat_std</code> &mdash; produces <code>::std::u16string</code> (<code>char16_t</code>)</li>
+        <li><code>::fast_io::u32concat_std</code> &mdash; produces <code>::std::u32string</code> (<code>char32_t</code>)</li>
+        <li><code>::fast_io::wconcat_std</code> &mdash; produces <code>::std::wstring</code> (<code>wchar_t</code>)</li>
+      </ul>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;string&gt;
+
+struct Point {
+    int x;
+    int y;
+};
+
+// Assume print_reserve_define is defined as in Ch11.2
+
+int main() {
+    using namespace ::fast_io::iomnp;
+    Point p{42, 100};
+
+    // concat_std produces a ::std::string
+    ::std::string s = ::fast_io::concat_std("Point: ", p);
+    // s == "Point: (42, 100)"
+
+    // u8concat_std produces a ::std::u8string
+    ::std::u8string u8s = ::fast_io::u8concat_std(u8"Unicode: ", p);
+
+    println("std::string: ", s);
+}
+</code></pre>
+      <p>
+        There is also <code>::fast_io::concatln_std</code> (and its character-type
+        variants), which appends a newline at the end, just like
+        <code>concatln_fast_io</code>.
+      </p>
+      <p>
+        The primary use case for <code>concat_std</code> is when you need to pass
+        a formatted string to legacy C++ code that expects
+        <code>::std::string</code>. For new code, prefer
+        <code>concat_fast_io</code> with <code>::fast_io::string</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>The Unified Design</h2>
+      <p>
+        The takeaway is that <code>fast_io</code> has <em>one</em> set of
+        customisation points for <em>every</em> output target:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Customisation Point</th>
+            <th>Used By</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>print_define</code> / <code>print_reserve_define</code></td>
+            <td>
+              <code>println</code>, <code>print</code>, <code>concat_fast_io</code>,
+              <code>concatln_fast_io</code>, <code>concat_std</code>,
+              <code>concatln_std</code>, <code>to&lt;T&gt;</code>
+            </td>
+          </tr>
+          <tr>
+            <td><code>scan_define</code> / <code>scan_context_define</code></td>
+            <td><code>scan</code>, <code>to&lt;T&gt;</code> (parse stage)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Console, file, buffered I/O, string, socket &mdash; they all share the same
+        formatting and parsing layer. Define your type once and it works everywhere.
+      </p>
+    </section>
+
+    <section>
+      <h2>Writing to Existing Strings: {chtype}ostring_ref_fast_io</h2>
+      <p>
+        While <code>concat_fast_io</code> creates a <em>new</em> string, sometimes you want to
+        format output directly into an <em>existing</em> string buffer. The
+        <code>::fast_io::{chtype}ostring_ref_fast_io</code> family of types lets you do exactly that.
+        These are non-owning reference types that wrap an existing string and expose it as an output
+        device for <code>print</code>, <code>println</code>, and other output operations.
+      </p>
+      <p>
+        The <code>{chtype}</code> placeholder is replaced with the character type:
+      </p>
+      <ul>
+        <li><code>::fast_io::ostring_ref_fast_io</code> &mdash; for <code>char</code> strings</li>
+        <li><code>::fast_io::u8ostring_ref_fast_io</code> &mdash; for <code>char8_t</code> / UTF-8 strings</li>
+        <li><code>::fast_io::u16ostring_ref_fast_io</code> &mdash; for <code>char16_t</code> / UTF-16 strings</li>
+        <li><code>::fast_io::u32ostring_ref_fast_io</code> &mdash; for <code>char32_t</code> / UTF-32 strings</li>
+        <li><code>::fast_io::wostring_ref_fast_io</code> &mdash; for <code>wchar_t</code> strings</li>
+      </ul>
+      <p>
+        You construct a reference by passing a pointer to an existing string. The string is
+        <strong>not cleared</strong> before writing &mdash; output is appended at the current position.
+        When you are done, the string contains everything that was written.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::u8string result;
+
+    // Wrap the existing string as an output device
+    ::fast_io::u8ostring_ref_fast_io ref(result);
+
+    // Write to the string using print/println
+    print(ref, "Hello, ");
+    print(ref, "World!");
+    println(ref);  // adds newline
+
+    // The string now contains "Hello, World!\n"
+    println("Result: ", result);
+
+    // You can also write structured data
+    ::fast_io::u8string buffer;
+    ::fast_io::u8ostring_ref_fast_io buf_ref(buffer);
+
+    ::std::size_t const x{42zu};
+    ::std::size_t const y{100zu};
+    println(buf_ref, "Point: (", x, ", ", y, ")");
+
+    // buffer now contains "Point: (42, 100)\n"
+    println(buffer);
+}
+</code></pre>
+      <p>
+        This is particularly useful when you need to build a string incrementally, or when you want
+        to reuse a string buffer to avoid repeated allocations. The reference type itself is lightweight
+        &mdash; it just holds a pointer to the string.
+      </p>
+      <p>
+        Note that these types are different from <code>::fast_io::u8string</code> and similar owning
+        string types. The <code>_ref_</code> in the name indicates that these are <strong>non-owning
+        references</strong> &mdash; they do not manage the lifetime of the underlying string. You must
+        ensure the string outlives the reference.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <code>concat_fast_io</code> is not a separate formatter &mdash; it calls
+          <code>print_reserve_define</code> internally, the same entry point
+          <code>println</code> uses.
+        </li>
+        <li>
+          <code>to&lt;T&gt;</code> formats to a string via
+          <code>concat_fast_io</code>, then parses with <code>scan_define</code>.
+          Both stages use the standard I/O pipeline.
+        </li>
+        <li>
+          Any custom type that implements <code>print_reserve_define</code>
+          automatically works with <code>concat_fast_io</code> and the format
+          stage of <code>to&lt;T&gt;</code>.
+        </li>
+        <li>
+          Implement both <code>print_reserve_define</code> and
+          <code>scan_define</code> and your type can round-trip through
+          <code>to&lt;T&gt;</code> for free.
+        </li>
+        <li>
+          This is the unified design: one set of customisation points for console,
+          file, string, and socket output.
+        </li>
+        <li>
+          Use <code>::fast_io::{chtype}ostring_ref_fast_io</code> to write formatted output
+          directly into an existing string buffer. These non-owning reference types let you
+          build strings incrementally or reuse buffers to avoid allocations.
+        </li>
+        <li>
+          Use <code>::fast_io::concat_std</code> when you need to produce a
+          <code>::std::string</code> for interoperation with C++ Standard Library
+          code. It uses the same customisation points as <code>concat_fast_io</code>.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/11.io/08.fileloader/" class="prev-button">&larr; Ch11.8: File Loader</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/11.io/10.socket/" class="next-button">Ch11.10: Socket Files &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

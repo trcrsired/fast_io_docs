@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch14.6: Move Assignment: Releasing First - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch14.6: Move Assignment: Releasing First</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+    <section>
+      <h2>1. Release, Then Steal</h2>
+
+
+      <p>
+        Move assignment has the same three parts as copy assignment and the opposite order of
+        difficulty:
+      </p>
+      <ul>
+        <li>release what this object owns (<code>::close</code>, cannot fail);</li>
+        <li>install the source's descriptor (an <code>int</code> write);</li>
+        <li>empty the source (an <code>int</code> write).</li>
+      </ul>
+      <p>
+        Nothing here can fail, which is exactly why the whole operator is
+        <code>noexcept</code>:
+      </p>
+      <pre><code class="language-cpp">
+	my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept
+	{
+		if (this == ::std::addressof(other)) [[unlikely]]
+		{
+			return *this;
+		}
+		reset(other.fd_);   // close ours, take theirs
+		other.fd_ = -1;     // they own nothing now
+		return *this;
+	}
+</code></pre>
+      <p>
+        <code>reset(other.fd_)</code> is doing two things at once &mdash; close the old
+        descriptor and store the new one &mdash; which is fine here precisely because neither
+        step can fail. There is no critical line to place, because there is nothing above it:
+        the whole function is below it.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. Self-Move Needs the Check</h2>
+
+
+      <p>
+        Move assignment <strong>does</strong> need the self-check, and the reason is the
+        mirror image of the reason copy assignment does not.
+      </p>
+      <p>
+        Copy assignment duplicates first, so when <code>this == &amp;other</code> the duplicate
+        exists before anything is closed
+        (<a href="/zhcn/docs/14.fiverules/04.copyassignment/">Ch14.4</a>). Move assignment closes
+        first and has no duplicate to fall back on. Run it on itself and the sequence is:
+        close the descriptor, then store the descriptor you just closed, then empty the
+        source &mdash; which is also the destination. The file is gone.
+      </p>
+      <pre><code class="language-cpp">
+	// WRONG: no self-check
+	naive_file &amp;operator=(naive_file &amp;&amp;other) noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);        // *this is now empty
+		}
+		fd_ = other.fd_;          // other IS *this: the closed number comes back
+		other.fd_ = -1;
+		return *this;
+	}
+</code></pre>
+            <div class="important">
+        <strong>Copy assignment: no check, because you copy before you destroy.</strong><br>
+        <strong>Move assignment: check, because you destroy before you take.</strong>
+        <br>
+        That asymmetry is not a style preference. It follows directly from which operation is
+        allowed to run first, which follows from the critical line.
+      
+      </div>
+
+    </section>
+    <section>
+      <h2>3. Both Verified</h2>
+
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+using namespace ::fast_io::io;
+
+class my_posix_file
+{
+	int fd_{-1};
+
+	void reset(::std::int_least32_t newfd = -1) noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+		fd_ = newfd;
+	}
+
+public:
+	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
+	{
+		if (fd_ == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+	}
+
+	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
+	{
+		::std::int_least32_t newfd{::dup(other.fd_)};
+		if (newfd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		reset(newfd);
+		return *this;
+	}
+
+	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
+	{
+		other.fd_ = -1;
+	}
+
+	my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept
+	{
+		if (this == ::std::addressof(other)) [[unlikely]]
+		{
+			return *this;
+		}
+		reset(other.fd_);
+		other.fd_ = -1;
+		return *this;
+	}
+
+	~my_posix_file() noexcept
+	{
+		reset();
+	}
+
+	[[nodiscard]] bool is_open() const noexcept
+	{
+		return fd_ != -1;
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+};
+
+class naive_file
+{
+	int fd_{-1};
+
+public:
+	explicit naive_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	naive_file(naive_file &amp;&amp;other) noexcept : fd_{other.fd_}
+	{
+		other.fd_ = -1;
+	}
+
+	naive_file &amp;operator=(naive_file &amp;&amp;other) noexcept
+	{
+		// WRONG: no self-check. When other is *this, the file is closed and
+		// the descriptor is then copied from itself as -1.
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+		fd_ = other.fd_;
+		other.fd_ = -1;
+		return *this;
+	}
+
+	~naive_file() noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+	}
+
+	[[nodiscard]] bool is_open() const noexcept
+	{
+		return fd_ != -1;
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+};
+
+int main()
+{
+	{ // make sure the example file exists
+		::std::int_least32_t fd{::open("demo.txt", O_WRONLY | O_CREAT, 0644)};
+		::close(fd);
+	}
+
+	my_posix_file a{"demo.txt", O_RDONLY};
+	my_posix_file b{"demo.txt", O_RDONLY};
+	println("a = ", a.native_handle(), ", b = ", b.native_handle());
+	a = ::std::move(b);
+	println("after a = move(b): a = ", a.native_handle(), ", b = ", b.native_handle(), ", b.is_open() = ", b.is_open());
+	my_posix_file *alias{&amp;a};
+	a = ::std::move(*alias); // self-move through an alias
+	println("after self-move:   a = ", a.native_handle(), ", a.is_open() = ", a.is_open());
+
+	naive_file n{"demo.txt", O_RDONLY};
+	println("n = ", n.native_handle());
+	naive_file *nalias{&amp;n};
+	n = ::std::move(*nalias); // same, the naive way
+	println("after self-move:   n = ", n.native_handle(), ", n.is_open() = ", n.is_open());
+}
+</code></pre>
+      <pre><code class="language-text">
+a = 3, b = 4
+after a = move(b): a = 4, b = -1, b.is_open() = 0
+after self-move:   a = 4, a.is_open() = 1
+n = 3
+after self-move:   n = -1, n.is_open() = 0
+</code></pre>
+      <ul>
+        <li>
+          <strong>The move worked.</strong> The descriptor is now <code>a</code>'s and
+          <code>b</code> is empty, and <code>a</code>'s own previous descriptor was closed on
+          the way in &mdash; the first two lines of the output are the proof that nothing
+          leaked.
+        </li>
+        <li>
+          <strong>Self-move was a no-op.</strong> The check ran before anything was touched, so
+          <code>a</code> still owns <code>4</code> and the file is intact.
+        </li>
+        <li>
+          <strong>The naive class lost the file.</strong> It closed its descriptor and then
+          stored the number it had just closed. The object is not corrupt &mdash; the number
+          happens to be <code>-1</code> now &mdash; but the file is gone, and a
+          differently-ordered body would have left a dangling <code>fd_</code> behind
+          instead.
+        </li>
+      </ul>
+      <p>
+        The self-move in the program goes through a pointer, <code>::std::move(*alias)</code>,
+        on purpose: that is how self-move happens in real code &mdash; through a reference, an
+        index, or a loop over a container &mdash; and it is exactly the case a compiler warning
+        cannot see. Writing <code>a = ::std::move(a);</code> literally does get a warning from
+        GCC:
+      </p>
+      <pre><code class="language-text">
+warning: moving 'a' of type 'my_posix_file' to itself [-Wself-move]
+</code></pre>
+      <p>
+        Treat that warning as a bug in your code rather than in the class. The class still has
+        to survive it, because the compiler cannot prove the indirect cases away.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Move Assignment and Copy Assignment Together</h2>
+
+
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>copy assignment <code>operator=(T const&amp;)</code></th>
+            <th>move assignment <code>operator=(T&amp;&amp;)</code></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>first step</td>
+            <td><code>::dup</code> &mdash; can fail</td>
+            <td><code>::close</code> &mdash; cannot fail</td>
+          </tr>
+          <tr>
+            <td>self-assignment check</td>
+            <td>not needed: the duplicate is taken before the close</td>
+            <td><strong>required</strong>: the close happens before the take</td>
+          </tr>
+          <tr>
+            <td>exception specification</td>
+            <td><code>throws</code></td>
+            <td><code>noexcept</code></td>
+          </tr>
+          <tr>
+            <td>what the source owns afterwards</td>
+            <td>the same as before; it was copied, not taken</td>
+            <td>nothing: <code>fd_ == -1</code></td>
+          </tr>
+          <tr>
+            <td>exception safety</td>
+            <td>strong (nothing changes if the duplicate fails)</td>
+            <td>nothrow (there is nothing that can fail)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        If you ever find yourself unsure which of the two you are writing, look at what the
+        function does to the source. Copies leave it alone; moves empty it. Everything else
+        follows from that.
+      </p>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/14.fiverules/05.moveconstructor/" class="prev-button">&larr; Ch14.5: The Move Constructor</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/14.fiverules/07.swap/" class="next-button">Ch14.7: swap &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

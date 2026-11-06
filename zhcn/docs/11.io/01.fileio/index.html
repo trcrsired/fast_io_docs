@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.1: File I/O - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.1: File I/O</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>fast_io</code> provides high-performance file I/O through several
+        buffered file types. These wrap the native file handle with user-space
+        buffering for maximum throughput.
+      </p>
+    </section>
+
+    <section>
+      <h2>1. File Types</h2>
+      <p>
+        Each buffered file type comes in five character-type variants. The default
+        uses <code>char</code>; the others are prefixed with <code>u8</code>,
+        <code>u16</code>, <code>u32</code>, or <code>w</code> (for <code>wchar_t</code>).
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Direction</th>
+            <th><code>char</code></th>
+            <th><code>char8_t</code></th>
+            <th><code>char16_t</code></th>
+            <th><code>char32_t</code></th>
+            <th><code>wchar_t</code></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Input</td>
+            <td><code>ibuf_file</code></td>
+            <td><code>u8ibuf_file</code></td>
+            <td><code>u16ibuf_file</code></td>
+            <td><code>u32ibuf_file</code></td>
+            <td><code>wibuf_file</code></td>
+          </tr>
+          <tr>
+            <td>Output</td>
+            <td><code>obuf_file</code></td>
+            <td><code>u8obuf_file</code></td>
+            <td><code>u16obuf_file</code></td>
+            <td><code>u32obuf_file</code></td>
+            <td><code>wobuf_file</code></td>
+          </tr>
+          <tr>
+            <td>Input/Output</td>
+            <td><code>iobuf_file</code></td>
+            <td><code>u8iobuf_file</code></td>
+            <td><code>u16iobuf_file</code></td>
+            <td><code>u32iobuf_file</code></td>
+            <td><code>wiobuf_file</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        All file types are RAII-managed: the file is automatically closed when
+        the object goes out of scope.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Hello World Example</h2>
+      <p>
+        Here is a complete file I/O example:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // Write to a file
+    {
+        ::fast_io::obuf_file obf(u8"hello.txt");
+        print(obf, "Hello, File I/O!\n"
+                   "Line 2: ", 42, " + ", 100, " = ", 142);
+    } // file closed automatically here
+
+    // Read from the file line by line
+    {
+        ::fast_io::ibuf_file ibf(u8"hello.txt");
+        for (::fast_io::string line; scan&lt;true&gt;(ibf, str_line_get(line)); ) {
+            println(line);
+        }
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. Opening Modes</h2>
+      <p>
+        Use <code>::fast_io::open_mode</code> to control how files are opened.
+        The most commonly used cross-platform flags are:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>open_mode::in</code></td>
+            <td>Open for reading.</td>
+          </tr>
+          <tr>
+            <td><code>open_mode::out</code></td>
+            <td>Open for writing.</td>
+          </tr>
+          <tr>
+            <td><code>open_mode::app</code></td>
+            <td>Append mode (writes go to end).</td>
+          </tr>
+          <tr>
+            <td><code>open_mode::trunc</code></td>
+            <td>Truncate existing file to zero length.</td>
+          </tr>
+          <tr>
+            <td><code>open_mode::creat</code></td>
+            <td>Create the file if it does not exist.</td>
+          </tr>
+          <tr>
+            <td><code>open_mode::excl</code></td>
+            <td>Fail if the file already exists (also called <code>noreplace</code>).</td>
+          </tr>
+          <tr>
+            <td><code>open_mode::direct</code></td>
+            <td>Bypass the OS page cache (POSIX <code>O_DIRECT</code>).</td>
+          </tr>
+          <tr>
+            <td><code>open_mode::sync</code></td>
+            <td>Synchronous I/O — flush after each write.</td>
+          </tr>
+          <tr>
+            <td><code>open_mode::no_block</code></td>
+            <td>Non-blocking mode.</td>
+          </tr>
+          <tr>
+            <td><code>open_mode::text</code></td>
+            <td>Text mode (newline translation). On DOS/Windows (not Cygwin), this enables CRLF &harr; LF conversion. Ignored by <code>native_file</code> on pure POSIX systems, but may be honored by the POSIX layer on Windows. Only meaningful for <code>c_file</code> and <code>filebuf_file</code>.</td>
+          </tr>
+          <tr>
+            <td><code>open_mode::temporary</code></td>
+            <td>Create a temporary file that is deleted on close.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        There are also platform-specific flags for Windows attributes (e.g.
+        <code>hidden</code>, <code>archive</code>, <code>compressed</code>,
+        <code>encrypted</code>) and Linux-specific flags (e.g. <code>no_atime</code>,
+        <code>path</code>).
+      </p>
+      <p>
+        Combine flags with <code>|</code>:
+      </p>
+<pre><code class="language-cpp">
+// Open for writing, create if not exists, truncate if exists
+::fast_io::obuf_file obf(u8"data.bin", ::fast_io::open_mode::out | ::fast_io::open_mode::trunc);
+
+// Open for reading and writing
+::fast_io::iobuf_file iof(u8"data.txt", ::fast_io::open_mode::in | ::fast_io::open_mode::out);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. UTF-8 File I/O</h2>
+      <p>
+        For UTF-8 text files, use the <code>u8</code> variants. Note that
+        <code>u8string</code> uses <code>char8_t</code>, which is a different
+        character type from the <code>char</code> used by standard output. To
+        print UTF-8 text to the console, use a <code>u8obuf_file</code> wrapping
+        <code>stdout</code>, or use <code>::fast_io::mnp::code_cvt</code> to
+        convert between character types.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;fast_io_legacy.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // Write UTF-8 to a file
+    {
+        ::fast_io::u8obuf_file u8obf("utf8.txt");
+        print(u8obf, u8"Unicode: 你好世界 🌍\n");
+    }
+
+    // Read UTF-8 file and print to a UTF-8 stdout
+    {
+        ::fast_io::u8ibuf_file u8ibf("utf8.txt");
+        ::fast_io::u8c_io_observer u8out(stdout);
+        for (::fast_io::u8string line; scan&lt;true&gt;(u8ibf, str_line_get(line)); ) {
+            println(u8out, line);
+        }
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. Opening Files Relative to a Directory</h2>
+      <p>
+        <code>::fast_io::dir_file</code> opens a directory handle. Use <code>at(df)</code>
+        to open files relative to that directory &mdash; this is safer and more efficient
+        than building full paths, and avoids race conditions from path resolution.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // Open a directory
+    ::fast_io::dir_file df(u8"my_directory");
+
+    // Open a file relative to that directory
+    ::fast_io::obuf_file obf(at(df), "hello.txt");
+    print(obf, "Written relative to my_directory\n");
+}
+</code></pre>
+      <p>
+        The full directory iteration API (<code>current(at(df))</code>,
+        <code>recursive(at(df))</code>, and directory entry functions) is covered
+        in the filesystem chapter (Ch11.18).
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>ibuf_file</code> for reading, <code>obuf_file</code> for writing, <code>iobuf_file</code> for both.</li>
+        <li>Each type has five character variants: <code>char</code>, <code>u8</code> (<code>char8_t</code>), <code>u16</code> (<code>char16_t</code>), <code>u32</code> (<code>char32_t</code>), and <code>w</code> (<code>wchar_t</code>).</li>
+        <li>Files are RAII-managed &mdash; automatically closed on scope exit.</li>
+        <li>Use <code>open_mode</code> flags to control opening behavior. There is no <code>open_mode::binary</code> &mdash; native files are always binary. <code>open_mode::text</code> enables CRLF &harr; LF conversion on DOS/Windows (not Cygwin); on pure POSIX it is ignored, but may be honored by the POSIX layer on Windows.</li>
+        <li>Use <code>using namespace ::fast_io::iomnp;</code> (which includes <code>::fast_io::io</code>) then call <code>println</code> / <code>print</code> / <code>scan</code> and manipulators like <code>str_line_get</code> directly.</li>
+        <li>Use <code>scan</code> with the <code>str_line_get</code> manipulator for line-by-line reading: <code>for (::fast_io::string line; scan&lt;true&gt;(ibf, str_line_get(line)); ) { ... }</code></li>
+        <li>You cannot directly print between different character types. Use <code>::fast_io::mnp::code_cvt</code> to convert, or write to a device with the matching character type.</li>
+        <li>Use <code>::fast_io::dir_file</code> to open a directory, then <code>at(df)</code> to open files relative to it. Directory iteration is covered in Ch11.18.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/11.io/" class="prev-button">&larr; Ch11: I/O</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/11.io/02.customtypes/" class="next-button">Ch11.2: Custom Types &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

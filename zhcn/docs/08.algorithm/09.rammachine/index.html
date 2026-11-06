@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch8.9: The RAM Model &amp; Its Limits - C++ Tutorial</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch8.9: The RAM Model &amp; Its Limits</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Overview</h2>
+
+      <p>
+        All of our time-complexity analysis so far has relied on a simple,
+        idealized machine model called the <strong>RAM model</strong>
+        (Random Access Machine). It is the standard model used in algorithm
+        textbooks and in the C++ standard library.
+      </p>
+
+      <p>
+        The RAM model is extremely useful, but it is also unrealistic in many
+        ways. Understanding both its strengths and its limits will help you
+        reason about performance honestly.
+      </p>
+
+      <p>You will learn:</p>
+
+      <ul>
+        <li>the assumptions of the RAM model</li>
+        <li>why we use it for asymptotic complexity</li>
+        <li>where the RAM model breaks down</li>
+        <li>how real hardware behaves differently</li>
+        <li>why memory hierarchy dominates performance</li>
+        <li>why linked lists are slow in practice</li>
+        <li>why big integers break constant-time arithmetic</li>
+        <li>the physical limits of data movement</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. The RAM model</h2>
+
+      <p>
+        The RAM model assumes:
+      </p>
+
+      <ul>
+        <li>each basic operation takes constant time</li>
+        <li>each memory access takes constant time</li>
+        <li>the machine has unlimited memory</li>
+        <li>the machine executes one instruction at a time</li>
+      </ul>
+
+      <p>
+        Under these assumptions, we can count operations and derive clean
+        asymptotic bounds like <code>&Theta;(n)</code> and <code>O(n&nbsp;ln&nbsp;n)</code>.
+      </p>
+
+      <p>
+        This model is simple, elegant, and mathematically convenient.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Why the RAM model is useful</h2>
+
+      <p>
+        The RAM model is not meant to be realistic. It is meant to be
+        <strong>predictive</strong>:
+      </p>
+
+      <ul>
+        <li>Algorithms with lower asymptotic complexity are usually faster.</li>
+        <li>Linear-time algorithms usually beat quadratic ones.</li>
+        <li>Logarithmic-time algorithms scale extremely well.</li>
+        <li>Exponential-time algorithms are hopeless for large inputs.</li>
+      </ul>
+
+      <p>
+        Even though real hardware is more complicated, the RAM model captures
+        the <em>dominant trends</em> in algorithmic performance.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Where the RAM model breaks down</h2>
+
+      <p>
+        Real computers do not behave like the RAM model. In reality:
+      </p>
+
+      <ul>
+        <li>memory access time is not constant</li>
+        <li>cache misses are hundreds of times slower than cache hits</li>
+        <li>virtual memory introduces page faults</li>
+        <li>disk access is millions of times slower than RAM</li>
+        <li>data movement dominates runtime for large datasets</li>
+      </ul>
+
+      <p>
+        These effects can dominate performance, especially for large data.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Memory hierarchy</h2>
+
+      <p>
+        Modern CPUs have multiple levels of memory:
+      </p>
+
+      <ul>
+        <li>L1 cache (very fast, very small)</li>
+        <li>L2 cache</li>
+        <li>L3 cache</li>
+        <li>RAM</li>
+        <li>SSD / disk</li>
+      </ul>
+
+      <p>
+        Accessing L1 cache may take ~1 cycle.  
+        Accessing RAM may take ~200 cycles.  
+        Accessing disk may take millions of cycles.
+      </p>
+
+      <p>
+        The RAM model pretends all of these are the same.
+      </p>
+
+      <p>
+        This is why algorithms with good locality (like scanning a vector) are
+        often much faster than algorithms with poor locality (like chasing
+        pointers through a linked list), even if both are <code>&Theta;(n)</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Why the RAM model mispredicts linked‑list performance</h2>
+
+      <p>
+        In the RAM model, following a pointer is assumed to take <strong>Θ(1)</strong>
+        time. Under this assumption, walking a linked list is considered a linear‑time
+        operation with constant‑time steps.
+      </p>
+
+      <p>
+        On real hardware, this assumption is <strong>not accurate</strong>.
+      </p>
+
+      <p>
+        Modern CPUs rely heavily on caching and spatial locality. A linked list
+        scatters its nodes across memory, so each pointer dereference often jumps to
+        a location that is not in cache. This forces the CPU to fetch a new cache
+        line from a slower level of memory.
+      </p>
+
+      <p>
+        The exact mathematical complexity of this behavior is difficult to model,
+        and it depends on many hardware details. However, we can safely say:
+      </p>
+
+      <p>
+        <strong>The real‑world cost of accessing a linked‑list node is not Θ(1).  
+        It is significantly higher, and it grows as the list becomes larger.</strong>
+      </p>
+
+      <p>
+        Empirical measurements (such as those in the article
+        <a href="https://www.ilikebigbits.com/2014_04_21_myth_of_ram_1.html" target="_blank">
+          “The Myth of RAM”
+        </a>)
+        show that the slowdown increases with <code>n</code>, and the overall traversal
+        time grows faster than the RAM model predicts. Some experiments even observe
+        behavior resembling <code>O(√n)</code>, but the exact form is not the point.
+      </p>
+
+      <p>
+        The important lesson is that the RAM model’s constant‑time assumption for
+        pointer chasing does <strong>not</strong> reflect real hardware. Linked lists
+        are much slower in practice because they defeat caching.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Why big integers break the constant‑time assumption</h2>
+
+      <p>
+        The RAM model assumes that basic operations such as addition, subtraction,
+        and multiplication take <strong>constant time</strong>. This is only true
+        when numbers fit into a machine word (typically 32 or 64 bits).
+      </p>
+
+      <p>
+        When numbers grow larger than a machine word, they must be stored across
+        multiple words. Adding two big integers of size <code>k</code> requires
+        adding <code>k</code> machine words and propagating carries.
+      </p>
+
+      <p>
+        This means that big‑integer addition takes:
+      </p>
+
+      <pre><code class="language-cpp">
+Θ(k)
+      </code></pre>
+
+      <p>
+        not <code>Θ(1)</code>.
+      </p>
+
+      <p>
+        Big‑integer multiplication is even more expensive. The simplest algorithms
+        take <code>Θ(k²)</code>, and more advanced algorithms (Karatsuba, FFT‑based
+        multiplication) take <code>Θ(k^1.58)</code> or <code>Θ(k log k)</code>.
+      </p>
+
+      <p>
+        This breaks the RAM model’s assumption that arithmetic is constant‑time.
+        Algorithms that manipulate large numbers (cryptography, arbitrary‑precision
+        math, symbolic computation) must account for the cost of big‑integer
+        operations.
+      </p>
+
+      <p>
+        In practice, this means that the true running time of an algorithm may depend
+        not only on the number of operations, but also on the <strong>size of the
+        numbers being manipulated</strong>.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. The physical limits of data and computation</h2>
+
+      <p>
+        The RAM model assumes that memory is infinite and that accessing any location
+        takes constant time. In reality, both assumptions break down as data grows.
+      </p>
+
+      <p>
+        The more data we have, the more physical space it occupies. Even if signals
+        travel at the speed of light, there is a hard lower bound on how long it
+        takes to move information from one place to another. This means that
+        <strong>latency grows with distance</strong>, and distance grows with the
+        amount of data we store.
+      </p>
+
+      <p>
+        When data fits in CPU cache, access is extremely fast. When it grows beyond
+        cache, we must use RAM, which is slower. When it grows beyond RAM, we must
+        use disk, which is much slower. When it grows beyond a single machine, we
+        must store it on:
+      </p>
+
+      <ul>
+        <li>local networks (LAN)</li>
+        <li>data centers (cluster storage)</li>
+        <li>wide-area networks (WAN)</li>
+        <li>the global internet</li>
+      </ul>
+
+      <p>
+        Each step is slower than the previous one. Distributed systems such as
+        MapReduce exist because moving data across machines is so expensive that we
+        must bring computation to the data instead of the other way around.
+      </p>
+
+      <p>
+        If the data grows even larger, we would need more physical storage space,
+        potentially spread across continents. In the extreme, storing arbitrarily
+        large data would require more physical space in the universe. Each increase
+        in scale increases latency, energy cost, and the time required to move or
+        process the data.
+      </p>
+
+      <p>
+        In fact, the reason we download files is to reduce latency: we manually
+        “cache” data from the internet onto local storage so that future access is
+        faster. This is the same principle that hardware caches use automatically.
+      </p>
+
+      <p>
+        These physical constraints mean that as data grows, the cost of accessing
+        and processing it grows as well. This growth is not constant-time; it is a
+        <strong>strictly increasing function</strong> of the size and physical
+        distribution of the data.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+
+      <ul>
+        <li>The RAM model assumes constant-time operations and memory access.</li>
+        <li>It is simple and useful for theoretical analysis.</li>
+        <li>Real hardware has caches, memory hierarchy, and physical latency limits.</li>
+        <li>Linked-list traversal is not Θ(1) per step on real hardware; it grows with data size.</li>
+        <li>Big integers break constant-time arithmetic; their cost grows with number size.</li>
+        <li>Data movement has physical limits: distance, bandwidth, energy, and the speed of light.</li>
+        <li>As data grows beyond cache, RAM, disk, and even a single machine, latency increases at every level.</li>
+        <li>Downloading is manual caching: we move data closer to reduce latency.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/08.algorithm/08.timecomplexity/" class="prev-button">← Ch8.8: Time &amp; Space Complexity</a>
+      <a href="/zhcn/">↑ 主页</a>
+      <a href="/zhcn/docs/08.algorithm/10.zerocost/" class="next-button">Ch8.10: Why “Zero‑Overhead” and “Zero‑Cost” Are Meaningless →</a>
+    </div>
+
+  </main>
+</body>
+</html>

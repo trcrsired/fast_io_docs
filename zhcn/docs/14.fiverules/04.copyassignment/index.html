@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch14.4: Copy Assignment and the Critical Line - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch14.4: Copy Assignment and the Critical Line</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+    <section>
+      <h2>1. Assignment Is Not Construction</h2>
+
+
+      <p>
+        <code>my_posix_file a{"demo.txt", O_RDONLY}; my_posix_file b{"other.txt", O_RDONLY};</code>
+        then <code>a = b;</code> is a completely different operation from
+        <code>my_posix_file a{b};</code>.
+      </p>
+      <p>
+        In the assignment, <code>a</code> <strong>already owns a descriptor</strong>. Whatever
+        the function does, that descriptor must end up closed &mdash; otherwise it leaks &mdash;
+        and <code>a</code> must end up owning a duplicate of <code>b</code>'s. So three things
+        have to happen, and the only real question is <em>in what order</em>:
+      </p>
+      <ul>
+        <li>acquire the new descriptor (<code>::dup</code>, can fail);</li>
+        <li>release the old one (<code>::close</code>, cannot fail in any way we care about);</li>
+        <li>install the new one (an <code>int</code> assignment, cannot fail).</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>2. The Order Everyone Writes First</h2>
+
+
+      <p>
+        It reads naturally: get rid of the old file, then take the new one.
+      </p>
+      <pre><code class="language-cpp">
+	// WRONG
+	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);          // the old file is gone
+		}
+		fd_ = ::dup(other.fd_);    // may fail -- and now there is nothing left
+		if (fd_ == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		return *this;
+	}
+</code></pre>
+      <p>
+        Three things are wrong with it, and they are worth separating.
+      </p>
+      <ul>
+        <li>
+          <strong>The object is destroyed before the new resource exists.</strong> If
+          <code>::dup</code> fails, the assignment fails <em>and</em> the file that was open a
+          moment ago is gone. The caller is left with a broken object and no way back.
+        </li>
+        <li>
+          <strong>Self-assignment destroys the file.</strong> <code>a = a</code> closes
+          <code>a</code>'s descriptor and then duplicates <code>-1</code>, which fails with
+          <code>EBADF</code>. The perfectly legal statement <code>a = a</code> leaves
+          <code>a</code> closed and throws.
+        </li>
+        <li>
+          <strong>It looks like it cannot be fixed by adding a check.</strong> Adding
+          <code>if (this == &amp;other) return *this;</code> hides the second problem and
+          leaves the first one untouched. The <em>order</em> is what is wrong.
+        </li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>3. The Critical Line</h2>
+
+
+      <p>
+        Reverse the order and everything falls into place. Do the fallible work first, into a
+        local variable, while the object is still untouched; then, once nothing can fail any
+        more, commit:
+      </p>
+      <pre><code class="language-cpp">
+	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
+	{
+		::std::int_least32_t newfd{::dup(other.fd_)};   // may fail, *this untouched
+		if (newfd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		// ---- critical line ----
+		reset(newfd);                                   // cannot fail, *this changes
+		return *this;
+	}
+</code></pre>
+            <div class="important">
+        <strong>The critical line is the boundary inside a function that may fail:</strong>
+        <br>
+        &mdash; <strong>above it</strong>, operations may fail, and <strong>nothing has been
+          modified</strong> yet;
+        <br>
+        &mdash; <strong>below it</strong>, operations <strong>cannot fail</strong>, and they
+        are the ones that modify the object.
+        <br>
+        Put it in the right place and a failure can only happen while there is still nothing to
+        undo. That is what the <strong>strong exception safety guarantee</strong> is, and the
+        critical line is how you get it.
+      
+      </div>
+      <p>
+        Count the statements on each side. Above: a call to <code>::dup</code> and a check,
+        both fallible, neither touching <code>*this</code>. Below: one call to
+        <code>reset</code>, which is <code>noexcept</code> and does the whole commit &mdash;
+        close the old descriptor, store the new one. There is no state in which
+        <code>*this</code> is half-assigned, because there is no fallible operation after the
+        old value has been touched.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Self-Assignment Needs No Special Case</h2>
+
+
+      <p>
+        Most tutorials tell you to start an assignment operator with a self-assignment check.
+        With this order you do not need one: <code>a = a</code> works by itself.
+      </p>
+      <p>
+        Trace it. <code>::dup(a.fd_)</code> produces a second descriptor for the same open
+        file; the check passes; then <code>reset</code> closes the old descriptor and stores
+        the new one. <code>a</code> now owns a <em>different</em> descriptor for the
+        <em>same</em> file. Nothing was lost, nothing leaked, and the only observable
+        difference is a new number.
+      </p>
+            <div class="note">
+        <strong>Do not add the check just because everyone does.</strong>
+        It is needed when the operation cannot tolerate reading what it is about to destroy
+        &mdash; move assignment is exactly such a case
+        (<a href="/zhcn/docs/14.fiverules/06.moveassignment/">Ch14.6</a>), because it <em>releases
+        first</em> and has no copy to fall back on. Copy assignment here duplicates first, so
+        it is self-safe by construction.
+      
+      </div>
+
+    </section>
+    <section>
+      <h2>5. Both Orders, Side by Side</h2>
+
+
+      <p>
+        One program, two classes: the correct <code>my_posix_file</code> and a
+        <code>naive_file</code> that closes first. It exercises self-assignment, a failing
+        assignment, and the same two cases on the naive class.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+using namespace ::fast_io::io;
+
+class my_posix_file
+{
+	int fd_{-1};
+
+	void reset(::std::int_least32_t newfd = -1) noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+		fd_ = newfd;
+	}
+
+public:
+	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
+	{
+		if (fd_ == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+	}
+
+	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
+	{
+		::std::int_least32_t newfd{::dup(other.fd_)};
+		if (newfd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		reset(newfd);
+		return *this;
+	}
+
+	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
+	{
+		other.fd_ = -1;
+	}
+
+	~my_posix_file() noexcept
+	{
+		reset();
+	}
+
+	[[nodiscard]] bool is_open() const noexcept
+	{
+		return fd_ != -1;
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+};
+
+class naive_file
+{
+	int fd_{-1};
+
+public:
+	explicit naive_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	~naive_file() noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+	}
+
+	naive_file &amp;operator=(naive_file const &amp;other) throws
+	{
+		// WRONG: the old descriptor is gone before the new one exists.
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+		fd_ = ::dup(other.fd_);
+		if (fd_ == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		return *this;
+	}
+
+	[[nodiscard]] bool is_open() const noexcept
+	{
+		return fd_ != -1;
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+};
+
+int main()
+{
+	{ // make sure the example file exists
+		::std::int_least32_t fd{::open("demo.txt", O_WRONLY | O_CREAT, 0644)};
+		::close(fd);
+	}
+
+	my_posix_file a{"demo.txt", O_RDONLY};
+	println("a before   = ", a.native_handle());
+	a = a; // self-assignment
+	println("a after a=a = ", a.native_handle(), ", is_open = ", a.is_open());
+
+	my_posix_file moved_from{"demo.txt", O_RDONLY};
+	my_posix_file b{::std::move(moved_from)};
+	println("b = ", b.native_handle(), ", moved_from = ", moved_from.native_handle());
+	try
+	{
+		a = moved_from;
+	}
+	catch throws (::std::error e)
+	{
+		print("a = moved_from failed: ", e, "\n");
+	}
+	println("a survived = ", a.native_handle(), ", is_open = ", a.is_open());
+
+	naive_file n{"demo.txt", O_RDONLY};
+	println("n before   = ", n.native_handle());
+	try
+	{
+		n = n; // self-assignment, the naive way
+	}
+	catch throws (::std::error e)
+	{
+		print("n=n failed: ", e, "\n");
+	}
+	println("n after n=n = ", n.native_handle(), ", is_open = ", n.is_open());
+}
+</code></pre>
+      <pre><code class="language-text">
+a before   = 3
+a after a=a = 4, is_open = 1
+b = 3, moved_from = -1
+a = moved_from failed: [posix](9)Bad file number
+a survived = 4, is_open = 1
+n before   = 5
+n=n failed: [posix](9)Bad file number
+n after n=n = -1, is_open = 0
+</code></pre>
+      <p>
+        Four lines carry the lesson.
+      </p>
+      <ul>
+        <li>
+          <strong><code>a after a=a = 4, is_open = 1</code></strong> &mdash; self-assignment
+          worked with no check. The number changed because <code>::dup</code> handed out
+          <code>4</code> (the old <code>3</code> was closed in the same call), and the file is
+          the same file.
+        </li>
+        <li>
+          <strong><code>a = moved_from failed: [posix](9)Bad file number</code></strong>
+          &mdash; the assignment failed, because the right-hand side had no descriptor
+          (<a href="/zhcn/docs/14.fiverules/10.movedfrom/">Ch14.10</a>).
+        </li>
+        <li>
+          <strong><code>a survived = 4, is_open = 1</code></strong> &mdash; and that is the
+          whole point: the failure changed nothing. <code>a</code> still holds exactly what it
+          held before the statement.
+        </li>
+        <li>
+          <strong><code>n after n=n = -1, is_open = 0</code></strong> &mdash; the naive class
+          closed its own file and then failed, leaving a valid but empty object where a file
+          used to be. Nothing is corrupt, but the caller lost a resource it never asked to
+          give up.
+        </li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>6. Why the Return Type Is a Reference</h2>
+
+
+      <p>
+        <code>operator=</code> returns <code>my_posix_file &amp;</code> &mdash; a reference to
+        the left-hand object &mdash; and <code>return *this;</code> is the implementation. That
+        is what makes chained assignment work at all:
+      </p>
+      <pre><code class="language-cpp">
+a = b = c;      // means a = (b = c), with b = c yielding b
+
+(a = b).read_some(buf, n);   // the result of the assignment is a
+</code></pre>
+      <p>
+        Return by value and this breaks: the expression would be a <em>copy</em> of
+        <code>a</code>, so chaining would duplicate a descriptor and throw away the duplicate.
+        Return <code>*this</code>, always.
+      </p>
+
+    </section>
+    <section>
+      <h2>7. When Assignment Should Not Exist</h2>
+
+
+      <p>
+        Not every resource can be replaced. A lock cannot be re-pointed at another lock; an
+        open operation cannot be swapped out from under its caller. For such types the right
+        answer is <code>= delete</code>, exactly as with the copy constructor
+        (<a href="/zhcn/docs/14.fiverules/03.copyconstructor/">Ch14.3</a>), and the compiler says so
+        at the call site instead of at 3 a.m.
+      </p>
+      <pre><code class="language-cpp">
+	my_lock &amp;operator=(my_lock const &amp;) = delete;
+	my_lock &amp;operator=(my_lock &amp;amp;&amp;amp;) = delete;
+</code></pre>
+      <p>
+        Deleting copy assignment does <em>not</em> mean the object cannot be copied &mdash;
+        that is the copy constructor's business. It means the object cannot be
+        <strong>reassigned</strong>, which is a weaker statement.
+      </p>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/14.fiverules/03.copyconstructor/" class="prev-button">&larr; Ch14.3: The Copy Constructor</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/14.fiverules/05.moveconstructor/" class="next-button">Ch14.5: The Move Constructor &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

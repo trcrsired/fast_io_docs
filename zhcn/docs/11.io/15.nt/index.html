@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.15: NT File APIs - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.15: NT File APIs</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        Modern Windows (NT, 2000, XP, 7, 10, 11) is built on the NT kernel. The lowest-level
+        user-mode entry points for file I/O are the native system calls:
+      </p>
+      <ul>
+        <li><code>NtCreateFile</code></li>
+        <li><code>NtReadFile</code></li>
+        <li><code>NtWriteFile</code></li>
+        <li><code>NtClose</code></li>
+      </ul>
+      <p>
+        These live in <code>ntdll.dll</code> and are the same functions the Win32 subsystem
+        itself calls. A parallel set of entry points with the <code>Zw</code> prefix
+        (<code>ZwCreateFile</code>, &hellip;) exist as well; they differ only in whether the
+        previous-mode parameter is set to <em>KernelMode</em> or <em>UserMode</em>. For
+        user-mode code they behave identically.
+      </p>
+      <p>
+        <code>fast_io</code> exposes the NT layer through:
+      </p>
+      <ul>
+        <li>
+          <code>::fast_io::nt_file</code> &mdash; an RAII owning wrapper. The constructor
+          invokes <code>NtCreateFile</code>; the destructor calls <code>NtClose</code>.
+        </li>
+        <li>
+          <code>::fast_io::nt_io_observer</code> &mdash; a non-owning view over an existing
+          NT <code>HANDLE</code>. Trivially copyable, no destructor.
+        </li>
+      </ul>
+      <p>
+        The programming model is exactly the same pattern as <code>posix_file</code> and
+        <code>win32_file</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Opening a File with nt_file</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // The constructor translates open_mode into the corresponding
+    // NtCreateFile parameters (DesiredAccess, CreateDisposition, ...).
+    ::fast_io::nt_file nf(u8"hello_nt.txt", ::fast_io::open_mode::out);
+
+    print(nf, "Hello from nt_file!\n");
+
+    ::std::size_t const n{42zu};
+    println(nf, u8"The answer is: ", n);
+    // NtClose is invoked automatically when `nf` goes out of scope.
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Wrapping an Existing HANDLE</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+void inspect(void* nt_handle)
+{
+    using namespace ::fast_io::iomnp;
+
+    // Non-owning view. No NtClose on destruction.
+    ::fast_io::nt_io_observer observer{
+        static_cast&lt;::fast_io::nt_io_observer::native_handle_type&gt;(nt_handle)};
+
+    print(observer, "Written through an nt_io_observer\n"
+      "\n", ::fast_io::mnp::handlevw(observer.native_handle()));
+}
+
+int main()
+{
+    ::fast_io::nt_file nf(u8"inspect.txt", ::fast_io::open_mode::out);
+    inspect(nf.native_handle());
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Relative Opens</h2>
+      <p>
+        Because <code>NtCreateFile</code> natively accepts a
+        <em>RootDirectory</em> handle and a relative <em>ObjectName</em>, the NT layer is
+        the most natural home for <code>at(dir)</code> on Windows:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main(int argc, char** argv)
+{
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::nt_file dir{::fast_io::mnp::os_c_str(argv[1]),
+                           ::fast_io::open_mode::directory};
+    ::fast_io::nt_file nf(at(dir), u8"relative.txt",
+                          ::fast_io::open_mode::out);
+    println(nf, u8"Opened through NtCreateFile with a root directory\n");
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Why Use nt_file Directly?</h2>
+      <p>
+        Most programs should just use <code>::fast_io::native_file</code> (which aliases to
+        <code>nt_file</code> on NT) or <code>::fast_io::iobuf_file</code>. You reach for
+        <code>nt_file</code> directly when you need:
+      </p>
+      <ul>
+        <li>Direct kernel access without going through <code>kernel32.dll</code>.</li>
+        <li>Fine-grained control over <code>NtCreateFile</code> parameters.</li>
+        <li>Relative opens, which map cleanly onto the native API.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>The Raw NT I/O APIs</h2>
+      <p>
+        Before using <code>fast_io</code>'s wrappers, it helps to understand the underlying NT native APIs.
+        These are the functions exported by <code>ntdll.dll</code>, the lowest-level user-mode entry points
+        that <code>kernel32.dll</code> itself calls:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>API Function</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>NtCreateFile(FileHandle, DesiredAccess, ObjectAttributes, IoStatusBlock, AllocationSize, FileAttributes, ShareAccess, CreateDisposition, CreateOptions, EaBuffer, EaLength)</code></td>
+            <td>Open or create a file. Returns a <code>HANDLE</code> through <code>FileHandle</code>. This is the most fundamental file-opening API on NT.</td>
+          </tr>
+          <tr>
+            <td><code>NtReadFile(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, Buffer, Length, ByteOffset, Key)</code></td>
+            <td>Read bytes from a file handle. Can be synchronous or asynchronous.</td>
+          </tr>
+          <tr>
+            <td><code>NtWriteFile(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, Buffer, Length, ByteOffset, Key)</code></td>
+            <td>Write bytes to a file handle. Can be synchronous or asynchronous.</td>
+          </tr>
+          <tr>
+            <td><code>NtClose(Handle)</code></td>
+            <td>Close a handle. <strong>Always required</strong> &mdash; handles are a limited resource.</td>
+          </tr>
+          <tr>
+            <td><code>NtSetInformationFile(FileHandle, IoStatusBlock, FileInformation, Length, FileInformationClass)</code></td>
+            <td>Set file information, including file position (seek). Used with <code>FilePositionInformation</code>.</td>
+          </tr>
+          <tr>
+            <td><code>NtQueryInformationFile(FileHandle, IoStatusBlock, FileInformation, Length, FileInformationClass)</code></td>
+            <td>Query file information, including file position and size.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        There are also <code>Zw*</code> variants (<code>ZwCreateFile</code>, <code>ZwReadFile</code>, etc.).
+        In user space, <code>Nt*</code> and <code>Zw*</code> are <strong>identical</strong>. They differ only
+        in kernel mode: <code>Nt*</code> validates parameters from user mode, while <code>Zw*</code> sets the
+        previous-mode to <code>KernelMode</code> and skips validation. For user-mode code, they behave the same.
+      </p>
+      <p>
+        These NT APIs are <strong>unbuffered</strong> &mdash; each call goes through <code>ntdll.dll</code>
+        to the kernel (<code>ntoskrnl.exe</code>). This makes them slow for small or frequent operations.
+        <code>fast_io</code>'s buffered types (like <code>ibuf_file</code> and <code>obuf_file</code>) wrap
+        these calls with user-space buffering for much better performance.
+      </p>
+    </section>
+
+    <section>
+      <h2>Using nt_file for RAII Even Without fast_io I/O</h2>
+      <p>
+        Even if you prefer to call the raw NT APIs directly (e.g., <code>NtReadFile</code> and
+        <code>NtWriteFile</code>) instead of using <code>fast_io</code>'s <code>print</code> and <code>scan</code>,
+        you should <strong>still use <code>::fast_io::nt_file</code> for RAII</strong>. The destructor
+        guarantees <code>NtClose</code> is called, so you never forget to close the handle.
+      </p>
+      <p>
+        This is especially important when exceptions or early returns are involved &mdash; without RAII,
+        you must manually call <code>NtClose</code> on every exit path, which is error-prone.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;ntstatus.h&gt;
+
+// Note: NtCreateFile, NtReadFile, etc. are declared in the Windows SDK headers.
+// fast_io provides wrappers, but you can also call them directly.
+
+int main()
+{
+    // Open with nt_file for RAII, but use raw NT NtReadFile/NtWriteFile
+    ::fast_io::nt_file nf(u8"data.bin", ::fast_io::open_mode::out);
+
+    // Get the raw HANDLE
+    void* h{nf.native_handle()};
+
+    // In practice, calling NtWriteFile directly is complex due to IO_STATUS_BLOCK
+    // and OBJECT_ATTRIBUTES setup. Most programs should use fast_io's print/println.
+    // This example shows the concept, but real code typically uses fast_io's I/O.
+
+    // nf's destructor calls NtClose(h) automatically when it goes out of scope.
+    // No need to manually call NtClose() here, even if we return early or throw.
+}
+</code></pre>
+      <p>
+        <strong>Note:</strong> Calling NT APIs directly is complex. <code>NtCreateFile</code> requires
+        setting up <code>OBJECT_ATTRIBUTES</code>, <code>IO_STATUS_BLOCK</code>, and many other parameters.
+        <code>NtReadFile</code> and <code>NtWriteFile</code> are similarly involved. Most programs should
+        use <code>fast_io</code>'s <code>print</code>, <code>println</code>, and <code>scan</code> instead.
+        The raw APIs are documented here for completeness and to show that <code>fast_io</code> wraps them
+        with RAII.
+      </p>
+      <p>
+        The same RAII principle applies if you do call the raw NT APIs:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    ::fast_io::nt_file nf(u8"data.bin", ::fast_io::open_mode::in);
+    void* h{nf.native_handle()};
+
+    // If you call NtReadFile directly here...
+    // (complex setup omitted for brevity)
+
+    // NtClose(h) is called automatically by nf's destructor
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Summary</h2>
+      <ul>
+        <li>
+          <code>::fast_io::nt_file</code> wraps the NT kernel's <code>NtCreateFile</code> /
+          <code>NtClose</code> with RAII.
+        </li>
+        <li>
+          <code>::fast_io::nt_io_observer</code> is a non-owning view over an existing NT
+          <code>HANDLE</code>.
+        </li>
+        <li>
+          The API surface mirrors <code>posix_file</code> and <code>win32_file</code>: once
+          you know one layer, the others are trivial.
+        </li>
+        <li>
+          On modern Windows, <code>::fast_io::native_file</code> is an alias for
+          <code>nt_file</code>.
+        </li>
+        <li>
+          The raw NT APIs are <code>NtCreateFile</code>, <code>NtReadFile</code>, <code>NtWriteFile</code>,
+          <code>NtClose</code>, <code>NtSetInformationFile</code>, and <code>NtQueryInformationFile</code>.
+          These are unbuffered and go through <code>ntdll.dll</code> to the kernel.
+        </li>
+        <li>
+          <code>Nt*</code> and <code>Zw*</code> variants are <strong>identical in user space</strong>.
+          They differ only in kernel mode.
+        </li>
+        <li>
+          <strong>Even if you call the raw NT APIs directly</strong> (e.g., <code>NtReadFile</code>
+          and <code>NtWriteFile</code>), <strong>still use <code>::fast_io::nt_file</code> for RAII</strong>
+          to guarantee <code>NtClose</code> is called automatically. This prevents resource leaks,
+          especially with exceptions or early returns.
+        </li>
+        <li>
+          Calling NT APIs directly is complex. Most programs should use <code>fast_io</code>'s
+          <code>print</code>, <code>println</code>, and <code>scan</code> instead.
+        </li>
+        <li>
+          For more details on the NT APIs, see the
+          <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/" target="_blank" rel="noopener noreferrer">Microsoft WDM documentation</a>.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/11.io/14.win32/" class="prev-button">&larr; Ch11.14: Win32 File APIs</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/11.io/16.wine/" class="next-button">Ch11.16: Wine File APIs &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

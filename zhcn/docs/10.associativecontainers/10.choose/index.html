@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch10.10: Choosing a Container - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch10.10: Choosing a Container</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>1. Three Questions</h2>
+      <p>
+        Picking the container is three questions about <em>your</em> program, not
+        about the implementation.
+      </p>
+      <ol>
+        <li>
+          <strong>Do you ever need order?</strong> Sorted output, a prefix scan, the
+          smallest key, &ldquo;the next one after this&rdquo;. If yes, you need a
+          B-tree, and the Swiss table is out.
+        </li>
+        <li>
+          <strong>Do you need a count, or a rank?</strong> &ldquo;How many keys are
+          there?&rdquo; or &ldquo;what is the median?&rdquo;. If yes, you need
+          <code>str_ranked_btree_*</code> (both) or <code>str_swiss_*</code>
+          (<code>size()</code> only).
+        </li>
+        <li>
+          <strong>Do you need to pre-size the table?</strong> A bulk load of known
+          size is cheapest when you can call <code>reserve()</code> once, which the
+          Swiss family provides.
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>2. The Table</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>What your program needs</th>
+            <th>Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Membership only: &ldquo;have I seen this string?&rdquo;</td>
+            <td><code>str_swiss_set</code></td>
+          </tr>
+          <tr>
+            <td>Value per key, looked up by the exact key</td>
+            <td><code>str_swiss_map&lt;M&gt;</code></td>
+          </tr>
+          <tr>
+            <td>Print the keys in sorted order</td>
+            <td><code>str_btree_set</code> / <code>str_btree_map&lt;M&gt;</code></td>
+          </tr>
+          <tr>
+            <td>Range query: all keys with a prefix, between two keys</td>
+            <td><code>str_btree_set</code> / <code>str_btree_map&lt;M&gt;</code></td>
+          </tr>
+          <tr>
+            <td>Smallest / largest key</td>
+            <td><code>str_btree_*</code> (<code>front()</code>, <code>back()</code>)</td>
+          </tr>
+          <tr>
+            <td>Counting or accumulating one value per key</td>
+            <td><code>str_btree_map&lt;M&gt;</code> if the report should come out sorted, <code>str_swiss_map&lt;M&gt;</code> otherwise</td>
+          </tr>
+          <tr>
+            <td>The element count, cheaply</td>
+            <td><code>str_ranked_btree_*</code> or <code>str_swiss_*</code></td>
+          </tr>
+          <tr>
+            <td>The n-th smallest key, medians, percentiles</td>
+            <td><code>str_ranked_btree_set</code> / <code>str_ranked_btree_map&lt;M&gt;</code></td>
+          </tr>
+          <tr>
+            <td>Pre-size before a bulk load</td>
+            <td><code>str_swiss_*</code> (<code>reserve(n)</code>)</td>
+          </tr>
+          <tr>
+            <td>Non-<code>char</code> keys</td>
+            <td>the <code>wstr_</code> / <code>u8str_</code> / <code>u16str_</code> / <code>u32str_</code> variant of any of the above</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="important">
+        <strong>The default is <code>str_swiss_set</code> / <code>str_swiss_map</code>.</strong>
+        Most code only ever asks &ldquo;is this key there?&rdquo; or &ldquo;what is
+        its value?&rdquo;. Start there, and move to a B-tree when you discover that
+        you need order &mdash; not before.
+      </div>
+    </section>
+
+    <section>
+      <h2>3. Keep the Choice in One Place</h2>
+      <p>
+        You do not have to commit to a container at every call site. Give the type a
+        name once, and write the rest of the program against the operations all six
+        families share:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io_dsal/str_swiss_set.h&gt;
+#include &lt;fast_io.h&gt;
+
+using namespace ::fast_io::io;
+
+using word_set = ::fast_io::str_swiss_set;   // the only line to change later
+
+bool is_known(word_set const &s, ::fast_io::string_view w) noexcept
+{
+	return s.contains(w);
+}
+
+int main()
+{
+	word_set s;
+	s.insert_key("alpha");
+	s.insert_key("beta");
+	println(is_known(s, "alpha"));   // 1
+	println(is_known(s, "gamma"));   // 0
+}
+</code></pre>
+      <p>
+        Switching to <code>::fast_io::str_btree_set</code> is then a one-line edit.
+        The code above compiles unchanged, because
+        <code>insert_key</code>, <code>contains</code>, <code>erase_key</code>,
+        <code>find</code>/<code>find_key</code>, <code>is_empty</code>,
+        <code>clear</code> and iteration exist on every family with the same names
+        and meanings.
+      </p>
+      <p>
+        What breaks on such a switch is exactly what this chapter warned about:
+        <code>size()</code> (not on the plain B-tree), <code>nth_element()</code>
+        (ranked B-tree only), <code>reserve()</code> / <code>capacity()</code> (Swiss
+        only), and <code>lower_bound</code> / <code>upper_bound</code> /
+        <code>front</code> / <code>back</code> (B-tree family only). Those are the container-specific
+        capabilities &mdash; if you use them, you have chosen a family on purpose.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Things That Are True of All Six</h2>
+      <ul>
+        <li>Keys are <code>::std::integral</code> character sequences; the container stores its own null-terminated copy of each key.</li>
+        <li>Lookups take a view, so a lookup never allocates.</li>
+        <li>Iteration yields a key view (<code>::fast_io::cstring_view</code>) or, for maps, an element with <code>key()</code> and <code>mapped()</code>.</li>
+        <li>Duplicate keys are impossible: inserting an existing key either does nothing or overwrites, never duplicates.</li>
+        <li>All of them are copyable, movable, <code>clear</code>-able, and work with the <code>wstr_</code>/<code>u8str_</code>/<code>u16str_</code>/<code>u32str_</code> aliases.</li>
+        <li>Growth and shrinking allocate through an allocator; a failed allocation terminates the program unless you opted into a throwing allocator (Ch10.11).</li>
+        <li>Map values must be nothrow-move-constructible and nothrow-move-assignable (Ch10.11).</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>5. Common Mistakes</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Mistake</th>
+            <th>What actually happens</th>
+            <th>Do this instead</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Searching a <code>::fast_io::vector&lt;::fast_io::string&gt;</code> with a loop</td>
+            <td>One full scan per lookup.</td>
+            <td>Insert the strings into a set and call <code>contains</code>.</td>
+          </tr>
+          <tr>
+            <td>Depending on the iteration order of a Swiss table</td>
+            <td>It is hash order; a different key set, growth, or an erase reshuffles it.</td>
+            <td>Use a B-tree if you need order.</td>
+          </tr>
+          <tr>
+            <td>Holding an iterator across an insert into a Swiss map</td>
+            <td>Growth rehashes; the iterator is dangling.</td>
+            <td>Look the key up again when you need it.</td>
+          </tr>
+          <tr>
+            <td><code>s.size()</code> on <code>str_btree_set</code></td>
+            <td>Does not compile: no <code>size()</code>.</td>
+            <td><code>::std::ranges::distance(s)</code>, <code>str_ranked_btree_set</code>, or <code>str_swiss_set</code>.</td>
+          </tr>
+          <tr>
+            <td>Building a <code>::fast_io::string</code> just to look a key up</td>
+            <td>An allocation and a copy per lookup.</td>
+            <td>Pass the view you already have, e.g. <code>line.subview(pos, len)</code>.</td>
+          </tr>
+          <tr>
+            <td>Using <code>contains</code> as a pre-check before <code>insert_key</code></td>
+            <td>Two lookups where one would do.</td>
+            <td>Use the <code>bool</code> returned by <code>insert_key</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li>Need order or ranges? B-tree. Need only exact keys? Swiss table. Need counts or ranks? Ranked B-tree.</li>
+        <li>Default to <code>str_swiss_set</code> / <code>str_swiss_map</code>; move to a B-tree when order becomes a requirement.</li>
+        <li>Counting is a lookup plus an assign; the map family only changes whether the report is sorted.</li>
+        <li><code>size()</code> exists on ranked B-trees and Swiss tables, not on plain B-trees.</li>
+        <li>Name the container type once with <code>using</code>, then switch the whole program with one edit.</li>
+        <li>All six share the same insert / contains / find_key / erase / iterate interface, so most code is container-agnostic.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/10.associativecontainers/09.swiss/" class="prev-button">&larr; Ch10.9: Swiss Tables</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/10.associativecontainers/11.typespecs/" class="next-button">Ch10.11: Types and Specs &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

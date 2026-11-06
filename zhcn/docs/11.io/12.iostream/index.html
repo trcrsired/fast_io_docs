@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.12: C++ iostream - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.12: C++ iostream</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        C++&rsquo;s standard I/O library provides <code>std::fstream</code>, <code>std::ifstream</code>,
+        and <code>std::ofstream</code>. These stream classes are built on top of
+        <code>std::basic_filebuf</code>, which is the C++ runtime&rsquo;s buffered file abstraction.
+      </p>
+      <p>
+        <code>fast_io</code> provides wrappers that let you bring <code>std::basic_filebuf</code>
+        into the <code>fast_io</code> I/O system, so you can use <code>print</code>,
+        <code>println</code>, and <code>scan</code> on them.
+      </p>
+    </section>
+
+    <section>
+      <h2>Standard C++ I/O: <code>&lt;iostream&gt;</code>, <code>&lt;fstream&gt;</code>, <code>&lt;sstream&gt;</code></h2>
+      <p>
+        Before discussing how <code>fast_io</code> wraps C++ I/O, let&rsquo;s review the standard C++
+        I/O library. C++ provides three main headers for I/O:
+      </p>
+      <ul>
+        <li><code>&lt;iostream&gt;</code> &mdash; standard streams (<code>std::cin</code>, <code>std::cout</code>, <code>std::cerr</code>, <code>std::clog</code>)</li>
+        <li><code>&lt;fstream&gt;</code> &mdash; file streams (<code>std::ifstream</code>, <code>std::ofstream</code>, <code>std::fstream</code>)</li>
+        <li><code>&lt;sstream&gt;</code> &mdash; string streams (<code>std::istringstream</code>, <code>std::ostringstream</code>, <code>std::stringstream</code>)</li>
+      </ul>
+
+      <h3>Standard Streams</h3>
+      <p>
+        C++ provides four predefined streams:
+      </p>
+      <ul>
+        <li><code>std::cin</code> &mdash; standard input (usually keyboard)</li>
+        <li><code>std::cout</code> &mdash; standard output (usually terminal)</li>
+        <li><code>std::cerr</code> &mdash; standard error (unbuffered, usually terminal)</li>
+        <li><code>std::clog</code> &mdash; standard error (buffered, usually terminal)</li>
+      </ul>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+int main() {
+    int x;
+    std::string name;
+
+    // Read from stdin
+    std::cout &lt;&lt; "Enter your name: ";
+    std::cin &gt;&gt; name;
+
+    std::cout &lt;&lt; "Enter a number: ";
+    std::cin &gt;&gt; x;
+
+    // Write to stdout
+    std::cout &lt;&lt; "Hello, " &lt;&lt; name &lt;&lt; "!\n";
+    std::cout &lt;&lt; "You entered: " &lt;&lt; x &lt;&lt; "\n";
+
+    // Write to stderr
+    if (x &lt; 0) {
+        std::cerr &lt;&lt; "Warning: negative number\n";
+    }
+}
+</code></pre>
+
+      <h3>File Streams</h3>
+<pre><code class="language-cpp">
+#include &lt;fstream&gt;
+#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+int main() {
+    // Write to a file
+    std::ofstream fout("output.txt");
+    if (!fout) {
+        std::cerr &lt;&lt; "Failed to open file\n";
+        return 1;
+    }
+
+    fout &lt;&lt; "Hello, World!\n";
+    fout &lt;&lt; "The answer is: " &lt;&lt; 42 &lt;&lt; "\n";
+    fout.close();
+
+    // Read from a file
+    std::ifstream fin("output.txt");
+    if (!fin) {
+        std::cerr &lt;&lt; "Failed to open file\n";
+        return 1;
+    }
+
+    std::string line;
+    while (std::getline(fin, line)) {
+        std::cout &lt;&lt; "Read: " &lt;&lt; line &lt;&lt; "\n";
+    }
+    fin.close();
+
+    // Read and write (bidirectional)
+    std::fstream fio("data.txt", std::ios::in | std::ios::out | std::ios::trunc);
+    fio &lt;&lt; "Initial data\n";
+    fio.seekg(0);  // Go back to beginning
+    std::getline(fio, line);
+    std::cout &lt;&lt; "Read back: " &lt;&lt; line &lt;&lt; "\n";
+}
+</code></pre>
+      <p>
+        Common file open modes:
+      </p>
+      <ul>
+        <li><code>std::ios::in</code> &mdash; open for reading</li>
+        <li><code>std::ios::out</code> &mdash; open for writing</li>
+        <li><code>std::ios::app</code> &mdash; append to end</li>
+        <li><code>std::ios::ate</code> &mdash; seek to end after opening</li>
+        <li><code>std::ios::trunc</code> &mdash; truncate file if it exists</li>
+        <li><code>std::ios::binary</code> &mdash; binary mode (no text translation)</li>
+      </ul>
+
+      <h3>String Streams</h3>
+<pre><code class="language-cpp">
+#include &lt;sstream&gt;
+#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+int main() {
+    // Write to a string
+    std::ostringstream oss;
+    oss &lt;&lt; "x = " &lt;&lt; 42 &lt;&lt; ", pi = " &lt;&lt; 3.14159;
+    std::string result = oss.str();
+    std::cout &lt;&lt; "Built string: " &lt;&lt; result &lt;&lt; "\n";
+
+    // Read from a string
+    std::istringstream iss("42 3.14 hello");
+    int x;
+    double y;
+    std::string word;
+    iss &gt;&gt; x &gt;&gt; y &gt;&gt; word;
+    std::cout &lt;&lt; "Parsed: " &lt;&lt; x &lt;&lt; ", " &lt;&lt; y &lt;&lt; ", " &lt;&lt; word &lt;&lt; "\n";
+
+    // Bidirectional string stream
+    std::stringstream ss;
+    ss &lt;&lt; "100 200";
+    int a, b;
+    ss &gt;&gt; a &gt;&gt; b;
+    std::cout &lt;&lt; "Sum: " &lt;&lt; (a + b) &lt;&lt; "\n";
+}
+</code></pre>
+
+      <h3>Stream Manipulators</h3>
+<pre><code class="language-cpp">
+#include &lt;iostream&gt;
+#include &lt;iomanip&gt;
+
+int main() {
+    // Formatting
+    std::cout &lt;&lt; std::hex &lt;&lt; 255 &lt;&lt; "\n";           // ff
+    std::cout &lt;&lt; std::oct &lt;&lt; 255 &lt;&lt; "\n";           // 377
+    std::cout &lt;&lt; std::dec &lt;&lt; 255 &lt;&lt; "\n";           // 255
+
+    // Floating-point precision
+    std::cout &lt;&lt; std::fixed &lt;&lt; std::setprecision(2) &lt;&lt; 3.14159 &lt;&lt; "\n";  // 3.14
+    std::cout &lt;&lt; std::scientific &lt;&lt; 3.14159 &lt;&lt; "\n";  // 3.14e+00
+
+    // Width and alignment
+    std::cout &lt;&lt; "[" &lt;&lt; std::setw(10) &lt;&lt; std::left &lt;&lt; "left" &lt;&lt; "]\n";
+    std::cout &lt;&lt; "[" &lt;&lt; std::setw(10) &lt;&lt; std::right &lt;&lt; "right" &lt;&lt; "]\n";
+
+    // Boolean
+    std::cout &lt;&lt; std::boolalpha &lt;&lt; true &lt;&lt; "\n";    // true
+    std::cout &lt;&lt; std::noboolalpha &lt;&lt; true &lt;&lt; "\n";  // 1
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Appendices</h2>
+      <p>
+        For complete C++ iostream and iomanip references, see:
+      </p>
+      <ul>
+        <li><a href="01.cppreference/">Ch11.12.1: Complete C++ I/O Reference</a></li>
+        <li><a href="02.iomanip/">Ch11.12.2: Complete &lt;iomanip&gt; Reference</a></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <code>::fast_io::filebuf_file</code> owns a <code>std::basic_filebuf*</code> with RAII
+          semantics.
+        </li>
+        <li>
+          <code>::fast_io::filebuf_io_observer</code> is a non-owning view over an existing
+          <code>std::basic_filebuf*</code>, perfect for wrapping an <code>fstream</code>&rsquo;s
+          <code>rdbuf()</code>.
+        </li>
+        <li>
+          Only narrow (<code>filebuf_file</code>) and wide (<code>wfilebuf_file</code>) variants
+          exist, because the C++ standard library does not provide <code>basic_filebuf</code> for
+          other character types.
+        </li>
+        <li>
+          <strong>Sockets are just files.</strong> On POSIX systems, you can wrap a socket in a
+          <code>filebuf_file</code> and use <code>fstream</code> to read/write it. C++&rsquo;s
+          artificial separation of files and sockets (e.g., Boost.Asio vs fstream) violates the
+          POSIX philosophy.
+        </li>
+        <li>
+          <strong>C++ iostream has fundamental design flaws:</strong> pointer confusion (security
+          issues), not thread-safe, not exception-safe, stateful manipulators that corrupt stream
+          state, locale-dependent output, and poor performance. <code>fast_io</code> fixes all of
+          these.
+        </li>
+        <li>
+          <strong>fast_io&rsquo;s manipulators are stateless.</strong> Unlike <code>std::hex</code>
+          which changes the stream state, <code>::fast_io::mnp::hex(value)</code> applies only to
+          that value. No state to restore, no bugs.
+        </li>
+        <li>
+          <strong>Use fast_io internally for fstream implementations.</strong> If you need to
+          maintain compatibility with <code>fstream</code>, use
+          <code>::fast_io::filebuf_io_observer</code> internally. The performance cost is minimal,
+          and you get the benefits of <code>fast_io</code>&rsquo;s efficient syscall layer.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/11.io/11.cstyle/" class="prev-button">&larr; Ch11.11: C-Style I/O</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/11.io/13.posix/" class="next-button">Ch11.13: POSIX &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

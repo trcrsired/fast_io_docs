@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch13.5: Encapsulation - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch13.5: Encapsulation: Keeping the Invariant True</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>1. An Invariant Is a Sentence That Is Always True</h2>
+
+      <p>
+        <em>&ldquo;The balance of an account is never negative.&rdquo;</em> That
+        sentence is the whole reason the class exists. If it is true, every function
+        that receives an account may assume it and stop checking. If it is false, every
+        function that receives an account must defend itself, forever.
+      </p>
+
+      <p>
+        <strong>Encapsulation</strong> is the technique that makes the sentence true by
+        construction: the data member is private, so the only code in the entire program
+        that can write to it is the code you wrote inside the class &mdash; and that
+        code checks the sentence before every write.
+      </p>
+
+      <p>
+        Compare the two versions of the same idea. With a public member, the invariant
+        is a comment that anything anywhere can violate:
+      </p>
+
+      <pre><code class="language-cpp">
+struct account
+{
+	::std::int_least64_t balance;   // "never negative" — but nothing enforces it
+};
+
+account a{100};
+a.balance = -1000;                   // compiles; the sentence is now false
+</code></pre>
+
+      <p>
+        With a private member and a checked interface, every write goes through code
+        that refuses to make the sentence false. The check cannot be forgotten by a
+        caller, because the caller cannot reach the data:
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+using namespace ::fast_io::io;
+
+class account
+{
+public:
+	explicit account(::std::int_least64_t opening) throws : balance_{opening}
+	{
+		if (opening &lt; 0)
+		{
+			throw throws ::std::errc::invalid_argument;
+		}
+	}
+
+	::std::int_least64_t balance() const noexcept
+	{
+		return balance_;
+	}
+
+	void deposit(::std::int_least64_t amount) throws
+	{
+		if (amount &lt;= 0)
+		{
+			throw throws ::std::errc::invalid_argument;
+		}
+		balance_ += amount;
+	}
+
+	void withdraw(::std::int_least64_t amount) throws
+	{
+		if (amount &lt;= 0 || amount &gt; balance_)
+		{
+			throw throws ::std::errc::invalid_argument;
+		}
+		balance_ -= amount;
+	}
+
+private:
+	::std::int_least64_t balance_{}; // never negative, always
+};
+
+int main()
+{
+	try
+	{
+		account a{100};
+		println("balance: ", a.balance());
+
+		a.deposit(50);
+		println("balance: ", a.balance());
+
+		try
+		{
+			a.withdraw(1000); // more than the balance
+		}
+		catch throws (::std::error e)
+		{
+			print("withdraw refused: ", e, "\n");
+		}
+		println("balance: ", a.balance());
+
+		account bad{-1}; // refused by the constructor
+		println("never reached: ", bad.balance());
+	}
+	catch throws (::std::error e)
+	{
+		print("account rejected: ", e, "\n");
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+balance: 100
+balance: 150
+withdraw refused: [posix](22)Invalid argument
+balance: 150
+account rejected: [posix](22)Invalid argument
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. Reading the Example</h2>
+
+      <ul>
+        <li>
+          <strong>The constructor establishes the invariant.</strong> Every account
+          begins its life by passing the check, and there is no other way to build one.
+          This is the difference between an object and a variable that happens to have
+          the right type.
+        </li>
+        <li>
+          <strong>Every modifier preserves it.</strong> <code>deposit</code> refuses
+          non-positive amounts, <code>withdraw</code> refuses overdrafts. Neither
+          function has to re-check anything the constructor already guaranteed.
+        </li>
+        <li>
+          <strong>Failure is reported, not hidden.</strong> A refused operation throws
+          <code>::std::errc::invalid_argument</code>, so the caller learns about it at
+          the exact moment it happens, with the caller&rsquo;s own context in hand
+          (<a href="/zhcn/docs/03.statements/16.herbceptions/">Ch3.16</a>). The alternative
+          &mdash; silently clamping to zero, or setting a flag somebody may read later
+          &mdash; turns a bug into a mysterious number.
+        </li>
+        <li>
+          <strong>The refusal leaves the object untouched.</strong> The check happens
+          <em>before</em> the write, which is why the balance is still
+          <code>150</code> after the failed withdrawal. Write every modifier in that
+          order: validate, then modify.
+        </li>
+      </ul>
+
+      <div class="important">
+        <strong>Constructor failures and operation failures use the same mechanism.</strong>
+        <code>account{-1}</code> and <code>a.withdraw(1000)</code> both throw
+        <code>::std::errc::invalid_argument</code>, both are caught with
+        <code>catch throws (::std::error e)</code>, both cost nothing on the path where
+        nothing goes wrong. There is no separate &ldquo;constructor error&rdquo; concept
+        to learn.
+      </div>
+    </section>
+
+    <section>
+      <h2>3. The Payoff: You May Rewrite the Inside</h2>
+
+      <p>
+        The interface of <code>account</code> is four names:
+        <code>account(...)</code>, <code>balance()</code>, <code>deposit(...)</code>,
+        <code>withdraw(...)</code>. Nothing outside the class knows how the balance is
+        stored. So all of these are private decisions you can make later without
+        touching a single line of calling code:
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>You decide</th>
+            <th>What changes outside</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Store cents in an <code>::std::int_least64_t</code> instead of whole
+              units.</td>
+            <td>Nothing. The modifiers and the accessor absorb the conversion.</td>
+          </tr>
+          <tr>
+            <td>Keep a history of transactions and compute the balance from it.</td>
+            <td>Nothing. Same four names, different data members.</td>
+          </tr>
+          <tr>
+            <td>Add a currency field, an owner, an interest rate.</td>
+            <td>Nothing, as long as the constructor still accepts what it used to.</td>
+          </tr>
+          <tr>
+            <td>Add <code>transfer_to(account &amp;, amount)</code> that keeps both
+              sides consistent.</td>
+            <td>Nothing. It is a new name, and the invariant is still enforced in one
+              place.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        With public data members, every one of those decisions is a breaking change:
+        every line of code that wrote <code>a.balance</code> or read it must be found
+        and rewritten, and no compiler will tell you which lines those were if the
+        member stays but changes meaning.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Accessors: Give Out Values, Not the Storage</h2>
+
+      <p>
+        An accessor is only worth writing when it hands out something the caller
+        cannot get otherwise. And what it hands out matters more than whether it
+        exists:
+      </p>
+
+      <ul>
+        <li>
+          <strong>By value is the default</strong> &mdash;
+          <code>::std::int_least64_t balance() const noexcept</code> returns the number
+          itself, as a value. The caller cannot use it to change the account.
+        </li>
+        <li>
+          <strong><code>const &amp;</code></strong> is for members that are expensive to
+          hand over by value, like <code>::fast_io::string</code>. It still hands out no writable
+          access: <code>::fast_io::string const &amp;name() const noexcept</code>.
+        </li>
+        <li>
+          <strong>A non-<code>const</code> reference is a hole in the wall.</strong>
+          <code>::std::int_least64_t &amp;balance() noexcept</code> returns the storage
+          itself, so <code>a.balance() = -1000;</code> is legal again, and the invariant
+          is gone. Do not write this accessor. If a caller genuinely needs to modify the
+          value, give them a member function that checks
+          (<code>a.deposit(1000)</code>).
+        </li>
+      </ul>
+
+      <div class="warning">
+        <strong>Encapsulation is not &ldquo;a private field plus a getter and a
+          setter&rdquo;.</strong>
+        A private <code>balance_</code> with <code>balance()</code> and
+        <code>set_balance(v)</code> that accepts anything is exactly as unprotected as
+        a public field, only longer. The wall is worth building when the functions
+        behind it <em>do something</em>: check, convert, count, log, refuse. Otherwise
+        you have added ceremony and kept the bug.
+      </div>
+
+      <div class="note">
+        <strong>Where do you put the check?</strong> In the constructors and in the
+        modifiers &mdash; nowhere else. If reading the object could fail, the design is
+        wrong: an object that exists should be readable and usable without further
+        validation. That is what &ldquo;the invariant is always true&rdquo; means.
+      </div>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/13.class/04.access/" class="prev-button">&larr; Ch13.4: Access Control</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/13.class/06.constructors/" class="next-button">Ch13.6: Constructors &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

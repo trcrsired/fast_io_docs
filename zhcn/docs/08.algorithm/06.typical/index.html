@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch8.6: Typical Algorithms - C++ Tutorial</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch8.6: Typical Algorithms</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Overview</h2>
+
+      <p>
+        The ranges library provides many algorithms for everyday tasks:
+        searching, counting, transforming, and removing elements. This chapter
+        introduces the ones you will use most often.
+      </p>
+
+      <p>
+        You will learn:
+      </p>
+
+      <ul>
+        <li>how to find elements</li>
+        <li>how to count elements</li>
+        <li>how to transform elements</li>
+        <li>how to remove elements</li>
+        <li>how projections interact with these algorithms</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. Finding elements</h2>
+
+      <p>
+        <code>std::ranges::find</code> searches for a specific value.
+      </p>
+
+<pre><code class="language-cpp">
+::fast_io::vector&lt;int&gt; v{3, 1, 4, 1, 5};
+
+auto it = ::std::ranges::find(v, 4);
+
+if (it != v.end()) {
+    print("found: ", *it, "\n");
+}
+</code></pre>
+
+      <p>
+        If the value is not found, the iterator equals <code>v.end()</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Finding with a condition</h2>
+
+      <p>
+        <code>find_if</code> searches using a predicate:
+      </p>
+
+<pre><code class="language-cpp">
+auto it = ::std::ranges::find_if(v, [](int x) {
+    return x % 2 == 0;   // find first even number
+});
+</code></pre>
+
+      <p>
+        The predicate receives each element and returns <code>true</code> for a match.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Counting elements</h2>
+
+      <p>
+        <code>count</code> counts exact matches:
+      </p>
+
+<pre><code class="language-cpp">
+auto c = ::std::ranges::count(v, 1);
+print("count of 1 = ", c, "\n");
+</code></pre>
+
+      <p>
+        <code>count_if</code> counts by condition:
+      </p>
+
+<pre><code class="language-cpp">
+auto evens = ::std::ranges::count_if(v, [](int x) {
+    return x % 2 == 0;
+});
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. Transforming elements</h2>
+
+      <p>
+        <code>transform</code> applies a function to each element and writes the
+        result to an output range.
+      </p>
+
+<pre><code class="language-cpp">
+::fast_io::vector&lt;int&gt; out(v.size());
+
+::std::ranges::transform(v, out.begin(), [](int x) {
+    return x * 2;
+});
+</code></pre>
+
+      <p>
+        The input is unchanged; the output contains the transformed values.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Removing elements</h2>
+
+      <p>
+        <code>remove</code> and <code>remove_if</code> do not erase elements.
+        They move the “kept” elements to the front and return an iterator to the
+        new logical end.
+      </p>
+
+<pre><code class="language-cpp">
+auto new_end = ::std::ranges::remove(v, 1).begin();
+</code></pre>
+
+      <p>
+        To actually erase elements, call <code>erase</code> on the container:
+      </p>
+
+<pre><code class="language-cpp">
+v.erase(new_end, v.end());
+</code></pre>
+
+      <p>
+        This pattern is known as the “erase–remove idiom.”
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Using projections with typical algorithms</h2>
+
+      <p>
+        Many algorithms accept a projection.  
+        Suppose we have:
+      </p>
+
+<pre><code class="language-cpp">
+struct Item {
+    int key;
+    int value;
+};
+
+::fast_io::vector&lt;Item&gt; items{
+    {3, 100},
+    {1, 200},
+    {2, 300}
+};
+</code></pre>
+
+      <p>
+        We can count how many items have an even <code>key</code>:
+      </p>
+
+<pre><code class="language-cpp">
+auto c = ::std::ranges::count_if(items, [](Item const& x) {
+    return x.key % 2 == 0;
+});
+</code></pre>
+
+      <p>
+        Or use a projection directly:
+      </p>
+
+<pre><code class="language-cpp">
+auto c = ::std::ranges::count_if(items, [](int k) {
+    return k % 2 == 0;
+}, &Item::key);
+</code></pre>
+
+      <p>
+        The projection <code>&Item::key</code> extracts the <code>key</code> member
+        before the predicate sees it.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Where to learn more</h2>
+
+      <p>
+        This chapter introduced the most commonly used algorithms.  
+        The C++ standard library contains many more, and you can browse the
+        complete list at:
+      </p>
+
+      <p>
+        <a href="https://en.cppreference.com/w/cpp/algorithm.html" target="_blank">
+          https://en.cppreference.com/w/cpp/algorithm.html
+        </a>
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+
+      <ul>
+        <li><code>find</code> and <code>find_if</code> search for elements.</li>
+        <li><code>count</code> and <code>count_if</code> count elements.</li>
+        <li><code>transform</code> applies a function to each element.</li>
+        <li><code>remove</code> and <code>remove_if</code> require the erase–remove idiom.</li>
+        <li>Many algorithms accept projections, including <code>&Item::key</code>.</li>
+        <li>cppreference provides the full list of algorithms.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/08.algorithm/05.projections/" class="prev-button">← Ch8.5: Projections</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/08.algorithm/07.numeric/" class="next-button">Ch8.7: numeric →</a>
+    </div>
+
+  </main>
+</body>
+</html>

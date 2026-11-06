@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.8: File Loader (Memory Mapping) - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <main>
+    <h1>Ch11.8: File Loader (Memory Mapping)</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        <code>fast_io</code> provides two file loader types that load an entire file into memory
+        and expose it through a container-like interface. They are move-only, RAII-managed objects
+        that automatically release the underlying memory when they go out of scope.
+      </p>
+      <ul>
+        <li>
+          <code>::fast_io::native_file_loader</code> &mdash; uses memory mapping when available
+          (<code>mmap()</code> on POSIX, <code>CreateFileMapping</code>/<code>MapViewOfFile</code>
+          on Windows). This is a zero-copy approach: the OS maps the file directly into the
+          process's virtual address space. <strong>Important:</strong> On platforms that do not
+          support memory mapping (e.g., WASM, newlib), <code>native_file_loader</code> automatically
+          aliases to <code>allocation_file_loader</code>.
+        </li>
+        <li>
+          <code>::fast_io::allocation_file_loader</code> &mdash; uses <code>malloc()</code> +
+          <code>read()</code> to load the entire file into heap memory. This works on all platforms,
+          including those without memory mapping support.
+        </li>
+      </ul>
+      <p>
+        Both loaders provide the same interface, so you can switch between them depending on
+        platform capabilities without changing the rest of your code. In most cases, you should
+        use <code>native_file_loader</code> and let it automatically choose the best implementation
+        for your platform.
+      </p>
+    </section>
+
+    <section>
+      <h2>Common Interface</h2>
+      <p>
+        Both <code>native_file_loader</code> and <code>allocation_file_loader</code> provide
+        a contiguous-container-like interface:
+      </p>
+      <ul>
+        <li><code>data()</code> &mdash; returns a pointer to the loaded file data.</li>
+        <li><code>size()</code> &mdash; returns the file size in bytes as <code>::std::size_t</code>.</li>
+        <li><code>begin()</code> / <code>end()</code> &mdash; random-access iterators over the file bytes.</li>
+        <li><code>operator[](i)</code> &mdash; access the byte at index <code>i</code>.</li>
+        <li><code>empty()</code> &mdash; returns <code>true</code> if the file has zero size.</li>
+      </ul>
+      <p>
+        They are also directly printable: you can pass a loader to <code>print()</code> or
+        <code>println()</code> and the file contents will be written to the output.
+      </p>
+    </section>
+
+    <section>
+      <h2>native_file_loader</h2>
+      <p>
+        <code>::fast_io::native_file_loader</code> uses the OS memory mapping facilities.
+        On POSIX systems, it calls <code>mmap()</code>; on Windows NT, it uses
+        <code>NtCreateSection</code> and <code>NtMapViewOfSection</code>. The file is not
+        read into a separate buffer &mdash; instead, the file contents are mapped directly
+        into virtual memory. Accesses to the mapped region are handled by the OS page fault
+        mechanism, giving zero-copy semantics.
+      </p>
+      <p>
+        <strong>Important:</strong> The memory mapping uses <strong>copy-on-write (COW)</strong>
+        pages by default. This means:
+      </p>
+      <ul>
+        <li>You <strong>can</strong> modify the bytes in the mapped memory.</li>
+        <li>These modifications <strong>do not</strong> change the actual file on disk.</li>
+        <li>You <strong>cannot</strong> change the size of the file through the mapping.</li>
+        <li>The modifications are local to your process's virtual memory and are lost when the loader is destroyed.</li>
+      </ul>
+      <p>
+        If you need modifications to be written back to disk, you must explicitly write them
+        using file I/O operations. If you need to modify the file and write it back, use
+        <code>allocation_file_loader</code> instead (see below).
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+using namespace fast_io::io;
+
+int main(int argc, char** argv)
+{
+    if (argc &lt; 2)
+    {
+        perr("Usage: ", ::fast_io::mnp::os_c_str(*argv), " &lt;file&gt;\n");
+        return 1;
+    }
+
+    // Memory-map the entire file
+    ::fast_io::native_file_loader loader(::fast_io::mnp::os_c_str(argv[1]));
+
+    // Print the entire file contents directly
+    print(loader);
+    println("File size: ", loader.size(), " bytes");
+
+    // Iterate over the bytes
+    ::std::size_t newline_count{};
+    for (auto ch : loader)
+    {
+        if (ch == u8'\n')
+        {
+            ++newline_count;
+        }
+    }
+    println("Newline count: ", newline_count);
+
+    // Random access via operator[]
+    if (loader.size() > 0zu)
+    {
+        println("First byte: ", loader[0]);
+    }
+
+    // Use with algorithms via begin()/end()
+    auto it = ::std::find(loader.begin(), loader.end(), u8'X');
+    if (it != loader.end())
+    {
+        println("Found 'X' at offset: ", static_cast<::std::size_t>(it - loader.begin()));
+    }
+}
+      </code></pre>
+      <p>
+        The loader is move-only. You can transfer ownership with <code>::std::move</code>, but
+        you cannot copy it. When the loader is destroyed, the memory mapping is released
+        automatically.
+      </p>
+    </section>
+
+    <section>
+      <h2>allocation_file_loader</h2>
+      <p>
+        <code>::fast_io::allocation_file_loader</code> provides the same interface, but uses
+        <code>malloc()</code> to allocate a buffer and <code>read()</code> to fill it. This
+        is used on platforms that do not support memory mapping, such as WASM (WebAssembly) or
+        environments with newlib. It is also useful when you need the file data to reside in
+        heap memory that you control.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+using namespace fast_io::io;
+
+int main(int argc, char** argv)
+{
+    if (argc &lt; 2)
+    {
+        perr("Usage: ", ::fast_io::mnp::os_c_str(*argv), " &lt;file&gt;\n");
+        return 1;
+    }
+
+    // Load file into a heap-allocated buffer
+    ::fast_io::allocation_file_loader loader(::fast_io::mnp::os_c_str(argv[1]));
+
+    // Same container-like interface
+    println("File size: ", loader.size(), " bytes");
+    // Print file contents
+    print(loader);
+
+    // Access individual bytes
+    for (::std::size_t i{}; i &lt; loader.size(); ++i)
+    {
+        if (loader[i] == u8'\n')
+        {
+            println("Newline at offset: ", i);
+        }
+    }
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Choosing Between the Two</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th><code>native_file_loader</code></th>
+            <th><code>allocation_file_loader</code></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Underlying mechanism</td>
+            <td><code>mmap()</code> / <code>MapViewOfFile</code> (or <code>malloc()</code> + <code>read()</code> on platforms without memory mapping)</td>
+            <td><code>malloc()</code> + <code>read()</code></td>
+          </tr>
+          <tr>
+            <td>Copy into user buffer</td>
+            <td>No (zero-copy) on platforms with memory mapping; Yes on others</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td>Platform support</td>
+            <td>All platforms (aliases to <code>allocation_file_loader</code> when memory mapping unavailable)</td>
+            <td>All platforms</td>
+          </tr>
+          <tr>
+            <td>Works on WASM / newlib</td>
+            <td>Yes (aliases to <code>allocation_file_loader</code>)</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td>Interface</td>
+            <td>data(), size(), begin(), end(), operator[]</td>
+            <td>data(), size(), begin(), end(), operator[]</td>
+          </tr>
+          <tr>
+            <td>Move-only, RAII</td>
+            <td>Yes</td>
+            <td>Yes</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        If your target platform supports memory mapping, prefer <code>native_file_loader</code>
+        for best performance. If you need maximum portability (e.g. cross-compiling to WASM),
+        use <code>allocation_file_loader</code>.
+      </p>
+      <p>
+        <strong>Important:</strong> If you need to load a file, massively modify its contents in memory,
+        or even recreate the entire file, use <code>allocation_file_loader</code> instead of
+        <code>native_file_loader</code>. The memory-mapped loader keeps the file open until it is destroyed,
+        which prevents you from reopening the file for writing or recreating it. <code>allocation_file_loader</code>
+        reads the entire file into heap memory and closes it immediately, allowing you to safely modify
+        the data and write it back (or write completely different content) to the same file.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    // Load file into heap memory (file is closed after loading)
+    ::fast_io::allocation_file_loader loader(u8"data.txt");
+
+    // Modify the contents in memory
+    for (auto&amp; ch : loader)
+    {
+        if (ch == u8'a') ch = u8'A';
+    }
+
+    // Now we can safely write back to the same file
+    ::fast_io::obuf_file obf(u8"data.txt");
+    print(obf, loader);
+}
+      </code></pre>
+      <p>
+        If you had used <code>native_file_loader</code> in the example above, the file would remain
+        memory-mapped and locked, causing the <code>obuf_file</code> construction to fail or the write
+        to corrupt the mapping.
+      </p>
+    </section>
+
+    <section>
+      <h2>Move Semantics and RAII</h2>
+      <p>
+        Both loaders are move-only types. Their destructors release the underlying resource
+        (unmap the memory or free the buffer). You can transfer ownership via <code>::std::move</code>:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;utility&gt;
+
+using namespace fast_io::io;
+
+::fast_io::native_file_loader load_file(char const* path)
+{
+    ::fast_io::native_file_loader loader(path);
+    println("Loaded file of size: ", loader.size());
+    return loader; // NRVO or move
+}
+
+int main()
+{
+    auto loader = load_file("example.txt");
+
+    // loader now owns the mapped file
+    println("Size in main: ", loader.size());
+    print(loader);
+
+    // Move into another variable
+    auto loader2 = ::std::move(loader);
+    // loader is now in a moved-from state; loader2 owns the data
+
+    // When loader2 goes out of scope, the mapping is released
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Loading Files Relative to a Directory</h2>
+      <p>
+        You can combine <code>::fast_io::dir_file</code> with a file loader to load files
+        relative to a directory. Use <code>drt(ent)</code> on a directory entry to get a
+        (fd, name) pair that the loader can open directly.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+
+    ::fast_io::dir_file df(u8"src");
+
+    // Iterate over all files recursively
+    for (auto const&amp; ent : recursive(at(df)))
+    {
+        if (type(ent) != ::fast_io::file_type::regular) continue;
+
+        // Load only .cpp files
+        ::std::u8string_view ext{u8extension(ent)};
+        if (ext != u8".cpp") continue;
+
+        // drt(ent) gives the (fd, name) pair to open this entry
+        ::fast_io::native_file_loader loader(drt(ent));
+        ::std::size_t lines{};
+        for (auto ch : loader)
+        {
+            if (ch == u8'\n') ++lines;
+        }
+        print(::fast_io::mnp::code_cvt(u8filename(ent)), ": ", lines, " lines\n");
+    }
+}
+      </code></pre>
+      <p>
+        This pattern is efficient because <code>drt(ent)</code> reuses the directory&rsquo;s
+        file descriptor &mdash; no extra <code>open()</code> call is needed to resolve the path.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          <strong>Prefer file loaders over random access I/O.</strong> When you need to read
+          entire files or perform many random accesses, use <code>::fast_io::native_file_loader</code>
+          (or <code>allocation_file_loader</code>) instead of seek operations. File loaders
+          are simpler, faster, and less error-prone.
+        </li>
+        <li>
+          <strong>Seek is hard to use and slow.</strong> The seek operations from
+          <a href="/zhcn/docs/11.io/07.randomaccess/">Ch11.7</a> require you to track file positions
+          manually, handle partial reads/writes, and issue multiple syscalls. For most use cases,
+          loading the entire file into memory is more efficient.
+        </li>
+        <li>
+          <strong>Positional I/O (pwrite/pread) is also complex.</strong> While positional I/O
+          avoids changing the file position, it still requires managing offsets and buffer pointers
+          manually. File loaders give you a clean container interface with <code>operator[]</code>,
+          <code>begin()</code>/<code>end()</code>, and algorithms from the standard library.
+        </li>
+        <li>
+          <strong>File loaders are not always possible.</strong> For streams that don&rsquo;t have
+          a fixed size (network sockets, pipes, terminals), you cannot use a file loader. In those
+          cases, fall back to buffered I/O (<code>ibuf_file</code>, <code>obuf_file</code>) or
+          unbuffered I/O (<code>native_file</code>) as appropriate.
+        </li>
+        <li>
+          <strong>Use <code>native_file_loader</code> when available.</strong> It provides zero-copy
+          access via memory mapping. On platforms without memory mapping support, it automatically
+          aliases to <code>allocation_file_loader</code>. Note that the mapping uses copy-on-write
+          pages: you can modify bytes in memory, but these changes don&rsquo;t affect the file on
+          disk and are lost when the loader is destroyed.
+        </li>
+        <li>
+          <strong>Use <code>allocation_file_loader</code> for read-modify-write cycles or file recreation.</strong>
+          If you need to load a file, massively modify its contents, or recreate the file entirely,
+          use <code>allocation_file_loader</code>. The <code>native_file_loader</code> keeps the file
+          memory-mapped and locked, preventing you from writing to or recreating it.
+          <code>allocation_file_loader</code> reads the file into heap memory and closes it immediately,
+          allowing you to safely modify the data and write it back or create a completely new file.
+        </li>
+        <li>
+          <strong>Combine with <code>dir_file</code> for directory-relative loading.</strong> Use
+          <code>drt(ent)</code> on directory entries to load files efficiently without extra path
+          resolution.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/11.io/07.randomaccess/" class="prev-button">&larr; Ch11.7: Random Access I/O</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/11.io/09.stringrelation/" class="next-button">Ch11.9: String Relation &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

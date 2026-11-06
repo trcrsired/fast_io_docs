@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch14.5: The Move Constructor: Taking the Resource - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch14.5: The Move Constructor: Taking the Resource</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+    <section>
+      <h2>1. What Moving Means for an Owner</h2>
+
+
+      <p>
+        Copying has to produce a second descriptor, because both objects survive. Moving does
+        not: the source is about to be destroyed, so the destination can simply
+        <strong>take the descriptor</strong> and leave the source empty.
+      </p>
+      <p>
+        No system call, no second entry in the kernel's table, no failure: two
+        <code>int</code> writes. That is the entire reason the language added
+        <code>&amp;&amp;</code> parameters.
+      </p>
+      <pre><code class="language-cpp">
+	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
+	{
+		other.fd_ = -1; // the source no longer owns anything
+	}
+</code></pre>
+      <p>
+        Both lines matter. Without the second one there would be two owners of the descriptor:
+        the destination would close it, and then the source's destructor would close the same
+        number again &mdash; possibly after it had been handed to an unrelated file.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. If You Do Not Write It, <code>std::move</code> Copies</h2>
+
+
+      <p>
+        This is the trap that catches everybody once. <code>::std::move</code> moves nothing;
+        it is a cast to an rvalue reference, and all it does is make the move constructor
+        <em>eligible</em>. If there is no move constructor, the copy constructor is used
+        instead, and it is not an error:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+using namespace ::fast_io::io;
+
+class only_copy
+{
+	int fd_{-1};
+
+public:
+	explicit only_copy(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	only_copy(only_copy const &amp;other) throws : fd_{::dup(other.fd_)}
+	{
+		if (fd_ == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+	}
+
+	~only_copy() noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+	}
+
+	[[nodiscard]] bool is_open() const noexcept
+	{
+		return fd_ != -1;
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+};
+
+int main()
+{
+	{ // make sure the example file exists
+		::std::int_least32_t fd{::open("demo.txt", O_WRONLY | O_CREAT, 0644)};
+		::close(fd);
+	}
+
+	only_copy a{"demo.txt", O_RDONLY};
+	println("a = ", a.native_handle());
+
+	only_copy b{::std::move(a)}; // no move constructor: this calls the copy constructor
+	println("b = ", b.native_handle(), ", a = ", a.native_handle(), ", a.is_open() = ", a.is_open());
+}
+</code></pre>
+      <pre><code class="language-text">
+a = 3
+b = 4, a = 3, a.is_open() = 1
+</code></pre>
+      <p>
+        <code>a</code> still owns <code>3</code> and <code>b</code> owns a fresh duplicate
+        <code>4</code>. The move silently became a copy &mdash; a wasted system call for a file,
+        and a wasted deep copy for anything bigger.
+      </p>
+            <div class="important">
+        <strong>The compiler generates a move constructor only if you wrote none of: a copy
+          constructor, a copy assignment, a move assignment, or a destructor.</strong>
+        Our class writes all of them, so all of them are ours to write. This is also why
+        &ldquo;write one of the five, get all five&rdquo; is not folklore: it is the rule that
+        decides what the compiler is willing to generate.
+      
+      </div>
+
+    </section>
+    <section>
+      <h2>3. Why <code>noexcept</code> Is Not Optional</h2>
+
+
+      <p>
+        A move constructor is <code>noexcept</code> in our class, and in every serious class
+        that owns a resource. It is not politeness. Containers reallocate by moving their
+        elements, and they can only do that if a move cannot fail halfway through the
+        reallocation. fast_io's containers check this at compile time:
+      </p>
+      <pre><code class="language-text">
+error: static assertion failed: vector element types must be nothrow move constructible
+       or trivially relocatable
+</code></pre>
+      <p>
+        Change the move constructor's <code>noexcept</code> to <code>throws</code> and that is
+        the diagnostic you get for
+        <code>::fast_io::vector&lt;my_posix_file&gt;</code>. The container is not being
+        pedantic; it has no way to put the elements back if the fifth move of a reallocation
+        fails.
+      </p>
+      <p>
+        With herbceptions the promise is even stronger than usual. A <code>noexcept</code>
+        function cannot call a <code>throws</code> function unless it handles the failure
+        itself:
+      </p>
+      <pre><code class="language-text">
+error: call to a 'throws' or 'return_failure{E}' function must be handled by an enclosing
+       'try { } catch throws', or the calling function needs a herbceptions specification
+       so the error can propagate
+</code></pre>
+      <p>
+        So <code>noexcept</code> is not a promise you can break at run time; it is a claim the
+        compiler verifies by looking at every call in the body. A move constructor could not
+        call <code>::dup</code> even if you wanted it to.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. The Source Is Empty, Not Dead</h2>
+
+
+      <p>
+        After the move, <code>other.fd_</code> is <code>-1</code>, and that is a
+        <strong>valid state</strong> of the class, not a broken one:
+      </p>
+      <ul>
+        <li>its destructor runs and closes nothing;</li>
+        <li><code>is_open()</code> returns <code>false</code>;</li>
+        <li>assigning a new file to it makes it open again;</li>
+        <li>reading, writing or copying it throws
+          <code>::std::errc::bad_file_descriptor</code>
+          (<a href="/zhcn/docs/14.fiverules/10.movedfrom/">Ch14.10</a>).</li>
+      </ul>
+      <p>
+        That state is why the class has a default constructor and the <code>-1</code> member
+        initializer in the first place: a moved-from object must be able to live out its
+        lifetime without doing anything.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. In Use</h2>
+
+
+      <p>
+        The program moves a file into a new object, then puts two of them in a
+        <code>::fast_io::vector</code>, which needs the <code>noexcept</code> move to accept
+        the type at all:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+using namespace ::fast_io::io;
+
+class my_posix_file
+{
+	int fd_{-1};
+
+public:
+	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
+	{
+		if (fd_ == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+	}
+
+	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
+	{
+		other.fd_ = -1;
+	}
+
+	~my_posix_file() noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+	}
+
+	[[nodiscard]] bool is_open() const noexcept
+	{
+		return fd_ != -1;
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+};
+
+static_assert(::std::is_nothrow_move_constructible_v&lt;my_posix_file&gt;);
+static_assert(::std::is_copy_constructible_v&lt;my_posix_file&gt;);
+static_assert(!::std::is_nothrow_copy_constructible_v&lt;my_posix_file&gt;);
+static_assert(::std::is_nothrow_destructible_v&lt;my_posix_file&gt;);
+
+int main()
+{
+	{ // make sure the example file exists
+		::std::int_least32_t fd{::open("demo.txt", O_WRONLY | O_CREAT, 0644)};
+		::close(fd);
+	}
+
+	my_posix_file a{"demo.txt", O_RDONLY};
+	println("a = ", a.native_handle());
+
+	my_posix_file b{::std::move(a)};
+	println("b = ", b.native_handle(), ", a = ", a.native_handle(), ", a.is_open() = ", a.is_open());
+
+	::fast_io::vector&lt;my_posix_file&gt; files;
+	files.push_back(my_posix_file{"demo.txt", O_RDONLY});
+	files.push_back(my_posix_file{"demo.txt", O_RDONLY});
+	println("the vector holds ", files.size(), " files:");
+	for (my_posix_file const &amp;f : files)
+	{
+		println("  fd = ", f.native_handle());
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+a = 3
+b = 3, a = -1, a.is_open() = 0
+the vector holds 2 files:
+  fd = 4
+  fd = 5
+</code></pre>
+      <p>
+        The <code>static_assert</code>s at the top are the chapter in five lines: the type is
+        nothrow-move-constructible, copy-constructible, <em>not</em> nothrow-copy-constructible
+        (copying a file genuinely can fail), and nothrow-destructible. Read them as the class's
+        contract; the rest of the program is a demonstration that the contract holds.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. Moving From a <code>const</code> Object Copies</h2>
+
+
+      <p>
+        A move constructor takes <code>T&amp;&amp;</code>, which cannot bind to a
+        <code>const</code> object: taking the descriptor out would modify it. So
+        <code>my_posix_file const &amp;</code> arguments are copied, and
+        <code>::std::move</code> on a <code>const</code> object quietly does nothing:
+      </p>
+      <pre><code class="language-cpp">
+my_posix_file const c{"demo.txt", O_RDONLY};
+my_posix_file d{::std::move(c)};   // calls the copy constructor
+// c is still open
+</code></pre>
+      <p>
+        It is correct, and it is also why taking parameters by
+        <code>my_posix_file</code> (by value) and then <code>::std::move</code>-ing them into
+        members works: the copy happens at the call, the move happens in the constructor.
+      </p>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/14.fiverules/04.copyassignment/" class="prev-button">&larr; Ch14.4: Copy Assignment</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/14.fiverules/06.moveassignment/" class="next-button">Ch14.6: Move Assignment &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

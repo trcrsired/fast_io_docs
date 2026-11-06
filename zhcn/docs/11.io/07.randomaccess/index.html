@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.7: Random Access I/O - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <main>
+    <h1>Ch11.7: Random Access I/O</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Seek Operations</h2>
+      <p>
+        <code>fast_io</code> provides seek operations in the <code>::fast_io::operations</code>
+        namespace to move the file position. The operation you use depends on the direction of
+        the file:
+      </p>
+      <ul>
+        <li><code>::fast_io::operations::input_stream_seek</code> &mdash; for input files (<code>ibuf_file</code>).</li>
+        <li><code>::fast_io::operations::output_stream_seek</code> &mdash; for output files (<code>obuf_file</code>).</li>
+        <li><code>::fast_io::operations::io_stream_seek</code> &mdash; for bidirectional files (<code>iobuf_file</code>).</li>
+      </ul>
+      <p>
+        There are also <code>_rewind</code> variants to seek back to the beginning, and
+        <code>_seek_bytes</code> variants that take a byte offset directly.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+    ::fast_io::obuf_file obf(u8"seekable.txt", ::fast_io::open_mode::out);
+
+    // Write some data
+    println(obf, "Hello, World!");
+
+    // Seek back to the beginning (output_stream_rewind)
+    ::fast_io::operations::output_stream_rewind(obf);
+
+    // Or seek to a specific offset
+    ::fast_io::operations::output_stream_seek(obf, 0);
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Positional I/O (pwrite/pread)</h2>
+      <p>
+        Positional I/O lets you read from or write to a specific offset in a file
+        <strong>without changing</strong> the file's current position. This is the
+        equivalent of POSIX <code>pread(2)</code> and <code>pwrite(2)</code>.
+      </p>
+      <p>
+        In <code>fast_io</code>, use the operations namespace:
+      </p>
+      <ul>
+        <li><code>::fast_io::operations::pwrite_some</code> / <code>pwrite_all</code> &mdash; positional write.</li>
+        <li><code>::fast_io::operations::pread_some</code> / <code>pread_all</code> &mdash; positional read.</li>
+        <li><code>::fast_io::operations::pwrite_some_bytes</code> / <code>pwrite_all_bytes</code> &mdash; positional write for <code>::std::byte</code>.</li>
+        <li><code>::fast_io::operations::pread_some_bytes</code> / <code>pread_all_bytes</code> &mdash; positional read for <code>::std::byte</code>.</li>
+      </ul>
+      <p>
+        The file position remains unchanged after the call.
+      </p>
+    </section>
+
+    <section>
+      <h2>Using pwrite for Random Writes</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+    ::fast_io::obuf_file obf(u8"positional_write.txt", ::fast_io::open_mode::out);
+
+    // Write at specific offsets without disturbing file position
+    ::fast_io::operations::pwrite_all(obf, "AAAA", 0uz);
+    ::fast_io::operations::pwrite_all(obf, "BBBB", 100uz);
+    ::fast_io::operations::pwrite_all(obf, "CCCC", 200uz);
+}
+      </code></pre>
+      <p>
+        After this program runs, the file contains <code>"AAAA"</code> at offset 0,
+        <code>"BBBB"</code> at offset 100, and <code>"CCCC"</code> at offset 200.
+        The file position is unaffected by the <code>pwrite</code> calls.
+      </p>
+    </section>
+
+    <section>
+      <h2>Using pread for Random Reads</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::iomnp;
+    ::fast_io::ibuf_file ibf(u8"positional_write.txt", ::fast_io::open_mode::in);
+
+    char buf1[5]{};
+    char buf2[5]{};
+
+    // Read from specific offsets
+    ::fast_io::operations::pread_all(ibf, ::fast_io::as_bytes(::fast_io::span{buf1, 4uz}), 0uz);
+    ::fast_io::operations::pread_all(ibf, ::fast_io::as_bytes(::fast_io::span{buf2, 4uz}), 100uz);
+
+    println("At offset 0:   ", ::fast_io::mnp::os_c_str(buf1));
+    println("At offset 100: ", ::fast_io::mnp::os_c_str(buf2));
+}
+      </code></pre>
+    </section>
+
+    <section>
+      <h2>Thread Safety</h2>
+      <p>
+        If multiple threads need to write to the same file concurrently, use a lockable
+        file type like <code>::fast_io::obuf_file_lockable</code>. Lock it, get the unlocked handle,
+        then use that for better performance. See <a href="/zhcn/docs/11.io/06.mutex/">Ch11.6</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>Use <code>::fast_io::operations::input_stream_seek</code>, <code>output_stream_seek</code>, or <code>io_stream_seek</code> to move the file position.</li>
+        <li>Use <code>::fast_io::operations::pwrite_all</code> for positional writes &mdash; writes at a specific offset without changing the file position.</li>
+        <li>Use <code>::fast_io::operations::pread_all</code> for positional reads.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/11.io/06.mutex/" class="prev-button">&larr; Ch11.6: Mutex I/O</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/11.io/08.fileloader/" class="next-button">Ch11.8: File Loader &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch13.9: Static Member Functions - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch13.9: Static Member Functions</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>1. A Member Function Without an Object</h2>
+
+      <p>
+        A <strong>static member function</strong> is a member function that is not
+        called on an object. It has no <code>this</code>
+        (<a href="/zhcn/docs/13.class/07.this/">Ch13.7</a>), it is called with the class
+        name instead of a variable name, and it can be called even when no object of
+        the class exists:
+      </p>
+
+      <pre><code class="language-cpp">
+::std::size_t n{account::opened()};   // no object involved
+</code></pre>
+
+      <p>
+        Everything else is unchanged: it is inside the class, so it obeys the same
+        access rules &mdash; it may read and write <em>private</em> members, including
+        the private constructors. That combination, &ldquo;outside the object, inside
+        the wall&rdquo;, is what makes it useful.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Static Member Functions Cannot Be <code>const</code></h2>
+
+      <p>
+        <code>const</code> on a member function is a statement about <code>this</code>,
+        and a static member function has no <code>this</code>, so the two cannot be
+        combined:
+      </p>
+
+      <pre><code class="language-text">
+error: static member function 'static int_least32_t counter::instances()'
+       cannot have cv-qualifier
+</code></pre>
+
+      <p>
+        It also cannot name a non-static data member, for the same reason: there is no
+        object, so &ldquo;the member of this object&rdquo; has no meaning. Static
+        members may of course be used &mdash; those belong to the class, which is
+        exactly what a static member function is attached to.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Main Use: A Named Constructor</h2>
+
+      <p>
+        A constructor has one name: the name of the class. If a class can be built in
+        several ways with several different meanings, constructors stop being
+        expressive: <code>account{100}</code> and <code>account{100, 5}</code> do not
+        say what the numbers are. A static member function gives the construction a
+        <strong>name</strong>, and lets you do work before the object exists:
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+#include &lt;cstddef&gt;
+using namespace ::fast_io::io;
+
+class account
+{
+public:
+	// A named constructor: the only way to make an account.
+	static account open(::std::int_least64_t opening) throws
+	{
+		if (opening &lt; 0)
+		{
+			throw throws ::std::errc::invalid_argument;
+		}
+		return account{opening};
+	}
+
+	// No object needed: it reports on the class as a whole.
+	static ::std::size_t opened() noexcept
+	{
+		return next_id_ - 1;
+	}
+
+	::std::int_least64_t balance() const noexcept
+	{
+		return balance_;
+	}
+	::std::size_t id() const noexcept
+	{
+		return id_;
+	}
+
+private:
+	explicit account(::std::int_least64_t opening) noexcept
+		: balance_{opening}, id_{next_id_++}
+	{
+	}
+
+	::std::int_least64_t balance_{};
+	::std::size_t id_{};
+	inline static ::std::size_t next_id_{1};
+};
+
+int main()
+{
+	try
+	{
+		auto a{account::open(100)};
+		auto b{account::open(250)};
+
+		println("a: id = ", a.id(), ", balance = ", a.balance());
+		println("b: id = ", b.id(), ", balance = ", b.balance());
+		println("accounts opened: ", account::opened());
+
+		auto bad{account::open(-5)};
+		println("never reached: ", bad.balance());
+	}
+	catch throws (::std::error e)
+	{
+		print("account::open failed: ", e, "\n");
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+a: id = 1, balance = 100
+b: id = 2, balance = 250
+accounts opened: 2
+account::open failed: [posix](22)Invalid argument
+</code></pre>
+
+      <ul>
+        <li>
+          <strong>The constructor is private.</strong> <code>account</code>&rsquo;s
+          real constructor is <code>private</code>, so <code>account{100}</code> outside
+          the class does not compile. <code>open</code> is the only door, and it is a
+          door that checks.
+        </li>
+        <li>
+          <strong>The name says what is happening.</strong>
+          <code>account::open(100)</code> reads as an action on the class, not as a
+          puzzle about which two numbers went where.
+        </li>
+        <li>
+          <strong>The check happens once, before the object exists.</strong> A failed
+          <code>open(-5)</code> throws before an account is constructed, so there is no
+          moment where a half-built object exists and no &ldquo;is this object
+          valid?&rdquo; flag anywhere. This is the same guarantee as a validating
+          constructor (<a href="/zhcn/docs/13.class/05.encapsulation/">Ch13.5</a>), with a
+          better name.
+        </li>
+        <li>
+          <strong>Several named constructors can coexist</strong> without overloading
+          tricks: <code>open(...)</code>, <code>open_with_overdraft(...)</code>,
+          <code>from_history(...)</code>. Each name tells the reader which question it
+          answers.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>4. When to Write One</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Use a static member function</th>
+            <th>Use an ordinary member function</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>The operation is about the class as a whole: how many exist, what the
+              limits are, how to build one from some other representation.</td>
+            <td>The operation is about one object: deposit, withdraw, balance.</td>
+          </tr>
+          <tr>
+            <td>You need to validate or transform the arguments <em>before</em>
+              constructing an object.</td>
+            <td>The object already exists and you are changing or reading it.</td>
+          </tr>
+          <tr>
+            <td>You must reach private members but have no object to reach them
+              through.</td>
+            <td>You have the object &mdash; that is the normal case.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        <strong>A static member function is a free function with access.</strong>
+        If a helper does not need private members and does not conceptually belong to
+        the class, write it as a free function outside the class. That keeps the class
+        small, and it keeps the helper testable on its own. Conversely, if a helper
+        needs to poke at the private data, <code>friend</code>
+        (<a href="/zhcn/docs/13.class/10.friend/">Ch13.10</a>) is the other way to allow it
+        without making the data public.
+      </div>
+
+      <div class="warning">
+        <strong>A static member function is part of the class&rsquo;s interface.</strong>
+        Once it is after <code>public:</code> it is a name you have promised to keep,
+        exactly like a public member function. Put it there only if callers outside the
+        class really need it; a validation helper that only <code>open</code> uses
+        belongs after <code>private:</code>.
+      </div>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/13.class/08.staticdata/" class="prev-button">&larr; Ch13.8: Static Data Members</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/13.class/10.friend/" class="next-button">Ch13.10: friend &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

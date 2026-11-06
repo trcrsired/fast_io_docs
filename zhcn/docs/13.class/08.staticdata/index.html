@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch13.8: Static Data Members - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch13.8: Static Data Members</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>1. One Variable for the Whole Class</h2>
+
+      <p>
+        A normal data member belongs to an object: every <code>account</code> has its
+        own <code>id_</code>. A <strong>static data member</strong> belongs to the
+        <strong>class</strong>: there is exactly one of it, no matter how many objects
+        exist, and it exists whether or not any object exists at all.
+      </p>
+
+      <p>
+        That is exactly what you want for a fact about the class rather than about an
+        instance: the next identifier to hand out, how many objects were created, a
+        shared limit, a table that all instances consult.
+      </p>
+
+      <pre><code class="language-cpp">
+class account
+{
+	// one counter for the whole class:
+	inline static ::std::size_t next_id_{1};
+
+	// one number per account:
+	::std::size_t id_{};
+};
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. <code>inline static</code> and <code>static constexpr</code></h2>
+
+      <p>
+        There are two spellings you need, and both are one line inside the class:
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Declaration</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>inline static ::std::size_t next_id_{1};</code></td>
+            <td>One mutable variable for the class. <code>inline</code> makes this
+              declaration also the definition, so nothing else has to be written
+              anywhere &mdash; not even when the class is in a header included by many
+              files.</td>
+          </tr>
+          <tr>
+            <td><code>static constexpr ::std::size_t iban_length{34};</code></td>
+            <td>A constant that belongs to the class. <code>constexpr</code> implies
+              <code>const</code> and, inside a class, <code>inline</code> too. Use it
+              where you would otherwise write a literal or a macro.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+using namespace ::fast_io::io;
+
+class account
+{
+public:
+	account() noexcept : id_{next_id_++} // every account takes the next number
+	{
+	}
+
+	::std::size_t id() const noexcept
+	{
+		return id_;
+	}
+
+	// One variable, shared by every account that exists.
+	inline static ::std::size_t next_id_{1};
+
+	// A constant that belongs to the class, not to any object.
+	static constexpr ::std::size_t iban_length{34};
+
+private:
+	::std::size_t id_{};
+};
+
+int main()
+{
+	account a;
+	account b;
+	account c;
+
+	println("a.id() = ", a.id(), ", b.id() = ", b.id(), ", c.id() = ", c.id());
+	println("next id to hand out: ", account::next_id_);
+	println("iban_length: ", account::iban_length, " (also a.iban_length = ", a.iban_length, ")");
+}
+</code></pre>
+      <pre><code class="language-text">
+a.id() = 1, b.id() = 2, c.id() = 3
+next id to hand out: 4
+iban_length: 34 (also a.iban_length = 34)
+</code></pre>
+
+      <p>
+        The constructor <code>account() noexcept : id_{next_id_++}</code> reads and
+        writes the shared counter: each object takes the current value and leaves the
+        counter one higher. The last line shows that a static member is also reachable
+        through an object (<code>a.iban_length</code>) &mdash; legal, because both
+        spellings mean the same single variable. Do not write it that way: it looks
+        like per-object data, which is exactly the misunderstanding the keyword exists
+        to prevent.
+      </p>
+
+      <div class="note">
+        <p>
+        <strong>If you cannot write <code>inline</code>.</strong> Before C++17 the
+        member had to be declared inside the class and <em>defined</em> in exactly one
+        <code>.cc</code> file:
+      </p>
+      <pre><code class="language-cpp">
+// account.h
+class account
+{
+public:
+	static ::std::size_t next_id_;   // declaration only
+};
+
+// account.cc
+::std::size_t account::next_id_{1};  // the one definition
+</code></pre>
+      <p>
+        You will meet this in older code. <code>inline static</code> and
+        <code>static constexpr</code> do the same job in one line and cannot get out of
+        sync, which is why this tutorial uses them.
+      </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>3. Static Data Members Are Global State</h2>
+
+      <p>
+        The counter in the example is honest: it is a sequence number, every user of it
+        wants the same sequence, and every object that takes a number increments it. Use
+        static data for exactly this kind of fact about the class.
+      </p>
+
+      <p>
+        Be careful with everything else. A static data member is a global variable that
+        happens to be spelled <code>account::something</code>. It is visible to every
+        line of code in the program, it lives for the whole run, and it is shared by
+        every thread. Those are the properties that make globals hard to reason about,
+        and the class scope does not remove them:
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Good use</th>
+            <th>Bad use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>An identifier or serial number generator for objects of the class.</td>
+            <td>A cache that makes a <code>const</code> member function secretly
+              non-const in effect.</td>
+          </tr>
+          <tr>
+            <td>A compile-time constant describing the class
+              (<code>iban_length</code>).</td>
+            <td>Configuration that a program may want two different values of in two
+              different parts of the code.</td>
+          </tr>
+          <tr>
+            <td>Optionally, counters and tables that really are per-class and are
+              documented as such.</td>
+            <td>Anything holding ownership of resources, or anything that the
+              correctness of unrelated code depends on.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="warning">
+        <strong>A mutable static data member is shared by every thread.</strong>
+        If two threads can create accounts at the same time, then
+        <code>next_id_++</code> is a data race, and the program has undefined
+        behaviour. Making it <code>::std::atomic&lt;::std::size_t&gt;</code> makes the
+        increment safe; it does not make a more complicated shared scheme correct. If
+        your design has a static member that many threads write, treat that as a design
+        problem first.
+      </div>
+
+      <div class="note">
+        <strong>Prefer a member of the class over a global variable.</strong> Even when
+        you do need one shared value, putting it inside the class that uses it is
+        strictly better than a free global: the name says who owns it, the access level
+        says who may touch it, and the definition sits next to the code that maintains
+        it.
+      </div>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/13.class/07.this/" class="prev-button">&larr; Ch13.7: The this Pointer</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/13.class/09.staticfunctions/" class="next-button">Ch13.9: Static Member Functions &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

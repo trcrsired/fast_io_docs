@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch14.2: The Destructor: The One Function That Always Runs - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch14.2: The Destructor: The One Function That Always Runs</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+    <section>
+      <h2>1. The One Function That Always Runs</h2>
+
+
+      <p>
+        The destructor has no parameters, no return type, and no way to be called by name. It
+        runs when an object's lifetime ends:
+      </p>
+      <ul>
+        <li>at the end of the block the object was declared in;</li>
+        <li>when <code>throw throws</code> leaves that block, including the block of a
+          <code>try</code> whose handler is about to run;</li>
+        <li>when <code>return</code> leaves the function that owns it;</li>
+        <li>for members, in reverse order of declaration, when their owner dies.</li>
+      </ul>
+      <p>
+        That is the whole reason C++ can manage a resource without a
+        <code>finally</code> block: the release is attached to the lifetime, not to a code
+        path, so there is no path to forget.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. Writing It</h2>
+
+
+      <p>
+        In our class the destructor is three lines, and two of them are the check for the empty
+        state:
+      </p>
+      <pre><code class="language-cpp">
+	~my_posix_file() noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+	}
+</code></pre>
+      <p>
+        The check is not defensive noise. <code>::close(-1)</code> fails with
+        <code>EBADF</code>, and the destructor has no way to report a failure, so the empty
+        state has to be recognised instead of closed. Every other member of the class relies
+        on the same sentinel.
+      </p>
+            <div class="note">
+        <strong>One place closes the descriptor.</strong>
+        In the finished class that body lives in
+        <code>reset(newfd = -1)</code> and the destructor is just
+        <code>reset();</code>. The destructor, move assignment, and the
+        &ldquo;drop the old file&rdquo; step of copy assignment all go through it, so there is
+        exactly one call to <code>::close</code> in the whole class.
+      
+      </div>
+
+    </section>
+    <section>
+      <h2>3. A Destructor Cannot Fail</h2>
+
+
+      <p>
+        This is not a style rule, it is enforced:
+      </p>
+      <pre><code class="language-text">
+error: destructor cannot be declared with a herbceptions ('throws'/'return_failure{E}')
+       exception specification
+</code></pre>
+      <p>
+        A destructor that reported a failure would have nobody to report it to: the object is
+        already gone, the handler is already returning, and there is no second cleanup round.
+        The language simply forbids it, and the compiler agrees.
+      </p>
+      <p>
+        The consequence is stricter than it sounds. With herbceptions a <code>noexcept</code>
+        function cannot even <em>call</em> a function that may fail, unless it handles the
+        failure itself. So a destructor cannot print:
+      </p>
+      <pre><code class="language-text">
+error: call to a 'throws' or 'return_failure{E}' function must be handled by an enclosing
+       'try { } catch throws', or the calling function needs a herbceptions specification
+       so the error can propagate
+</code></pre>
+      <p>
+        Every fast_io print can fail &mdash; the output device might have gone away
+        (<a href="/zhcn/docs/02.basics/14.a+b/">Ch2.14</a>) &mdash; so <code>println</code> is
+        <code>throws</code> and a destructor may not use it. You <em>can</em> handle the
+        failure inside the destructor if you insist:
+      </p>
+      <pre><code class="language-cpp">
+	~loud() noexcept
+	{
+		try
+		{
+			println("goodbye");
+		}
+		catch throws (::std::error)
+		{
+			// nothing left to say, and nobody left to say it to
+		}
+	}
+</code></pre>
+      <p>
+        but note what the handler does: it swallows the error. That is what
+        &ldquo;noexcept&rdquo; costs. Reporting is for the code that still has a caller;
+        cleanup is for destructors.
+      </p>
+            <div class="important">
+        <strong>Do not do work that can fail in a destructor.</strong>
+        If an operation can fail and you care about the failure, it belongs in a named member
+        function the caller can handle &mdash; <code>close()</code>, <code>flush()</code>,
+        <code>commit()</code> &mdash; and the destructor only does the part that cannot.
+        That is exactly why fast_io's real <code>posix_file</code> has a
+        <code>close()</code> that is <code>throws</code> while its destructor is
+        <code>noexcept</code>.
+      
+      </div>
+
+    </section>
+    <section>
+      <h2>4. Watching It Happen</h2>
+
+
+      <p>
+        The program below asks the operating system, not the class, whether the descriptor is
+        still open. <code>::fcntl(fd, F_GETFD)</code> succeeds while the descriptor is valid
+        and fails with <code>EBADF</code> once it is closed, so it answers the question
+        independently of anything our class believes:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+using namespace ::fast_io::io;
+
+class my_posix_file
+{
+	int fd_{-1};
+
+public:
+	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
+	{
+		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
+		if (fd == -1) [[unlikely]]
+		{
+			throw throws static_cast&lt;::std::errc&gt;(errno);
+		}
+		fd_ = fd;
+	}
+
+	~my_posix_file() noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+	}
+
+	void reset() noexcept
+	{
+		if (fd_ != -1)
+		{
+			::close(fd_);
+		}
+		fd_ = -1;
+	}
+
+	[[nodiscard]] bool is_open() const noexcept
+	{
+		return fd_ != -1;
+	}
+
+	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
+	{
+		return fd_;
+	}
+};
+
+int main()
+{
+	{ // make sure the example file exists
+		::std::int_least32_t fd{::open("demo.txt", O_WRONLY | O_CREAT, 0644)};
+		::close(fd);
+	}
+
+	::std::int_least32_t raw{};
+
+	{
+		my_posix_file f{"demo.txt", O_RDONLY};
+		raw = f.native_handle();
+		println("inside the block:  fd ", raw, ", valid = ", ::fcntl(raw, F_GETFD) != -1);
+	}
+	println("after the block:   fd ", raw, ", valid = ", ::fcntl(raw, F_GETFD) != -1);
+
+	try
+	{
+		my_posix_file f{"demo.txt", O_RDONLY};
+		raw = f.native_handle();
+		println("inside the try:    fd ", raw, ", valid = ", ::fcntl(raw, F_GETFD) != -1);
+		throw throws ::std::errc::invalid_argument;
+	}
+	catch throws (::std::error e)
+	{
+		print("caught: ", e, "\n");
+		println("in the handler:    fd ", raw, ", valid = ", ::fcntl(raw, F_GETFD) != -1);
+	}
+
+	my_posix_file g{"demo.txt", O_RDONLY};
+	g.reset();
+	println("after reset():     is_open = ", g.is_open());
+}
+</code></pre>
+      <pre><code class="language-text">
+inside the block:  fd 3, valid = 1
+after the block:   fd 3, valid = 0
+inside the try:    fd 3, valid = 1
+caught: [posix](22)Invalid argument
+in the handler:    fd 3, valid = 0
+after reset():     is_open = 0
+</code></pre>
+      <p>Three things are visible in that output.</p>
+      <ul>
+        <li>
+          <strong>The destructor runs at the end of the block.</strong> Inside the block,
+          descriptor <code>3</code> is valid; on the line after the block it is not. Nobody
+          called <code>::close</code>.
+        </li>
+        <li>
+          <strong>It also runs when a herbception leaves the block.</strong> Inside the
+          <code>try</code> the descriptor is valid; in the handler it is <em>already closed</em>.
+          The local objects of a <code>try</code> block are destroyed <em>before</em> the
+          handler runs, which is the whole reason a handler can trust that it is looking at a
+          clean state.
+        </li>
+        <li>
+          <strong><code>reset()</code> is the same close, on demand.</strong> After
+          <code>g.reset()</code> the file is closed and the object is empty, and it stays
+          empty until it is given a descriptor again.
+        </li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>5. Order, and What a Reverse Destruction Means</h2>
+
+
+      <p>
+        Locals are destroyed in reverse order of construction, and class members in reverse
+        order of declaration. Copy assignment
+        (<a href="/zhcn/docs/14.fiverules/04.copyassignment/">Ch14.4</a>) depends on that when it
+        hands a temporary the descriptor it is about to stop owning: the temporary dies at the
+        end of the full expression, well after the assignment has finished, so the old
+        descriptor is closed <em>after</em> the new one is in place.
+      </p>
+      <pre><code class="language-cpp">
+{
+	my_posix_file a{"one.txt", O_RDONLY}; // constructed first
+	my_posix_file b{"two.txt", O_RDONLY}; // constructed second
+}   // b destroyed first, then a
+</code></pre>
+      <p>
+        The rule is not a detail: if <code>b</code> does not outlive <code>a</code> in whatever
+        order your code needs, you do not have a bug, you have a lifetime that does not
+        overlap &mdash; and no destructor will save you from it.
+      </p>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/14.fiverules/01.ownership/" class="prev-button">&larr; Ch14.1: Ownership</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/14.fiverules/03.copyconstructor/" class="next-button">Ch14.3: The Copy Constructor &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

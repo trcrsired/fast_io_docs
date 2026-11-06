@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch8.2: Range Categories - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch8.2: Range Categories</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Overview</h2>
+
+      <p>
+        Ranges differ in what operations they support. Some can only be read once,
+        some allow multiple passes, some allow backward movement, and some allow
+        constant‑time jumps or direct access to memory addresses.
+      </p>
+
+      <p>
+        A clear way to understand these differences is to view range categories as a
+        <strong>capability hierarchy</strong>. Each level includes everything from the
+        previous one, plus additional abilities.
+      </p>
+
+      <p>
+        In this chapter, you will learn:
+      </p>
+
+      <ul>
+        <li>the full range category hierarchy</li>
+        <li>the readable chain from <code>input_range</code> to <code>contiguous_range</code></li>
+        <li>the separate writable branch <code>output_range</code></li>
+        <li>how to detect categories using <code>if constexpr</code></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. The full range hierarchy</h2>
+
+      <p>
+        All range categories refine the base concept <code>range</code>.
+        From there, the hierarchy splits into a readable chain and a separate writable branch:
+      </p>
+
+<pre><code>
+range
+│
+├── input_range
+│     │
+│     ├── forward_range
+│     │
+│     ├── bidirectional_range
+│     │
+│     ├── random_access_range
+│     │
+│     └── contiguous_range
+│
+└── output_range   (separate writable branch)
+</code></pre>
+
+      <p>
+        This chapter focuses on the readable hierarchy (the left branch).
+      </p>
+    </section>
+
+    <section>
+      <h2>2. input_range</h2>
+
+      <p>
+        The smallest readable category. An input_range supports:
+      </p>
+
+      <ul>
+        <li>reading elements once</li>
+        <li>moving forward only</li>
+        <li>single‑pass traversal</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. forward_range</h2>
+
+      <p>
+        A forward_range has all capabilities of an input_range and additionally supports:
+      </p>
+
+      <ul>
+        <li>multiple passes over the same elements</li>
+        <li>revisiting elements in the same order</li>
+      </ul>
+
+      <p>
+        A forward_range is also an input_range.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. bidirectional_range</h2>
+
+      <p>
+        A bidirectional_range has all capabilities of a forward_range and additionally supports:
+      </p>
+
+      <ul>
+        <li>moving backward as well as forward</li>
+      </ul>
+
+      <p>
+        A bidirectional_range is also a forward_range.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. random_access_range</h2>
+
+      <p>
+        A random_access_range has all capabilities of a bidirectional_range and additionally supports:
+      </p>
+
+      <ul>
+        <li>constant‑time jumps to any position</li>
+        <li>indexing with <code>r[i]</code></li>
+      </ul>
+
+      <p>
+        A random_access_range is also a bidirectional_range.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. contiguous_range</h2>
+
+      <p>
+        A contiguous_range has all capabilities of a random_access_range and additionally
+        guarantees that its elements occupy adjacent addresses in the program’s abstract
+        address space.
+      </p>
+
+      <p>
+        When the range is <strong>not empty</strong>, and for any iterator <code>it</code>
+        that refers to a real element (not <code>end()</code>), the following holds:
+      </p>
+
+<pre><code class="language-cpp">
+::std::to_address(it) + 1 == ::std::to_address(it + 1)
+</code></pre>
+
+      <p>
+        This expresses contiguity using iterators, without dereferencing.
+      </p>
+
+      <p>
+        A contiguous_range is also a random_access_range.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. output_range (separate branch)</h2>
+
+      <p>
+        An output_range is the writable counterpart of an input_range.
+        It allows writing elements but does not require reading from the range.
+      </p>
+
+      <p>
+        It is <strong>not part of the readable hierarchy</strong>.
+        It forms its own branch under <code>range</code>.
+      </p>
+
+      <p>
+        Some ranges are readable only, some writable only, and some support both.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Detecting range categories with <code>if constexpr</code></h2>
+
+      <p>
+        Range categories are compile‑time properties.
+        You can detect them using <code>if constexpr</code> and the standard concepts.
+      </p>
+
+<pre><code class="language-cpp">
+void analyze_vector(::fast_io::vector<int>& v)
+{
+    if constexpr(::std::ranges::contiguous_range&lt;decltype(v)&gt;)
+        print("vector is a contiguous range\n");
+
+    if constexpr(::std::ranges::random_access_range&lt;decltype(v)&gt;)
+        print("vector is a random_access range\n");
+
+    if constexpr(::std::ranges::bidirectional_range&lt;decltype(v)&gt;)
+        print("vector is a bidirectional range\n");
+
+    if constexpr(::std::ranges::forward_range&lt;decltype(v)&gt;)
+        print("vector is a forward range\n");
+
+    if constexpr(::std::ranges::input_range&lt;decltype(v)&gt;)
+        print("vector is an input range\n");
+
+    if constexpr(::std::ranges::output_range&lt;decltype(v), int&gt;)
+        print("vector is an output range for int\n");
+}
+</code></pre>
+
+      <p>
+        Because a contiguous_range satisfies all weaker readable categories,
+        multiple lines will print.
+      </p>
+    </section>
+
+    <section>
+      <h2>9. Category summary for the ranges introduced so far</h2>
+
+      <p>
+        All ranges introduced so far behave as <strong>contiguous ranges</strong>:
+      </p>
+
+      <ul>
+        <li><code>::fast_io::vector</code></li>
+        <li><code>::fast_io::string</code></li>
+        <li><code>::fast_io::array</code></li>
+        <li><code>::fast_io::span</code></li>
+        <li><code>::fast_io::string_view</code></li>
+        <li><code>::fast_io::cstring_view</code></li>
+        <li><code>::fast_io::index_span</code></li>
+        <li>C‑style arrays</li>
+      </ul>
+
+      <p>
+        Later chapters will introduce ranges that are not contiguous.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+
+      <ul>
+        <li><code>range</code> is the root concept.</li>
+        <li>The readable hierarchy goes from <code>input_range</code> up to <code>contiguous_range</code>.</li>
+        <li><code>output_range</code> is a <strong>separate writable branch</strong>.</li>
+        <li>Each stronger readable category includes all weaker ones.</li>
+        <li>Contiguous ranges guarantee adjacent addresses in the abstract address space.</li>
+        <li>All ranges introduced so far are contiguous.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/08.algorithm/01.ranges/" class="prev-button">← Ch8.1: Ranges & Range‑Based Algorithms</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/08.algorithm/03.iteratorcategories/" class="next-button">Ch8.3: Iterator Categories →</a>
+    </div>
+
+  </main>
+</body>
+</html>

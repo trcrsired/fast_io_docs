@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch13.3: const Member Functions - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch13.3: const Member Functions: Promising Not to Modify</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>1. What <code>const</code> After the Parameter List Means</h2>
+
+      <p>
+        Every member function receives the object it was called on as an invisible
+        pointer, <code>this</code> (<a href="/zhcn/docs/13.class/07.this/">Ch13.7</a>).
+        Writing <code>const</code> after the parameter list changes the type of that
+        pointer:
+      </p>
+
+      <pre><code class="language-cpp">
+::std::int_least32_t value()   const noexcept;   // inside: this is counter const *
+void                  add(::std::int_least32_t n) noexcept;   // inside: this is counter *
+</code></pre>
+
+      <p>
+        That is all it does, and it is enough to give you two guarantees at once:
+      </p>
+
+      <ul>
+        <li>
+          <strong>Inside the function</strong> you cannot assign to a data member and
+          you cannot call a member function that is not <code>const</code>. The
+          compiler enforces the promise; it is not a comment.
+        </li>
+        <li>
+          <strong>Outside the function</strong> a <code>const</code> object &mdash; or
+          any object reached through a <code>const &amp;</code> &mdash; can only call
+          <code>const</code> member functions. So a function that takes
+          <code>counter const &amp;</code> physically cannot modify the counter.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>2. The Rule: A Read-Only Member Function Is <code>const</code></h2>
+
+      <p>
+        Ask one question about every member function you write: <em>does it change the
+        object?</em> If the answer is no, the declaration ends with
+        <code>const</code>. That is the rule, and it has no exceptions worth making.
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+using namespace ::fast_io::io;
+
+class counter
+{
+public:
+	void add(::std::int_least32_t n) noexcept
+	{
+		value_ += n;
+	}
+	::std::int_least32_t value() const noexcept
+	{
+		return value_;
+	}
+
+private:
+	::std::int_least32_t value_{};
+};
+
+// A const reference can only call const member functions.
+void show(counter const &amp;c) throws
+{
+	println("value = ", c.value());
+}
+
+int main()
+{
+	try
+	{
+		counter c{};
+		c.add(5);
+		show(c);
+
+		// A const reference to the same object: a read-only view of it.
+		counter const &amp;frozen{c};
+		show(frozen);
+		println("frozen.value() = ", frozen.value());
+	}
+	catch throws (::std::error e)
+	{
+		print("failed: ", e, "\n");
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+value = 5
+value = 5
+frozen.value() = 5
+</code></pre>
+
+      <p>
+        <code>show</code> takes <code>counter const &amp;</code> because it only reads.
+        It calls <code>c.value()</code>, which compiles only because
+        <code>value()</code> is <code>const</code>. Had <code>value()</code> been
+        written without <code>const</code>, this perfectly ordinary function would not
+        compile, and the fix would be on <code>value()</code>, not on
+        <code>show</code>.
+      </p>
+
+      <p>
+        Here is what the compiler says when you try to change a <code>const</code>
+        object &mdash; <code>frozen.add(1)</code>:
+      </p>
+
+      <pre><code class="language-text">
+error: passing 'const counter' as 'this' argument discards qualifiers [-fpermissive]
+note:   in call to 'void counter::add(int_least32_t)'
+</code></pre>
+
+      <p>
+        <em>&ldquo;discards qualifiers&rdquo;</em> means the call would throw away the
+        <code>const</code>, and the compiler is not going to let you do that by
+        accident.
+      </p>
+
+      <div class="warning">
+        <strong>Do not sprinkle <code>const_cast</code> to silence this.</strong>
+        If you need to write inside a <code>const</code> member function, then either
+        the function is not really read-only (remove its <code>const</code>, and accept
+        that it cannot be called on a <code>const</code> object) or the object you were
+        handed should not have been <code>const</code> in the first place. Both of
+        those are information about your design; the cast throws the information away
+        and leaves a program that lies.
+      </div>
+    </section>
+
+    <section>
+      <h2>3. Why This Is the Most Valuable Habit in the Chapter</h2>
+
+      <p>
+        <code>const</code> is contagious in the best way. Once the read-only member
+        functions are marked, <code>const &amp;</code> parameters appear everywhere,
+        and every function in the program documents &mdash; and the compiler checks
+        &mdash; who may change what. Three concrete consequences:
+      </p>
+
+      <ul>
+        <li>
+          <strong>A <code>const &amp;</code> parameter is a promise you can trust.</strong>
+          When you call <code>show(c)</code>, you know the counter comes back the way it
+          went in. You do not have to read <code>show</code>; you read its signature.
+        </li>
+        <li>
+          <strong>Errors are caught where they are made.</strong> A missing
+          <code>const</code> is a compile error at the call site, not a wrong number
+          three functions later.
+        </li>
+        <li>
+          <strong>Interfaces stay honest.</strong> A member function without
+          <code>const</code> announces &ldquo;I may modify this object&rdquo;. Readers
+          of the class can then look at the short list of modifiers and know where the
+          state changes.
+        </li>
+      </ul>
+
+      <div class="note">
+        <strong>Two member functions, same name, differing only in <code>const</code>,
+          are two different overloads.</strong>
+        That is occasionally useful &mdash; a mutable accessor and a read-only one:
+        <pre><code class="language-cpp">
+::std::int_least32_t &amp;value() noexcept       { return value_; }
+::std::int_least32_t  value() const noexcept { return value_; }</code></pre>
+        The compiler picks by the object: a mutable <code>counter</code> gets the first,
+        a <code>const</code> one gets the second. Use this deliberately, not by
+        accident: handing out a mutable reference to a private data member gives away
+        the control you gained in <a href="/zhcn/docs/13.class/05.encapsulation/">Ch13.5</a>.
+      </div>
+    </section>
+
+    <section>
+      <h2>4. <code>const</code> Member Functions and <code>throws</code></h2>
+
+      <p>
+        The two specifications are independent and both appear at the end of the
+        declaration, <code>const</code> first:
+      </p>
+
+      <pre><code class="language-cpp">
+::std::int_least32_t value() const noexcept;   // read, cannot fail
+void report() const throws;                    // read, may fail (it prints)
+</code></pre>
+
+      <p>
+        In the example above <code>show</code> is <code>throws</code> rather than
+        <code>noexcept</code> because it prints, and its caller in <code>main</code>
+        wraps the call in <code>try { } catch throws (::std::error e)</code>. The class
+        itself had to do nothing to make that work: a member function&rsquo;s failure
+        travels out of <code>c.value()</code>, then out of <code>show</code>, and is
+        caught where the program is ready to deal with it
+        (<a href="/zhcn/docs/03.statements/16.herbceptions/">Ch3.16</a>).
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/13.class/02.methods/" class="prev-button">&larr; Ch13.2: Member Functions</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/13.class/04.access/" class="next-button">Ch13.4: Access Control &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

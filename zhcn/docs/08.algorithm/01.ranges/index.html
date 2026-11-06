@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第8.1章: ranges 与基于范围的算法 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第8.1章: ranges 与基于范围的算法</h1>
+
+    <section>
+      <h2>概述</h2>
+
+      <p>
+        <strong>range</strong> 是任何提供了起点与终点的对象。
+        目前介绍过的所有容器——
+        <code>::fast_io::vector</code>、
+        <code>::fast_io::string</code>、
+        <code>::fast_io::array</code>、
+        <code>::fast_io::span</code>、
+        <code>::fast_io::string_view</code>、
+        <code>::fast_io::cstring_view</code>、
+        <code>::fast_io::index_span</code>
+        以及 C 风格数组——
+        都是<strong>连续范围</strong>。
+      </p>
+
+      <p>
+        <em>基于范围的算法</em>是一次作用于整个范围的操作。不必手工
+        编写循环，你可以调用排序、查找、反转、复制或计数等函数。
+      </p>
+
+      <p>
+        在本章中，你将学到：
+      </p>
+
+      <ul>
+        <li>什么是 range</li>
+        <li>如何调用基于范围的算法</li>
+        <li>算法如何在不同容器上统一工作</li>
+        <li>如何用比较器定制算法</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. 什么是 range？</h2>
+
+      <p>
+        range 由两个迭代器定义：
+      </p>
+
+      <ul>
+        <li>一个起始迭代器</li>
+        <li>一个结束迭代器</li>
+      </ul>
+
+      <p>你已经熟悉的 range 例子：</p>
+
+<pre><code class="language-cpp">
+::fast_io::vector&lt;int&gt; v{1, 2, 3};
+int a[3]{4, 5, 6};
+::fast_io::span&lt;int&gt; s{a, 3};
+::fast_io::string str{"abc"};
+::fast_io::string_view sv{"hello"};
+</code></pre>
+
+      <p>
+        这些都是合法的 range。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 对 range 排序</h2>
+
+      <p>
+        最简单的例子就是排序：
+      </p>
+
+<pre><code class="language-cpp">
+::fast_io::vector&lt;int&gt; v{3, 1, 2};
+
+::std::ranges::sort(v);   // ascending
+</code></pre>
+
+      <p>
+        要按逆序排序，请使用 <code>::std::ranges::greater</code>：
+      </p>
+
+<pre><code class="language-cpp">
+::std::ranges::sort(v, ::std::ranges::greater{});
+</code></pre>
+
+      <p>
+        这对任何 range 都有效，包括 C 风格数组：
+      </p>
+
+<pre><code class="language-cpp">
+int a[5]{5, 1, 4, 3, 2};
+::std::ranges::sort(a, ::std::ranges::greater{});
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. 带概念约束的比较器（&lt;functional&gt;）</h2>
+
+      <p>
+        C++20 在 <code>&lt;functional&gt;</code> 中提供了标准化的比较函数对象，
+        它们与 range 算法天然配合：
+      </p>
+
+      <ul>
+        <li><code>std::ranges::equal_to</code> —— <code>x == y</code></li>
+        <li><code>std::ranges::not_equal_to</code> —— <code>x != y</code></li>
+        <li><code>std::ranges::less</code> —— <code>x &lt; y</code></li>
+        <li><code>std::ranges::less_equal</code> —— <code>x &lt;= y</code></li>
+        <li><code>std::ranges::greater</code> —— <code>x &gt; y</code></li>
+        <li><code>std::ranges::greater_equal</code> —— <code>x &gt;= y</code></li>
+        <li><code>std::compare_three_way</code> —— <code>x &lt;=&gt; y</code></li>
+      </ul>
+
+      <p>
+        它们经过概念检查、可复用，并且不会生成额外代码。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 用 lambda 作为比较器</h2>
+
+      <p>
+        你可以用 lambda 作为比较器：
+      </p>
+
+<pre><code class="language-cpp">
+::std::ranges::sort(v, [](int a, int b) noexcept {
+    return a &gt; b;
+});
+</code></pre>
+
+      <p>
+        请始终把比较器 lambda 标记为 <code>noexcept</code>。
+        如果比较器抛出异常，C++ 标准要求程序终止。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. lambda 显然不是零开销</h2>
+
+      <p>
+        每个 lambda 表达式都是<strong>独有的类型</strong>，编译器会为每一个
+        生成<strong>独立的代码</strong>，即便它们看起来完全相同：
+      </p>
+
+<pre><code class="language-cpp">
+::std::ranges::sort(v,  [](int a, int b) noexcept { return a &gt; b; });
+::std::ranges::sort(v1, [](int a, int b) noexcept { return a &gt; b; });
+::std::ranges::sort(v2, [](int a, int b) noexcept { return a &gt; b; });
+</code></pre>
+
+      <p>
+        这三个 lambda 看起来一样，但会产生三个不同的比较器对象
+        和三条独立的代码路径。这会增加：
+      </p>
+
+      <ul>
+        <li>二进制体积</li>
+        <li>指令缓存压力</li>
+        <li>冷启动时间</li>
+        <li>更新时间</li>
+        <li>网络传输体积（WASM/PWA）</li>
+      </ul>
+
+      <p>
+        当 lambda 出现在模板内部时（我们稍后会介绍），这种开销会变得
+        <strong>糟糕得多</strong>，因为模板会为每个不同的 lambda 类型
+        分别实例化。
+      </p>
+
+      <p>
+        如果 <code>::std::ranges::greater{}</code> 这类标准比较器可用，
+        你应当始终优先使用它，而不是新写一个 lambda。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 在 range 中查找</h2>
+
+<pre><code class="language-cpp">
+int a[5]{10, 20, 30, 40, 50};
+
+auto it = ::std::ranges::find(a, 30);
+
+if (it != ::std::ranges::end(a)) {
+    // found
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>7. 反转 range</h2>
+
+<pre><code class="language-cpp">
+::fast_io::string s{"hello"};
+
+::std::ranges::reverse(s);   // "olleh"
+</code></pre>
+    </section>
+
+    <section>
+      <h2>8. 复制 range</h2>
+
+<pre><code class="language-cpp">
+int a[3]{1, 2, 3};
+int b[3]{};
+
+::std::ranges::copy(a, b);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>9. 统计元素个数</h2>
+
+<pre><code class="language-cpp">
+::fast_io::vector&lt;int&gt; v{1, 2, 2, 3};
+
+std::size_t n = ::std::ranges::count(v, 2);  // n = 2
+</code></pre>
+    </section>
+
+    <section>
+      <h2>10. 使用 ::std::ranges::begin 与 ::std::ranges::end</h2>
+
+      <p>
+        这些函数适用于所有 range，包括 C 风格数组：
+      </p>
+
+<pre><code class="language-cpp">
+int a[3]{10, 20, 30};
+
+auto first = ::std::ranges::begin(a);
+auto last  = ::std::ranges::end(a);
+</code></pre>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+
+      <ul>
+        <li>range 由起点与终点定义。</li>
+        <li>所有 fast_io 容器与 C 风格数组都是连续 range。</li>
+        <li>基于范围的算法作用于整个 range。</li>
+        <li>算法不依赖容器类型。</li>
+        <li><code>&lt;functional&gt;</code> 提供了可复用、经概念检查的比较器。</li>
+        <li>优先使用 <code>std::ranges::greater</code>，而不是自己写 lambda。</li>
+        <li>lambda <strong>不是零开销</strong>，因为每一个都会生成新代码。</li>
+        <li>模板会让 lambda 膨胀严重恶化。</li>
+        <li>比较器 lambda 必须是 <code>noexcept</code>。</li>
+        <li><code>std::ranges::begin</code> 与 <code>std::ranges::end</code> 适用于所有 range。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/08.algorithm/" class="prev-button">← 第8章: 算法</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/08.algorithm/02.rangecategories/" class="next-button">第8.2章: range 类别 →</a>
+    </div>
+
+  </main>
+</body>
+</html>

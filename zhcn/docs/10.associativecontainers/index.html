@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch10: Associative Containers - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch10: Associative Containers</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Overview</h2>
+
+      <p>
+        A <strong>sequential container</strong> (Chapter 9) stores elements at the
+        positions where you put them: index 0, index 1, and so on. An
+        <strong>associative container</strong> does not care about positions. You
+        give it a <strong>key</strong>, and it finds the element again later,
+        without you remembering where it went.
+      </p>
+
+      <p>
+        The containers in this chapter all use a <strong>string key</strong>. This
+        is the case that matters in real programs: counting words, mapping names
+        to records, looking up settings, caching results, checking membership of a
+        token. <code>fast_io</code> gives you two families for it, each in a
+        <em>set</em> flavour (the key is the whole element) and a <em>map</em>
+        flavour (the key is attached to a value):
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Family</th>
+            <th>Set</th>
+            <th>Map</th>
+            <th>Order of elements</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>B-tree</td>
+            <td><code>::fast_io::str_btree_set</code></td>
+            <td><code>::fast_io::str_btree_map&lt;M&gt;</code></td>
+            <td>Always sorted by key.</td>
+          </tr>
+          <tr>
+            <td>Ranked B-tree</td>
+            <td><code>::fast_io::str_ranked_btree_set</code></td>
+            <td><code>::fast_io::str_ranked_btree_map&lt;M&gt;</code></td>
+            <td>Sorted by key, and knows how many elements come before each one.</td>
+          </tr>
+          <tr>
+            <td>Swiss table (hash)</td>
+            <td><code>::fast_io::str_swiss_set</code></td>
+            <td><code>::fast_io::str_swiss_map&lt;M&gt;</code></td>
+            <td>Unordered &mdash; the order is an artefact of the hashing.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        All six types share the same style of interface, so what you learn for one
+        mostly carries over to the others: <code>insert_key</code>,
+        <code>contains</code>, <code>find</code>, <code>erase_key</code>, and
+        iteration with <code>begin()</code>/<code>end()</code>. The differences are
+        what each family can do beyond that (order, rank, capacity) and how much
+        bookkeeping it does per element.
+      </p>
+
+      <div class="important">
+        <strong>The keys own their characters.</strong> When you insert
+        <code>"alpha"</code>, the container keeps its own null-terminated copy.
+        When you look a key up, you only pass a <strong>view</strong>
+        (<code>::fast_io::string_view</code> / <code>::fast_io::cstring_view</code>),
+        so a lookup never allocates. This is covered in
+        <a href="/zhcn/docs/10.associativecontainers/01.overview/">Ch10.1</a>.
+      </div>
+    </section>
+
+    <section>
+      <h2>Contents</h2>
+      <ul>
+        <li><a href="/zhcn/docs/10.associativecontainers/01.overview/">Ch10.1: What an Associative Container Is</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/02.create/">Ch10.2: Creating a Container and Inserting Keys</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/03.contains/">Ch10.3: contains(): Membership Testing</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/04.lookup/">Ch10.4: Looking Keys Up</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/05.iterate/">Ch10.5: Iterating</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/06.erase/">Ch10.6: Erasing</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/07.maps/">Ch10.7: Maps: Keys With Values</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/08.ranked/">Ch10.8: Ranked B-trees: size() and nth_element()</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/09.swiss/">Ch10.9: Swiss Tables: Unordered and Resizable</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/10.choose/">Ch10.10: Choosing a Container</a></li>
+        <li><a href="/zhcn/docs/10.associativecontainers/11.typespecs/">Ch10.11: Element Types, Error Specifications, and Validity</a></li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/09.seqcontainers/16.std/" class="prev-button">&larr; Ch9.16: C++ Standard Library Containers</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/10.associativecontainers/01.overview/" class="next-button">Ch10.1: Overview &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

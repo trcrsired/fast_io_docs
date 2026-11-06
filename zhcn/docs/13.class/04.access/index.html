@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch13.4: Access Control - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch13.4: Access Control: public and private</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>1. Two Doors</h2>
+
+      <p>
+        A class has two access levels, written as labels that stay in effect until the
+        next label:
+      </p>
+
+      <ul>
+        <li>
+          <code>public</code> &mdash; anybody may use these names. This is the
+          <strong>interface</strong>: the part of the class you are promising to keep.
+        </li>
+        <li>
+          <code>private</code> &mdash; only member functions and friends of this class
+          may use these names. This is the <strong>implementation</strong>: the part
+          you may rewrite next week.
+        </li>
+      </ul>
+
+      <pre><code class="language-cpp">
+class point
+{
+public:
+	void set(::std::int_least32_t x, ::std::int_least32_t y) noexcept;  // the interface
+	::std::int_least32_t sum() const noexcept;
+private:
+	::std::int_least32_t x_{};   // the implementation
+	::std::int_least32_t y_{};
+};
+</code></pre>
+
+      <p>
+        The compiler refuses outside access to a private name, and it says which member
+        and where it was declared:
+      </p>
+
+      <pre><code class="language-text">
+error: 'int_least32_t point::x_' is private within this context
+note:   declared private here
+</code></pre>
+
+      <p>
+        The same program with the private members used from inside the class, which is
+        where the access is allowed:
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+using namespace ::fast_io::io;
+
+class point
+{
+public:
+	// This is the whole interface: two things you may do to a point.
+	void set(::std::int_least32_t x, ::std::int_least32_t y) noexcept
+	{
+		x_ = x;
+		y_ = y;
+	}
+	::std::int_least32_t sum() const noexcept
+	{
+		return x_ + y_;
+	}
+
+	// Inside the class, every object of the class is visible in full.
+	::std::int_least32_t dx_to(point const &amp;other) const noexcept
+	{
+		return other.x_ - x_;
+	}
+
+private:
+	// Nobody outside the class can touch these two.
+	::std::int_least32_t x_{};
+	::std::int_least32_t y_{};
+};
+
+int main()
+{
+	point a{};
+	a.set(3, 4);
+	println("a.sum()     = ", a.sum());
+
+	point b{};
+	b.set(10, 4);
+	println("a.dx_to(b)  = ", a.dx_to(b));
+}
+</code></pre>
+      <pre><code class="language-text">
+a.sum()     = 7
+a.dx_to(b)  = 7
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. Access Is Granted to the Class, Not to the Object</h2>
+
+      <p>
+        This is the detail people get wrong. <code>private</code> does not mean
+        &ldquo;only I may look at my own data&rdquo;. It means &ldquo;only code written
+        inside this class may look at this data&rdquo; &mdash; <em>any</em> object of
+        this class, no matter who it belongs to:
+      </p>
+
+      <pre><code class="language-cpp">
+::std::int_least32_t dx_to(point const &amp;other) const noexcept
+{
+	return other.x_ - x_;   // other is somebody else's point, and it is still fine
+}
+</code></pre>
+
+      <p>
+        <code>dx_to</code> is a member function of <code>point</code>, so it stands
+        inside the wall and can read <code>other.x_</code> as easily as its own
+        <code>x_</code>. That is why classes can implement things like comparison,
+        arithmetic and validation between two objects without exposing anything: the
+        wall is around the <em>definition</em>, not around a particular object
+        (<a href="/zhcn/docs/13.class/10.friend/">Ch13.10</a> shows the outside-function
+        version of the same idea).
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>struct</code> and <code>class</code> Are the Same Thing</h2>
+
+      <p>
+        There is exactly one difference between them: the default access. In a
+        <code>struct</code> the first members are <code>public</code>; in a
+        <code>class</code> they are <code>private</code>.
+      </p>
+
+      <pre><code class="language-cpp">
+struct a
+{
+	::std::int_least32_t x;   // public
+};
+
+class b
+{
+	::std::int_least32_t x;   // private
+};
+</code></pre>
+
+      <pre><code class="language-text">
+error: 'int_least32_t b::x' is private within this context
+note:   declared private here
+</code></pre>
+
+      <p>
+        The convention this tutorial follows, and the one you will see in every library
+        you read:
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Write</th>
+            <th>When</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>struct</code></td>
+            <td>The type is a plain bundle of values with no invariant and no
+              behaviour: coordinates, a range, a key/value pair. Users are expected to
+              read and write the members directly, and there is nothing to protect.</td>
+          </tr>
+          <tr>
+            <td><code>class</code></td>
+            <td>The type has an invariant, an interface, or behaviour. Everything is
+              private until you decide it should be public.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        <strong>Everything you have seen so far in this chapter was a
+          <code>struct</code>-style class.</strong>
+        From here on the examples use <code>class</code> and private data, because that
+        is the interesting case. The keyword is a default, not a different language: a
+        <code>class</code> with an explicit <code>public:</code> at the top is the same
+        type as the equivalent <code>struct</code>.
+      </div>
+    </section>
+
+    <section>
+      <h2>4. A Small Interface Is a Feature</h2>
+
+      <p>
+        Access control is where you decide the size of your promises. The instinct when
+        learning is to make everything public &ldquo;so it is flexible&rdquo;. That
+        instinct is backwards: every public name is something you can never change
+        without breaking somebody else&rsquo;s code, and every public data member is an
+        invariant you have decided not to keep.
+      </p>
+
+      <p>Ask three questions about each name you are about to put after
+        <code>public:</code>:</p>
+
+      <ol>
+        <li>
+          <strong>Does the caller need it?</strong> If the caller can do the job with a
+          member function, the data member stays private.
+        </li>
+        <li>
+          <strong>Can the caller misuse it?</strong> A public
+          <code>::std::int_least64_t balance</code> lets anyone write
+          <code>-1000</code> into it. A private one plus a checking
+          <code>withdraw()</code> cannot be misused
+          (<a href="/zhcn/docs/13.class/05.encapsulation/">Ch13.5</a>).
+        </li>
+        <li>
+          <strong>Would changing it break code that is not mine?</strong> If yes, it is
+          a promise. Promises should be few, small and true.
+        </li>
+      </ol>
+
+      <div class="warning">
+        <strong>Access control is a compile-time rule, not security.</strong> It stops
+        <em>accidents</em> and it stops <em>misuse by people writing normal code</em>.
+        It does not stop a determined programmer with a pointer and a
+        <code>reinterpret_cast</code>, and it is not a way to keep secrets in memory.
+        Its value is that an honest program cannot break a class by mistake, and the
+        compiler will say so at the exact line.
+      </div>
+
+      <div class="note">
+        <strong>The bill for closing the wall arrives immediately.</strong>
+        <code>point a{3, 4};</code> worked in Chapter 13.1 because the members were
+        public and the class had no constructor. With private members there is no way to
+        write those two values from outside. That is not a defect, it is the missing
+        half of the design: what replaces it is a <strong>constructor</strong>,
+        <a href="/zhcn/docs/13.class/06.constructors/">Ch13.6</a>. Until then, the examples
+        create an object and fill it in through a member function
+        (<code>a.set(3, 4)</code>).
+      </div>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/13.class/03.constmethods/" class="prev-button">&larr; Ch13.3: const Member Functions</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/13.class/05.encapsulation/" class="next-button">Ch13.5: Encapsulation &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

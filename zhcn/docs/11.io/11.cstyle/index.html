@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.11: C-Style I/O - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.11: C-Style I/O</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        C provides a set of I/O facilities built around <code>FILE*</code>, along with functions such
+        as <code>fopen</code>, <code>fclose</code>, <code>printf</code>, <code>scanf</code>,
+        <code>fprintf</code>, and <code>fscanf</code>. These are the oldest and most widely used
+        I/O primitives in the C and C++ ecosystems.
+      </p>
+      <p>
+        <code>fast_io</code> wraps the C <code>FILE*</code> interface so that you can use it with
+        <code>print</code>/<code>println</code>/<code>scan</code> while keeping RAII semantics, type
+        safety, and performance.
+      </p>
+
+      <h3>The Problem with Error Handling</h3>
+      <p>
+        One of the biggest issues with C stdio is that <strong>most functions can fail</strong>,
+        and proper error handling requires checking the return value of <em>most</em> calls:
+      </p>
+<pre><code class="language-c">
+#include &lt;stdio.h&gt;
+
+int main() {
+    FILE *fp = fopen("output.txt", "w");
+    if (fp == NULL) {
+        perror("fopen failed");
+        return 1;
+    }
+
+    if (fprintf(fp, "%s", "Hello\n") &lt; 0) {
+        perror("fprintf failed");
+        fclose(fp);
+        return 1;
+    }
+
+    // fclose can fail, but there's nothing you can do about it
+    fclose(fp);
+
+    return 0;
+}
+</code></pre>
+      <p>
+        This is extremely error-prone. Most C programs don&rsquo;t check errors from
+        <code>fprintf</code> or even <code>printf</code> itself. Even <code>printf</code> can fail
+        (e.g., broken pipe, disk full, I/O error), but almost no one checks its return value.
+      </p>
+      <p>
+        <code>fast_io</code> makes error handling explicit. Functions throw exceptions on error by
+        default, or return error codes that you can&rsquo;t accidentally ignore. This makes it much
+        harder to write buggy I/O code.
+      </p>
+    </section>
+
+    <section>
+      <h2>Standard C I/O: <code>&lt;cstdio&gt;</code></h2>
+      <p>
+        Before discussing how <code>fast_io</code> wraps C I/O, let&rsquo;s review the standard C
+        I/O API itself. All C I/O functions are declared in <code>&lt;cstdio&gt;</code> (or
+        <code>&lt;stdio.h&gt;</code> in C). The core abstraction is <code>FILE*</code>, an opaque
+        pointer to a stream that represents an open file, pipe, or device.
+      </p>
+
+      <h3>Opening and Closing Files</h3>
+<pre><code class="language-cpp">
+#include &lt;cstdio&gt;
+
+int main() {
+    // Open a file for writing
+    FILE* fp = std::fopen("output.txt", "w");
+    if (!fp) {
+        return 1;  // Failed to open
+    }
+
+    // ... use the file ...
+
+    // Always close when done
+    std::fclose(fp);
+}
+</code></pre>
+      <p>
+        The mode string controls how the file is opened:
+      </p>
+      <ul>
+        <li><code>"r"</code> &mdash; read (file must exist)</li>
+        <li><code>"w"</code> &mdash; write (creates or truncates)</li>
+        <li><code>"a"</code> &mdash; append (creates or appends)</li>
+        <li><code>"r+"</code> &mdash; read and write (file must exist)</li>
+        <li><code>"w+"</code> &mdash; read and write (creates or truncates)</li>
+        <li><code>"a+"</code> &mdash; read and append (creates or appends)</li>
+        <li>Add <code>"b"</code> for binary mode: <code>"rb"</code>, <code>"wb"</code>, etc.</li>
+      </ul>
+
+      <h3>Formatted Output: <code>printf</code>, <code>fprintf</code></h3>
+<pre><code class="language-cpp">
+#include &lt;cstdio&gt;
+
+int main() {
+    int x = 42;
+    double pi = 3.14159;
+    char const* name = "Alice";
+
+    // printf: write to stdout
+    std::printf("%s%s%s%d%s%.2f%s", "Name: ", name, ", Age: ", x, ", Pi: ", pi, "\n");
+
+    // fprintf: write to a FILE*
+    FILE* fp = std::fopen("data.txt", "w");
+    std::fprintf(fp, "%s%d%s%f%s", "x = ", x, ", pi = ", pi, "\n");
+    std::fclose(fp);
+
+    // sprintf: write to a string buffer
+    char buffer[100];
+    std::sprintf(buffer, "%s%d", "Value: ", x);
+}
+</code></pre>
+      <p>
+        Common format specifiers:
+      </p>
+      <ul>
+        <li><code>%d</code> or <code>%i</code> &mdash; signed integer</li>
+        <li><code>%u</code> &mdash; unsigned integer</li>
+        <li><code>%x</code>, <code>%X</code> &mdash; hexadecimal (lowercase/uppercase)</li>
+        <li><code>%o</code> &mdash; octal</li>
+        <li><code>%f</code> &mdash; floating-point (decimal notation)</li>
+        <li><code>%e</code>, <code>%E</code> &mdash; floating-point (scientific notation)</li>
+        <li><code>%g</code>, <code>%G</code> &mdash; floating-point (shortest representation)</li>
+        <li><code>%s</code> &mdash; string</li>
+        <li><code>%c</code> &mdash; character</li>
+        <li><code>%p</code> &mdash; pointer</li>
+        <li><code>%%</code> &mdash; literal <code>%</code></li>
+      </ul>
+
+      <h3>Formatted Input: <code>scanf</code>, <code>fscanf</code></h3>
+<pre><code class="language-cpp">
+#include &lt;cstdio&gt;
+#include &lt;memory&gt;
+
+int main() {
+    int x;
+    double y;
+
+    // scanf: read from stdin
+    std::fputs("Enter two numbers: ", stdout);
+    std::scanf("%d%lf", ::std::addressof(x), ::std::addressof(y));
+
+    // fscanf: read from a FILE* (format string has only specifiers)
+    FILE* fp = std::fopen("data.txt", "r");
+    std::fscanf(fp, "%d%lf", ::std::addressof(x), ::std::addressof(y));  // Input file should contain: 42 3.14
+    std::fclose(fp);
+
+    // sscanf: read from a string
+    char const* input = "42 3.14";
+    std::sscanf(input, "%d%lf", ::std::addressof(x), ::std::addressof(y));
+}
+</code></pre>
+      <p>
+        <strong>Warning:</strong> The <code>scanf</code> family is extremely dangerous and should be
+        avoided. Problems include:
+      </p>
+      <ul>
+        <li>Buffer overflows with <code>%s</code> (use <code>fgets</code> instead)</li>
+        <li>
+          Format string vulnerabilities (CWE-134: Use of Externally-Controlled Format String)
+          if format is user-controlled &mdash; attackers can read/write arbitrary memory
+        </li>
+        <li>Difficult error handling (checking return values is complex)</li>
+        <li>Whitespace handling is confusing and error-prone</li>
+        <li>No bounds checking on numeric input</li>
+      </ul>
+      <p>
+        Use <code>::fast_io::io::scan</code> instead, which is type-safe, handles errors explicitly,
+        and immune to these issues.
+      </p>
+
+      <h3>The Complexity of printf Format Specifiers</h3>
+      <p>
+        The <code>printf</code> family has an extremely complex format specifier syntax. From
+        <a href="https://en.cppreference.com/c/io/fprintf" target="_blank">cppreference</a>,
+        format specifiers include:
+      </p>
+      <ul>
+        <li><strong>Type specifiers:</strong> <code>%d</code>, <code>%i</code>, <code>%u</code>, <code>%x</code>, <code>%X</code>, <code>%o</code>, <code>%f</code>, <code>%F</code>, <code>%e</code>, <code>%E</code>, <code>%g</code>, <code>%G</code>, <code>%a</code>, <code>%A</code>, <code>%s</code>, <code>%c</code>, <code>%p</code>, <code>%n</code></li>
+        <li><strong>Length modifiers:</strong> <code>h</code>, <code>hh</code>, <code>l</code>, <code>ll</code>, <code>j</code>, <code>z</code>, <code>t</code>, <code>L</code></li>
+        <li><strong>Flags:</strong> <code>-</code>, <code>+</code>, <code> </code>, <code>#</code>, <code>0</code></li>
+        <li><strong>Width and precision:</strong> <code>%10d</code>, <code>%.2f</code>, <code>%10.2f</code>, <code>%*d</code></li>
+      </ul>
+      <p>
+        Combinations like <code>%#0+10.5lld</code> are valid but nearly impossible to remember.
+        This complexity makes <code>printf</code> extremely error-prone:
+      </p>
+      <ul>
+        <li>Wrong type specifier for the argument type (e.g., <code>%d</code> for <code>long</code>)</li>
+        <li>Wrong length modifier (e.g., missing <code>l</code> for <code>long</code>)</li>
+        <li>Forgetting precision for floating-point</li>
+        <li>Mixing up similar specifiers (<code>%x</code> vs <code>%X</code>, <code>%f</code> vs <code>%e</code>)</li>
+      </ul>
+      <p>
+        Most programmers cannot remember all these rules correctly. This is why format string bugs
+        and I/O buffer overflows are among the most common security vulnerabilities. Nearly all
+        command-line I/O buffer exploits come from <code>stdio</code> misuse.
+      </p>
+      <p>
+        <code>fast_io</code> eliminates this complexity entirely. There are no format strings to
+        remember. The library automatically determines the correct formatting based on the argument
+        type, making it impossible to mismatch types and format specifiers.
+      </p>
+
+      <h3>Character and Line I/O</h3>
+<pre><code class="language-cpp">
+#include &lt;cstdio&gt;
+
+int main() {
+    FILE* fp = std::fopen("example.txt", "r");
+
+    // Read a single character
+    int ch = std::fgetc(fp);
+
+    // Read a line (up to n-1 characters or newline)
+    char buffer[256];
+    std::fgets(buffer, sizeof(buffer), fp);
+
+    // Write a single character
+    std::fputc('A', stdout);
+
+    // Write a string
+    std::fputs("Hello, World!\n", stdout);
+
+    std::fclose(fp);
+}
+</code></pre>
+
+      <h3>Binary I/O</h3>
+<pre><code class="language-cpp">
+#include &lt;cstdio&gt;
+
+int main() {
+    // Write binary data
+    FILE* fp = std::fopen("data.bin", "wb");
+    int numbers[] = {1, 2, 3, 4, 5};
+    std::fwrite(numbers, sizeof(int), 5, fp);
+    std::fclose(fp);
+
+    // Read binary data
+    fp = std::fopen("data.bin", "rb");
+    int buffer[5];
+    std::size_t count = std::fread(buffer, sizeof(int), 5, fp);
+    std::fclose(fp);
+}
+</code></pre>
+
+      <h3>Standard Streams</h3>
+      <p>
+        C provides three predefined streams:
+      </p>
+      <ul>
+        <li><code>stdin</code> &mdash; standard input (usually keyboard)</li>
+        <li><code>stdout</code> &mdash; standard output (usually terminal)</li>
+        <li><code>stderr</code> &mdash; standard error (usually terminal, unbuffered)</li>
+      </ul>
+<pre><code class="language-cpp">
+#include &lt;cstdio&gt;
+
+int main() {
+    std::fputs("This goes to stdout\n", stdout);
+    std::fputs("This goes to stderr\n", stderr);
+
+    // printf() is equivalent to fputs(..., stdout)
+    std::fputs("Same as stdout\n", stdout);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Using C Files with <code>fast_io</code></h2>
+      <p>
+        <code>fast_io</code> provides RAII wrappers for <code>FILE*</code> so you can use
+        <code>print</code>/<code>println</code>/<code>scan</code> with C files while ensuring
+        proper resource management.
+      </p>
+
+      <h3><code>::fast_io::c_file</code>: RAII Wrapper</h3>
+      <p>
+        <code>::fast_io::c_file</code> wraps a <code>FILE*</code> and automatically closes it
+        when the object goes out of scope. This prevents resource leaks.
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // Open a file for writing (RAII)
+    ::fast_io::c_file cf(u8"output.txt", ::fast_io::open_mode::out);
+
+    // Use fast_io's print/println
+    println(cf, "Hello, " "World!"
+        "The answer is: ", 42);
+
+    // File is automatically closed when cf goes out of scope
+}
+</code></pre>
+      <p>
+        The mode parameter works the same as <code>fopen</code>:
+      </p>
+      <ul>
+        <li><code>::fast_io::open_mode::in</code> &mdash; read</li>
+        <li><code>::fast_io::open_mode::out</code> &mdash; write (creates or truncates)</li>
+        <li><code>::fast_io::open_mode::append</code> &mdash; append</li>
+        <li>Combine with <code>|</code>: <code>::fast_io::open_mode::in | ::fast_io::open_mode::out</code></li>
+        <li>Add <code>::fast_io::open_mode::binary</code> for binary mode</li>
+      </ul>
+
+      <h3>Reading from C Files</h3>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // Open for reading
+    ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::in);
+
+    // Read values
+    int x;
+    double y;
+    ::fast_io::string name;
+
+    scan(cf, x);
+    scan(cf, y);
+    scan(cf, ::fast_io::mnp::str_line_get(name));  // read a line
+
+    println("x = ", x, "\n"
+      "y = ", y, "\n"
+      "name = ", name);
+}
+</code></pre>
+
+      <h3><code>::fast_io::c_io_observer</code>: Non-Owning View</h3>
+      <p>
+        Sometimes you have a <code>FILE*</code> from another source (e.g., passed as a parameter)
+        and you want to use <code>fast_io</code>'s API without taking ownership. Use
+        <code>::fast_io::c_io_observer</code> for this:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;cstdio&gt;
+
+void process_file(::fast_io::c_io_observer observer) {
+    using namespace ::fast_io::iomnp;
+    // Use fast_io's API without taking ownership
+    print(observer, "Processing...\n");
+}
+
+int main() {
+    // Open with C API
+    FILE* fp = std::fopen("data.txt", "w");
+    ::fast_io::c_file cf(fp);
+    // Wrap it in an observer (non-owning)
+    ::fast_io::c_io_observer observer{fp};
+
+    process_file(observer);
+}
+</code></pre>
+      <p>
+        The observer does <strong>not</strong> close the file when it goes out of scope &mdash;
+        the original owner is responsible for that.
+      </p>
+
+      <h3>Accessing the Underlying <code>FILE*</code></h3>
+      <p>
+        You can access the underlying <code>FILE*</code> via the <code>.fp</code> member:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;cstdio&gt;
+
+int main() {
+    ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::out);
+
+    // Use fast_io's API
+    println(cf, "fast_io output");
+
+    // Access the underlying FILE* for C API calls
+    std::fprintf(cf.fp, "%s", "C API output\n");
+
+    // File is closed automatically
+}
+</code></pre>
+
+      <h3>Thread Safety: <code>_unlocked</code> Variants</h3>
+      <p>
+        C's <code>FILE*</code> operations are thread-safe by default &mdash; each operation acquires
+        an internal lock. However, this can be slow. <code>fast_io</code> provides
+        <code>_unlocked</code> variants that skip the internal locking:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main() {
+    using namespace ::fast_io::iomnp;
+
+    // Unlocked variant (no internal locking)
+    ::fast_io::c_file_unlocked cf(u8"data.txt", ::fast_io::open_mode::out);
+
+    println(cf, "Fast, but not thread-safe by default");
+
+    // If you need thread safety, use ::fast_io::native_mutex
+    {
+        ::fast_io::native_mutex_lock lock(cf);
+        println(cf, "Thread-safe output");
+    }
+}
+</code></pre>
+      <p>
+        Use <code>c_file_unlocked</code> when:
+      </p>
+      <ul>
+        <li>You're in a single-threaded context</li>
+        <li>You're synchronizing manually with <code>::fast_io::native_mutex</code></li>
+        <li>You need maximum performance and understand the threading implications</li>
+      </ul>
+
+      <h3>Interoperability with C Libraries</h3>
+      <p>
+        Many C libraries expect <code>FILE*</code> parameters. You can pass the underlying
+        <code>FILE*</code> from <code>c_file</code> or <code>c_io_observer</code>:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;cstdio&gt;
+
+// C library function
+void c_library_function(FILE* fp) {
+    std::fprintf(fp, "%s", "From C library\n");
+}
+
+int main() {
+    ::fast_io::c_file cf(u8"data.txt", ::fast_io::open_mode::out);
+
+    // Use fast_io
+    println(cf, "From fast_io");
+
+    // Pass to C library
+    c_library_function(cf.fp);
+
+    // More fast_io
+    println(cf, "Back to fast_io");
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Appendix</h2>
+      <p>
+        For the complete C I/O function reference, see
+        <a href="01.creference/">Ch11.11.1: Complete C I/O Function Reference</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>
+          C stdio requires checking errors on <strong>most</strong> function calls (though
+          <code>fclose</code> failure is typically not recoverable). Most code ignores these
+          errors, leading to silent data loss.
+        </li>
+        <li>
+          <code>::fast_io::c_file</code> wraps <code>FILE*</code> with RAII &mdash; the file is
+          closed automatically.
+        </li>
+        <li>
+          <code>::fast_io::c_io_observer</code> is a non-owning view over an existing
+          <code>FILE*</code>.
+        </li>
+        <li>
+          The <code>_unlocked</code> variants skip internal locking. Use <code>::fast_io::native_mutex</code>
+          to synchronize them manually when needed.
+        </li>
+        <li>
+          Format strings should <strong>only</strong> contain format specifiers (<code>%s</code>,
+          <code>%d</code>, etc.), nothing else. Never include literal text, newlines, or other
+          characters in the format string. Put all literal content in the arguments instead:
+          <code>printf("%s", "text\n")</code>, not <code>printf("text\n")</code> or
+          <code>printf("%s\n", "text")</code>. Or better, use <code>fputs</code> for plain strings
+          or <code>::fast_io::io::print</code> for type-safe output. Never pass user-controlled strings
+          as format strings (CWE-134: Use of Externally-Controlled Format String).
+        </li>
+        <li>
+          Always use <code>::std::addressof()</code> instead of <code>&amp;</code> when passing
+          pointers to <code>scanf</code>/<code>fscanf</code>/<code>sscanf</code>. This works
+          correctly even if the type has overloaded <code>operator&amp;</code>.
+        </li>
+        <li>
+          <code>printf</code> format specifiers are extremely complex and nearly impossible to
+          remember correctly (see
+          <a href="https://en.cppreference.com/c/io/fprintf" target="_blank">cppreference</a>).
+          This complexity leads to constant bugs and security vulnerabilities.
+        </li>
+        <li>
+          Prefer <code>::fast_io::io::print</code>/<code>println</code>/<code>scan</code> over the C
+          functions &mdash; they are type-safe, faster, handle errors explicitly, and immune to
+          format string attacks.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/11.io/10.socket/" class="prev-button">&larr; Ch11.10: Sockets</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/11.io/12.iostream/" class="next-button">Ch11.12: C++ iostream &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

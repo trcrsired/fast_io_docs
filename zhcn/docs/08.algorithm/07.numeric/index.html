@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch8.7: Numeric Algorithms - C++ Tutorial</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch8.7: Numeric Algorithms</h1>
+    <div class="note" style="border:1px solid #cc6600;padding:0.6rem;margin:0.8rem 0;"><strong>提示：</strong>本页尚未翻译，当前显示英文原文。</div>
+
+    <section>
+      <h2>Overview</h2>
+
+      <p>
+        The header <code>&lt;numeric&gt;</code> provides algorithms for combining
+        elements: summing, reducing, computing prefix results, and more.
+        These algorithms are simple but extremely useful in everyday programming.
+      </p>
+
+      <p>
+        In this chapter, you will learn:
+      </p>
+
+      <ul>
+        <li><code>accumulate</code></li>
+        <li><code>reduce</code></li>
+        <li><code>transform_reduce</code></li>
+        <li><code>partial_sum</code></li>
+        <li><code>inclusive_scan</code> and <code>exclusive_scan</code></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>1. accumulate</h2>
+
+      <p>
+        <code>accumulate</code> processes elements from left to right and combines
+        them with a binary operation. It <strong>always requires an initial value</strong>.
+      </p>
+
+<pre><code class="language-cpp">
+::fast_io::vector&lt;int&gt; v{1, 2, 3, 4};
+
+int sum = ::std::accumulate(
+    v.begin(), v.end(),
+    0,
+    ::std::plus&lt;&gt;()
+);
+
+print("sum = ", sum, "\n");
+</code></pre>
+
+      <p>
+        You can compute a product using <code>std::multiplies&lt;&gt;</code>:
+      </p>
+
+<pre><code class="language-cpp">
+int product = ::std::accumulate(
+    v.begin(), v.end(),
+    1,
+    ::std::multiplies&lt;&gt;()
+);
+</code></pre>
+
+      <p>
+        <strong>Be careful:</strong> the initial value changes the result.
+        For example, summing integers starting from <code>1</code> instead of <code>0</code>
+        produces a different total. This is one reason why <code>reduce</code> is often preferred.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. reduce</h2>
+
+      <p>
+        <code>reduce</code> is similar to <code>accumulate</code> but is designed
+        for parallel execution. Unlike <code>accumulate</code>, it <strong>does not
+        require an initial value</strong>. If omitted, the first element is used.
+      </p>
+
+<pre><code class="language-cpp">
+int sum = ::std::reduce(
+    v.begin(), v.end(),
+    ::std::plus&lt;&gt;()
+);
+</code></pre>
+
+      <p>
+        You may also provide an initial value explicitly:
+      </p>
+
+<pre><code class="language-cpp">
+int sum2 = ::std::reduce(
+    v.begin(), v.end(),
+    0,
+    ::std::plus&lt;&gt;()
+);
+</code></pre>
+
+      <p>
+        Because the order of combination is unspecified, the operation must be associative.
+      </p>
+
+      <p>
+        <strong>Why prefer reduce?</strong>  
+        Because it avoids the common mistake of choosing the wrong initial value.
+        With <code>accumulate</code>, forgetting the initial value silently changes the result.
+        With <code>reduce</code>, the default behavior is usually correct.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. transform_reduce</h2>
+
+      <p>
+        <code>transform_reduce</code> combines a projection and a reduction.
+        It applies a transformation to each element, then reduces the results.
+      </p>
+
+<pre><code class="language-cpp">
+int total = ::std::transform_reduce(
+    v.begin(), v.end(),
+    0,
+    ::std::plus&lt;&gt;(),
+    [](int x) { return x * x; }   // projection: square
+);
+
+print("sum of squares = ", total, "\n");
+</code></pre>
+
+      <p>
+        The reduction uses a functional object.  
+        The projection may be a lambda or a pointer-to-member.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. partial_sum</h2>
+
+      <p>
+        <code>partial_sum</code> computes prefix sums:
+      </p>
+
+<pre><code class="language-cpp">
+::fast_io::vector&lt;int&gt; out(v.size());
+
+::std::partial_sum(
+    v.begin(), v.end(),
+    out.begin(),
+    ::std::plus&lt;&gt;()
+);
+</code></pre>
+
+      <p>
+        If <code>v = {1,2,3,4}</code>, then <code>out = {1,3,6,10}</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. inclusive_scan and exclusive_scan</h2>
+
+      <p>
+        These are the modern, ranges-friendly versions of prefix operations.
+      </p>
+
+<pre><code class="language-cpp">
+::std::inclusive_scan(
+    v.begin(), v.end(),
+    out.begin(),
+    ::std::plus&lt;&gt;()
+);
+
+::std::exclusive_scan(
+    v.begin(), v.end(),
+    out.begin(),
+    0,
+    ::std::plus&lt;&gt;()
+);
+</code></pre>
+
+      <p>
+        <code>inclusive_scan</code> includes the current element.  
+        <code>exclusive_scan</code> does not.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+
+      <ul>
+        <li><code>accumulate</code> always requires an initial value.</li>
+        <li><code>reduce</code> does not require an initial value and avoids common mistakes.</li>
+        <li><code>reduce</code> is parallel-friendly and uses associative operations.</li>
+        <li><code>transform_reduce</code> combines projection and reduction.</li>
+        <li><code>partial_sum</code> and scans compute prefix results.</li>
+        <li>Use functional objects (<code>std::plus&lt;&gt;</code>, <code>std::multiplies&lt;&gt;</code>) for binary operations.</li>
+        <li>Use <code>&Item::member</code> for simple projections.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/08.algorithm/06.typical/" class="prev-button">← Ch8.6: Typical Algorithms</a>
+      <a href="/zhcn/" class="main-button">↑ 主页</a>
+      <a href="/zhcn/docs/08.algorithm/08.timecomplexity/" class="next-button">Ch8.8: Time &amp; Space Complexity →</a>
+    </div>
+
+  </main>
+</body>
+</html>
