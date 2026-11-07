@@ -56,9 +56,21 @@
         （<a href="/zhcn/docs/17.operatoroverloading/05.increment/">第17.5章</a>）、
         <code>[]</code>、<code>*</code>、<code>-&gt;</code> 与 <code>()</code>
         （<a href="/zhcn/docs/17.operatoroverloading/07.subscriptcall/">第17.7章</a>）。
-        剩下两个运算符值得单独一节，因为它们既不是被禁止的，也不是安全的：
-        <code>&amp;&amp;</code> 和 <code>||</code> 在某些类型上完全合理，
-        在另一些类型上就是正确性 bug，而这个区别不属于口味问题（第4节）。
+        <code>&amp;&amp;</code> 和 <code>||</code> 就是普通的重载，没有任何特殊风险。
+      </p>
+      <p>
+        然后标准库自己在最显眼的地方展示了本章所说的那种失败。
+        <code>&lt;&lt;</code> 和 <code>&gt;&gt;</code> 是移位运算符。
+        移位与输入输出毫无关系，而这两个运算符还是被拿走了，
+        于是 <code>a &lt;&lt; 2</code> 和 <code>os &lt;&lt; 2</code> 是同样的词法记号，
+        却没有任何共同之处。这就是"重载改变了运算符本身的含义"的教科书例子，
+        也是 C++ 甩不掉的设计错误之一：现在每一个读移位表达式的人、
+        每一个读打印表达式的人，都得先弄清自己看的是哪一个。
+        不要模仿它，也不要用它 —— iostream 是糟糕而且有害的，
+        fast_io 存在的意义就是让打印叫 <code>print</code>、读取叫 <code>scan</code>
+        （<a href="/zhcn/docs/11.io/#io-fails">第11章第0节</a>）。
+        任何看起来像 <code>os &lt;&lt; x &lt;&lt; y</code> 的东西，
+        都不该出现在你写的程序里。
       </p>
 
     </section>
@@ -271,168 +283,7 @@ s.v                         7
 
     </section>
     <section>
-      <h2>4. <code>&amp;&amp;</code> 与 <code>||</code>：不是错的，但要清楚它的代价</h2>
-
-      <p>
-        这两个不在上一张表里，也不该在。
-        在那些必须对"值"而不是对"控制流"建模的库里（掩码、lane 向量、位集），
-        重载它们是常规做法；而在另一种代码里，它确实是一个真实的正确性 bug。
-        把这两种情况说清楚，值得一节。
-      </p>
-      <p>
-        <strong>失去的是什么：</strong>右操作数不被求值这件事。
-        用内建运算符时，<code>a &amp;&amp; b</code> 在 <code>a</code> 为假时根本不会求值
-        <code>b</code>。用重载的版本时，<code>b</code> 是一个函数实参，所以它在调用之前就被求值了。
-        如果 <code>b</code> 是一个"求值本身就是目的"的表达式 ——
-        被空指针检查守卫的解引用、一个绝不能发生的调用 —— 那么这个守卫就不再守卫，而且没有任何东西会报告它：
-      </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-
-/* explicit operator bool: usable in a boolean context, invisible everywhere else */
-struct handle_flag
-{
-	bool open{};
-
-	[[nodiscard]] constexpr explicit operator bool() const noexcept
-	{
-		return open;
-	}
-};
-
-/* the right operand: proves whether it was evaluated */
-[[nodiscard]] inline bool right() throws
-{
-	::fast_io::io::print("  right() was evaluated\n");
-	return true;
-}
-
-struct short_circuit
-{
-	bool value{};
-
-	[[nodiscard]] constexpr explicit operator bool() const noexcept
-	{
-		return value;
-	}
-};
-
-namespace bad
-{
-struct gate
-{
-	bool value{};
-};
-
-/* a user-defined operator&amp;&amp;: both operands are evaluated before the call */
-[[nodiscard]] inline bool operator&amp;&amp;(gate, bool b) noexcept
-{
-	return b;
-}
-}
-
-int main()
-{
-	try
-	{
-		handle_flag const f{};
-		::fast_io::io::println("static_cast&lt;bool&gt;(f) = ", static_cast&lt;bool&gt;(f), "   !f = ", !f,
-							   "   (f + 1 would not compile)");
-
-		::fast_io::io::println("builtin &amp;&amp; with a false left operand:");
-		bool const r1{static_cast&lt;bool&gt;(short_circuit{false}) &amp;&amp; right()};
-		::fast_io::io::println("  result = ", r1);
-
-		::fast_io::io::println("user-defined operator&amp;&amp; with a false left operand:");
-		bool const r2{bad::gate{false} &amp;&amp; right()};
-		::fast_io::io::println("  result = ", r2);
-	}
-	catch throws (::std::error e)
-	{
-		::fast_io::io::print("error: ");
-		::fast_io::io::println(e);
-	}
-}
-</code></pre>
-      <pre><code class="language-text">
-static_cast&lt;bool&gt;(f) = 0   !f = 1   (f + 1 would not compile)
-builtin &amp;&amp; with a false left operand:
-  result = 0
-user-defined operator&amp;&amp; with a false left operand:
-  right() was evaluated
-  result = 1
-</code></pre>
-      <p>
-        内建的那次，输出里没有来自 <code>right()</code> 的那一行：它根本没被调用。
-        用户定义的那次，它在运算符运行之前就跑了。
-        当右操作数是一个"必须可以被跳过"的表达式时，这个重载是 bug —— 不是风格问题。
-      </p>
-      <p>
-        <strong>没有失去的是什么：</strong>当两个操作数都已经是一个值的时候，什么都没失去。
-        短路求值的存在是为了跳过某次求值；如果没有任何东西可跳过，也就没什么可失去的。
-        硬件掩码里没有控制流：左操作数是一个寄存器，右操作数是一个寄存器，
-        "与"是一条指令。这正是重载 <code>&amp;&amp;</code> 正确的场合 ——
-        包一层编译器的向量扩展类型，这里的 <code>&amp;&amp;</code> 是按 lane 的合取，
-        而 <code>&amp;</code> 反而是错误的拼写，因为在一个语义是"逐 lane 真假"的接口上，
-        它会读成按位与：
-      </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;cstdint&gt;
-
-/* the compiler's vector extensions: four 32-bit lanes in one register */
-typedef ::std::int_least32_t lanes4 __attribute__((__vector_size__(16)));
-
-struct mask4
-{
-	lanes4 lane{};
-
-	/* element-wise "and". Both operands are already values, so there is no
-	   right-hand side that short-circuiting could have skipped. */
-	[[nodiscard]] friend mask4 operator&amp;&amp;(mask4 a, mask4 b) noexcept
-	{
-		return mask4{a.lane &amp; b.lane};
-	}
-};
-
-int main()
-{
-	try
-	{
-		mask4 const a{lanes4{-1, -1, 0, 0}};
-		mask4 const b{lanes4{-1, 0, -1, 0}};
-		mask4 const both{a &amp;&amp; b};
-		::fast_io::io::println("a       ", a.lane[0], " ", a.lane[1], " ", a.lane[2], " ", a.lane[3]);
-		::fast_io::io::println("b       ", b.lane[0], " ", b.lane[1], " ", b.lane[2], " ", b.lane[3]);
-		::fast_io::io::println("a &amp;&amp; b  ", both.lane[0], " ", both.lane[1], " ", both.lane[2], " ", both.lane[3]);
-	}
-	catch throws (::std::error e)
-	{
-		::fast_io::io::perrln("error: ", e);
-	}
-}
-</code></pre>
-      <pre><code class="language-text">
-a       -1 -1 0 0
-b       -1 0 -1 0
-a &amp;&amp; b  -1 0 0 0
-</code></pre>
-      <p>
-        三条 lane 独立判定，一个表达式，没有分支、没有临时对象、也没有任何一个可以被跳过的操作数。
-        那个 <code>&amp;&amp;</code> 不是"坏掉的 <code>&amp;&amp;</code>"；
-        它是唯一能让这个表达式仍然读起来像"对 lane 的逻辑运算"的拼写 ——
-        与本章其它地方同一个检验，只不过用在一个 <code>&amp;&amp;</code> 的含义
-        恰好就是硬件本来具备的含义的类型上。
-      </p>
-      <p>
-        所以这两个的规则是关于操作数的，不是关于运算符的：
-        两边都已经是值时（掩码、位集、lane 向量、算好的 bool），可以重载；
-        右边是一个"你会被迫求值"的表达式时，不要重载。
-      </p>
-
-    </section>
-    <section>
-      <h2>5. 经验法则</h2>
+      <h2>4. 经验法则</h2>
       <ul>
         <li>永远不要重载 <code>,</code>。函数调用无法给它的实参排序，
           而排序正是逗号运算符唯一要做的事。</li>
@@ -440,9 +291,13 @@ a &amp;&amp; b  -1 0 0 0
           而补救办法 —— <code>std::addressof</code> —— 是编译器魔法，
           现在每个模板都得调用它
           （<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/#operatoramp">第3节</a>）。</li>
-        <li>两个操作数都已经是值时，重载 <code>&amp;&amp;</code> 和 <code>||</code> 没问题，
-          因为短路求值没有东西可跳过；右操作数带副作用时，那就是 bug。
-          向量扩展的包装是标准的"可以"，被守卫的解引用是标准的"不可以"。</li>
+        <li>永远不要为 I/O 重载 <code>&lt;&lt;</code> / <code>&gt;&gt;</code>。
+          移位不是打印；标准库把它们拿去做 iostream，并不能让它变成对的。
+          用 fast_io 的 <code>print</code> 和 <code>scan</code>。</li>
+        <li>对长字符串用 <code>+</code> 时，每个运算符都要分配并拷贝一整块新缓冲区，
+          所以 <code>a + b + c + d</code> 会为每个 <code>+</code> 把前缀拷贝一遍。
+          用 <code>::fast_io::concat_fast_io</code>：它只算一次大小、只分配一次
+          （<a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">第17.2章</a>）。</li>
         <li>不要在类级别写 <code>operator new</code> / <code>operator delete</code>
           （<a href="/zhcn/docs/18.virtual/07.operatornew/">第18.7章</a>）。</li>
         <li>其余的都要逐个判断，用

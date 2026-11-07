@@ -56,11 +56,22 @@
         <code>++</code> and <code>--</code>
         (<a href="/docs/17.operatoroverloading/05.increment/">Ch17.5</a>),
         <code>[]</code>, <code>*</code>, <code>-&gt;</code> and <code>()</code>
-        (<a href="/docs/17.operatoroverloading/07.subscriptcall/">Ch17.7</a>). Two of the
-        remaining operators deserve a page of their own because they are neither banned nor safe:
-        <code>&amp;&amp;</code> and <code>||</code> are perfectly reasonable on some types and a
-        correctness bug on others, and the difference is not a matter of taste
-        (&sect;4).
+        (<a href="/docs/17.operatoroverloading/07.subscriptcall/">Ch17.7</a>).
+        <code>&amp;&amp;</code> and <code>||</code> are ordinary overloads too, with no special
+        hazard at all.
+      </p>
+      <p>
+        The standard library itself then demonstrates the failure this chapter is about, in its most
+        visible place. <code>&lt;&lt;</code> and <code>&gt;&gt;</code> are the shift operators.
+        Shifting has nothing to do with input or output, and the operators were taken for it anyway,
+        so <code>a &lt;&lt; 2</code> and <code>os &lt;&lt; 2</code> are the same tokens with nothing
+        whatsoever in common. That is the textbook example of an overload that changed what the
+        operator means, and it is one of the design mistakes C++ is stuck with: every reader of a
+        shift expression and every reader of a print expression now has to work out which one they
+        are looking at. Do not imitate it, and do not use it &mdash; iostreams are bad and harmful,
+        and fast_io exists so that printing is <code>print</code> and reading is
+        <code>scan</code> (<a href="/docs/11.io/#io-fails">Ch11 &sect;0</a>). Anything that
+        looks like <code>os &lt;&lt; x &lt;&lt; y</code> is not in a program you should be writing.
       </p>
 
     </section>
@@ -275,171 +286,7 @@ s.v                         7
 
     </section>
     <section>
-      <h2>4. <code>&amp;&amp;</code> and <code>||</code>: Not Wrong, but Know What They Cost</h2>
-
-      <p>
-        These two are not in the previous table, and they should not be. Overloading them is
-        ordinary practice in exactly the libraries that have to model operations on values rather
-        than on control flow: a mask, a lane vector, a bitset. It is also a real correctness bug in
-        a different kind of code. Being precise about which kind is worth a section.
-      </p>
-      <p>
-        <strong>What is lost:</strong> the right operand not being evaluated. With the built-in
-        operator, <code>a &amp;&amp; b</code> does not evaluate <code>b</code> at all when
-        <code>a</code> is false. With an overloaded one, <code>b</code> is a function argument, so
-        it is evaluated before the call. If <code>b</code> is an expression whose evaluation is the
-        point &mdash; a pointer dereference guarded by a null check, a call that must not happen
-        &mdash; the guard no longer guards, and nothing reports it:
-      </p>
-<pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-
-/* explicit operator bool: usable in a boolean context, invisible everywhere else */
-struct handle_flag
-{
-	bool open{};
-
-	[[nodiscard]] constexpr explicit operator bool() const noexcept
-	{
-		return open;
-	}
-};
-
-/* the right operand: proves whether it was evaluated */
-[[nodiscard]] inline bool right() throws
-{
-	::fast_io::io::print("  right() was evaluated\n");
-	return true;
-}
-
-struct short_circuit
-{
-	bool value{};
-
-	[[nodiscard]] constexpr explicit operator bool() const noexcept
-	{
-		return value;
-	}
-};
-
-namespace bad
-{
-struct gate
-{
-	bool value{};
-};
-
-/* a user-defined operator&amp;&amp;: both operands are evaluated before the call */
-[[nodiscard]] inline bool operator&amp;&amp;(gate, bool b) noexcept
-{
-	return b;
-}
-}
-
-int main()
-{
-	try
-	{
-		handle_flag const f{};
-		::fast_io::io::println("static_cast&lt;bool&gt;(f) = ", static_cast&lt;bool&gt;(f), "   !f = ", !f,
-							   "   (f + 1 would not compile)");
-
-		::fast_io::io::println("builtin &amp;&amp; with a false left operand:");
-		bool const r1{static_cast&lt;bool&gt;(short_circuit{false}) &amp;&amp; right()};
-		::fast_io::io::println("  result = ", r1);
-
-		::fast_io::io::println("user-defined operator&amp;&amp; with a false left operand:");
-		bool const r2{bad::gate{false} &amp;&amp; right()};
-		::fast_io::io::println("  result = ", r2);
-	}
-	catch throws (::std::error e)
-	{
-		::fast_io::io::print("error: ");
-		::fast_io::io::println(e);
-	}
-}
-</code></pre>
-<pre><code class="language-text">
-static_cast&lt;bool&gt;(f) = 0   !f = 1   (f + 1 would not compile)
-builtin &amp;&amp; with a false left operand:
-  result = 0
-user-defined operator&amp;&amp; with a false left operand:
-  right() was evaluated
-  result = 1
-</code></pre>
-      <p>
-        In the built-in case the transcript has no line from <code>right()</code>: it was never
-        called. In the user-defined case it ran before the operator did. Where the right operand is
-        an expression that must be skippable, this overload is a bug &mdash; not a style question.
-      </p>
-      <p>
-        <strong>What is not lost:</strong> anything, when both operands are already values.
-        Short-circuit evaluation exists to skip an evaluation; if there is nothing to skip, there is
-        nothing to lose. A hardware mask has no control flow in it: the left operand is a register,
-        the right operand is a register, and "and" is an instruction. That is the case where
-        overloading <code>&amp;&amp;</code> is right &mdash; a wrapper around the compiler's vector
-        extension types, where <code>&amp;&amp;</code> is element-wise conjunction and where
-        <code>&amp;</code> would be the wrong spelling, because it reads as bitwise-and on an
-        interface whose meaning is per-lane truth:
-      </p>
-<pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;cstdint&gt;
-
-/* the compiler's vector extensions: four 32-bit lanes in one register */
-typedef ::std::int_least32_t lanes4 __attribute__((__vector_size__(16)));
-
-struct mask4
-{
-	lanes4 lane{};
-
-	/* element-wise "and". Both operands are already values, so there is no
-	   right-hand side that short-circuiting could have skipped. */
-	[[nodiscard]] friend mask4 operator&amp;&amp;(mask4 a, mask4 b) noexcept
-	{
-		return mask4{a.lane &amp; b.lane};
-	}
-};
-
-int main()
-{
-	try
-	{
-		mask4 const a{lanes4{-1, -1, 0, 0}};
-		mask4 const b{lanes4{-1, 0, -1, 0}};
-		mask4 const both{a &amp;&amp; b};
-		::fast_io::io::println("a       ", a.lane[0], " ", a.lane[1], " ", a.lane[2], " ", a.lane[3]);
-		::fast_io::io::println("b       ", b.lane[0], " ", b.lane[1], " ", b.lane[2], " ", b.lane[3]);
-		::fast_io::io::println("a &amp;&amp; b  ", both.lane[0], " ", both.lane[1], " ", both.lane[2], " ", both.lane[3]);
-	}
-	catch throws (::std::error e)
-	{
-		::fast_io::io::perrln("error: ", e);
-	}
-}
-</code></pre>
-<pre><code class="language-text">
-a       -1 -1 0 0
-b       -1 0 -1 0
-a &amp;&amp; b  -1 0 0 0
-</code></pre>
-      <p>
-        Three lanes decided independently, one expression, no branch, no temporary, and no operand
-        that could have been skipped. That <code>&amp;&amp;</code> is not a broken
-        <code>&amp;&amp;</code>; it is the only spelling that keeps the expression readable as a
-        logical operation over lanes, which is the same test as everywhere else in this chapter
-        applied to a type where the meaning of <code>&amp;&amp;</code> is the meaning the hardware
-        already has.
-      </p>
-      <p>
-        So the rule for these two is about the operands, not about the operator: overload them when
-        both sides are values (masks, bitsets, lane vectors, computed bools), and do not overload
-        them when the right side is an expression whose evaluation you would be forcing.
-      </p>
-
-    </section>
-    <section>
-      <h2>5. Rules of Thumb</h2>
+      <h2>4. Rules of Thumb</h2>
       <ul>
         <li>Never overload <code>,</code>. A function call cannot sequence its arguments, and
           sequencing is the only thing the comma operator is for.</li>
@@ -447,10 +294,13 @@ a &amp;&amp; b  -1 0 0 0
           object for fifty years, and the repair &mdash; <code>std::addressof</code> &mdash; is
           compiler magic that every template now has to call
           (<a href="/docs/17.operatoroverloading/08.neveroverload/#operatoramp">&sect;3</a>).</li>
-        <li><code>&amp;&amp;</code> and <code>||</code> are fine when both operands are already
-          values, so that short-circuiting has nothing to skip; they are a bug when the right
-          operand is an expression with side effects. The vector-extension wrapper is the canonical
-          yes, the guarded dereference the canonical no.</li>
+        <li>Never overload <code>&lt;&lt;</code> / <code>&gt;&gt;</code> for I/O. Shifting is not
+          printing; that the standard library took them for iostreams does not make it right. Use
+          fast_io's <code>print</code> and <code>scan</code>.</li>
+        <li><code>+</code> on a long string allocates and copies a whole new buffer per operator, so
+          <code>a + b + c + d</code> copies the prefix once for every <code>+</code>. Use
+          <code>::fast_io::concat_fast_io</code>, which sizes once and allocates once
+          (<a href="/docs/17.operatoroverloading/02.prefernamed/">Ch17.2</a>).</li>
         <li>No class-level <code>operator new</code> / <code>operator delete</code>
           (<a href="/docs/18.virtual/07.operatornew/">Ch18.7</a>).</li>
         <li>Everything else is judgement, case by case, with the four questions from
