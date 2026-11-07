@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch20.12: std::move, std::addressof, and the Utility Headers - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch20.12: <code>std::move</code>, <code>std::addressof</code>, and the Utility Headers</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/20.freestanding/12.utilityheaders/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Features Whose Absence You Cannot Work Around</h2>
+      <p>
+        The previous pages were about features that need infrastructure: a heap, an unwinder, a
+        thread pointer. This page is worse, because it is about features that need
+        <strong>nothing</strong> &mdash; no allocation, no runtime, no table, no OS &mdash; and were
+        still not available where they were needed most.
+      </p>
+      <p>
+        <code>::std::move</code> casts to an rvalue reference. <code>::std::forward</code> casts
+        conditionally. <code>::std::swap</code> is three moves. <code>::std::pair</code> is two
+        members. <code>::std::addressof</code> takes an address. Five of the cheapest things in the
+        standard library, and every one of them lives in <code>&lt;utility&gt;</code> or
+        <code>&lt;memory&gt;</code>, neither of which was a required freestanding header until
+        C++23 (<a href="/docs/20.freestanding/06.stillmissing/">20.6</a>).
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Why They Were Missing, and Why the Reason Is Not Technical</h2>
+      <p>
+        The freestanding header list was not designed. It was <em>derived</em> in 1998 from one
+        question: which headers does the language itself need in order to be implementable? The
+        answer was <code>&lt;cstddef&gt;</code> for <code>size_t</code>, <code>&lt;limits&gt;</code>
+        and <code>&lt;cfloat&gt;</code> for the ranges, <code>&lt;cstdarg&gt;</code> for variadic
+        functions &mdash; and then <code>&lt;new&gt;</code>, <code>&lt;typeinfo&gt;</code> and
+        <code>&lt;exception&gt;</code>, because the language has <code>new</code>, RTTI and
+        exceptions and those need library support. That is a list of the compiler's needs. It is not
+        a list of what a <em>program</em> needs to be written at all, and nobody asked that question
+        again for twenty years.
+      </p>
+      <p>
+        So <code>&lt;utility&gt;</code> failed for a reason that has nothing to do with
+        <code>&lt;utility&gt;</code>: it was not part of the compiler's bootstrap set, so it was not
+        on the list, so a conforming freestanding implementation did not have to provide it. The
+        same non-reason covers <code>&lt;type_traits&gt;</code> (which was added later, in C++11,
+        for a different purpose) and <code>&lt;iterator&gt;</code>, <code>&lt;ranges&gt;</code> and
+        <code>&lt;memory&gt;</code>, which arrived in C++23 as "partial" &mdash; each with an
+        official list of the bits you are allowed to expect.
+      </p>
+      <p>
+        Compare C, where the list is four headers and each one is genuinely compiler-owned. Nobody
+        has ever needed to add a fifth, because the list was drawn from a principle &mdash; "what
+        cannot be written in the language" &mdash; rather than from a snapshot of what one
+        implementation happened to need in 1998.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The One You Can Write, and the One You Cannot</h2>
+      <p>
+        There is a real asymmetry among these five, and it is the most instructive thing on the
+        page.
+      </p>
+      <p>
+        <strong>You can write <code>move</code> and <code>forward</code> yourself.</strong> They are
+        casts; the definition is one line each, and a freestanding codebase that lacked
+        <code>&lt;utility&gt;</code> simply defined its own in its own namespace. It is ugly, it
+        duplicates the standard library, and it works. This is why the absence was survivable: where
+        the feature is a cast, the missing header is an inconvenience.
+      </p>
+      <p>
+        <strong>You cannot write <code>addressof</code>.</strong> It has to defeat a user-defined
+        <code>operator&amp;</code>, which means it needs compiler magic
+        (<code>__builtin_addressof</code>), and it is <code>constexpr</code>, which means it cannot
+        be a runtime <code>reinterpret_cast</code> hack. There is no portable implementation
+        &mdash; the standard library's own implementation is a builtin call with a
+        <code>reinterpret_cast</code> fallback for pre-C++11 compilers. So for the whole period
+        where <code>::std::addressof</code> was not required in freestanding, a freestanding program
+        had a language feature &mdash; taking the address of an object &mdash; that any class could
+        quietly redefine, and <strong>no way to get the real address back</strong>
+        (<a href="/docs/17.operatoroverloading/08.neveroverload/">17.8</a> writes the program that
+        makes <code>&amp;s == nullptr</code> true).
+      </p>
+      <p>
+        That is the sharpest form of the rule this chapter keeps returning to:
+        <strong>a standard feature that is not freestanding does not exist.</strong> Not "is
+        inconvenient", not "needs a workaround" &mdash; does not exist. And the features where that
+        bites hardest are not the big ones, because the big ones have workarounds you can see. They
+        are the one-line ones that turn out to need the compiler.
+      </p>
+      <p>
+        C has had <code>&amp;x</code> mean "the address of <code>x</code>" since 1972, in
+        freestanding and hosted code alike, with no library involved. C++ let a class change what
+        the operator means, and then took two decades to promise that the escape hatch would be
+        there on the targets where nobody could otherwise provide it.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The Portability Trap This Creates</h2>
+      <p>
+        Here is the trap, and it is not a compiler bug:
+      </p>
+      <ol>
+        <li>
+          Your hosted toolchain ships <code>&lt;utility&gt;</code> and <code>&lt;memory&gt;</code>
+          regardless of what the standard requires, because it was built for a desktop where they
+          are always present.
+        </li>
+        <li>
+          So your code compiles on your machine, with <code>-ffreestanding</code> or without it, and
+          you conclude that the code is freestanding.
+        </li>
+        <li>
+          Then you build for the board, on a toolchain whose C++ library is exactly the required
+          subset, and the same file does not compile &mdash; or worse, links against a
+          <code>std::addressof</code> that is not there.
+        </li>
+        <li>
+          And nothing in the source told you which of the two worlds you were in, because there was
+          no way to ask. The feature-test macros that answer the question
+          (<code>__cpp_lib_freestanding_*</code>) are C++26, and C++26 was not published
+          (<a href="/docs/20.freestanding/06.stillmissing/">20.6</a>).
+        </li>
+      </ol>
+      <p>
+        This is the answer to "why do you keep saying C++ is not designed for freestanding". Not
+        because the language cannot compile without an OS &mdash; it can, and this book does. Because
+        the standard gave you no way to write a program that is <em>only</em> freestanding and have
+        the toolchain check it. You found out on the board.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. What to Do About It</h2>
+      <p>
+        The practical policy, and the one this book follows:
+      </p>
+      <ul>
+        <li>
+          <strong>Decide per header, in writing, which ones you trust</strong> &mdash; and pin the
+          decision to the toolchain versions you support, not to the standard.
+        </li>
+        <li>
+          <strong>Do not write <code>move</code>/<code>forward</code> yourself.</strong> Getting a
+          different type from the one the standard library means your templates and its templates
+          disagree in overload resolution. Use the library's, and require the toolchain that has
+          them.
+        </li>
+        <li>
+          <strong>Never rely on <code>addressof</code> being present unless you compile with a
+          toolchain where you verified it</strong> &mdash; and never design a class with an
+          <code>operator&amp;</code> whose whole point is to be surprising.
+        </li>
+        <li>
+          <strong>Or use a library that decided all of this already</strong>, and can be compiled
+          for your target with no library underneath it at all. That is the next page.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/20.freestanding/11.tlsfloatstartup/" class="prev-button">&larr; Ch20.11: Thread-Local Storage, Floating Point, and Startup</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/20.freestanding/13.fastio/" class="next-button">Ch20.13: fast_io Is a Freestanding I/O Library &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch20.8: RTTI and dynamic_cast - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch20.8: RTTI and <code>dynamic_cast</code></h1>
+    <p class="lang-switch"><a href="/zhcn/docs/20.freestanding/08.rtti/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Feature</h2>
+      <p>
+        Run-time type information is what makes <code>typeid</code>, <code>dynamic_cast</code> and
+        handler matching work. <a href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p1105r0.html">P1105R0
+        &sect;4.3</a> proposes making it optional in freestanding mode, for the reason you can
+        probably guess: it is a table per class, a string per type name, and a runtime function
+        that has to walk a class hierarchy.
+      </p>
+      <p>
+        The RTTI for a single class is a <code>type_info</code> object, which for a class with a
+        base is a <code>__si_class_type_info</code>, which has a vtable of its own, and the whole
+        structure is described by the C++ ABI rather than by the standard. So the cost is not
+        "a few bytes of metadata": it is a second vtable per class, plus a runtime that knows how
+        to compare and walk those objects.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Measured: What One <code>dynamic_cast</code> Requires</h2>
+      <pre><code class="language-cpp">struct B { virtual ~B() noexcept = default; };
+struct D : B { int v{}; };
+
+int probe(B &amp;b) noexcept {
+  if (dynamic_cast&lt;D *&gt;(&amp;b) != nullptr) { return 1; }
+  return 0;
+}</code></pre>
+      <pre><code class="language-text">$ g++ -std=c++26 -fno-exceptions -O2 -c rtti.cc &amp;&amp; nm -u rtti.o
+                 U _ZTVN10__cxxabiv117__class_type_infoE
+                 U _ZTVN10__cxxabiv120__si_class_type_infoE
+                 U __dynamic_cast
+$ g++ -std=c++26 -fno-exceptions -O2 -nostdlib rtti.cc -o rtti
+  undefined reference to `__dynamic_cast
+  undefined reference to `vtable for __cxxabiv1::__class_type_info
+  undefined reference to `vtable for __cxxabiv1::__si_class_type_info</code></pre>
+      <p>
+        Three symbols for nine lines, all of them from the C++ runtime library (<code>libsupc++</code>
+        or <code>libc++abi</code>), none of which is freestanding. And note that this is with
+        <code>-fno-exceptions</code> already applied: RTTI is a separate dependency, not a
+        consequence of exceptions. That is why the ban list in
+        <a href="/docs/19.exceptionsandherbceptions/07.banflags/">19.7</a> contains
+        <code>-fno-rtti</code> as well.
+      </p>
+      <pre><code class="language-text">$ g++ -std=c++26 -fno-rtti -O2 -c rtti.cc
+rtti.cc:5:7: error: 'dynamic_cast' not permitted with '-fno-rtti'</code></pre>
+    </section>
+
+    <section>
+      <h2>3. Why the Cost Is Worse Than It Looks</h2>
+      <table>
+        <thead>
+          <tr><th>What RTTI costs</th><th>Where it lands</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>A <code>type_info</code> object per polymorphic class</td>
+            <td>Read-only data, with the class's name as a string in the binary</td>
+          </tr>
+          <tr>
+            <td>A second vtable per derived class</td>
+            <td>Data plus relocation, one per class in the program</td>
+          </tr>
+          <tr>
+            <td>An ABI-defined runtime entry point</td>
+            <td><code>__dynamic_cast</code>: cannot be written portably, cannot be omitted if used</td>
+          </tr>
+          <tr>
+            <td>Handler matching for legacy exceptions</td>
+            <td>Every <code>catch</code> clause compares type information at run time</td>
+          </tr>
+          <tr>
+            <td>Compiler support for <code>typeid</code> on every type you name</td>
+            <td>Even when nothing casts, a <code>typeid</code> expression drags the object in</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        On a desktop none of this matters. On a board with 64 KiB of flash and a 20 KiB budget for
+        your class hierarchy, the type name strings alone can be a real number. Which is why
+        freestanding builds turn it off, and why "just use <code>dynamic_cast</code>" is not advice
+        you can give someone targeting an MCU.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The Bigger Argument, Which Is Not About Size</h2>
+      <p>
+        This book already argued (<a href="/docs/18.virtual/05.rtti/">18.5</a>) that
+        <code>dynamic_cast</code> is the <em>wrong</em> tool even where it works: it is far more
+        expensive than <code>typeid</code>, its failure mode is a null pointer that nobody checks,
+        and the code that avoids it uses unchecked <code>static_cast</code> instead, which is where
+        type confusion comes from. The fix is not more RTTI, it is knowing the type statically
+        &mdash; closed hierarchies, tags, variants, or reflection.
+      </p>
+      <p>
+        Freestanding makes that argument sharper, because it removes the temptation entirely. If
+        RTTI is not available, you cannot write the design that depended on it, and you will write
+        the one where the type is known at the call site. That is not a compromise; it is the
+        design that was going to be faster and clearer anyway.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. What Replaces It</h2>
+      <ul>
+        <li>
+          <strong>Closed hierarchies</strong> with a discriminator you control &mdash; an enum in
+          the object, or a tag type (<a href="/docs/15.genericprogramming/03.concepts/">15.3</a>).
+          Costs one integer, works everywhere, and the <code>switch</code> is exhaustive-checked by
+          the compiler.
+        </li>
+        <li>
+          <strong>Type erasure with a known function table</strong>
+          (<a href="/docs/18.virtual/06.typeerasure/">18.6</a>) &mdash; the operations are in the
+          table, so no cast is needed at all.
+        </li>
+        <li>
+          <strong>Static polymorphism</strong>: templates and concepts
+          (<a href="/docs/15.genericprogramming/">Ch15</a>) resolve the type at compile time, which
+          is where it was known all along.
+        </li>
+        <li>
+          <strong>Reflection</strong>, when it exists, is the real answer to
+          <code>dynamic_cast</code>'s problem: it gives you the member by name without a hierarchy
+          walk. Until then, the tag is the tool.
+        </li>
+      </ul>
+      <p>
+        Notice that every replacement is freestanding by construction, because none of them needs
+        a runtime that knows your class names.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/20.freestanding/07.newdelete/" class="prev-button">&larr; Ch20.7: Default Heap Storage: new and delete</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/20.freestanding/09.legacyexceptions/" class="next-button">Ch20.9: Legacy Exceptions Cannot Exist Here &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

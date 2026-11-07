@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch20.3: The C++03 Freestanding Lie - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch20.3: The C++03 Freestanding Lie</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/20.freestanding/03.cpp03/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. "Freestanding" in the Language, Not in the Library</h2>
+      <p>
+        The previous page said C++03 required headers it could not implement. This page is about
+        the worse half of the same problem: the <em>language</em>. In C++03, declaring your
+        implementation freestanding changed the header list and nothing else. The grammar was
+        identical. <code>throw</code>, <code>try</code>, <code>catch</code>, <code>typeid</code>,
+        <code>dynamic_cast</code>, <code>new</code> and <code>delete</code> were all still there,
+        still spelled the same way, still usable in any function.
+      </p>
+      <p>
+        If your target has no heap and no unwinder, that is not a smaller feature set &mdash; it is
+        a language you cannot use as written. Three of its core constructs compile to calls into a
+        runtime that does not exist on your board, and the compiler will happily emit them for you
+        and let the linker complain. Here is what one throw costs at link time on a bare target:
+      </p>
+      <pre><code class="language-cpp">void fail(int x) noexcept(false) { if (x &lt; 0) { throw "negative"; } }
+
+int main() { try { fail(-1); } catch (char const *) { return 0; } return 1; }</code></pre>
+      <pre><code class="language-text">$ g++ -std=c++26 -O2 -nostdlib l2.cc -o l2
+  undefined reference to `_Unwind_Resume
+  undefined reference to `__cxa_allocate_exception
+  undefined reference to `__cxa_begin_catch
+  undefined reference to `__cxa_end_catch
+  undefined reference to `__cxa_throw
+  undefined reference to `__gxx_personality_v0
+  undefined reference to `typeinfo for char const*</code></pre>
+      <p>
+        That is six runtime entry points and a type information object for a program whose only
+        statement is a comparison. <strong>None of them can be written by you</strong>, and that is
+        the point of this page. <code>__cxa_allocate_exception</code> needs a heap.
+        <code>_Unwind_Resume</code> is the unwinder, which must understand your target's frame
+        layout. <code>__gxx_personality_v0</code> must be able to match a handler, which needs the
+        RTTI hierarchy, which needs the vtable layout, which is the ABI. "Implementing legacy
+        exceptions" means writing your own libsupc++, and the thing you would be writing is an
+        operating system facility wearing a library's clothes.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. The Forced Choice, and Why It Was Not a Choice</h2>
+      <p>
+        So a freestanding C++03 build had exactly one path: turn the features off and stop being
+        conforming.
+      </p>
+      <table>
+        <thead>
+          <tr><th>Feature the language requires</th><th>What it needs at run time</th><th>What a freestanding build did</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>throw</code> / <code>catch</code></td>
+            <td>Heap for the exception object, unwinder, frame tables, personality routine, RTTI</td>
+            <td><code>-fno-exceptions</code></td>
+          </tr>
+          <tr>
+            <td><code>typeid</code>, <code>dynamic_cast</code></td>
+            <td><code>type_info</code> objects, RTTI tables per class</td>
+            <td><code>-fno-rtti</code></td>
+          </tr>
+          <tr>
+            <td><code>new</code> / <code>delete</code></td>
+            <td>One global heap, <code>::operator new</code>, and a failure policy</td>
+            <td>No default heap, or a hand-written <code>operator new</code></td>
+          </tr>
+          <tr>
+            <td><code>thread_local</code></td>
+            <td>A thread pointer and TLS image setup</td>
+            <td><code>-fno-threadsafe-statics</code>, or nothing at all</td>
+          </tr>
+          <tr>
+            <td>Global constructors</td>
+            <td>A <code>.init_array</code> runner in your start-up code</td>
+            <td>Your own crt0, or static initialisation by hand</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Every row means "the standard says this works; your build says it does not". A language
+        whose freestanding mode requires you to disable its own core features is not a language
+        with a freestanding mode. That is the sense in which C++03 freestanding was a lie &mdash;
+        not that the committee lied, but that the document described something no vendor could
+        ship and no user could rely on.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Smallest Example: <code>std::addressof</code> Did Not Exist</h2>
+      <p>
+        Here is a case where the language's own design left a hole that the library could not fill
+        &mdash; and the hole is one function. In C++03, <code>&amp;x</code> was overloadable:
+        any class could define <code>operator&amp;</code> and change what "the address of" means.
+        There was no way to ask for the real address.
+      </p>
+      <p>
+        <code>::std::addressof</code> arrived later, and it <strong>cannot be written by
+        hand</strong>: it needs compiler magic (<code>__builtin_addressof</code>) to bypass a
+        user-defined <code>operator&amp;</code>, and it is <code>constexpr</code>. So for years
+        there was a feature of the language &mdash; taking the address of an object &mdash; that
+        could be silently redefined, with no escape hatch anywhere in the library. C has had
+        <code>&amp;x</code> mean the address of <code>x</code> since 1972.
+      </p>
+      <p>
+        The full story, including the modern one where a user-defined <code>operator&amp;</code>
+        can still make <code>&amp;s == nullptr</code> true, is in
+        <a href="/docs/17.operatoroverloading/08.neveroverload/">17.8</a>. The reason it belongs in
+        this chapter is different: <code>::std::addressof</code> was <em>not required in
+        freestanding</em> before C++23. So a kernel written in C++ could have a class with a
+        hostile <code>operator&amp;</code>, no way to defeat it, and a standard that did not
+        promise the escape hatch would be there at all. A standard feature that is not freestanding
+        does not exist &mdash; and this one did not exist where it mattered most.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Thirty Years of "Use the Compiler Switches"</h2>
+      <p>
+        The result is that the practical freestanding C++ of the 1998&ndash;2023 era is a dialect
+        defined by flags rather than by the standard: <code>-fno-exceptions -fno-rtti -nostdlib
+        -fno-threadsafe-statics -nostdinc++</code>, plus a hand-written <code>operator new</code>
+        if you wanted one at all, plus a linker script, plus start-up code. Every embedded
+        codebase invented that list independently, and every one of them is, by the letter of the
+        standard, a non-conforming C++ program.
+      </p>
+      <p>
+        Herbceptions change this, and that is why they are the hinge of the book:
+        <a href="/docs/20.freestanding/10.herbceptions/">20.10</a> shows the same throw/catch
+        program requiring exactly one linker symbol, a data pointer, no unwinder and no heap. The
+        feature that made C++ unusable freestanding was not "error handling"; it was that the only
+        error handling the language had was implemented on top of the operating system.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/20.freestanding/02.cvscpp/" class="prev-button">&larr; Ch20.2: C Freestanding vs C++ Freestanding</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/20.freestanding/04.linus/" class="next-button">Ch20.4: Why Linus Torvalds Called It a "BLOODY STUPID IDEA" &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

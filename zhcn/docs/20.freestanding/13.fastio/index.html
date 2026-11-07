@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第20.13章：fast_io 是一个独立实现的 I/O 库 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第20.13章：fast_io 是一个独立实现的 I/O 库</h1>
+    <p class="lang-switch"><a href="/docs/20.freestanding/13.fastio/">English</a></p>
+
+    <section>
+      <h2>1. 论断</h2>
+      <p>
+        fast_io 是一个在下面没有操作系统时也能工作的 I/O 库。不是"格式化部分只有头文件，所以只要避开有意思的部分就能用" —— 而是整个库，包括容器、格式化、扫描和转码，把依赖操作系统的部分隔离在目标提供的类型参数后面。
+      </p>
+      <p>
+        本页是本章的回报，所以它写成四个设计决定，每一个都是对前面几页实测到的失败的正面回答：
+      </p>
+      <table>
+        <thead>
+          <tr><th>失败</th><th>fast_io 的回答</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>一个隐藏的全局堆（<a href="/zhcn/docs/20.freestanding/07.newdelete/">20.7</a>）</td>
+            <td>分配器是一个类型参数，并且被封进容器类型里</td>
+          </tr>
+          <tr>
+            <td>错误处理需要一个 OS（<a href="/zhcn/docs/20.freestanding/09.legacyexceptions/">20.9</a>）</td>
+            <td>返回路径上的赫布异常，策略由分配器选定</td>
+          </tr>
+          <tr>
+            <td>消息表消耗 flash（<a href="/zhcn/docs/20.freestanding/10.herbceptions/">20.10</a>）</td>
+            <td>一个只报告 <code>[domain](code)</code> 的构建开关，以及可覆盖的错误域</td>
+          </tr>
+          <tr>
+            <td>库头文件假定了一个控制台（<a href="/zhcn/docs/20.freestanding/06.stillmissing/">20.6</a>）</td>
+            <td>设备也是一个类型 —— 一次 scatter 写入，或者干脆什么都没有</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. 分层在头文件里就看得见</h2>
+      <p>
+        fast_io 有三个总头文件，它们之间的分界就是独立与宿主的边界被显式写出来：<code>fast_io_freestanding.h</code> 用于向缓冲区格式化与扫描，<code>fast_io_hosted.h</code> 用于设备、文件和控制台，<code>fast_io.h</code> 两者兼有。
+      </p>
+      <p>
+        同样的划分也出现在容器上，而且它是被预处理器强制的，不是被文档强制的。<code>::fast_io::containers::vector&lt;T, Alloc&gt;</code> 永远可用；而那个便利别名 <code>::fast_io::vector&lt;T&gt;</code>（它挑选平台的默认堆）只在有宿主平台时存在：
+      </p>
+      <pre><code class="language-cpp">#if ((__STDC_HOSTED__ == 1 &amp;&amp; (!defined(_GLIBCXX_HOSTED) || _GLIBCXX_HOSTED == 1) &amp;&amp; \
+	  !defined(_LIBCPP_FREESTANDING)) ||                                             \
+	 defined(FAST_IO_ENABLE_HOSTED_FEATURES))
+
+namespace fast_io
+{
+
+template &lt;typename T, typename Alloc = ::fast_io::native_global_allocator&gt;
+using vector = ::fast_io::containers::vector&lt;T, Alloc&gt;;</code></pre>
+      <p>
+        所以在独立目标上，<code>::fast_io::vector</code> 不存在，而编译器用最清楚的方式说出来 —— 一个找不到的名字，旁边建议着 <code>::fast_io::containers::vector</code>。不会有悄悄回退到隐藏堆的事，因为根本没有名字可以回退。你写 <code>::fast_io::containers::vector&lt;int, my_arena_allocator&gt;</code>，而分配器是类型的一部分。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 堆来自目标</h2>
+      <p>
+        默认分配器正是按你希望的那个条件选出来的。当平台是宿主时它是 <code>c_malloc_allocator</code>（或者 NT 堆，或者 mimalloc，或者任何被配置的东西）；当它是独立时它是 <code>freestanding_global_allocator</code>：
+      </p>
+      <pre><code class="language-cpp">using native_global_allocator = generic_allocator_adapter&lt;
+#if defined(FAST_IO_USE_CUSTOM_GLOBAL_ALLOCATOR)
+	custom_global_allocator
+#elif ...
+	c_malloc_allocator
+#else
+	freestanding_global_allocator
+#endif
+	&gt;;</code></pre>
+      <p>
+        而 <code>freestanding_global_allocator</code> 在库里<strong>只有声明</strong>。它的三个函数在 fast_io 里没有任何定义：
+      </p>
+      <pre><code class="language-cpp">class freestanding_global_allocator
+{
+public:
+static ::fast_io::allocation_least_result allocate_aligned_conditional_zero_at_least_die(::std::size_t alignment, ::std::size_t n, bool zero) noexcept;
+static ::fast_io::allocation_least_result allocate_aligned_conditional_zero_at_least_try(::std::size_t alignment, ::std::size_t n, bool zero) FAST_IO_HERBCEPTIONS_THROWS;
+static void deallocate_aligned_n(void* p, ::std::size_t alignment, ::std::size_t n) noexcept;
+};</code></pre>
+      <p>
+        这就是独立分配器的全部契约：带对齐的分配、可选择清零、返回 <code>{指针, 数量}</code>，或者抛一个赫布异常，或者死掉。你为你的目标实现它 —— 一个 bump arena、一个 slab、一个 per-CPU 池，目标有什么就用什么 —— 而每一个 fast_io 容器、每一个需要临时内存的格式化例程，用的都正好是它，没有别的。一个没有你提供堆就无法链接的库，就是一个无法在你背后分配的库。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 生成的代码要求什么：什么都不要求</h2>
+      <p>
+        下面是一个向栈缓冲区格式化并使用带调用者提供的 arena 的容器的程序。它只有一个翻译单元，只包含 <code>fast_io_core.h</code> 和 vector，而且从不接触文件、控制台或 locale：
+      </p>
+      <pre><code class="language-cpp">#include &lt;fast_io_core.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+template &lt;::std::size_t extent&gt;
+class arena {
+public:
+  alignas(::std::max_align_t) static inline ::std::byte storage[extent]{};
+  static inline ::std::size_t used{};
+  static ::fast_io::allocation_least_result
+  allocate_aligned_conditional_zero_at_least_die(::std::size_t alignment,
+                                                 ::std::size_t n, bool) noexcept {
+    ::std::size_t const start{(used + alignment - 1u) / alignment * alignment};
+    if (start + n &gt; extent) { ::fast_io::fast_terminate(); }
+    used = start + n;
+    return {storage + start, n};
+  }
+  static void deallocate(void *) noexcept {}
+  static void deallocate_aligned_n(void *, ::std::size_t, ::std::size_t) noexcept {}
+};
+
+using heap_a = ::fast_io::generic_allocator_adapter&lt;arena&lt;4096&gt;&gt;;
+
+int render(int value) throws {
+  char buffer[64];
+  ::fast_io::containers::vector&lt;int, heap_a&gt; v;
+  v.push_back(value);
+  ::fast_io::basic_obuffer_view&lt;char&gt; out{buffer, buffer + sizeof(buffer)};
+  ::fast_io::operations::print_freestanding&lt;false&gt;(out, "v[0] = ", v[0], "\n");
+  return static_cast&lt;int&gt;(out.size());
+}
+
+int main() {
+  try { return render(12345); }
+  catch throws (::std::error) { return -1; }
+}</code></pre>
+      <pre><code class="language-text">$ g++ -std=c++26 -fherbceptions -O2 -I fast_io/include -c core2.cc -o core2.o
+$ nm -u core2.o
+  [0 undefined symbols]
+$ size core2.o
+   1444	      0	   4104	   5548	   15ac	core2.o</code></pre>
+      <p>
+        <strong>零。</strong>没有 <code>malloc</code>、没有 <code>memcpy</code>、没有 <code>__cxa_*</code>、没有 unwinder、没有 <code>write</code>、没有 locale、没有 <code>__gxx_personality_v0</code>。1444 字节的代码和 4 KiB 的 arena 就是整个程序：整数格式化、一个可增长的容器，以及一条错误通道。那个目标文件向世界要求的唯一东西是一个栈。
+      </p>
+      <p>
+        而当 arena 用尽时，失败策略就写在 arena 里：上面那个 <code>_die</code> 口味调用 <code>fast_terminate()</code>（<a href="/zhcn/docs/19.exceptionsandherbceptions/02.crash/">19.2</a>）；<code>_try</code> 口味则在 <code>throws</code> 通道上报告 <code>::std::errc::not_enough_memory</code>（<a href="/zhcn/docs/19.exceptionsandherbceptions/09.allocatorflags/">19.9</a>）。选哪一个是对每个容器类型在编译期做的决定，不是全局开关，而这就是为什么一个 fast_io 容器可以安全地交给一个承诺过不分配内存的子系统。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 为什么这就是该用的库</h2>
+      <p>
+        宿主程序在不知情的情况下从这一切中受益：没有隐藏分配、没有 locale、没有 iostream 初始化、失败路径上没有异常，以及一个直接把内容写进目标而不是为每个实参构造一个临时 <code>std::string</code> 的格式化引擎（<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">17.8</a> 展示了 <code>+</code> 那个版本要付多少代价）。然后，当代码哪天要跑在板子上时，什么也不用改：同样的头文件、同样的 <code>print</code>、同样的容器，分配器和设备由目标提供。
+      </p>
+      <p>
+        这就是本章一直在做的论证的实践形态。标准库的 I/O 和容器是为宿主程序设计的，并且永远不会成为独立的（<a href="/zhcn/docs/20.freestanding/06.stillmissing/">20.6</a>），因为它们的接口<em>就是</em>隐藏的堆和抛出的异常。fast_io 的接口是分配器和设备，所以它在边界的两侧都能工作 —— 这就是为什么本书用它做所有事，而不是把它当成一个更快的 <code>&lt;iostream&gt;</code>。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/20.freestanding/12.utilityheaders/" class="prev-button">&larr; 第20.12章：std::move、std::addressof 与工具头文件</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/20.freestanding/14.video/" class="next-button">第20.14章：观看：Freestanding C++ 的过去、现在与未来 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

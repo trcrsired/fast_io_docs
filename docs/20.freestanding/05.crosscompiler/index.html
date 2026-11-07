@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch20.5: What the Defense Never Does: Build a Cross Compiler - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch20.5: What the Defense Never Does: Build a Cross Compiler</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/20.freestanding/05.crosscompiler/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Shape of the Argument</h2>
+      <p>
+        Search for a rebuttal to <a href="/docs/20.freestanding/04.linus/">the 2004 message</a>
+        and you will find thousands, and they almost all have the same shape: C++ is a fine
+        language for kernels, <em>look how much nicer RAII is</em>, and by the way exceptions are
+        only slow when they are thrown. The one thing none of them do is install a cross compiler.
+      </p>
+      <p>
+        Which is the whole problem, because "C++ is fine for kernels" is a claim about a
+        <strong>freestanding toolchain</strong>, and the person making it is almost always typing
+        into a hosted one, on the host the compiler was built for, with the host's headers on the
+        default search path. What they have verified is that C++ compiles for the machine they are
+        sitting at. The question was about a machine with no operating system.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. What Happens When You Point a Hosted Compiler at a Bare Target</h2>
+      <p>
+        Here is a hosted Clang, the same one that builds a hello world on this desktop, asked to
+        target a bare-metal AArch64 board. First, ask it where it looks for headers:
+      </p>
+      <pre><code class="language-text">$ clang++ --target=aarch64-none-elf -E -v -x c++ /dev/null
+#include "..." search starts here:
+#include &lt;...&gt; search starts here:
+ /home/cqwrteur/softwares/llvm_native_with_gcc/lib/clang/24/include
+End of search list.</code></pre>
+      <p>
+        One entry, and it is the compiler's own resource directory &mdash; the C headers that ship
+        with the compiler itself. There is no C++ header path at all, because the C++ part of a
+        toolchain is a <em>library</em>, and this installation has no library for
+        <code>aarch64-none-elf</code>. So:
+      </p>
+      <pre><code class="language-cpp">#include &lt;cstddef&gt;
+#include &lt;array&gt;
+int x;</code></pre>
+      <pre><code class="language-text">$ clang++ -std=c++26 --target=aarch64-none-elf -ffreestanding -c bare.cc -o /dev/null
+bare.cc:1:10: fatal error: 'cstddef' file not found
+    1 | #include &lt;cstddef&gt;
+      |          ^~~~~~~~~
+1 error generated.</code></pre>
+      <p>
+        The very first header of the freestanding list, the one header every C++ program has, does
+        not exist. That is the situation Linus was describing: not "C++ is slow", but "the C++ you
+        are describing is not installed for the machine you are describing".
+      </p>
+      <p>
+        Compare the hosted build of the same compiler, where the same file compiles without a
+        complaint because the include path is a full libc++ for x86-64 Linux. Same compiler, same
+        flags, same source: one produces an object file, the other cannot find
+        <code>cstddef</code>. The difference is not the standard, it is what was installed.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Why osdev Insists on a Cross Compiler</h2>
+      <p>
+        The OS development community has a page about this that says it better than any C++
+        tutorial:
+        <a href="https://wiki.osdev.org/Why_do_I_need_a_Cross_Compiler%3F">Why do I need a Cross
+        Compiler?</a> The three reasons are worth reproducing in your own words, because they are
+        the reasons C++ freestanding failed:
+      </p>
+      <ol>
+        <li>
+          <strong>A native compiler is configured for its host.</strong> It has a built-in sysroot,
+          built-in include paths and a built-in linker target. Pointing it at another target with
+          flags is a hack that mostly works, until the day it silently uses the host's
+          <code>stddef.h</code>.
+        </li>
+        <li>
+          <strong>Host-specific behaviour leaks in.</strong> The host build enables hardening
+          defaults, stack protector support, a host C library's assumptions about
+          <code>errno</code>, sometimes a host ABI for variadic calls. Your kernel then depends on
+          a runtime it does not have, and the failure appears at run time on real hardware.
+        </li>
+        <li>
+          <strong>You cannot tell your own bugs from your toolchain's.</strong> If the compiler was
+          never built for your target, every crash is ambiguous: is this my scheduler or the host
+          build's idea of <code>__builtin_memcpy</code>?
+        </li>
+      </ol>
+      <p>
+        A cross compiler is the answer to all three: <code>--target</code>, a sysroot that contains
+        only your target's headers, and start files written for your target. It is also the reason
+        the argument about C++ in kernels is unanswerable from a desktop: the people who have the
+        toolchain are the ones with the evidence, and the ones with the opinions do not.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. How to Tell Whether You Have One</h2>
+      <p>
+        Three commands, and they cost nothing:
+      </p>
+      <table>
+        <thead>
+          <tr><th>Command</th><th>A hosted toolchain says</th><th>What a freestanding one should say</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>g++ -print-sysroot</code></td>
+            <td>An empty line, meaning "the host's <code>/usr</code>"</td>
+            <td>A path you created that contains only your target's headers and libraries</td>
+          </tr>
+          <tr>
+            <td><code>g++ -print-file-name=include</code></td>
+            <td>The host GCC's own private header directory</td>
+            <td>A directory for <em>your</em> target triple</td>
+          </tr>
+          <tr>
+            <td><code>clang++ --target=... -E -v -x c++ /dev/null</code></td>
+            <td>Several host C++ include paths</td>
+            <td>Your sysroot's C++ headers, and nothing from the host</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        If the first two return the host's paths, then <code>-ffreestanding</code> on that
+        toolchain is a lie you are telling the compiler, and
+        <a href="/docs/20.freestanding/01.whathosted/">20.1</a> showed what happens next: the
+        hosted library refuses the header with <code>#error "This header is not available in
+        freestanding mode."</code> That error is not a bug. It is the library telling you that you
+        are in the wrong world.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. The Point</h2>
+      <p>
+        Every claim in this chapter is verifiable, but only on a toolchain that was built for the
+        target. That is why the chapter is full of <code>nm -u</code> output rather than opinions:
+        an object file's undefined symbols are a fact about the mechanism, and they do not change
+        depending on who is arguing. A legacy throw needs eleven of them; a herbception needs one;
+        a fast_io program with a caller-supplied heap needs none
+        (<a href="/docs/20.freestanding/13.fastio/">20.13</a>). Those numbers are the argument, and
+        they are why the conclusion is not "C++ is bad" but "these three features had to go".
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/20.freestanding/04.linus/" class="prev-button">&larr; Ch20.4: Why Linus Torvalds Called It a "BLOODY STUPID IDEA"</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/20.freestanding/06.stillmissing/" class="next-button">Ch20.6: What Is Still Missing Today &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

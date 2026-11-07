@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch20.7: Default Heap Storage: new and delete - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch20.7: Default Heap Storage: <code>new</code> and <code>delete</code></h1>
+    <p class="lang-switch"><a href="/zhcn/docs/20.freestanding/07.newdelete/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Feature</h2>
+      <p>
+        <code>new</code> is not one operation. It is three, and only one of them is visible in the
+        source: ask a global allocation function for memory, run the constructor in it, and decide
+        what to do if the allocation function fails. <code>delete</code> is the mirror: run the
+        destructor, return the memory. The middle steps are yours. The first and last steps belong
+        to a single, global, invisible object: <code>::operator new</code>, one heap for the whole
+        process.
+      </p>
+      <p>
+        <a href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p1105r0.html">P1105R0
+        &sect;4.4, "Default heap storage"</a> proposes making that pair optional on targets with no
+        heap, under the feature-test macro
+        <code>__cpp_freestanding_no_default_heap</code>, which tells you how the committee sees it:
+        as a feature a freestanding build may switch off, rather than as something a target either
+        has or does not.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Measured: What <code>new</code> Requires From the Environment</h2>
+      <p>
+        A trivial-looking heap allocation, compiled to an object file and then linked with
+        <code>-nostdlib</code>:
+      </p>
+      <pre><code class="language-cpp">#include &lt;new&gt;
+
+struct S { int v; };
+
+S *make(int x) noexcept(false) { return new S{x}; }
+
+int main() {
+  S *p = make(7);
+  int r = p-&gt;v;
+  delete p;
+  return r;
+}</code></pre>
+      <pre><code class="language-text">$ g++ -std=c++26 -O2 -c nd.cc &amp;&amp; nm -u nd.o
+                 U _Znwm
+$ g++ -std=c++26 -O2 -nostdlib nd.cc -o nd
+  undefined reference to `operator new(unsigned long)</code></pre>
+      <p>
+        One symbol, and it must come from somewhere. On a hosted system it comes from libc, which
+        gets the memory from <code>sbrk</code>/<code>mmap</code>, which is the kernel. On a
+        freestanding target, nobody wrote it. Now compare placement <code>new</code>, which is the
+        part of <code>new</code> that does not allocate:
+      </p>
+      <pre><code class="language-cpp">#include &lt;new&gt;
+struct S { int v; };
+
+int f(int x) noexcept {
+  alignas(S) unsigned char buf[sizeof(S)];
+  S *p = new (buf) S{x};
+  return p-&gt;v;
+}</code></pre>
+      <pre><code class="language-text">$ g++ -std=c++26 -O2 -nostdlib -c pn.cc -o pn.o &amp;&amp; nm -u pn.o
+  [0 undefined symbols]</code></pre>
+      <p>
+        Zero. Placement <code>new</code> is a pure language feature: construct an object at an
+        address you already have. It is the only form of <code>new</code> that a freestanding
+        program can use without a heap, and it is the form that the allocator model in
+        <a href="/docs/19.exceptionsandherbceptions/09.allocatorflags/">19.9</a> is built on.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Mess, in Five Parts</h2>
+      <p>
+        Even on targets that <em>do</em> have memory, <code>new</code> is the worst-designed part of
+        the language, and the freestanding story is only one of the reasons.
+      </p>
+      <ol>
+        <li>
+          <strong>One global heap, chosen for you.</strong> There is exactly one
+          <code>::operator new</code>. Replacing it replaces the heap of every library in the
+          process, including ones you do not control.
+        </li>
+        <li>
+          <strong>The failure policy is invisible.</strong> Whether allocation failure throws
+          <code>bad_alloc</code>, terminates, or returns <code>nullptr</code> depends on which
+          overload you called and how your program was built. Nothing in a signature says so
+          (<a href="/docs/19.exceptionsandherbceptions/02.crash/">19.2</a> argues that termination
+          is the only correct policy).
+        </li>
+        <li>
+          <strong>It is a language keyword bound to a link-time symbol.</strong> You cannot pass a
+          heap to a function that uses <code>new</code>. The function either allocates from the
+          global heap or it does not allocate.
+        </li>
+        <li>
+          <strong>A virtual destructor silently requires <code>operator delete</code>.</strong>
+          P1105R0 says it plainly: the class's vtable points at a deleting destructor that calls
+          <code>::operator delete</code>, so merely having a virtual destructor places a burden on
+          freestanding users who never call <code>new</code>. That is how a hello-world interface
+          ends up depending on a heap.
+        </li>
+        <li>
+          <strong>Arrays, alignment and nothrow multiply it.</strong> <code>new T[n]</code> needs an
+          array cookie and <code>operator new[]</code>; over-aligned types need the aligned
+          overloads; <code>std::nothrow</code> is a fourth variant of the same thing
+          (<a href="/docs/18.virtual/07.operatornew/">18.7</a> covers the class-level versions).
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>4. And Even If It Were Clean, One Heap Is Not Enough</h2>
+      <p>
+        This is the part that C++ programmers usually miss, and kernel programmers never do. A
+        kernel does not have "a" heap. It has one per memory zone, one per NUMA node, one per
+        device with DMA constraints, plus pools with different lifetimes and different accounting.
+        Choosing which heap an allocation comes from is a <em>semantic</em> decision, not a
+        performance one, and it cannot be expressed by a single global.
+      </p>
+      <p>
+        So the question is not "is <code>new</code> dangerous"; it is "how does the allocation
+        source appear in the type system". Here it is, done the other way. Two arenas, two
+        containers, one program &mdash; the allocator is a template argument, so each container can
+        only ever use its own heap:
+      </p>
+      <pre><code class="language-cpp">#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+template &lt;::std::size_t extent&gt;
+class arena {
+public:
+  alignas(::std::max_align_t) static inline ::std::byte storage[extent]{};
+  static inline ::std::size_t used{};
+
+  static ::fast_io::allocation_least_result
+  allocate_aligned_conditional_zero_at_least_die(::std::size_t alignment,
+                                                 ::std::size_t n,
+                                                 bool zero) noexcept {
+    ::std::size_t const start{(used + alignment - 1u) / alignment * alignment};
+    if (start + n &gt; extent) { ::fast_io::fast_terminate(); }
+    used = start + n;
+    if (zero) {
+      for (::std::size_t i{}; i != n; ++i) { storage[start + i] = ::std::byte{}; }
+    }
+    return {storage + start, n};
+  }
+  static void deallocate(void *) noexcept {}
+  static void deallocate_aligned_n(void *, ::std::size_t, ::std::size_t) noexcept {}
+};
+
+using heap_a = ::fast_io::generic_allocator_adapter&lt;arena&lt;4096&gt;&gt;;
+using heap_b = ::fast_io::generic_allocator_adapter&lt;arena&lt;8192&gt;&gt;;</code></pre>
+      <pre><code class="language-text">a from A true b from B true
+a from B false b from A false
+A used 144 of 4096
+B used 144 of 8192</code></pre>
+      <p>
+        Neither container can reach the other's arena: they are different types, and the allocator
+        is part of the type. There is no global heap in the picture, no
+        <code>::operator new</code>, no way to misconfigure it at run time, and the failure policy
+        is written in the arena &mdash; <code>fast_terminate()</code> here, or a herbception if the
+        arena had used the <code>_try</code> flavour.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. What Should Happen, and What This Book Does</h2>
+      <p>
+        P1105R0's proposed rule is the right one: on a system without a default heap, the
+        replaceable allocation functions are simply <em>not provided</em>, and a program that uses
+        <code>new</code> fails to link &mdash; at compile time, not at 3 a.m. on the board. It also
+        notes why the alternatives do not work: an <code>::operator new</code> that immediately
+        throws <code>bad_alloc</code> "would require pulling in all the exception handling
+        machinery", which is exactly the deal you were trying to avoid.
+      </p>
+      <table>
+        <thead>
+          <tr><th></th><th><code>new</code> / <code>delete</code></th><th>fast_io allocator</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Which heap</td><td>One global, chosen at link time</td><td>A template argument, chosen per container</td></tr>
+          <tr><td>Failure policy</td><td>Depends on the overload and the build</td><td>A flag in the allocator type (<a href="/docs/19.exceptionsandherbceptions/09.allocatorflags/">19.9</a>)</td></tr>
+          <tr><td>Can a function allocate from a heap it was not given?</td><td>Yes</td><td>No</td></tr>
+          <tr><td>Freestanding</td><td>No default heap (<a href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p1105r0.html">P1105R0</a>)</td><td>Yes, the arena above compiles with zero external symbols</td></tr>
+          <tr><td>Swappable per subsystem</td><td>Only by replacing the global</td><td>By instantiating a different type</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The rule to take away: <strong>never write <code>new</code> in your own code</strong>, and
+        do not design interfaces that allocate behind the caller's back. When you need storage, say
+        where it comes from &mdash; a buffer, an arena, an allocator type &mdash; and the program
+        will work on a board, in a kernel, and on a desktop without changing a line.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/20.freestanding/06.stillmissing/" class="prev-button">&larr; Ch20.6: What Is Still Missing Today</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/20.freestanding/08.rtti/" class="next-button">Ch20.8: RTTI and dynamic_cast &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第20.12章：std::move、std::addressof 与工具头文件 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第20.12章：<code>std::move</code>、<code>std::addressof</code> 与工具头文件</h1>
+    <p class="lang-switch"><a href="/docs/20.freestanding/12.utilityheaders/">English</a></p>
+
+    <section>
+      <h2>1. 你绕不过去的那几个缺失</h2>
+      <p>
+        前面几页讲的是需要基础设施的特性：一个堆、一个 unwinder、一个线程指针。这一页更糟，因为它讲的特性<strong>什么都不需要</strong> —— 不分配、没有运行时、没有表、没有 OS —— 却在最需要它们的地方不可用。
+      </p>
+      <p>
+        <code>::std::move</code> 转换成右值引用。<code>::std::forward</code> 有条件地转换。<code>::std::swap</code> 是三次移动。<code>::std::pair</code> 是两个成员。<code>::std::addressof</code> 取一个地址。标准库里最便宜的五个东西，而它们每一个都住在 <code>&lt;utility&gt;</code> 或 <code>&lt;memory&gt;</code> 里，而这两个在 C++23 之前都不是必需的独立头文件（<a href="/zhcn/docs/20.freestanding/06.stillmissing/">20.6</a>）。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 它们为什么缺失，以及这个理由为何不是技术性的</h2>
+      <p>
+        独立头文件清单不是被设计出来的，它是被<em>推导</em>出来的 —— 1998 年从一个问题推导：语言自身需要哪些头文件才能被实现？答案是：<code>&lt;cstddef&gt;</code> 提供 <code>size_t</code>、<code>&lt;limits&gt;</code> 与 <code>&lt;cfloat&gt;</code> 提供取值范围、<code>&lt;cstdarg&gt;</code> 提供可变参数函数 —— 然后是 <code>&lt;new&gt;</code>、<code>&lt;typeinfo&gt;</code> 和 <code>&lt;exception&gt;</code>，因为语言有 <code>new</code>、RTTI 和异常，而这些需要库支持。那是一份编译器的需求清单，不是一份"程序要被写出来需要什么"的清单，而二十年里没人再问过这个问题。
+      </p>
+      <p>
+        所以 <code>&lt;utility&gt;</code> 落选的理由和 <code>&lt;utility&gt;</code> 本身毫无关系：它不属于编译器的自举集合，所以它不在清单上，所以一个符合标准的独立实现没有义务提供它。同样的非理由也覆盖了 <code>&lt;type_traits&gt;</code>（它是后来才加的，C++11，出于另一个目的），以及 <code>&lt;iterator&gt;</code>、<code>&lt;ranges&gt;</code>、<code>&lt;memory&gt;</code>，它们作为"部分"在 C++23 里到来 —— 每一个都附有一份官方清单，说明你被允许期望其中的哪些东西。
+      </p>
+      <p>
+        对比 C：清单是四个头文件，每一个都真正由编译器掌管。从来没有人需要加第五个，因为那份清单是按一条原则划出来的 —— "什么是用语言写不出来的" —— 而不是按某一套实现在 1998 年恰好需要什么的快照。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 你写得出来的，和你写不出来的</h2>
+      <p>
+        这五个之间有一个真实的不对称，而它是本页最有启发性的一点。
+      </p>
+      <p>
+        <strong><code>move</code> 和 <code>forward</code> 你自己写得出来。</strong>它们是转换；定义各占一行，一个缺少 <code>&lt;utility&gt;</code> 的独立代码库干脆在自己的命名空间里定义一个。丑、重复标准库，但它能用。这就是为什么这个缺失是可以承受的：当特性是一个转换时，缺一个头文件只是不便。
+      </p>
+      <p>
+        <strong><code>addressof</code> 你写不出来。</strong>它必须打败用户定义的 <code>operator&amp;</code>，这意味着它需要编译器魔法（<code>__builtin_addressof</code>），而且它是 <code>constexpr</code>，这意味着它不能是一个运行期 <code>reinterpret_cast</code> 的权宜之计。没有可移植的实现 —— 标准库自己的实现就是一次内建调用，并为 C++11 之前的编译器留了一个 <code>reinterpret_cast</code> 退路。于是在 <code>::std::addressof</code> 不是必需独立头文件的那整段时期里，一个独立程序拥有一个语言特性 —— 取对象地址 —— 而任何类都可以悄悄重新定义它，并且<strong>没有任何办法拿回真实地址</strong>（<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">17.8</a> 写出了那个让 <code>&amp;s == nullptr</code> 为真的程序）。
+      </p>
+      <p>
+        这就是本章反复回到的那条规则最锋利的形式：<strong>一个不是独立实现的标准化特性就不存在。</strong>不是"不方便"，不是"需要变通" —— 是不存在。而这件事咬得最狠的并不是那些大的特性，因为大的特性有你看得见的变通办法。是那些一行大的东西，结果发现它们需要编译器。
+      </p>
+      <p>
+        C 从 1972 年起，<code>&amp;x</code> 就意味着 "<code>x</code> 的地址"，独立代码和宿主代码都一样，完全不涉及库。C++ 允许一个类改变这个运算符的含义，然后又花二十年才承诺：在那些别人根本无法自行提供它的目标上，这条逃生通道会在。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 这造成的可移植性陷阱</h2>
+      <p>
+        这就是那个陷阱，而它不是编译器的 bug：
+      </p>
+      <ol>
+        <li>
+          你的宿主工具链不管标准要求什么都会提供 <code>&lt;utility&gt;</code> 和 <code>&lt;memory&gt;</code>，因为它是为永远有这些东西的桌面构建的。
+        </li>
+        <li>
+          于是你的代码在你机器上编译通过，加不加 <code>-ffreestanding</code> 都一样，然后你断定这份代码是独立的。
+        </li>
+        <li>
+          然后你为板子构建，用一套其 C++ 库正好只包含必需子集的工具链，同一个文件就编译不过 —— 或者更糟，链接到一个并不存在的 <code>std::addressof</code>。
+        </li>
+        <li>
+          而源码里没有任何东西告诉你处在两个世界中的哪一个，因为当时没有方法去问。能回答这个问题的特性测试宏（<code>__cpp_lib_freestanding_*</code>）是 C++26 的，而 C++26 没有发布（<a href="/zhcn/docs/20.freestanding/06.stillmissing/">20.6</a>）。
+        </li>
+      </ol>
+      <p>
+        这就是"你为什么一直说 C++ 不是为独立实现设计的"的答案。不是因为这门语言离开 OS 就无法编译 —— 它能，本书就在这么做。而是因为标准没有给你任何办法去写一个<em>只使用</em>独立设施的程序，并让工具链去检查它。你是在板子上才发现的。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 怎么办</h2>
+      <p>
+        实践策略，也是本书遵循的那一条：
+      </p>
+      <ul>
+        <li>
+          <strong>逐个头文件书面决定你信任哪些</strong> —— 并且把决定钉在你支持的工具链版本上，而不是钉在标准上。
+        </li>
+        <li>
+          <strong>不要自己写 <code>move</code>/<code>forward</code>。</strong>从标准库拿到一个不同的类型，意味着你的模板和它的模板在重载解析上会产生分歧。用库里那个，并且要求有它的工具链。
+        </li>
+        <li>
+          <strong>除非你在某套工具链上验证过，否则永远不要依赖 <code>addressof</code> 存在</strong> —— 也永远不要设计一个 <code>operator&amp;</code> 存在的意义就是让人意外的类。
+        </li>
+        <li>
+          <strong>或者用一个已经把这一切都决定好了的库</strong>，并且能在一个库都没有的情况下为你的目标编译。那就是下一页。
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/20.freestanding/11.tlsfloatstartup/" class="prev-button">&larr; 第20.11章：线程局部存储、浮点与程序启动</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/20.freestanding/13.fastio/" class="next-button">第20.13章：fast_io 是一个独立实现的 I/O 库 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

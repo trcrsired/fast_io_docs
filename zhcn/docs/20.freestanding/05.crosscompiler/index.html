@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第20.5章：辩护者从不做的一件事：自己构建交叉编译器 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第20.5章：辩护者从不做的一件事：自己构建交叉编译器</h1>
+    <p class="lang-switch"><a href="/docs/20.freestanding/05.crosscompiler/">English</a></p>
+
+    <section>
+      <h2>1. 论证的形状</h2>
+      <p>
+        去搜 <a href="/zhcn/docs/20.freestanding/04.linus/">2004 年那封邮件</a> 的反驳，你能找到几千条，而它们几乎都是同一个形状：C++ 是一门适合写内核的语言，<em>看看 RAII 多优雅</em>，顺便一提异常只是抛出来的时候才慢。唯一没人做的事是装一个交叉编译器。
+      </p>
+      <p>
+        而这正是整个问题所在，因为"C++ 适合内核"是一个关于<strong>独立工具链</strong>的论断，而提出它的人几乎总是在一个宿主工具链里敲键盘 —— 编译器是为他面前的机器构建的，默认搜索路径上是那台机器的头文件。他验证的是 C++ 能为他坐着的这台机器编译。而问题问的是一台没有操作系统的机器。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 把宿主编译器指向裸目标会发生什么</h2>
+      <p>
+        这是一台宿主 Clang，就是在这台桌面上构建 hello world 的同一个，现在要求它针对一块裸机 AArch64 板子。先问它去哪里找头文件：
+      </p>
+      <pre><code class="language-text">$ clang++ --target=aarch64-none-elf -E -v -x c++ /dev/null
+#include "..." search starts here:
+#include &lt;...&gt; search starts here:
+ /home/cqwrteur/softwares/llvm_native_with_gcc/lib/clang/24/include
+End of search list.</code></pre>
+      <p>
+        只有一个条目，而且它是编译器自己的资源目录 —— 编译器自带的那些 C 头文件。完全没有 C++ 头文件路径，因为工具链里的 C++ 部分是一个<em>库</em>，而这次安装没有为 <code>aarch64-none-elf</code> 准备的库。于是：
+      </p>
+      <pre><code class="language-cpp">#include &lt;cstddef&gt;
+#include &lt;array&gt;
+int x;</code></pre>
+      <pre><code class="language-text">$ clang++ -std=c++26 --target=aarch64-none-elf -ffreestanding -c bare.cc -o /dev/null
+bare.cc:1:10: fatal error: 'cstddef' file not found
+    1 | #include &lt;cstddef&gt;
+      |          ^~~~~~~~~
+1 error generated.</code></pre>
+      <p>
+        独立清单上的第一个头文件，每个 C++ 程序都有的那一个，不存在。这就是 Linus 描述的情形：不是"C++ 慢"，而是"你描述的那个 C++ 并没有为你要描述的那台机器安装"。
+      </p>
+      <p>
+        对比同一个编译器的宿主构建：同一个文件毫无怨言地编译通过，因为搜索路径上是一套完整的 x86-64 Linux libc++。同一个编译器、同样的选项、同样的源码：一个产出目标文件，另一个找不到 <code>cstddef</code>。差别不在标准，而在装了什么。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 为什么 osdev 坚持要用交叉编译器</h2>
+      <p>
+        操作系统开发社区有一页专讲这件事，说得比任何 C++ 教程都好：<a href="https://wiki.osdev.org/Why_do_I_need_a_Cross_Compiler%3F">Why do I need a Cross Compiler?</a> 那三个理由值得用自己的话复述一遍，因为那就是 C++ 独立实现失败的理由：
+      </p>
+      <ol>
+        <li>
+          <strong>原生编译器是为它的宿主配置的。</strong>它有内建的 sysroot、内建的头文件路径和内建的链接目标。用选项把它指向另一个目标是一种大体能用的权宜之计，直到某一天它悄悄用了宿主的 <code>stddef.h</code>。
+        </li>
+        <li>
+          <strong>宿主的特有行为会渗进来。</strong>宿主构建会打开加固默认值、栈保护支持，以及宿主 C 库对 <code>errno</code> 的假设，有时还有可变参数调用的宿主 ABI。于是你的内核依赖了一个它没有的运行时，而失败会在真机上表现为运行期崩溃。
+        </li>
+        <li>
+          <strong>你分不清是自己的 bug 还是工具链的 bug。</strong>如果编译器从未为你的目标构建过，每次崩溃都是含糊的：这是我的调度器，还是宿主构建对 <code>__builtin_memcpy</code> 的理解？
+        </li>
+      </ol>
+      <p>
+        交叉编译器是对这三个问题的答案：<code>--target</code>、一个只包含你目标头文件的 sysroot，以及为你的目标写的启动文件。这也是为什么"内核里能不能用 C++"这场争论在桌面上无法回答：手里有工具链的人才是掌握证据的人，而有意见的人不是。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 怎么判断你手上有没有</h2>
+      <p>
+        三条命令，零成本：
+      </p>
+      <table>
+        <thead>
+          <tr><th>命令</th><th>宿主工具链会说什么</th><th>独立工具链应该说什么</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>g++ -print-sysroot</code></td>
+            <td>一行空，意思是"用宿主的 <code>/usr</code>"</td>
+            <td>一条你创建的路径，其中只有你目标的头文件和库</td>
+          </tr>
+          <tr>
+            <td><code>g++ -print-file-name=include</code></td>
+            <td>宿主 GCC 自己的私有头文件目录</td>
+            <td>一个为<em>你的</em>目标三元组准备的目录</td>
+          </tr>
+          <tr>
+            <td><code>clang++ --target=... -E -v -x c++ /dev/null</code></td>
+            <td>若干宿主 C++ 头文件路径</td>
+            <td>你 sysroot 的 C++ 头文件，完全不含宿主的东西</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        如果前两条返回的是宿主路径，那么在那套工具链上 <code>-ffreestanding</code> 就是一个你讲给编译器听的谎，而 <a href="/zhcn/docs/20.freestanding/01.whathosted/">20.1</a> 展示了接下来会发生什么：宿主库用 <code>#error "This header is not available in freestanding mode."</code> 拒绝这个头文件。那个报错不是 bug。是那个库在告诉你：你在错的世界里。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 要点</h2>
+      <p>
+        本章的每一个论断都是可以验证的，但只能在一套为目标构建过的工具链上。这就是为什么本章里满是 <code>nm -u</code> 的输出而不是观点：一个目标文件的未定义符号是关于那个机制的事实，它们不会因为谁在争论而改变。一次遗留抛出需要十一个；一次赫布异常需要一个；一个使用调用者提供的堆的 fast_io 程序一个都不需要（<a href="/zhcn/docs/20.freestanding/13.fastio/">20.13</a>）。那些数字就是论证，而它们也是为什么结论不是"C++ 很糟"，而是"这三个特性必须去掉"。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/20.freestanding/04.linus/" class="prev-button">&larr; 第20.4章：Linus Torvalds 为何称之为"愚蠢透顶的主意"</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/20.freestanding/06.stillmissing/" class="next-button">第20.6章：今天仍然缺什么 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

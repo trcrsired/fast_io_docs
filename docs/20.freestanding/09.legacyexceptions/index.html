@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch20.9: Legacy Exceptions Cannot Exist Here - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch20.9: Legacy Exceptions Cannot Exist Here</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/20.freestanding/09.legacyexceptions/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Feature</h2>
+      <p>
+        P1105R0 &sect;4.1 is the section that started the modern freestanding work, and its first
+        sentence is the argument: kernel and embedded environments cannot universally afford
+        exceptions, and throwing one "requires a heap allocation on the Itanium ABI, and a large
+        stack allocation on the Microsoft ABI, neither of which are suitable" in a kernel.
+      </p>
+      <p>
+        <a href="/docs/19.exceptionsandherbceptions/03.legacyexceptions/">19.3</a> taught the
+        mechanism and <a href="/docs/19.exceptionsandherbceptions/08.issues/">19.8</a> measured it.
+        This page is the freestanding question only: what does it need from the <em>environment</em>,
+        and what do you do when that environment is the kernel itself?
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Measured: Eleven Symbols</h2>
+      <pre><code class="language-cpp">#include &lt;stdexcept&gt;
+
+void fail(int x) noexcept(false) { if (x &lt; 0) { throw ::std::runtime_error("negative"); } }
+
+int main() { try { fail(-1); } catch (::std::runtime_error const &amp;) { return 0; } return 1; }</code></pre>
+      <pre><code class="language-text">$ g++ -std=c++26 -O2 -c legacy.cc &amp;&amp; nm -u legacy.o
+                 U _Unwind_Resume
+                 U _ZNSt12__cow_stringC2EPKc
+                 U _ZNSt13runtime_errorD1Ev
+                 U _ZTISt13runtime_error
+                 U _ZTVSt13runtime_error
+                 U __cxa_allocate_exception
+                 U __cxa_begin_catch
+                 U __cxa_end_catch
+                 U __cxa_free_exception
+                 U __cxa_throw
+                 U __gxx_personality_v0</code></pre>
+      <p>
+        Eleven, and every one of them is a component of an operating system facility:
+      </p>
+      <ul>
+        <li>
+          <code>__cxa_allocate_exception</code> &mdash; a <strong>heap</strong>. On a target with no
+          heap, this function cannot be written.
+        </li>
+        <li>
+          <code>_Unwind_Resume</code> &mdash; an <strong>unwinder</strong>, a stack walker that
+          understands the target's frame layout.
+        </li>
+        <li>
+          <code>__gxx_personality_v0</code> &mdash; the per-frame callback that decides whether this
+          frame catches the exception. It reads the language exception table,
+          <code>.gcc_except_table</code>, for every function on the way out.
+        </li>
+        <li>
+          <code>_ZTISt13runtime_error</code>, <code>_ZTVSt13runtime_error</code> &mdash;
+          <strong>RTTI and vtables</strong>, needed to match a handler against the thrown type
+          (<a href="/docs/20.freestanding/08.rtti/">20.8</a>).
+        </li>
+        <li>
+          The frame tables themselves, <code>.eh_frame</code>, which must be registered with a
+          loader so the unwinder can find them.
+        </li>
+      </ul>
+      <p>
+        There is no subset of that you can provide yourself. Writing them means writing a runtime
+        library, compiled for your target, ABI-compatible with the compiler's expectations, and
+        then maintaining it against every compiler release. This is the load that
+        <a href="/docs/20.freestanding/03.cpp03/">20.3</a> described as making C++03's freestanding
+        mode a lie.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. In a Kernel There Is Nobody to Ask</h2>
+      <p>
+        On a hosted system the unwinder comes from <code>libgcc_s.so</code>, the frame tables are
+        registered by <code>ld.so</code>, and the heap is <code>brk</code>/<code>mmap</code>. A
+        kernel <em>is</em> the layer those would have been built on. If it wants legacy exceptions
+        it must implement an unwinder over its own interrupt frames, an exception-table registry
+        for its own loadable modules, and a heap that is reentrant enough to be called from a
+        faulting context &mdash; and then it is maintaining a private C++ runtime inside the kernel,
+        which is the definition of the problem.
+      </p>
+      <p>
+        There is a second reason that has nothing to do with machinery: an exception thrown in
+        kernel context <em>resumes</em> in some frame. Which frame? A process that has already been
+        killed? An interrupt handler with a clobbered register state? Legacy exceptions assume the
+        unwound-to frame is a function call in a healthy thread, and in a kernel that assumption is
+        simply false. This is what "especially broken for kernels" means
+        (<a href="/docs/20.freestanding/04.linus/">20.4</a>).
+      </p>
+    </section>
+
+    <section>
+      <h2>4. On a GPU There Is No Version of It at All</h2>
+      <p>
+        The kernel at least <em>could</em> build the runtime at enormous cost. Device code cannot:
+        every GPU programming model requires exceptions to be off, there is no unwinder in the
+        device runtime, no dynamic loader, no exception tables, and no place to store a thrown
+        object &mdash; a thread that throws has nowhere to go, because the other threads in the warp
+        and block are not part of its call stack.
+      </p>
+      <table>
+        <thead>
+          <tr><th>Environment</th><th>What legacy exceptions need</th><th>What exists there</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Freestanding / bare metal</td>
+            <td>Unwinder, frame tables, heap, RTTI, loader</td>
+            <td>Nothing unless you bring it</td>
+          </tr>
+          <tr>
+            <td>Kernel</td>
+            <td>All of the above, plus a definable resume frame</td>
+            <td>The kernel itself, which cannot assume any of it</td>
+          </tr>
+          <tr>
+            <td>GPU device code</td>
+            <td>All of the above</td>
+            <td>Not part of the model at all; exceptions are off by requirement</td>
+          </tr>
+          <tr>
+            <td>WebAssembly</td>
+            <td>Unwinding as a target feature</td>
+            <td>Not in the base target; proposals add it to the engine, not to your binary</td>
+          </tr>
+          <tr>
+            <td>Any <code>-fno-exceptions</code> build</td>
+            <td>&mdash;</td>
+            <td><code>error: exception handling disabled, use '-fexceptions' to enable</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Five rows, and in four of them the answer is "this mechanism is unavailable". A language
+        whose only error channel is this one is a language that cannot report an error on four of
+        those targets &mdash; and the workaround, an error code threaded by hand through every
+        function, is the thing C++ users were told they had escaped.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. So They Are Banned, Not Discouraged</h2>
+      <p>
+        This is why <a href="/docs/19.exceptionsandherbceptions/07.banflags/">19.7</a> does not say
+        "prefer herbceptions"; it says add <code>-fno-exceptions</code> to the build so that a
+        legacy <code>throw</code> is a compile error. On a freestanding target, a build that has
+        not banned them is a build that links on your desktop and fails on the board, which is the
+        worst of both worlds.
+      </p>
+      <p>
+        The next page is the other half: the mechanism that does work here, with one linker symbol
+        instead of eleven.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/20.freestanding/08.rtti/" class="prev-button">&larr; Ch20.8: RTTI and dynamic_cast</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/20.freestanding/10.herbceptions/" class="next-button">Ch20.10: Herbceptions: the Only Error Handling That Exists Here &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

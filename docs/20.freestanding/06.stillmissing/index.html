@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch20.6: What Is Still Missing Today - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch20.6: What Is Still Missing Today</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/20.freestanding/06.stillmissing/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Header List, and the Year Each Entry Arrived</h2>
+      <p>
+        A freestanding implementation must provide at least the headers on the standard's list.
+        Here are the ones that matter for normal code, with the standard that added them, from
+        <a href="https://en.cppreference.com/cpp/freestanding">cppreference's table</a>:
+      </p>
+      <table>
+        <thead>
+          <tr><th>Header</th><th>Status</th><th>Since</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>&lt;cstddef&gt;</code></td><td>All</td><td>C++98</td></tr>
+          <tr><td><code>&lt;cfloat&gt;</code>, <code>&lt;climits&gt;</code>, <code>&lt;limits&gt;</code></td><td>All</td><td>C++98 / C++11</td></tr>
+          <tr><td><code>&lt;cstdarg&gt;</code>, <code>&lt;cstdint&gt;</code></td><td>All</td><td>C++98 / C++11</td></tr>
+          <tr><td><code>&lt;new&gt;</code>, <code>&lt;typeinfo&gt;</code>, <code>&lt;exception&gt;</code></td><td>All</td><td>C++98</td></tr>
+          <tr><td><code>&lt;initializer_list&gt;</code>, <code>&lt;type_traits&gt;</code>, <code>&lt;atomic&gt;</code></td><td>All</td><td>C++11</td></tr>
+          <tr><td><code>&lt;concepts&gt;</code>, <code>&lt;coroutine&gt;</code>, <code>&lt;bit&gt;</code>, <code>&lt;source_location&gt;</code>, <code>&lt;version&gt;</code></td><td>All</td><td>C++20</td></tr>
+          <tr><td><code>&lt;utility&gt;</code>, <code>&lt;tuple&gt;</code>, <code>&lt;ratio&gt;</code></td><td>All</td><td><strong>C++23</strong></td></tr>
+          <tr><td><code>&lt;memory&gt;</code>, <code>&lt;iterator&gt;</code>, <code>&lt;ranges&gt;</code>, <code>&lt;functional&gt;</code></td><td>Partial</td><td><strong>C++23</strong></td></tr>
+          <tr><td><code>&lt;cstdlib&gt;</code></td><td>Partial</td><td>C++98</td></tr>
+          <tr><td><code>&lt;array&gt;</code>, <code>&lt;cstring&gt;</code>, <code>&lt;string&gt;</code>, <code>&lt;cmath&gt;</code>, <code>&lt;system_error&gt;</code>, <code>&lt;charconv&gt;</code>, <code>&lt;algorithm&gt;</code></td><td>Partial</td><td><strong>C++26</strong></td></tr>
+        </tbody>
+      </table>
+      <p>
+        Two things jump out. First, <code>&lt;utility&gt;</code> &mdash; where
+        <code>std::move</code> lives &mdash; was not a freestanding header until C++23, twenty-five
+        years after the language shipped. Second, look at the last row and notice that it is the
+        row you need most.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. The C++26 Hole</h2>
+      <p>
+        Those last entries are real standards work, adopted and voted in &mdash; for C++26. They
+        are guarded by feature-test macros such as
+        <code>__cpp_lib_freestanding_array = 202311L</code>, and they are behind a standard that
+        was <strong>not published</strong>. So the honest state of
+        <code>std::array</code> today is:
+      </p>
+      <ul>
+        <li>
+          <strong>In every published standard:</strong> <code>&lt;array&gt;</code> is
+          <em>not</em> a freestanding header. A freestanding implementation is under no obligation
+          to have it, and it may be absent, broken, or present as a non-portable extra.
+        </li>
+        <li>
+          <strong>In your toolchain:</strong> it will very likely work, because your vendor ships
+          more than the standard requires. GCC's libstdc++ provides
+          <code>&lt;array&gt;</code>, <code>&lt;optional&gt;</code>, <code>&lt;span&gt;</code> and
+          <code>&lt;bitset&gt;</code> for freestanding, and cppreference's own note says to avoid
+          them anyway, because they "may not be portable or provide the same capabilities as a
+          hosted implementation".
+        </li>
+        <li>
+          <strong>On the next toolchain:</strong> unknown. A vendor extension is a courtesy, not a
+          contract, and it can be withdrawn in any release &mdash; or never provided at all for the
+          target you care about, which is the usual case for a new board.
+        </li>
+      </ul>
+      <p>
+        A three-element fixed-size array is the least demanding container in the language: no heap,
+        no exceptions required by the interface, no allocation, no locale, no I/O. It has been in
+        the standard since C++11 and it is <strong>still not a freestanding header</strong> in any
+        published revision. That is the whole C++ freestanding story in one type.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. What a Hosted Toolchain with <code>-ffreestanding</code> Actually Gives You</h2>
+      <p>
+        Measured on GCC 17's libstdc++, which is one of the better ones. Each line is a
+        one-line file, compiled with <code>-std=c++26 -ffreestanding -fsyntax-only</code>:
+      </p>
+      <pre><code class="language-text">OK    &lt;cstddef&gt;
+OK    &lt;utility&gt;
+OK    &lt;array&gt;
+FAIL  &lt;vector&gt;      error: #error "This header is not available in freestanding mode."
+FAIL  &lt;string&gt;      error: #error "This header is not available in freestanding mode."
+OK    &lt;string_view&gt;
+OK    &lt;optional&gt;
+OK    &lt;expected&gt;
+OK    &lt;span&gt;
+FAIL  &lt;cmath&gt;       error: #error "This header is not available in freestanding mode."
+FAIL  &lt;iostream&gt;    error: #error "This header is not available in freestanding mode."
+FAIL  &lt;print&gt;       error: #error "This header is not available in freestanding mode."</code></pre>
+      <p>
+        Read the middle column: <code>&lt;string_view&gt;</code>, <code>&lt;optional&gt;</code>,
+        <code>&lt;expected&gt;</code> and <code>&lt;span&gt;</code> work, and
+        <code>&lt;cmath&gt;</code> &mdash; the C++ wrapper around a header that C has required in
+        freestanding since 1989 &mdash; does not. That is not a considered portability policy; it
+        is the cumulative result of thirty years of headers being written for hosted programs and
+        gated afterwards.
+      </p>
+      <p>
+        And remember where this list came from: a <em>hosted</em> installation with a flag flipped
+        (<a href="/docs/20.freestanding/01.whathosted/">20.1</a>). On a real bare-metal toolchain
+        every single line would be <code>fatal error: ... file not found</code>
+        (<a href="/docs/20.freestanding/05.crosscompiler/">20.5</a>).
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The Three Tiers, and the One Nobody Argues About</h2>
+      <table>
+        <thead>
+          <tr><th>Tier</th><th>Meaning</th><th>What it means for your build</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Required</strong></td>
+            <td>The standard says a freestanding implementation has it</td>
+            <td>You can rely on it, on every conforming toolchain, forever</td>
+          </tr>
+          <tr>
+            <td><strong>Vendor extension</strong></td>
+            <td>Your libstdc++/libc++ ships it anyway</td>
+            <td>Works today, silently breaks on the next toolchain or the next board</td>
+          </tr>
+          <tr>
+            <td><strong>Never</strong></td>
+            <td>
+              <code>vector</code>, <code>list</code>, <code>deque</code>, <code>map</code>: "due
+              to their dependencies on exceptions and heap", as cppreference puts it
+            </td>
+            <td>No amount of standardisation will change it &mdash; the dependency is the design</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        That last row is the interesting one, because it is not about scheduling. The standard
+        library's containers report allocation failure by throwing, and they grow by allocating
+        from a global heap. Those are not incidental properties; they are the interface. So the one
+        part of the library that is genuinely useful for real programs is the part the standard
+        has decided cannot be freestanding at all.
+      </p>
+      <p>
+        The conclusion is not "wait for C++29". It is that a freestanding program has to
+        <strong>own its headers</strong> &mdash; decide which ones it will trust, on which
+        toolchains, with which fallbacks &mdash; or use a library that already made that decision
+        and can be built for the target. That is the argument for
+        <a href="/docs/20.freestanding/13.fastio/">20.13</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. What the Toolchain Vendors Say About It</h2>
+      <p>
+        Three major implementations, three answers. The MSVC STL <strong>does support
+        freestanding</strong>, and has for years. libstdc++ had "implementation and build issues
+        before version 13" &mdash; cppreference's words &mdash; and works from GCC 13 on, partly.
+        And libc++ <strong>does not support freestanding at all</strong>: on the clang side there is
+        no freestanding configuration to target, which is why a bare-metal C++ build is the hardest
+        one to get out of the Clang family.
+      
+      </p>
+      <p>
+        So the state of the art is: one vendor supports it, one supports part of it from a recent
+        version, and one does not support it at all. That is not a feature you can build a product
+        on without checking; it is a feature you have to test on every toolchain you ship. Note also
+        that cppreference's own note repeats the libc++ claim as if it applied to both C++ libraries
+        of note, which is exactly the sort of second-hand summary you cannot use instead of checking.
+      </p>
+      <p>
+        Meanwhile the C freestanding list is four headers and has never had a compatibility
+        problem, because it is a list of things the compiler cannot function without.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/20.freestanding/05.crosscompiler/" class="prev-button">&larr; Ch20.5: What the Defense Never Does: Build a Cross Compiler</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/20.freestanding/07.newdelete/" class="next-button">Ch20.7: Default Heap Storage: new and delete &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
