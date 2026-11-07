@@ -29,12 +29,14 @@ square *p = new square{2.0};
         <li>and if step 1 fails, <strong>throw <code>::std::bad_alloc</code></strong>.</li>
       </ol>
       <p>
-        Step 4 is the historical mistake. Failure to allocate memory happens constantly on real
-        machines &mdash; it is a return value, not an exceptional event &mdash; and the language
-        made it a thrown exception of a type invented in 1998, at a time when C++ had no usable
-        error channel at all. So every <code>new</code> in your program is a hidden control-flow
-        edge that can leave a function, and every function that calls <code>new</code> must
-        therefore be prepared to throw.
+        Step 4 is one of the biggest historical mistakes in C++. Failure to allocate memory is not
+        recoverable and not exceptional in any useful sense: it is the end of the program.
+        Making it a thrown exception means every <code>new</code> in your program is a hidden
+        control-flow edge that can leave a function, every function that calls <code>new</code>
+        must be prepared to throw, and every caller must decide what "out of memory" means in a
+        design that cannot do anything about it. The honest answer is that allocation failure
+        terminates (<a href="/docs/17.virtual/07.operatornew/">Ch17.7</a>), and C++ chose the
+        opposite in 1998, when it had no usable error channel at all.
       </p>
       <p>
         That is why <code>new</code> is <em>not <code>noexcept</code></em>:
