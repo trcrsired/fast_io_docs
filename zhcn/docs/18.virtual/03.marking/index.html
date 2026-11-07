@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第18.3章 每个虚函数都要标注 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第18.3章 每个虚函数都要标注</h1>
+    <p class="lang-switch"><a href="/docs/18.virtual/03.marking/">English</a></p>
+    <section>
+      <h2>1. 规则</h2>
+
+      <p>
+        如果你在遵循本书的代码库里写虚函数，它必须<b>同时</b>满足这两条：
+      </p>
+      <ul>
+        <li><strong>它有标注</strong> —— <code>virtual</code>、<code>override</code>、
+          <code>final</code> 三者之一，永远要写，每个声明和每个定义都要写。
+          没有例外，包括你五秒前刚刚做成虚的那个函数。</li>
+        <li><strong>它有错误契约</strong> —— <code>noexcept</code> 或 <code>throws</code>
+          正好一个，就像其他所有函数一样
+          （<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）。</li>
+      </ul>
+      <p>哪个标注放在哪里不是风格选择：</p>
+      <table>
+        <thead>
+          <tr>
+            <th>位置</th>
+            <th>标注</th>
+            <th>机械含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>基类里的第一个声明</td>
+            <td><code>virtual</code></td>
+            <td>“这个槽位在表里存在” —— 这是唯一该出现这个词的地方</td>
+          </tr>
+          <tr>
+            <td>覆盖别人的函数</td>
+            <td><code>override</code></td>
+            <td>“我声称我在覆盖某物；如果其实没有，报错”</td>
+          </tr>
+          <tr>
+            <td>关闭层次的函数或类</td>
+            <td><code>final</code></td>
+            <td>“不存在更进一步的覆盖；对这个的调用可以去虚化”</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        绝不要在派生类里写 <code>virtual</code>。它合法、它冗余，而且它主动掩盖了你最可能犯的那个错误：
+        因为签名有一点点不对，你写了一个<b>并不覆盖</b>任何东西的
+        <code>virtual</code> 函数。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 不写 <code>override</code> 会怎样</h2>
+
+      <p>
+        基类有 <code>who() const</code>。派生类忘了 <code>const</code>。
+        编译器默默接受，并创建一个全新的、与那个虚函数无关的函数：
+      </p>
+      <pre><code class="language-cpp">
+struct base
+{
+	virtual ::std::string_view who() const noexcept { return "base"; }
+	virtual int rank() const noexcept { return 1; }
+	virtual ~base() noexcept = default;
+};
+
+struct forgetful : base
+{
+	// missing const: a brand-new function, not an override
+	::std::string_view who() noexcept { return "forgetful"; }
+};
+
+struct marked : base
+{
+	::std::string_view who() const noexcept override { return "marked"; }
+};
+</code></pre>
+      <pre><code class="language-text">
+forgetful direct=forgetful through base=base | marked direct=marked through base=marked
+</code></pre>
+      <p>
+        <code>forgetful</code> 在它自己身上调用时回答 “forgetful”，
+        通过 <code>base&amp;</code> 调用时回答 “base”。两者是同一个对象。
+        程序完全合法，不加 <code>-Wall</code> 连警告都没有；加上
+        <code>-Wall -Wextra</code> 你会得到一条，而且很容易看漏：
+      </p>
+      <pre><code class="language-text">
+mark.cc:6:36: warning: ‘virtual std::string_view base::who() const’ was hidden [-Woverloaded-virtual=]
+</code></pre>
+      <p>
+        把漏掉的 <code>const</code> 和 <code>override</code> 补上，
+        同一个调用就会按你的本意分派：<code>marked direct=marked through base=marked</code>。
+        写了 <code>override</code>，签名不对就是编译错误，而不是悄悄多出第三个函数。
+        这就是这个关键字全部的价值：<strong>它把你的意图变成一个会被检查的声明。</strong>
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 契约会被检查，标注不会</h2>
+
+      <p>
+        好消息：错误契约<b>是</b>被编译器强制执行的，而且在真正要紧的那个方向上。
+        如果基类承诺不会失败，而派生类没有承诺，你就得到错误：
+      </p>
+      <pre><code class="language-cpp">
+struct base
+{
+	virtual int rank() const noexcept { return 1; }
+	virtual ~base() noexcept = default;
+};
+
+struct child : base
+{
+	int rank() const override { return 2; }
+};
+</code></pre>
+      <pre><code class="language-text">
+mark2.cc:9:13: error: looser exception specification on overriding virtual function ‘virtual int child::rank() const’
+    9 |         int rank() const override { return 2; }
+      |             ^~~~
+mark2.cc:3:21: note: overridden function is ‘virtual int base::rank() const noexcept’
+    3 |         virtual int rank() const noexcept { return 1; }
+      |                     ^~~~
+</code></pre>
+      <p>
+        反方向是允许的，而且正是你想要的：一个 <code>throws</code> 的虚函数可以被
+        <code>noexcept</code> 的实现覆盖，因为收窄失败集合不可能弄坏调用者。
+        这就是为什么契约要写在基类上：<strong>基类决定每个实现必须遵守的最弱契约</strong>，
+        而调用者只需要看基类。
+      </p>
+      <p>
+        纯虚函数也要写契约 —— <code>virtual double area() const noexcept = 0;</code> ——
+        那才是调用者真正会读的东西。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. <code>final</code>：不只是文档</h2>
+
+      <p><code>final</code> 出现在两个地方，两种收益：</p>
+      <ul>
+        <li><strong>写在函数上：</strong>更深的派生类不能再覆盖它。
+          于是只要编译器能证明静态类型，它就可以直接调用，
+          因为不可能存在派生的实现。</li>
+        <li><strong>写在类上：</strong>没有任何东西能从它派生。这让编译器在对象是局部、
+          且从不逃逸时干脆跳过 vptr —— 在本书的工具链上实测：加
+          <code>final</code> 且对象是局部的，<code>-O2</code> 下 vtable 根本不会生成，
+          后续的 <code>dynamic_cast</code>/链接步骤也就失去了它不再需要的 typeinfo。</li>
+      </ul>
+      <p>
+        <code>final</code> 是唯一有代码生成效果的标注。它也是唯一让层次可以安全关闭的标注：
+        类一旦 <code>final</code>，以后再想加派生类就是编译错误，而这通常正是你想知道的事。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 标注到底放哪儿</h2>
+
+      <pre><code class="language-cpp">
+struct shape
+{
+	virtual double area() const noexcept = 0;              // base: virtual
+	virtual ::std::string_view name() const noexcept = 0;
+	virtual ~shape() noexcept = default;                   // virtual, noexcept
+};
+
+struct square final : shape                             // final class
+{
+	double side{};
+
+	explicit square(double s) noexcept : side{s} {}
+
+	double area() const noexcept override { return side * side; }   // const, then override, then noexcept
+	::std::string_view name() const noexcept override { return "square"; }
+	~square() noexcept override = default;                          // a destructor can override too
+};
+</code></pre>
+      <p>
+        声明里的顺序是 <code>const</code> &rarr; <code>override</code> &rarr;
+        <code>noexcept</code>/<code>throws</code>，与本书其他地方一致
+        （<a href="/zhcn/docs/16.inheritance/07.override/">第16.7章</a>）。
+        把 <code>override</code> 放到别处通常是语法错误，而且永远影响阅读速度。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 没有编译器开关时怎么强制</h2>
+
+      <p>
+        这套工具链里没有 <code>-Wrequire-override</code>，
+        也没有任何开关会要求虚函数必须有契约（实测：对没有规范的虚函数，
+        <code>-Wall -Wextra</code> 一声不响）。所以这是一条项目规则，
+        而项目规则需要一条能让构建失败的 grep：
+      </p>
+      <pre><code class="language-sh">
+# every 'virtual' must also be = 0, noexcept or throws
+grep -rn 'virtual ' include/ \
+  | grep -v '= 0' | grep -v 'noexcept' | grep -v 'throws'
+
+# nothing outside a base declaration may say 'virtual'
+grep -rn 'virtual ' include/ | grep -v 'struct \|class '
+</code></pre>
+      <p>
+        把这两行放进 CI。它们抓到的真实缺陷比编译器多，因为编译器对本章讲的错误全都满意。
+      </p>
+
+    </section>
+    <section>
+      <h2>7. 经验法则</h2>
+
+      <ul>
+        <li>每个虚函数都带 <code>virtual</code>、<code>override</code> 或
+          <code>final</code>。每一个。在补丁审查里，没标注的虚函数就是被打回的补丁。</li>
+        <li>每个虚函数都带 <code>noexcept</code> 或 <code>throws</code>。
+          基类决定，派生类可以收窄。</li>
+        <li>派生类里永远不要重复 <code>virtual</code>。写 <code>override</code>，
+          让编译器检查你的签名。</li>
+        <li>叶子类标 <code>final</code>。它免费、会被检查，而且是唯一能删代码的标注。</li>
+        <li>如果一个类是 <code>final</code> 而且对象都留在局部，干脆把
+          <code>virtual</code> 删掉，改用重载集或 <code>::std::variant</code> ——
+          那样就没有东西需要标注了。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/18.virtual/02.whatvirtual/" class="prev-button">&larr; 第18.2章 virtual 究竟是什么</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/18.virtual/04.bloat/" class="next-button">第18.4章 死虚函数膨胀 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

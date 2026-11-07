@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第17章 运算符重载 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第17章 运算符重载</h1>
+    <p class="lang-switch"><a href="/docs/17.operatoroverloading/">English</a></p>
+    <section>
+      <h2>1. 运算符重载（yùn suàn fú zhòng zài /yn⁵¹ swan⁵¹ fu³⁵ ʈʂʊŋ⁵¹ tsaɪ⁵¹/）带来了什么，又付出了什么</h2>
+
+      <p>
+        重载的运算符就是一个名字是标点符号的函数。整个特性就是这样。
+        <code>a + b</code> 精确地就是 <code>operator+(a, b)</code>，<code>a[i]</code>
+        精确地就是 <code>a.operator[](i)</code>，编译器做的事不过是用第二种写法替换第一种
+        （<a href="/zhcn/docs/17.operatoroverloading/01.whatoperatorsare/">第17.1章</a>）。
+      </p>
+      <p>
+        收益是真实的：对一个数值类型来说，<code>a * b + c</code> 读起来就是数学的样子，
+        没有读者需要去解码某个名字。对一个智能句柄来说，<code>p-&gt;member</code>
+        让包装类型可以用在原本用指针的地方。
+      </p>
+      <p>
+        代价也是真实的，而且不是你猜的那个代价。它不是多出来的函数调用 ——
+        那会被内联掉。代价是<strong>标点符号不携带任何信息</strong>。
+        <code>+</code> 无法告诉读者它是连接了两个序列、分配了内存、拷贝了十兆字节、
+        失败了，还是满足结合律。命名函数可以。命名函数还能被文本搜索到，
+        能放进调试器的断点列表里，也能被一门没有 <code>operator+</code> 的语言调用。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 本章要论证的规则</h2>
+
+      <p>
+        <strong>优先用命名函数。只有当运算符的含义就是这个类型本来就有的含义，
+        并且这个操作不会失败、不会分配内存、不会让人吃惊时，才重载它。</strong>
+      </p>
+      <p>
+        最典型的例子是序列连接。对两个字符串，<code>a + b</code> 是从 1998 年继承下来的
+        C++ 习惯，它对字节到底发生了什么什么都没说：它产生一个新字符串，
+        意味着拷贝 <code>a</code> 的每一个字节和 <code>b</code> 的每一个字节，
+        意味着一次内存分配，意味着一条错误路径。
+        <code>concat(a, b)</code> 说的是“把两个序列变成一个”，
+        而 <code>a.append(b)</code> 说的是“把 <code>b</code> 接到 <code>a</code> 后面，
+        不产生新值，也不拷贝 <code>a</code>”。三个不同的操作，三种不同的代价，
+        而用 <code>+</code> 你根本分不清你得到的是哪一个。
+        第 <a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">17.2</a> 章会把这个差别量出来：
+        同样 4000 字节的结果，用 <code>+</code> 要拷贝 998000 字节，用 <code>append</code> 是 0。
+      </p>
+      <p>
+        注意这条规则<em>不是</em>什么。它不是“永远不要重载运算符” ——
+        <a href="/zhcn/docs/17.operatoroverloading/03.valuearithmetic/">第17.3章</a> 会给出一个定点数类型，
+        对它来说 <code>+</code> 和 <code>*</code> 就是正确答案；
+        <a href="/zhcn/docs/17.operatoroverloading/04.comparisons/">第17.4章</a> 会给出正确写法的
+        <code>==</code> 和 <code>&lt;=&gt;</code>。它是“不要用标点符号去隐藏一个读者必须知道决定”。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 一屏看完的对照表</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>运算符</th>
+            <th>结论</th>
+            <th>理由</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>数值值类型上的 <code>+ - * /</code></td>
+            <td>可以</td>
+            <td>这个类型<em>就是</em>算术；不分配、不失败、全域
+              （<a href="/zhcn/docs/17.operatoroverloading/03.valuearithmetic/">第17.3章</a>）</td>
+          </tr>
+          <tr>
+            <td><code>==</code>、<code>&lt;=&gt;</code></td>
+            <td>可以</td>
+            <td>前提是这个类型只有一个显然的相等和一个显然的序
+              （<a href="/zhcn/docs/17.operatoroverloading/04.comparisons/">第17.4章</a>）</td>
+          </tr>
+          <tr>
+            <td><code>+=</code> 这类复合赋值</td>
+            <td>可以</td>
+            <td>它是原语；<code>+</code> 是拿它定义出来的</td>
+          </tr>
+          <tr>
+            <td><code>[]</code></td>
+            <td>可以，前提是它便宜且不会失败</td>
+            <td>容器下标；一旦它能插入或能抛，它就在撒谎
+              （<a href="/zhcn/docs/17.operatoroverloading/05.subscriptcall/">第17.5章</a>）</td>
+          </tr>
+          <tr>
+            <td><code>*</code>、<code>-&gt;</code></td>
+            <td>可以，用于句柄</td>
+            <td>行为像指针的包装类型</td>
+          </tr>
+          <tr>
+            <td><code>()</code></td>
+            <td>只用于可调用对象</td>
+            <td>不要当构造器用，也不要当“万能入口”用</td>
+          </tr>
+          <tr>
+            <td>容器类型上的 <code>+</code></td>
+            <td>不行</td>
+            <td>隐藏了分配、拷贝和失败；用 <code>concat</code> 或
+              <code>append</code>（<a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">第17.2章</a>）</td>
+          </tr>
+          <tr>
+            <td><code>&lt;&lt;</code>、<code>&gt;&gt;</code></td>
+            <td>不行</td>
+            <td>iostream 不是错误通道；用 <code>print</code> 和
+              <code>scan</code>（<a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/">第17.6章</a>）</td>
+          </tr>
+          <tr>
+            <td><code>&amp;&amp;</code>、<code>||</code>、<code>,</code>、<code>&amp;</code></td>
+            <td>永远不行</td>
+            <td>每一个都会悄悄破坏一条语言规则（短路求值、求值顺序、取地址）</td>
+          </tr>
+          <tr>
+            <td><code>operator T()</code></td>
+            <td>几乎永远不行</td>
+            <td>远距离的隐式转换；<code>explicit operator bool</code> 是唯一值得写的那一个</td>
+          </tr>
+          <tr>
+            <td><code>operator new</code> / <code>operator delete</code></td>
+            <td>永远不行</td>
+            <td>整张账单在 <a href="/zhcn/docs/18.virtual/07.operatornew/">第18.7章</a></td>
+          </tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>4. 目录</h2>
+
+      <ul>
+        <li><a href="/zhcn/docs/17.operatoroverloading/01.whatoperatorsare/">第17.1章: 运算符就是函数</a>
+          —— 编译器到底做了什么、成员与非成员、什么能重载什么不能、
+          以及“先 <code>+=</code> 再 <code>+</code>”的规范形状。</li>
+        <li><a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">第17.2章: 优先用命名函数：
+          <code>concat</code>，而不是 <code>+</code></a> ——
+          实测 <code>+</code>/<code>concat</code>/<code>append</code> 的对比，
+          以及写标点符号之前要问的四个问题。</li>
+        <li><a href="/zhcn/docs/17.operatoroverloading/03.valuearithmetic/">第17.3章: 值类型上的算术</a>
+          —— <code>+</code> 正确的场合：定点数、<code>noexcept</code>、
+          <code>[[nodiscard]]</code>、对称性，以及不分配内存。</li>
+        <li><a href="/zhcn/docs/17.operatoroverloading/04.comparisons/">第17.4章: 相等与序关系</a>
+          —— <code>= default</code>、<code>&lt;=&gt;</code>、全序与偏序，
+          以及为什么有时候你要的命名函数是一个比较器。</li>
+        <li><a href="/zhcn/docs/17.operatoroverloading/05.subscriptcall/">第17.5章: 下标、调用与解引用</a>
+          —— <code>[]</code>、<code>()</code>、<code>*</code>、<code>-&gt;</code>、
+          会插入的 <code>operator[]</code> 陷阱，以及代理引用。</li>
+        <li><a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/">第17.6章: 不该存在的运算符</a>
+          —— 流运算符、转换运算符、<code>&amp;&amp;</code>、<code>||</code>、<code>,</code>、
+          <code>&amp;</code>，以及路径上的 <code>operator/</code>。</li>
+        <li><a href="/zhcn/docs/17.operatoroverloading/07.rules/">第17.7章: 规则与检查表</a>
+          —— 把整章变成代码评审里可以 grep 的决定。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>5. 读这一章之前你需要什么</h2>
+      <ul>
+        <li>函数与重载（<a href="/zhcn/docs/06.function/">第6章</a>）。</li>
+        <li>引用与 <code>const</code>（<a href="/zhcn/docs/02.basics/09.reference/">第2.9章</a>）。</li>
+        <li>五个特殊成员函数（<a href="/zhcn/docs/14.fiverules/">第14章</a>），
+          因为一个返回新值的运算符就是一个拷贝或移动问题。</li>
+        <li>契约：你写的每个运算符都是函数，所以它要么 <code>noexcept</code>，要么
+          <code>throws</code>（<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/16.inheritance/08.composition/" class="prev-button">&larr; 第16.8章 继承还是组合？</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/17.operatoroverloading/01.whatoperatorsare/" class="next-button">第17.1章 运算符就是函数 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

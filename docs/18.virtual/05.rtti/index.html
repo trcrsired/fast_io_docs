@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch18.5: RTTI, typeid and dynamic_cast - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch18.5: RTTI, <code>typeid</code> and <code>dynamic_cast</code></h1>
+    <p class="lang-switch"><a href="/zhcn/docs/18.virtual/05.rtti/">中文（简体）</a></p>
+    <section>
+      <h2>1. What RTTI Actually Is</h2>
+
+      <p>
+        RTTI &mdash; run-time type information &mdash; is the machinery that lets a program ask
+        "what is the dynamic type of this object?" It cannot exist without
+        <code>virtual</code>: it is grafted onto the vtable. In the Itanium ABI the vptr points
+        at slot 1 of the table, and slot 0 &mdash; the word <em>before</em> the first function
+        pointer &mdash; holds a pointer to a <code>type_info</code> object for the class.
+      </p>
+      <p>So every polymorphic class gets, in read-only data, at least:</p>
+      <ul>
+        <li>a <code>type_info</code> object (the vtable of
+          <code>__cxxabiv1::__class_type_info</code> plus the class identity);</li>
+        <li>a <code>type_info</code> <em>name</em> object &mdash; the mangled type name as a
+          string;</li>
+        <li>for a derived class, a <code>__cxxabiv1::__si_class_type_info</code> that also names
+          its base class, and for a virtual or multiple base, a
+          <code>__vmi_class_type_info</code> with the base-offset table.</li>
+      </ul>
+      <p>
+        All of that is emitted because the class is polymorphic, <em>not</em> because you used
+        <code>typeid</code>: the same rule as <a href="/docs/18.virtual/04.bloat/">Ch18.4</a>.
+        You pay on the class, not on the call.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. <code>typeid</code> Is Cheap. <code>dynamic_cast</code> Is Not.</h2>
+
+      <p>
+        These two are usually spoken of together, and they have nothing in common on the cost
+        side. <code>typeid</code> is a load of the typeinfo pointer followed by a comparison.
+        <code>dynamic_cast</code> is a call into the C++ runtime (<code>__dynamic_cast</code>)
+        that walks the base-class graph described by the typeinfo objects, handles virtual-base
+        offsets, and returns an adjusted or null pointer. It cannot be inlined, it cannot be
+        constant-folded, and its cost depends on the shape of your hierarchy.
+      </p>
+      <p>
+        Measured with <code>fast_io</code>'s own clock &mdash; no <code>::std::chrono</code>, no
+        floating point, integer nanoseconds throughout:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;typeinfo&gt;
+
+struct l0 { virtual ~l0() noexcept = default; };
+struct l1 : l0 {};
+struct l2 : l1 {};
+struct l3 : l2 {};
+struct l4 : l3 {};
+struct l5 : l4 {};
+struct l6 : l5 {};
+struct l7 : l6 {};
+struct l8 : l7 {};
+struct l9 : l8 {};
+struct unrelated { virtual ~unrelated() noexcept = default; };
+
+static constexpr ::std::size_t n{20000000uz};
+volatile int sink{};
+
+::std::int_least64_t now_ns() throws
+{
+	auto t{::fast_io::posix_clock_gettime(::fast_io::posix_clock_id::monotonic_raw)};
+	return t.tv_sec * 1000000000 + static_cast&lt;::std::int_least64_t&gt;(t.tv_nsec);
+}
+
+template &lt;typename F&gt;
+::std::int_least64_t ns_per_1000(F &amp;f) throws
+{
+	auto t0{now_ns()};
+	f();
+	auto t1{now_ns()};
+	return (t1 - t0) * 1000 / static_cast&lt;::std::int_least64_t&gt;(n);
+}
+
+int main()
+{
+	try
+	{
+		l9 obj{};
+		l0 *p = &amp;obj;
+
+		auto null_check = [&amp;] { for (::std::size_t i{}; i != n; ++i) { sink = (p != nullptr); } };
+		auto stat = [&amp;] { for (::std::size_t i{}; i != n; ++i) { sink = (static_cast&lt;l9 *&gt;(p) != nullptr); } };
+		auto tid = [&amp;] { for (::std::size_t i{}; i != n; ++i) { sink = (typeid(*p) == typeid(l9)); } };
+		auto tid_miss = [&amp;] { for (::std::size_t i{}; i != n; ++i) { sink = (typeid(*p) == typeid(l1)); } };
+		auto dyn1 = [&amp;] { for (::std::size_t i{}; i != n; ++i) { sink = (dynamic_cast&lt;l1 *&gt;(p) != nullptr); } };
+		auto dyn5 = [&amp;] { for (::std::size_t i{}; i != n; ++i) { sink = (dynamic_cast&lt;l5 *&gt;(p) != nullptr); } };
+		auto dyn9 = [&amp;] { for (::std::size_t i{}; i != n; ++i) { sink = (dynamic_cast&lt;l9 *&gt;(p) != nullptr); } };
+		auto dyn_fail = [&amp;] { for (::std::size_t i{}; i != n; ++i) { sink = (dynamic_cast&lt;unrelated *&gt;(p) != nullptr); } };
+
+		::fast_io::io::println("nanoseconds per 1000 iterations, ", n, " iterations each:");
+		::fast_io::io::println("null check        ", ns_per_1000(null_check));
+		::fast_io::io::println("static_cast       ", ns_per_1000(stat));
+		::fast_io::io::println("typeid compare    ", ns_per_1000(tid));
+		::fast_io::io::println("typeid miss       ", ns_per_1000(tid_miss));
+		::fast_io::io::println("dynamic_cast up 1 ", ns_per_1000(dyn1));
+		::fast_io::io::println("dynamic_cast up 5 ", ns_per_1000(dyn5));
+		::fast_io::io::println("dynamic_cast up 9 ", ns_per_1000(dyn9));
+		::fast_io::io::println("dynamic_cast fail ", ns_per_1000(dyn_fail));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+nanoseconds per 1000 iterations, 20000000 iterations each:
+null check        322
+static_cast       322
+typeid compare    526
+typeid miss       4920
+dynamic_cast up 1 128181
+dynamic_cast up 5 73471
+dynamic_cast up 9 6487
+dynamic_cast fail 150760
+</code></pre>
+      <p>
+        Divide by 1000 for nanoseconds per iteration. Read the table carefully, because it says
+        three separate things:
+      </p>
+      <ul>
+        <li><strong><code>typeid</code> is essentially free</strong>: 0.53 ns, barely above the
+          0.32 ns of a <code>static_cast</code>, and the cost of the clock itself is in that
+          number. A pointer comparison, as expected.</li>
+        <li><strong><code>dynamic_cast</code> is 6.5 to 151 ns</strong> &mdash; twelve to
+          <strong>280 times</strong> a <code>typeid</code> comparison, and up to
+          <strong>470 times</strong> a <code>static_cast</code>. The cheapest case
+          (<code>up 9</code>, where the requested type <em>is</em> the dynamic type) is still
+          6.5 ns; the expensive ones are the ones that have to walk: casting to a far base
+          (128 ns) or failing altogether (151 ns).</li>
+        <li><strong>The cost depends on the hierarchy, not on the call.</strong> A deeper class is
+          a slower cast, so the design that makes <code>dynamic_cast</code> necessary also makes
+          it slow. Note also that the <em>failing</em> cast is the slowest one of all &mdash; the
+          case where you most need the check is the case that costs the most.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>3. And That Cost Is What Creates the Type Confusion</h2>
+
+      <p>
+        This is the part that matters, and it is usually said backwards. People say
+        "<code>dynamic_cast</code> is the safe way, <code>static_cast</code> is the fast way, so
+        use <code>dynamic_cast</code> where correctness matters". What actually happens is the
+        opposite:
+      </p>
+      <ul>
+        <li>The need to recover a type <strong>does not go away</strong> because you refuse to
+          cast. If a design stores <code>base*</code>s, something, somewhere, will eventually
+          ask "is this a <code>circle</code>?".</li>
+        <li><code>dynamic_cast</code> costs 151 ns. In a loop over a model with 100,000 items
+          that is 15 milliseconds per pass &mdash; an eternity, in a hot path, in a
+          frame budget.</li>
+        <li>So the cast gets replaced with <code>static_cast</code>, which costs 0.32 ns and is
+          <strong>undefined behaviour if the type is wrong</strong>. The compiler cannot check it,
+          the sanitizer only catches it if the layout happens to fault, and the result is a
+          <em>silent</em> type confusion that reads another type's member as if it were
+          yours.</li>
+        <li>Or the cast gets replaced by a hand-rolled tag: an <code>enum</code> member and a
+          <code>switch</code>. That is cheap and correct &mdash; and it is exactly "type erasure
+          with a tag" (<a href="/docs/18.virtual/06.typeerasure/">Ch18.6</a>), except that the
+          hand-rolled version sits <em>next to</em> a vtable that already knows the type, so you
+          now maintain two copies of the same information and they can disagree.</li>
+      </ul>
+      <p>
+        <strong>The expense of the checked operation is what forces people into the unchecked
+        one, and the unchecked one is what produces type confusion.</strong> That is the whole
+        argument. RTTI does not prevent type confusion; it prices the safe version of the
+        operation so high that the unsafe version wins.
+      </p>
+      <p>
+        Two more details complete the picture. The pointer form of <code>dynamic_cast</code>
+        reports failure by returning <code>nullptr</code>, and nothing makes you look &mdash;
+        <code>dynamic_cast&lt;circle *&gt;(p)-&gt;radius</code> is a null dereference that ships.
+        The reference form reports failure by throwing <code>::std::bad_cast</code>, a legacy
+        exception; under herbceptions it arrives as an <code>itanium_exception</code> payload,
+        exactly like <code>new</code> and <code>typeid</code> on a null pointer:
+      </p>
+      <pre><code class="language-text">
+herbception: [itanium_exception](St10bad_typeid)std::bad_typeid
+</code></pre>
+      <p>
+        (That last line is measured: <code>typeid(*p)</code> on a null polymorphic pointer.)
+        So even the "safe" operation can fail through the legacy channel inside a function you
+        declared <code>noexcept</code>.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. What Would Actually Fix It</h2>
+
+      <p>
+        The right operation is a downcast whose checking cost is a <em>constant</em>, not a graph
+        walk. Two proposals point in that direction, and neither is in the language today.
+      </p>
+      <h3>Static reflection</h3>
+      <p>
+        With reflection (<code>^^</code> / <code>::std::meta</code>), the compiler knows the
+        complete layout of every class in the translation unit. A downcast becomes: compare a
+        type identity, adjust by a compile-time-known offset, done. For a closed hierarchy it can
+        be resolved entirely at compile time, and for an open one it is one compare. That is
+        <code>typeid</code>'s cost, not <code>dynamic_cast</code>'s &mdash; and it requires no
+        vtable at all.
+      </p>
+      <h3>Herb Sutter's <code>down_cast</code></h3>
+      <p>
+        The same idea as a library/language facility: a <em>checked</em> downcast whose check is a
+        pointer or tag comparison rather than a base-graph walk, which is why it can be used
+        everywhere <code>dynamic_cast</code> is used today. This is the direction argued in
+        <em>De-fragmenting C++: Making exceptions and RTTI more affordable and usable</em>
+        (CppCon 2019), which is also the talk
+        <code>Portable-Cpp-Guideline</code> cites when it says the cost of RTTI is completely
+        unnecessary.
+      </p>
+      <p>
+        Until one of those is standard, the choice is: pay 151 ns, or use
+        <code>static_cast</code> and accept UB, or <strong>design the cast out of the
+        program</strong>. This book chooses the third. Type erasure
+        (<a href="/docs/18.virtual/06.typeerasure/">Ch18.6</a>) makes the question unanswerable
+        rather than expensive: the concrete type never leaves the value, so there is no cast to
+        write, no tag to keep in sync, and no UB to hide.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Why None of This Works on C++ Iostreams</h2>
+
+      <p>
+        Here is the part that makes the situation worse than it looks. Suppose you get your
+        cheap checked downcast tomorrow. It still will not work on the standard I/O library,
+        because of how that library is built. From this toolchain's
+        <code>&lt;istream&gt;</code>:
+      </p>
+      <pre><code class="language-cpp">
+class basic_istream : virtual public basic_ios&lt;_CharT, _Traits&gt;
+</code></pre>
+      <p>and, from the same header set:</p>
+      <pre><code class="language-cpp">
+class basic_iostream
+: public basic_istream&lt;_CharT, _Traits&gt;,
+  public basic_ostream&lt;_CharT, _Traits&gt;
+</code></pre>
+      <p>
+        <strong>Iostreams use virtual inheritance.</strong> <code>basic_istream</code> and
+        <code>basic_ostream</code> both derive <em>virtually</em> from
+        <code>basic_ios</code>, so that <code>basic_iostream</code> and
+        <code>fstream</code>/<code>stringstream</code> have exactly one
+        <code>basic_ios</code> base. That single decision breaks every cheap cast:
+      </p>
+      <ul>
+        <li><strong>A virtual base has no compile-time offset.</strong> Its address depends on
+          which complete object it belongs to, so the offset has to be read from the
+          <code>__vmi_class_type_info</code> table (or the vtable's virtual-base offset slots) at
+          run time. Any cast that converts between the virtual base and a derived type is a
+          runtime computation &mdash; the very thing a constant-time <code>down_cast</code> was
+          supposed to avoid.</li>
+        <li><strong>Cross-DLL, type identity is not guaranteed.</strong> Under the Itanium ABI,
+          <code>type_info</code> objects are merged by <em>name</em> at link time, so the same
+          type from two shared objects may or may not be the same object; under MSVC they are
+          compared by pointer, so a <code>type_info</code> from another module compares unequal
+          unless that module was built with the same runtime and flags. A <code>down_cast</code>
+          that compares type identities therefore fails for objects that cross a shared-library
+          boundary &mdash; which is exactly where <code>std::cout</code> lives: it is a global in
+          the runtime library, of a type (<code>::std::ostream</code>) with a virtual base.</li>
+        <li><strong>You cannot recompile it.</strong> <code>::std::cout</code> is
+          <code>::std::ostream</code>, an instance of a class you did not write, in a library you
+          do not build, and the type is fixed by the standard. No amount of reflection in your
+          own code changes the layout of a class whose virtual-base offsets are already compiled
+          into <code>libstdc++.so</code>.</li>
+      </ul>
+      <p>
+        That is why the book's answer to "how do I safely identify an iostream?" is not a cast at
+        all: <strong>do not use iostreams</strong>. <code>fast_io</code> gives you one concrete
+        type per device with no inheritance, no virtual bases, and no virtual destructor, so the
+        question "which stream is this?" never arises
+        (<a href="/docs/11.io/">Ch11</a>). This is also why the whole I/O chapter exists: the
+        legacy stream library is the largest single piece of C++ that is built on
+        <code>virtual</code> + RTTI + virtual inheritance + cross-DLL objects, and every one of
+        those four is a problem.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. The Policy: Build With <code>-fno-rtti</code></h2>
+
+      <p>
+        <code>-fno-rtti</code> turns every <code>dynamic_cast</code> and every polymorphic
+        <code>typeid</code> into a compile error:
+      </p>
+      <pre><code class="language-text">
+dc.cc:3:34: error: ‘dynamic_cast’ not permitted with ‘-fno-rtti’
+</code></pre>
+      <p>
+        Compile your own code with it, and a new <code>dynamic_cast</code> in a diff becomes a
+        build failure rather than a design review. It also removes the typeinfo objects from
+        every polymorphic class in your own translation units:
+      </p>
+      <pre><code class="language-text">
+$ g++ -std=c++26 -fherbceptions -O2 -frtti  -c rtti.cc -o rtti_on.o
+  typeinfo symbols: 6        (shape, square, circle x {type_info, name})
+$ g++ -std=c++26 -fherbceptions -O2 -fno-rtti -c rtti.cc -o rtti_off.o
+  typeinfo symbols: 0
+
+$ size rtti_on rtti_off
+   text	   data	    bss	    dec
+  42038	    904	     16	  42958      (-frtti)
+  41719	    720	     16	  42455      (-fno-rtti)
+</code></pre>
+      <p>
+        <strong>319 bytes of <code>.text</code> and 184 bytes of <code>.data</code></strong> for a
+        toy with two classes. What <code>-fno-rtti</code> does <em>not</em> do: remove virtual
+        functions, remove <code>__cxa_pure_virtual</code>, remove virtual-base offsets, or make
+        the vtable portable. It removes one of the four costs.
+      </p>
+
+    </section>
+    <section>
+      <h2>7. Rules of Thumb</h2>
+
+      <ul>
+        <li>Never write <code>dynamic_cast</code>. Not because it is unsafe &mdash; because it is
+          so expensive that you will not keep it, and the thing you replace it with is the unsafe
+          one.</li>
+        <li>Never write <code>static_cast</code> down a hierarchy. If the type is not provable at
+          the call site, the design is wrong.</li>
+        <li>If you need to know a <em>property</em> of the object, put that property in the
+          interface as a plain function (<code>kind()</code>, <code>area()</code>) and let
+          dispatch answer it &mdash; that is a table lookup, not a type query.</li>
+        <li>Build with <code>-fno-rtti</code>. A <code>typeid</code> comparison is cheap, but the
+          typeinfo objects, the mangled names and the runtime dependency are not.</li>
+        <li>Do not use RTTI for error classification: use <code>::std::error</code> domains
+          (<em>Ch19: Exceptions and Herbceptions</em>). Do not use it for
+          serialisation, either: write the tag yourself or use reflection when it is standard.</li>
+        <li>Never assume a future <code>down_cast</code> or reflection will fix an iostream-based
+          design. Virtual inheritance and cross-DLL objects mean it cannot, and you cannot
+          recompile the standard library. Replace the library instead.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/18.virtual/04.bloat/" class="prev-button">&larr; Ch18.4: Dead Virtual Function Bloat</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/18.virtual/06.typeerasure/" class="next-button">Ch18.6: Type Erasure Instead &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

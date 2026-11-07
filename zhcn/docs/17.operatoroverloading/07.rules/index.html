@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第17.7章 规则与检查表 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第17.7章 规则与检查表</h1>
+    <p class="lang-switch"><a href="/docs/17.operatoroverloading/07.rules/">English</a></p>
+
+    <section>
+      <h2>1. 按顺序做的判断</h2>
+
+      <p>
+        当你准备写一个运算符时，按下面的顺序问，遇到第一个“是”就停：
+      </p>
+      <ol>
+        <li><strong>这个操作会失败、会分配、会阻塞，或者需要报告错误吗？</strong>
+          那它就是带 <code>throws</code> 契约的命名函数
+          （<a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">第17.2章</a>）。</li>
+        <li><strong>标点的日常含义恰好就是这个操作吗？</strong>如果不是 ——
+          用 <code>/</code> 连接路径、用 <code>|</code> 求并、用 <code>&lt;&lt;</code> 格式化 ——
+          它就是命名函数（<a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/">第17.6章</a>）。</li>
+        <li><strong>它是 <code>&amp;&amp; || , &amp;</code> 之一，或者一个转换运算符吗？</strong>
+          那它不存在：<code>explicit operator bool</code> 是唯一的例外。</li>
+        <li><strong>这个类型建模的是一个数吗？</strong>
+          那就用算术运算符、默认的 <code>==</code> 和 <code>&lt;=&gt;</code>，
+          全部 <code>noexcept</code>、全部 <code>[[nodiscard]]</code>
+          （<a href="/zhcn/docs/17.operatoroverloading/03.valuearithmetic/">第17.3章</a>、
+          <a href="/zhcn/docs/17.operatoroverloading/04.comparisons/">第17.4章</a>）。</li>
+        <li><strong>这个操作是一次不会失败的普通容器访问吗？</strong>
+          那就 <code>operator[]</code>；否则用命名的 <code>at</code> / <code>find</code>
+          （<a href="/zhcn/docs/17.operatoroverloading/05.subscriptcall/">第17.5章</a>）。</li>
+        <li><strong>其余情况</strong> —— 用一个名字。</li>
+      </ol>
+
+    </section>
+    <section>
+      <h2>2. 一个通过了检查表的类型</h2>
+
+      <p>
+        <code>config</code> 有相等，因为相等有意义而且免费；别的什么都没有。
+        真正干活的两个操作是函数，而它们的名字携带了运算符会隐藏掉的信息：
+        <code>with_port</code> 返回一个修改过的副本，<code>validate</code> 会失败。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;cstdint&gt;
+
+struct config
+{
+	::fast_io::string name{};
+	::std::int_least32_t port{};
+
+	/* equality: yes, and the compiler writes it */
+	friend bool operator==(config const &amp;, config const &amp;) = default;
+
+	/* ordering: no. Two configs are not "less" than each other. */
+	/* arithmetic: no. Adding two configurations is not a thing. */
+	/* stream operator: no. Formatting is print_define's job. */
+	/* conversion operator: no. Use named accessors. */
+	/* operator new: no. See Ch18.7. */
+
+	[[nodiscard]] constexpr bool is_valid() const noexcept
+	{
+		return port &gt; 0 &amp;&amp; port &lt; 65536;
+	}
+};
+
+/*
+The two operations that exist are named, so the reader knows a copy is made and that
+validation has a contract.
+*/
+[[nodiscard]] inline config with_port(config c, ::std::int_least32_t port)
+{
+	c.port = port;
+	return c;
+}
+
+inline void validate(config const &amp;c) throws
+{
+	if (!c.is_valid())
+	{
+		::fast_io::herbceptions::throws_errc(::std::errc::invalid_argument);
+	}
+}
+
+int main()
+{
+	try
+	{
+		config const http{::fast_io::string{"http"}, 80};
+		config const alt{with_port(http, 8080)};
+		::fast_io::io::println("http == alt: ", http == alt, "   alt.port = ", alt.port);
+		validate(alt);
+		::fast_io::io::println("alt is valid: ", alt.is_valid());
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error: ");
+		::fast_io::io::println(e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+http == alt: 0   alt.port = 8080
+alt is valid: 1
+</code></pre>
+      <p>
+        注意这个类型<em>缺少</em>什么：没有 <code>operator+</code>（把两个配置相加没有意义）、
+        没有 <code>operator&lt;</code>（两个配置之间没有序）、没有 <code>operator&lt;&lt;</code>
+        （格式化是 <code>print_define</code> 的事）、没有转换运算符、没有 <code>operator new</code>。
+        其中两条“缺少”就是整个设计：它们把“可能有人会误用”变成了编译错误。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 把检查表变成 grep</h2>
+
+      <p>
+        只存在于文档里的规则在真实代码库里活不下去。下面这些是机械的，每一条都值得一个 CI 任务：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>检查</th>
+            <th>它能找出什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>grep -rn "operator&amp;&amp;\|operator||\|operator,\|operator&amp;(" </code></td>
+            <td>那四个永远不该被重载的运算符</td>
+          </tr>
+          <tr>
+            <td><code>grep -rn "operator&lt;&lt;\|operator&gt;&gt;"</code></td>
+            <td>流运算符，包括从老代码复制进新代码的那些</td>
+          </tr>
+          <tr>
+            <td><code>grep -rn "operator new\|operator delete" </code></td>
+            <td>类级分配（<a href="/zhcn/docs/18.virtual/07.operatornew/">第18.7章</a>）</td>
+          </tr>
+          <tr>
+            <td><code>grep -rn "operator .*()" | grep -v explicit</code></td>
+            <td>隐式转换</td>
+          </tr>
+          <tr>
+            <td><code>grep -rn "operator+" | grep -v noexcept</code></td>
+            <td>没有契约的值运算符</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        最后一条最小，也最有用：在这本书里每个函数都有错误契约
+        （<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>），
+        一个既不是 <code>noexcept</code> 也不是 <code>throws</code> 的运算符，
+        说明它没有被想过。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 小结</h2>
+      <ul>
+        <li>运算符就是一个名字是标点的函数。这个名字携带的信息比任何标识符都少，
+          所以这个操作必须显然、全域、免费。</li>
+        <li>优先用命名函数。<code>concat</code> 和 <code>append</code> 说出了
+          <code>+</code> 说不出的东西：是否产生新值、是否有东西被拷贝。</li>
+        <li>先定义复合赋值；拿它定义二元运算符；两个操作数顺序都提供；
+          结果标 <code>[[nodiscard]]</code>。</li>
+        <li><code>==</code> 和 <code>&lt;=&gt;</code> 用 <code>= default</code>；
+          序不是全序时，在命名函数里用 <code>partial_ordering</code>。</li>
+        <li><code>operator[]</code> 是算术，不能失败；其余的一律要有名字。</li>
+        <li>永远不要重载 <code>&amp;&amp;</code>、<code>||</code>、<code>,</code>、<code>&amp;</code>、
+          <code>&lt;&lt;</code>、<code>&gt;&gt;</code> 或 <code>operator new</code>。</li>
+        <li><code>explicit operator bool</code> 是你唯一该拥有的转换运算符。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/" class="prev-button">&larr; 第17.6章 不该存在的运算符</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/18.virtual/" class="next-button">第18章 virtual &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

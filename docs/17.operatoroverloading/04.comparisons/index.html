@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch17.4: Equality and Ordering - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch17.4: Equality and Ordering</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/17.operatoroverloading/04.comparisons/">中文（简体）</a></p>
+    <section>
+      <h2>1. Two Different Things Wearing the Same Glyphs</h2>
+
+      <p>
+        <code>==</code> and <code>&lt;</code> look like siblings and are not. Equality is a
+        question about a value: "are these the same?". Ordering is a promise about a set: "these
+        can be sorted, and the sort terminates". A type can honestly answer the first and have no
+        answer to the second, which is why C++20 gave them separate names
+        (<code>operator==</code> and <code>operator&lt;=&gt;</code>) and three different ordering
+        types.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Ordering</th>
+            <th>Means</th>
+            <th>You may put the type in</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::std::strong_ordering</code></td>
+            <td>total order, and equivalent values are indistinguishable
+              (<code>a == b</code> implies they can be interchanged)</td>
+            <td><code>::std::set</code>, <code>::std::map</code>, any sorted container</td>
+          </tr>
+          <tr>
+            <td><code>::std::weak_ordering</code></td>
+            <td>total order, but equivalent values are distinguishable
+              (case-insensitive strings)</td>
+            <td>sorted containers</td>
+          </tr>
+          <tr>
+            <td><code>::std::partial_ordering</code></td>
+            <td>some pairs are <em>unordered</em></td>
+            <td>nothing that sorts &mdash; and that is the useful part</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>2. The Eight Lines That Replace Thirty</h2>
+
+      <p>
+        For a type whose equality and order are memberwise, do not write the six comparison
+        operators by hand. Write two defaulted friends; the compiler generates the rest, including
+        the reversed and rewritten candidates that make <code>c &gt; a</code> and
+        <code>a != c</code> work from one definition each.
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;compare&gt;
+#include &lt;cstdint&gt;
+
+struct semver
+{
+	::std::int_least32_t major{};
+	::std::int_least32_t minor{};
+	::std::int_least32_t patch{};
+
+	/* one line each: the compiler generates memberwise == and a lexicographic &lt;=&gt; */
+	friend constexpr bool operator==(semver const &amp;, semver const &amp;) noexcept = default;
+	friend constexpr ::std::strong_ordering operator&lt;=&gt;(semver const &amp;, semver const &amp;) noexcept = default;
+};
+
+struct interval
+{
+	::std::int_least32_t lo{};
+	::std::int_least32_t hi{};
+};
+
+/*
+No operator&lt;=&gt; for interval: two overlapping intervals are neither before nor after each
+other, so the comparison is partial. A named function says so; an operator would let anyone
+put an interval in a sorted container and silently break its invariant.
+*/
+[[nodiscard]] inline constexpr ::std::partial_ordering compare(interval a, interval b) noexcept
+{
+	if (a.hi &lt; b.lo)
+	{
+		return ::std::partial_ordering::less;
+	}
+	if (b.hi &lt; a.lo)
+	{
+		return ::std::partial_ordering::greater;
+	}
+	if (a.lo == b.lo &amp;&amp; a.hi == b.hi)
+	{
+		return ::std::partial_ordering::equivalent;
+	}
+	return ::std::partial_ordering::unordered;
+}
+
+int main()
+{
+	try
+	{
+		semver const a{1, 2, 0};
+		semver const b{1, 2, 0};
+		semver const c{1, 10, 0};
+		::fast_io::io::println("a == b: ", a == b, "   a != c: ", a != c);
+		::fast_io::io::println("a &lt; c: ", a &lt; c, "   c &gt; a: ", c &gt; a, "   a &lt;= b: ", a &lt;= b);
+		::fast_io::io::println("(a &lt;=&gt; c) &lt; 0: ", (a &lt;=&gt; c) &lt; 0, "   (a &lt;=&gt; b) == 0: ", (a &lt;=&gt; b) == 0);
+
+		::fast_io::io::println("compare({1,5},{6,9}) &lt; 0: ", compare({1, 5}, {6, 9}) &lt; 0);
+		::fast_io::io::println("compare({1,5},{3,7}) unordered: ", compare({1, 5}, {3, 7}) == ::std::partial_ordering::unordered);
+		::fast_io::io::println("compare({1,5},{1,5}) equivalent: ", compare({1, 5}, {1, 5}) == 0);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error: ");
+		::fast_io::io::println(e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+a == b: 1   a != c: 1
+a &lt; c: 1   c &gt; a: 1   a &lt;= b: 1
+(a &lt;=&gt; c) &lt; 0: 1   (a &lt;=&gt; b) == 0: 1
+compare({1,5},{6,9}) &lt; 0: 1
+compare({1,5},{3,7}) unordered: 1
+compare({1,5},{1,5}) equivalent: 1
+</code></pre>
+
+    </section>
+    <section>
+      <h2>3. What Those Lines Actually Give You</h2>
+      <ul>
+        <li><code>a != c</code> is not written anywhere. The compiler rewrites
+          <code>!(a == c)</code> for you, so <code>==</code> alone is complete.</li>
+        <li><code>c &gt; a</code> and <code>a &lt;= b</code> are also not written.
+          <code>&lt;=&gt;</code> generates <code>&lt;</code>, <code>&gt;</code>,
+          <code>&lt;=</code>, <code>&gt;=</code>, and the reversed forms.</li>
+        <li><code>= default</code> is memberwise and, crucially, <strong>is not virtual and
+          cannot be made so</strong>: comparison is a property of a value, and a value has one
+          type (<a href="/docs/18.virtual/03.marking/">Ch18.3</a>).</li>
+        <li>Both are <code>noexcept</code> here because the members are integers. If a member's
+          comparison can throw, the defaulted function is not <code>noexcept</code> either, and
+          the <code>noexcept</code> you wrote becomes a compile error &mdash; which is exactly
+          what you want to find out.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>4. The Comparison You Must Not Write</h2>
+      <p>
+        An interval is the classic partial order: two disjoint intervals have an order, two
+        overlapping ones do not, and no arrangement of <code>&lt;</code> can express
+        "unordered" without lying. So the type gets a <em>named function</em> that returns
+        <code>::std::partial_ordering</code>, and gets no operator at all:
+      </p>
+      <pre><code class="language-cpp">
+[[nodiscard]] inline constexpr ::std::partial_ordering compare(interval a, interval b) noexcept
+{
+	if (a.hi &lt; b.lo)
+	{
+		return ::std::partial_ordering::less;
+	}
+	if (b.hi &lt; a.lo)
+	{
+		return ::std::partial_ordering::greater;
+	}
+	if (a.lo == b.lo &amp;&amp; a.hi == b.hi)
+	{
+		return ::std::partial_ordering::equivalent;
+	}
+	return ::std::partial_ordering::unordered;
+}
+</code></pre>
+      <p>
+        If you had written <code>operator&lt;</code> for <code>interval</code>, then
+        <code>::std::set&lt;interval&gt;</code> would compile, would accept every element, and
+        would contain elements that it can never find again &mdash; because two intervals that
+        are "not less and not greater" are, to a sorted container, the same element. That is not
+        a performance bug; it is data loss. The named function makes the caller write
+        <code>compare(a, b) == ::std::partial_ordering::unordered</code> and then decide.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Comparators Are Named Functions Too</h2>
+      <p>
+        The same logic reaches algorithms. When you need an order that the type does not have
+        &mdash; "sort by <code>patch</code> only", "largest first" &mdash; pass a
+        <em>named comparator</em>, not a lambda:
+      </p>
+      <pre><code class="language-cpp">
+::std::ranges::sort(versions, ::std::ranges::greater{});          /* largest first */
+
+auto const newest{*::std::ranges::max_element(versions, ::std::ranges::less{}, &amp;semver::patch)};
+</code></pre>
+      <p>
+        <code>::std::ranges::less</code>, <code>::std::ranges::greater</code>,
+        <code>::std::ranges::equal_to</code> and friends are already <code>noexcept</code>-correct
+        function objects with names you can read in a diagnostic and search for in a codebase. A
+        lambda is anonymous, so it cannot appear in a stack trace by name and cannot be reused
+        without being copy-pasted. Only write a lambda when the comparison genuinely exists once
+        &mdash; and then still make it <code>noexcept</code>.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. Rules of Thumb</h2>
+      <ul>
+        <li>Prefer <code>= default</code> for <code>==</code> and <code>&lt;=&gt;</code>. Never
+          write the six by hand.</li>
+        <li>Use <code>strong_ordering</code> unless equivalent-but-distinguishable values are a
+          real case, then <code>weak_ordering</code>.</li>
+        <li>If some pairs are unordered, define <em>no</em> operator and give the type a named
+          function returning <code>partial_ordering</code>.</li>
+        <li>Never define <code>==</code> and <code>&lt;</code> that disagree with each other:
+          <code>a == b</code> must imply <code>!(a &lt; b) &amp;&amp; !(b &lt; a)</code>.</li>
+        <li>Comparisons must be <code>noexcept</code>, must not allocate, and must not have side
+          effects. A comparator that mutates is a source of undefined behaviour in every sorting
+          algorithm.</li>
+        <li>Pass named comparators (<code>::std::ranges::greater</code>), not lambdas, when one
+          already exists.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/17.operatoroverloading/03.valuearithmetic/" class="prev-button">&larr; Ch17.3: Arithmetic on Value Types</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/17.operatoroverloading/05.subscriptcall/" class="next-button">Ch17.5: Subscript, Call, and Dereference &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

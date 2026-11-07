@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch17.3: Arithmetic on Value Types - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch17.3: Arithmetic on Value Types</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/17.operatoroverloading/03.valuearithmetic/">中文（简体）</a></p>
+    <section>
+      <h2>1. The Case Where <code>+</code> Is Right</h2>
+
+      <p>
+        <a href="/docs/17.operatoroverloading/02.prefernamed/">Ch17.2</a> said not to overload
+        operators when the meaning is not the obvious one. Here is the other half: when the type
+        <em>is</em> a number, arithmetic notation is not sugar, it is the notation the reader
+        already owns. A two-dimensional vector should be writable as
+        <code>(a + b) * 2</code> and not as <code>scale(add(a, b), 2)</code>.
+      </p>
+      <p>
+        The test is not taste. It is four properties. Overload arithmetic when the operation is:
+      </p>
+      <ol>
+        <li><strong>Total</strong> &mdash; defined for every combination of values, with no
+          invalid states and no domain errors.</li>
+        <li><strong>Allocation-free</strong> &mdash; it produces a fixed-size value on the stack,
+          so the cost is visible from the type alone (<code>sizeof(vec2)</code>).</li>
+        <li><strong>Non-failing</strong> &mdash; it cannot throw, so it can be
+          <code>noexcept</code>, and callers need no error path.</li>
+        <li><strong>Law-abiding</strong> &mdash; it obeys the identities a reader expects:
+          <code>a + b == b + a</code>, <code>(a + b) + c == a + (b + c)</code>, and
+          <code>a + vec2{} == a</code>.</li>
+      </ol>
+      <p>
+        Fail any of the four and you are back in
+        <a href="/docs/17.operatoroverloading/02.prefernamed/">Ch17.2</a> territory, and you want
+        a name instead.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. A Complete, Correct Value Type</h2>
+
+      <p>
+        Two types: a <code>vec2</code> where full arithmetic is justified, and a
+        <code>price</code> where only part of it is &mdash; and where the operator that must
+        <em>not</em> exist is the interesting part.
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+struct vec2
+{
+	::std::int_least32_t x{};
+	::std::int_least32_t y{};
+
+	constexpr vec2 &amp;operator+=(vec2 other) noexcept
+	{
+		x += other.x;
+		y += other.y;
+		return *this;
+	}
+	constexpr vec2 &amp;operator-=(vec2 other) noexcept
+	{
+		x -= other.x;
+		y -= other.y;
+		return *this;
+	}
+	constexpr vec2 &amp;operator*=(::std::int_least32_t s) noexcept
+	{
+		x *= s;
+		y *= s;
+		return *this;
+	}
+};
+
+[[nodiscard]] inline constexpr vec2 operator+(vec2 a, vec2 b) noexcept
+{
+	return a += b;
+}
+[[nodiscard]] inline constexpr vec2 operator-(vec2 a, vec2 b) noexcept
+{
+	return a -= b;
+}
+[[nodiscard]] inline constexpr vec2 operator*(vec2 a, ::std::int_least32_t s) noexcept
+{
+	return a *= s;
+}
+[[nodiscard]] inline constexpr vec2 operator*(::std::int_least32_t s, vec2 a) noexcept
+{
+	return a *= s;
+}
+
+struct price
+{
+	::std::int_least64_t cents{};
+
+	constexpr price &amp;operator+=(price other) noexcept
+	{
+		cents += other.cents;
+		return *this;
+	}
+};
+
+[[nodiscard]] inline constexpr price operator+(price a, price b) noexcept
+{
+	return a += b;
+}
+
+[[nodiscard]] inline constexpr price operator*(price p, ::std::int_least32_t units) noexcept
+{
+	return price{p.cents * units};
+}
+
+/*
+No operator* between two prices. cents * cents is not money; scaling a price by a rate
+needs a rounding rule, so it is a named function with a documented contract.
+*/
+[[nodiscard]] inline constexpr price apply_rate(price p, ::std::int_least64_t num, ::std::int_least64_t den) noexcept
+{
+	return price{(p.cents * num + den / 2) / den};
+}
+
+static_assert(noexcept(operator+(vec2{}, vec2{})));
+static_assert(noexcept(operator+(price{}, price{})));
+
+int main()
+{
+	try
+	{
+		vec2 a{3, 4};
+		vec2 b{1, 2};
+		vec2 const sum{a + b};
+		::fast_io::io::println("a + b = (", sum.x, ", ", sum.y, ")");
+		::fast_io::io::println("a - b = (", (a - b).x, ", ", (a - b).y, ")");
+		::fast_io::io::println("a * 2 = (", (a * 2).x, ", ", (a * 2).y, ")  2 * a = (", (2 * a).x,
+							   ", ", (2 * a).y, ")");
+		a *= 10;
+		::fast_io::io::println("after a *= 10 = (", a.x, ", ", a.y, ")");
+
+		price const net{10000};
+		price const tax{2500};
+		price const total{net + tax};
+		::fast_io::io::println("total = ", total.cents, " cents; 7/8 of it = ",
+							   apply_rate(total, 7, 8).cents, " cents; 7 units = ",
+							   (total * 7).cents, " cents");
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error: ");
+		::fast_io::io::println(e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+a + b = (4, 6)
+a - b = (2, 2)
+a * 2 = (6, 8)  2 * a = (6, 8)
+after a *= 10 = (30, 40)
+total = 12500 cents; 7/8 of it = 10938 cents; 7 units = 87500 cents
+</code></pre>
+
+    </section>
+    <section>
+      <h2>3. Why Each Line Is There</h2>
+
+      <ul>
+        <li><strong>Compound assignment is the primitive.</strong>
+          <code>operator+=(vec2)</code> mutates and returns <code>vec2&amp;</code>;
+          <code>operator+</code> takes its left operand <em>by value</em>, applies
+          <code>+=</code>, and returns it. This guarantees that <code>a + b</code> and
+          <code>a += b</code> can never disagree, and it needs no separate arithmetic to get
+          wrong.</li>
+        <li><strong>Both scalar compositions exist.</strong>
+          <code>operator*(vec2, int)</code> and <code>operator*(int, vec2)</code> are two
+          functions. Without the second one, <code>2 * a</code> would not compile while
+          <code>a * 2</code> would, and the type would leak the fact that one of them is a member.
+          Both are one line, both are <code>constexpr</code>, neither allocates.</li>
+        <li><strong>Everything is <code>constexpr</code> and <code>noexcept</code>.</strong>
+          <code>static_assert(noexcept(operator+(vec2{}, vec2{})))</code> is not decoration: it is
+          the contract, checked by the compiler. If somebody later adds a heap allocation to
+          <code>vec2</code>'s representation, this line stops compiling, which is the point.</li>
+        <li><strong><code>[[nodiscard]]</code> on every value-returning operator.</strong> A
+          statement <code>a + b;</code> discards the result and does nothing; the attribute turns
+          that into a warning at the call site.</li>
+        <li><strong><code>price</code> has <code>+</code> and <em>no</em> <code>*</code> between
+          two prices.</strong> <code>cents * cents</code> is a squared unit, not money. Multiplying
+          a price by a <em>count</em> is fine and cannot fail, so
+          <code>operator*(price, int)</code> exists and means exactly what it says.</li>
+        <li><strong>Scaling by a rate is a named function.</strong>
+          <code>apply_rate(p, num, den)</code> carries two things an operator cannot: the rounding
+          rule, and the fact that a rounding decision was made. It is
+          <code>(p.cents * num + den / 2) / den</code> &mdash; round half up, deliberately, and
+          the name is where the reader finds that out.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>4. Fixed Point Is Where This Matters Most</h2>
+      <p>
+        Money, coordinates in a physics engine, audio samples, and game ticks are all
+        fixed-point. The reason to model them with a class and operators is that the wrong
+        arithmetic is then a compile error instead of a silent bug:
+      </p>
+      <ul>
+        <li>Two <code>price</code>s cannot be multiplied, because the result would be in
+          <code>cents&sup2;</code>.</li>
+        <li>A <code>price</code> and an integer multiply, and the integer is a count, not
+          money.</li>
+        <li>Division of a <code>price</code> by an integer rounds in a way the type documents
+          &mdash; or is a named function, as above.</li>
+        <li>Mixing <code>price</code> and a floating-point type does not compile at all, which is
+          the entire reason the type exists
+          (<a href="/docs/02.basics/02.datatypes/">Ch2.2</a>).</li>
+      </ul>
+      <p>
+        Notice the pattern that keeps appearing in this chapter: the value of the type is not
+        that it can add &mdash; an <code>::std::int_least64_t</code> can add &mdash; it is that it
+        <em>refuses</em> the operations that do not mean anything.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Rules of Thumb</h2>
+      <ul>
+        <li>Arithmetic operators only for total, allocation-free, non-failing, law-abiding
+          operations.</li>
+        <li>Compound assignment first; binary operator defined in terms of it.</li>
+        <li>Provide both operand orders for the scalar case, or neither.</li>
+        <li>Mark every value-returning operator <code>[[nodiscard]]</code>, every operator
+          <code>constexpr</code> if it can be, and every operator <code>noexcept</code> if it
+          cannot fail.</li>
+        <li>Do not define the operator whose result has the wrong units. That is a compile error
+          you are giving away for free.</li>
+        <li>Put rounding, saturation, overflow policy, and unit conversion in named functions,
+          where the name can carry the policy.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/17.operatoroverloading/02.prefernamed/" class="prev-button">&larr; Ch17.2: Prefer a Named Function</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/17.operatoroverloading/04.comparisons/" class="next-button">Ch17.4: Equality and Ordering &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

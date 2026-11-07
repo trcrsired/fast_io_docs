@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch17: Operator Overloading - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch17: Operator Overloading</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/17.operatoroverloading/">中文（简体）</a></p>
+    <section>
+      <h2>1. What Overloading Buys, and What It Costs</h2>
+
+      <p>
+        An overloaded operator is a function whose name is punctuation. That is the entire
+        feature. <code>a + b</code> is exactly <code>operator+(a, b)</code>, <code>a[i]</code> is
+        exactly <code>a.operator[](i)</code>, and the compiler's job is nothing more than
+        substituting the second spelling for the first
+        (<a href="/docs/17.operatoroverloading/01.whatoperatorsare/">Ch17.1</a>).
+      </p>
+      <p>
+        The buy is real: for a numeric type, <code>a * b + c</code> reads the way the mathematics
+        reads, and no reader has to decode a name. For a smart handle,
+        <code>p-&gt;member</code> lets a wrapper be used where a pointer was used.
+      </p>
+      <p>
+        The cost is also real, and it is not the cost you would guess. It is not the extra
+        function call &mdash; that is inlined. The cost is that <strong>punctuation carries no
+        information</strong>. <code>+</code> cannot tell the reader whether it concatenated two
+        sequences, allocated, copied ten megabytes, failed, or was associative. A named function
+        can. A named function can also be found by a text search, put in a debugger breakpoint
+        list, and called from a language that has no <code>operator+</code>.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. The Rule This Chapter Argues For</h2>
+
+      <p>
+        <strong>Prefer a named function. Overload an operator only when the operator's meaning
+        is the meaning the type already has, and when the operation cannot fail, cannot
+        allocate, and cannot surprise.</strong>
+      </p>
+      <p>
+        The canonical example is sequence concatenation. For two strings,
+        <code>a + b</code> is a C++ habit inherited from 1998 that says nothing about what happens
+        to the bytes: it produces a new string, which means it copies every byte of
+        <code>a</code> and every byte of <code>b</code>, which means an allocation, which means
+        an error path. <code>concat(a, b)</code> says "produce one sequence out of two", and
+        <code>a.append(b)</code> says "extend <code>a</code> with <code>b</code>, no new value,
+        no copy of <code>a</code>". Three different operations, three different costs, and with
+        <code>+</code> you cannot tell which one you got. Chapter
+        <a href="/docs/17.operatoroverloading/02.prefernamed/">17.2</a> measures the difference:
+        the same 4,000-byte result costs 998,000 copied bytes with <code>+</code> and zero with
+        <code>append</code>.
+      </p>
+      <p>
+        Note what this rule is <em>not</em>. It is not "never overload operators" &mdash;
+        <a href="/docs/17.operatoroverloading/03.valuearithmetic/">Ch17.3</a> shows a fixed-point
+        type where <code>+</code> and <code>*</code> are the right answer, and
+        <a href="/docs/17.operatoroverloading/04.comparisons/">Ch17.4</a> shows
+        <code>==</code> and <code>&lt;=&gt;</code> done properly. It is "do not use punctuation
+        to hide a decision the reader has to know about".
+      </p>
+
+    </section>
+    <section>
+      <h2>3. The Table, in One Screen</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Operator</th>
+            <th>Verdict</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>+ - * /</code> on a numeric value type</td>
+            <td>yes</td>
+            <td>the type <em>is</em> arithmetic; no allocation, no failure, total
+              (<a href="/docs/17.operatoroverloading/03.valuearithmetic/">Ch17.3</a>)</td>
+          </tr>
+          <tr>
+            <td><code>==</code>, <code>&lt;=&gt;</code></td>
+            <td>yes</td>
+            <td>if the type has one obvious equality and one obvious order
+              (<a href="/docs/17.operatoroverloading/04.comparisons/">Ch17.4</a>)</td>
+          </tr>
+          <tr>
+            <td><code>=&gt;&gt;=</code>-style compound assignment</td>
+            <td>yes</td>
+            <td>it is the primitive; <code>+</code> is defined in terms of it</td>
+          </tr>
+          <tr>
+            <td><code>[]</code></td>
+            <td>yes, if it is cheap and cannot fail</td>
+            <td>container index; the moment it can insert or throw it lies
+              (<a href="/docs/17.operatoroverloading/05.subscriptcall/">Ch17.5</a>)</td>
+          </tr>
+          <tr>
+            <td><code>*</code>, <code>-&gt;</code></td>
+            <td>yes, for handles</td>
+            <td>a wrapper that behaves like a pointer</td>
+          </tr>
+          <tr>
+            <td><code>()</code></td>
+            <td>only for callables</td>
+            <td>not as a builder and not as a "do everything" entry point</td>
+          </tr>
+          <tr>
+            <td><code>+</code> on containing types</td>
+            <td>no</td>
+            <td>hides allocation, copying, and failure; use <code>concat</code> or
+              <code>append</code> (<a href="/docs/17.operatoroverloading/02.prefernamed/">Ch17.2</a>)</td>
+          </tr>
+          <tr>
+            <td><code>&lt;&lt;</code>, <code>&gt;&gt;</code></td>
+            <td>no</td>
+            <td>iostreams are not an error channel; use <code>print</code> and
+              <code>scan</code> (<a href="/docs/17.operatoroverloading/06.neveroverload/">Ch17.6</a>)</td>
+          </tr>
+          <tr>
+            <td><code>&amp;&amp;</code>, <code>||</code>, <code>,</code>, <code>&amp;</code></td>
+            <td>never</td>
+            <td>each one silently breaks a language rule (short-circuit, sequencing,
+              address-of)</td>
+          </tr>
+          <tr>
+            <td><code>operator T()</code></td>
+            <td>almost never</td>
+            <td>invisible conversions at a distance; <code>explicit operator bool</code> is the
+              only one worth having</td>
+          </tr>
+          <tr>
+            <td><code>operator new</code> / <code>operator delete</code></td>
+            <td>never</td>
+            <td><a href="/docs/18.virtual/07.operatornew/">Ch18.7</a> shows the whole bill</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>4. Contents</h2>
+
+      <ul>
+        <li><a href="/docs/17.operatoroverloading/01.whatoperatorsare/">Ch17.1: Operators Are
+          Functions</a> &mdash; what the compiler actually does, member vs non-member, what can
+          and cannot be overloaded, and the canonical <code>+=</code>-then-<code>+</code>
+          shape.</li>
+        <li><a href="/docs/17.operatoroverloading/02.prefernamed/">Ch17.2: Prefer a Named
+          Function: <code>concat</code>, Not <code>+</code></a> &mdash; the measured
+          <code>+</code>/<code>concat</code>/<code>append</code> comparison, and the four
+          questions to ask before writing punctuation.</li>
+        <li><a href="/docs/17.operatoroverloading/03.valuearithmetic/">Ch17.3: Arithmetic on
+          Value Types</a> &mdash; the case where <code>+</code> is correct: fixed-point,
+          <code>noexcept</code>, <code>[[nodiscard]]</code>, symmetry, and no allocation.</li>
+        <li><a href="/docs/17.operatoroverloading/04.comparisons/">Ch17.4: Equality and
+          Ordering</a> &mdash; <code>= default</code>, <code>&lt;=&gt;</code>, total vs partial
+          order, and why a comparator is sometimes the named function you want.</li>
+        <li><a href="/docs/17.operatoroverloading/05.subscriptcall/">Ch17.5: Subscript, Call, and
+          Dereference</a> &mdash; <code>[]</code>, <code>()</code>, <code>*</code>,
+          <code>-&gt;</code>, the inserting <code>operator[]</code> trap, and proxy
+          references.</li>
+        <li><a href="/docs/17.operatoroverloading/06.neveroverload/">Ch17.6: Operators That
+          Should Not Exist</a> &mdash; streams, conversions, <code>&amp;&amp;</code>,
+          <code>||</code>, <code>,</code>, <code>&amp;</code>, and <code>operator/</code> on
+          paths.</li>
+        <li><a href="/docs/17.operatoroverloading/07.rules/">Ch17.7: Rules and a Checklist</a>
+          &mdash; the whole chapter as decisions you can grep for in review.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>5. What You Need Before This Chapter</h2>
+      <ul>
+        <li>Functions and overloading (<a href="/docs/06.function/">Chapter 6</a>).</li>
+        <li>References and <code>const</code> (<a href="/docs/02.basics/09.reference/">Ch2.9</a>).</li>
+        <li>The five special members (<a href="/docs/14.fiverules/">Chapter 14</a>), because an
+          operator that returns a new value is a copy or move question.</li>
+        <li>Contracts: every operator you write is a function, so it is
+          <code>noexcept</code> or <code>throws</code>
+          (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>).</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/16.inheritance/08.composition/" class="prev-button">&larr; Ch16.8: Inheritance or Composition?</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/17.operatoroverloading/01.whatoperatorsare/" class="next-button">Ch17.1: Operators Are Functions &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

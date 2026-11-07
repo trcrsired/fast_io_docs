@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第17.3章 值类型上的算术 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第17.3章 值类型上的算术</h1>
+    <p class="lang-switch"><a href="/docs/17.operatoroverloading/03.valuearithmetic/">English</a></p>
+
+    <section>
+      <h2>1. <code>+</code> 正确的场合</h2>
+
+      <p>
+        <a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">第17.2章</a>
+        说当含义不是显然的那个时不要重载运算符。这里说另一半：
+        当这个类型<em>就是</em>一个数时，算术记号不是语法糖，它是读者本来就掌握的记号。
+        一个二维向量应该写成 <code>(a + b) * 2</code>，而不是
+        <code>scale(add(a, b), 2)</code>。
+      </p>
+      <p>
+        判断标准不是品味，而是四条性质。当操作满足下面全部条件时才重载算术：
+      </p>
+      <ol>
+        <li><strong>全域</strong> —— 对值的所有组合都有定义，没有非法状态，没有定义域错误。</li>
+        <li><strong>不分配</strong> —— 它产出一个固定大小的栈上的值，
+          所以代价光看类型就知道（<code>sizeof(vec2)</code>）。</li>
+        <li><strong>不失败</strong> —— 它不会抛，所以可以是 <code>noexcept</code>，
+          调用者不需要错误路径。</li>
+        <li><strong>守规律</strong> —— 它满足读者预期的恒等式：<code>a + b == b + a</code>、
+          <code>(a + b) + c == a + (b + c)</code>、<code>a + vec2{} == a</code>。</li>
+      </ol>
+      <p>
+        任何一条不满足，你就回到
+        <a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">第17.2章</a> 的地盘，
+        而且你要的是名字。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 一个完整正确的值类型</h2>
+
+      <p>
+        两个类型：一个是 <code>vec2</code>，完整算术是正当的；一个是 <code>price</code>，
+        其中只有一部分算术正当 —— 而必须<em>不存在</em>的那个运算符才是重点。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+struct vec2
+{
+	::std::int_least32_t x{};
+	::std::int_least32_t y{};
+
+	constexpr vec2 &amp;operator+=(vec2 other) noexcept
+	{
+		x += other.x;
+		y += other.y;
+		return *this;
+	}
+	constexpr vec2 &amp;operator-=(vec2 other) noexcept
+	{
+		x -= other.x;
+		y -= other.y;
+		return *this;
+	}
+	constexpr vec2 &amp;operator*=(::std::int_least32_t s) noexcept
+	{
+		x *= s;
+		y *= s;
+		return *this;
+	}
+};
+
+[[nodiscard]] inline constexpr vec2 operator+(vec2 a, vec2 b) noexcept
+{
+	return a += b;
+}
+[[nodiscard]] inline constexpr vec2 operator-(vec2 a, vec2 b) noexcept
+{
+	return a -= b;
+}
+[[nodiscard]] inline constexpr vec2 operator*(vec2 a, ::std::int_least32_t s) noexcept
+{
+	return a *= s;
+}
+[[nodiscard]] inline constexpr vec2 operator*(::std::int_least32_t s, vec2 a) noexcept
+{
+	return a *= s;
+}
+
+struct price
+{
+	::std::int_least64_t cents{};
+
+	constexpr price &amp;operator+=(price other) noexcept
+	{
+		cents += other.cents;
+		return *this;
+	}
+};
+
+[[nodiscard]] inline constexpr price operator+(price a, price b) noexcept
+{
+	return a += b;
+}
+
+[[nodiscard]] inline constexpr price operator*(price p, ::std::int_least32_t units) noexcept
+{
+	return price{p.cents * units};
+}
+
+/*
+No operator* between two prices. cents * cents is not money; scaling a price by a rate
+needs a rounding rule, so it is a named function with a documented contract.
+*/
+[[nodiscard]] inline constexpr price apply_rate(price p, ::std::int_least64_t num, ::std::int_least64_t den) noexcept
+{
+	return price{(p.cents * num + den / 2) / den};
+}
+
+static_assert(noexcept(operator+(vec2{}, vec2{})));
+static_assert(noexcept(operator+(price{}, price{})));
+
+int main()
+{
+	try
+	{
+		vec2 a{3, 4};
+		vec2 b{1, 2};
+		vec2 const sum{a + b};
+		::fast_io::io::println("a + b = (", sum.x, ", ", sum.y, ")");
+		::fast_io::io::println("a - b = (", (a - b).x, ", ", (a - b).y, ")");
+		::fast_io::io::println("a * 2 = (", (a * 2).x, ", ", (a * 2).y, ")  2 * a = (", (2 * a).x,
+							   ", ", (2 * a).y, ")");
+		a *= 10;
+		::fast_io::io::println("after a *= 10 = (", a.x, ", ", a.y, ")");
+
+		price const net{10000};
+		price const tax{2500};
+		price const total{net + tax};
+		::fast_io::io::println("total = ", total.cents, " cents; 7/8 of it = ",
+							   apply_rate(total, 7, 8).cents, " cents; 7 units = ",
+							   (total * 7).cents, " cents");
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error: ");
+		::fast_io::io::println(e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+a + b = (4, 6)
+a - b = (2, 2)
+a * 2 = (6, 8)  2 * a = (6, 8)
+after a *= 10 = (30, 40)
+total = 12500 cents; 7/8 of it = 10938 cents; 7 units = 87500 cents
+</code></pre>
+
+    </section>
+    <section>
+      <h2>3. 每一行为什么在那儿</h2>
+
+      <ul>
+        <li><strong>复合赋值是原语。</strong><code>operator+=(vec2)</code> 修改并返回
+          <code>vec2&amp;</code>；<code>operator+</code> <em>按值</em>接收左操作数，
+          做 <code>+=</code>，然后返回它。这保证 <code>a + b</code> 和 <code>a += b</code>
+          永远不可能不一致，也不需要另写一套算术来写错。</li>
+        <li><strong>两个标量组合都存在。</strong><code>operator*(vec2, int)</code> 和
+          <code>operator*(int, vec2)</code> 是两个函数。没有第二个，
+          <code>2 * a</code> 就不能编译而 <code>a * 2</code> 能，
+          类型就泄漏了“其中一个是成员”这个事实。两个都只有一行，
+          两个都是 <code>constexpr</code>，两个都不分配。</li>
+        <li><strong>一切都是 <code>constexpr</code> 和 <code>noexcept</code>。</strong>
+          <code>static_assert(noexcept(operator+(vec2{}, vec2{})))</code> 不是装饰：
+          它就是契约，由编译器检查。如果以后有人给 <code>vec2</code> 的表示加上一次堆分配，
+          这一行就不再编译，而这正是目的。</li>
+        <li><strong>每个返回值的运算符都标 <code>[[nodiscard]]</code>。</strong>
+          语句 <code>a + b;</code> 丢弃结果、什么也不做；
+          这个属性把调用点上的写法变成警告。</li>
+        <li><strong><code>price</code> 有 <code>+</code>，但两个 <code>price</code> 之间
+          <em>没有</em> <code>*</code>。</strong><code>cents * cents</code> 是一个平方单位，
+          不是钱。价格乘一个<em>数量</em>没问题也不会失败，所以
+          <code>operator*(price, int)</code> 存在，而且含义就是它字面写的那样。</li>
+        <li><strong>按比率缩放是一个命名函数。</strong><code>apply_rate(p, num, den)</code>
+          携带了运算符无法携带的两件事：舍入规则，以及“这里做了一次舍入决定”这个事实。
+          它是 <code>(p.cents * num + den / 2) / den</code> —— 故意采用四舍五入 ——
+          而读者就是在名字那里发现这一点的。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>4. 定点数是最能说明问题的地方</h2>
+      <p>
+        钱、物理引擎里的坐标、音频采样、游戏的时间步，都是定点数。
+        用一个类加运算符来建模它们的理由在于：错误的算术会变成编译错误，而不是静默的 bug：
+      </p>
+      <ul>
+        <li>两个 <code>price</code> 不能相乘，因为结果的单位会是 <code>cents&sup2;</code>。</li>
+        <li><code>price</code> 和整数能相乘，而这个整数是数量，不是钱。</li>
+        <li><code>price</code> 除以整数时，舍入方式由类型文档规定 —— 或者像上面那样写成命名函数。</li>
+        <li><code>price</code> 和浮点类型混合根本不编译，而这正是这个类型存在的全部理由
+          （<a href="/zhcn/docs/02.basics/02.datatypes/">第2.2章</a>）。</li>
+      </ul>
+      <p>
+        注意这一章反复出现的模式：类型的价值不在于它能加 ——
+        <code>::std::int_least64_t</code> 也能加 —— 而在于它<em>拒绝</em>那些没有意义的操作。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 经验法则</h2>
+      <ul>
+        <li>只有对全域、不分配、不失败、守规律的操作才用算术运算符。</li>
+        <li>先写复合赋值；二元运算符拿它定义。</li>
+        <li>标量情形要么两个操作数顺序都提供，要么都不提供。</li>
+        <li>每个返回值的运算符标 <code>[[nodiscard]]</code>；能 <code>constexpr</code>
+          就 <code>constexpr</code>；不会失败就 <code>noexcept</code>。</li>
+        <li>不要定义结果单位错误的那个运算符。那是你白送出去的一个编译错误。</li>
+        <li>舍入、饱和、溢出策略、单位换算都放进命名函数，让名字承载策略。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/" class="prev-button">&larr; 第17.2章 优先用命名函数</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/17.operatoroverloading/04.comparisons/" class="next-button">第17.4章 相等与序关系 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

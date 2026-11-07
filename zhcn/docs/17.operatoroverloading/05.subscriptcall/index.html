@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第17.5章 下标、调用与解引用 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第17.5章 下标、调用与解引用</h1>
+    <p class="lang-switch"><a href="/docs/17.operatoroverloading/05.subscriptcall/">English</a></p>
+
+    <section>
+      <h2>1. 三个有真实职责的运算符</h2>
+
+      <p>
+        和 <code>+</code> 不同，这三个不表示某种数学操作。它们表示三种具体的能力，
+        而每一种都有诚实的用法：
+      </p>
+      <ul>
+        <li><code>operator[]</code> —— “把这个位置上元素给我，就现在，别的什么都别做”。</li>
+        <li><code>operator*</code> / <code>operator-&gt;</code> —— “像指向这个对象的指针那样行事”。</li>
+        <li><code>operator()</code> —— “这个对象存在的目的就是被调用”。</li>
+      </ul>
+      <p>
+        三者的失败方式完全相同：运算符开始做得比它宣称的能力<em>更多</em>。
+        当 <code>a[i]</code> 能插入、能分配、能失败时，
+        读者心里“这是一次数组访问”的模型就静默地错了。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 完整例子</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+
+struct matrix
+{
+	static constexpr ::std::size_t width{4};
+	::std::int_least32_t cells[8]{};
+
+	/* cost: one multiply and one add. No check, no allocation, no failure. */
+	[[nodiscard]] constexpr ::std::int_least32_t *operator[](::std::size_t row) noexcept
+	{
+		return cells + row * width;
+	}
+	[[nodiscard]] constexpr ::std::int_least32_t const *operator[](::std::size_t row) const noexcept
+	{
+		return cells + row * width;
+	}
+};
+
+struct word_count
+{
+	::fast_io::string_view *keys;
+	::std::int_least32_t *counts;
+	::std::size_t used;
+	::std::size_t capacity;
+
+	/* lookup: returns null when the key is absent, and never changes the table */
+	[[nodiscard]] constexpr ::std::int_least32_t *find(::fast_io::string_view key) noexcept
+	{
+		for (::std::size_t i{}; i != used; ++i)
+		{
+			if (keys[i] == key)
+			{
+				return counts + i;
+			}
+		}
+		return nullptr;
+	}
+
+	/* the creating operation has a name, and it says it creates */
+	constexpr ::std::int_least32_t &amp;insert_or_assign(::fast_io::string_view key, ::std::int_least32_t v) noexcept
+	{
+		if (::std::int_least32_t *p{find(key)}; p != nullptr)
+		{
+			*p = v;
+			return *p;
+		}
+		keys[used] = key;
+		counts[used] = v;
+		return counts[used++];
+	}
+};
+
+struct point
+{
+	::std::int_least32_t x{};
+	::std::int_least32_t y{};
+};
+
+/* a non-owning handle: * and -&gt; are the whole interface, and neither can fail */
+struct point_ref
+{
+	point *ptr;
+
+	[[nodiscard]] constexpr point &amp;operator*() const noexcept
+	{
+		return *ptr;
+	}
+	[[nodiscard]] constexpr point *operator-&gt;() const noexcept
+	{
+		return ptr;
+	}
+};
+
+/* () is for types whose purpose is to be called */
+struct scale_by
+{
+	::std::int_least32_t factor{};
+
+	[[nodiscard]] constexpr ::std::int_least32_t operator()(::std::int_least32_t v) const noexcept
+	{
+		return v * factor;
+	}
+};
+
+int main()
+{
+	try
+	{
+		matrix m;
+		m[1][2] = 7;
+		::fast_io::io::println("m[1][2] = ", m[1][2], "   m[0] row = ", m[0][0], " ", m[0][1], " ", m[0][2], " ", m[0][3]);
+
+		::fast_io::string_view keys[4]{"apple", "pear", "", ""};
+		::std::int_least32_t counts[4]{3, 5, 0, 0};
+		word_count table{keys, counts, 2, 4};
+		if (::std::int_least32_t *p{table.find("apple")}; p != nullptr)
+		{
+			::fast_io::io::println("apple: ", *p);
+		}
+		::fast_io::io::println("find(\"fig\") is null: ", table.find("fig") == nullptr);
+		::fast_io::io::println("used after find = ", table.used);
+		table.insert_or_assign("fig", 1);
+		::fast_io::io::println("after insert_or_assign: used = ", table.used, " fig = ", *table.find("fig"));
+
+		point pt{1, 2};
+		point_ref h{__builtin_addressof(pt)};
+		::fast_io::io::println("h-&gt;x = ", h-&gt;x, "  (*h).y = ", (*h).y);
+
+		::fast_io::io::println("scale_by{3}(7) = ", scale_by{3}(7));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error: ");
+		::fast_io::io::println(e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+m[1][2] = 7   m[0] row = 0 0 0 0
+apple: 3
+find("fig") is null: 1
+used after find = 2
+after insert_or_assign: used = 3 fig = 1
+h-&gt;x = 1  (*h).y = 2
+scale_by{3}(7) = 21
+</code></pre>
+
+    </section>
+    <section>
+      <h2>3. <code>operator[]</code>：便宜、不会失败，否则就不是运算符</h2>
+      <p>
+        <code>matrix::operator[]</code> 返回一行第一个元素的指针，
+        而 <code>m[r][c]</code> 就是一次指针加法再接一次指针加法。这就是契约：
+        <code>[]</code> 是下标的写法，而下标就是算术。它不做边界检查 ——
+        和 C 数组一样，和 <code>::fast_io::vector::operator[]</code> 一样 ——
+        所以越界的下标是你程序里的 bug，不是要报告的错误。
+      </p>
+      <p>
+        如果你的容器需要检查，那个操作有另一个名字和另一份契约，你就把它写出来：
+      </p>
+      <pre><code class="language-cpp">
+[[nodiscard]] ::std::int_least32_t at(::std::size_t i) const
+	throws(!noexcept(::fast_io::herbceptions::throws_errc(::std::errc::result_out_of_range)))
+{
+	if (i &gt;= size_)
+	{
+		::fast_io::herbceptions::throws_errc(::std::errc::result_out_of_range);
+	}
+	return cells_[i];
+}
+</code></pre>
+      <p>
+        现在调用者能在名字里看见检查的代价，编译器能在 <code>throws</code> 里看见它，
+        而 <code>operator[]</code> 保持它本来的含义。
+      </p>
+      <p>
+        两个著名库例子说明了另一种做法有多糟。<code>::std::map</code> 的
+        <code>operator[]</code> 在键缺失时会<em>插入</em>，所以 <code>m[k]</code>
+        能分配、能失败，而且总是写入容器 ——
+        循环里一次不小心的查找就把一趟只读遍历变成了不断增长的 map。
+        <code>::std::vector&lt;bool&gt;</code> 返回的是一个代理对象而不是 <code>bool&amp;</code>，
+        所以 <code>auto&amp; b = v[0];</code> 不能编译，而 <code>v[0]</code> 也不是引用；
+        下标已经不再是下标了。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 查找不能插入：命名替代方案</h2>
+      <p>
+        上面那个 <code>word_count</code> 就是“如果 <code>::std::map</code> 按本章规则设计”
+        的样子。它有两个操作、两个名字：
+      </p>
+      <ul>
+        <li><code>find(key)</code> 返回指向计数的指针，或者 <code>nullptr</code>。
+          它是 <code>noexcept</code>、不分配、也不改变 <code>used</code> ——
+          输出记录证明了这一点：<code>used after find = 2</code>，和查找之前一样。</li>
+        <li><code>insert_or_assign(key, v)</code> 是那个能创建条目的操作，它的名字就说明了这一点。
+          输出记录显示 <code>used</code> 只在这次调用之后才从 2 变成 3。</li>
+      </ul>
+      <p>
+        整个类型里没有出现任何下标运算符。<code>t["fig"]</code> 必须返回点什么，
+        而不管它返回什么，都会让一次查找看起来像一次读，实际上却是写。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. <code>*</code>、<code>-&gt;</code> 和 <code>()</code></h2>
+      <ul>
+        <li><strong><code>point_ref</code></strong> 的存在是为了传递一个不能为空的指针，
+          它的整个接口就是 <code>*p</code> 和 <code>p-&gt;member</code>。两个都不会失败、
+          都不分配，对象只有一个指针宽。这和智能句柄是同一个形状 ——
+          <code>::std::unique_ptr</code> 就是这个再加所有权
+          （<a href="/zhcn/docs/18.virtual/01.newdelete/">第18.1章</a>）。</li>
+        <li><strong><code>scale_by</code></strong> 是一个“存在就是为了被调用”的类，
+          所以 <code>operator()</code> 是它天然的接口：它能和算法、可调用对象组合，
+          它能携带状态（<code>factor</code>），而且 <code>scale_by{3}(7)</code>
+          不会和别的东西混淆。</li>
+        <li><strong>反模式</strong>是把 <code>operator()</code> 当成“服务的入口”：
+          <code>app()</code>、<code>db()</code>、<code>ctx(...)</code>，
+          对象根本不是函数，用这个运算符只是因为比写 <code>run</code> 短。
+          调用应该写成 <code>server.run()</code>，因为 <code>server()</code>
+          说的是“这个对象<em>就是</em>那个操作”。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>6. 经验法则</h2>
+      <ul>
+        <li><code>operator[]</code> 必须是你最便宜的访问方式：不分配、不插入、不检查、不失败。
+          否则它就不是下标，它要有一个名字。</li>
+        <li>如果操作可能失败，就把检查放进命名函数（<code>at</code>、<code>find</code>、
+          <code>try_get</code>），并写 <code>throws</code> 契约。</li>
+        <li>除非这个代理就是一个普通引用式的代理，在你关心的每个上下文里都表现得像
+          <code>T&amp;</code>，否则不要从 <code>operator[]</code> 返回代理
+          （<code>::std::vector&lt;bool&gt;</code> 是反面教材，不是范本）。</li>
+        <li><code>operator*</code> 和 <code>operator-&gt;</code> 是给“行为像指针”的东西用的。
+          如果它不是一个指针，就用 <code>.get()</code>、<code>.value()</code> 或者命名访问器。</li>
+        <li>只有当类型存在的理由就是被调用时才写 <code>operator()</code>。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/17.operatoroverloading/04.comparisons/" class="prev-button">&larr; 第17.4章 相等与序关系</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/" class="next-button">第17.6章 不该存在的运算符 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

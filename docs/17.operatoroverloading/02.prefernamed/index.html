@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch17.2: Prefer a Named Function - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch17.2: Prefer a Named Function: <code>concat</code>, Not <code>+</code></h1>
+    <p class="lang-switch"><a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">中文（简体）</a></p>
+    <section>
+      <h2>1. The Claim</h2>
+
+      <p>
+        When an operator and a function can express the same thing, <strong>write the
+        function</strong>. Not because operators are slow &mdash; they inline perfectly &mdash;
+        but because punctuation is a promise that the operation is the operation everybody
+        already knows. For two numbers, <code>+</code> is that operation. For two strings, two
+        vectors, two files, or two trees, it is not: nobody can read
+        <code>a + b</code> and know whether it concatenated, merged, unioned, allocated, copied
+        ten megabytes, or failed.
+      </p>
+      <p>
+        The canonical case is sequence concatenation, which C++ inherited as
+        <code>operator+</code> from the 1998 standard library. It is a good case because it is so
+        familiar that it looks harmless, and because it is measurable.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. The Measurement</h2>
+
+      <p>
+        We build the same 4,000-byte value three ways &mdash; with
+        <code>operator+</code>, with a <code>concat</code> function that returns a new value, and
+        with an <code>append</code> member that mutates in place. <code>text</code> counts the
+        bytes its copy constructor copies; that counter is the test instrument, not something you
+        would ship.
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+#include &lt;cstddef&gt;
+
+struct text
+{
+	::fast_io::string chars{};
+
+	static inline ::std::size_t copied{}; /* a test instrument, not a member you ship */
+
+	text() = default;
+	explicit text(::fast_io::string_view vw) : chars{vw} {}
+	text(text const &amp;other) : chars{other.chars}
+	{
+		copied += chars.size();
+	}
+	text(text &amp;&amp;other) noexcept : chars{::std::move(other.chars)} {}
+	text &amp;operator=(text &amp;&amp;other) noexcept
+	{
+		chars = ::std::move(other.chars);
+		return *this;
+	}
+
+	void append(text const &amp;other)
+	{
+		chars.append(other.chars);
+	}
+};
+
+inline text operator+(text const &amp;a, text const &amp;b)
+{
+	text r{a}; /* copies every byte of a */
+	r.append(b);
+	return r;
+}
+
+inline text concat(text const &amp;a, text const &amp;b)
+{
+	return a + b; /* a named function that still copies - the name is not magic */
+}
+
+int main()
+{
+	try
+	{
+		text const word{::fast_io::string_view{"abcdefgh"}};
+
+		text with_plus{};
+		text::copied = 0;
+		for (int i{}; i != 500; ++i)
+		{
+			with_plus = with_plus + word;
+		}
+		::fast_io::io::println("a + b   size=", with_plus.chars.size(), " copied=", text::copied);
+
+		text with_concat{};
+		text::copied = 0;
+		for (int i{}; i != 500; ++i)
+		{
+			with_concat = concat(with_concat, word);
+		}
+		::fast_io::io::println("concat  size=", with_concat.chars.size(), " copied=", text::copied);
+
+		text with_append{};
+		text::copied = 0;
+		for (int i{}; i != 500; ++i)
+		{
+			with_append.append(word);
+		}
+		::fast_io::io::println("append  size=", with_append.chars.size(), " copied=", text::copied);
+
+		auto const joined{::fast_io::concat_fast_io("concatenated: ", 1, " + ", 2, " = ", 3)};
+		::fast_io::io::println(joined);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+a + b   size=4000 copied=998000
+concat  size=4000 copied=998000
+append  size=4000 copied=0
+concatenated: 1 + 2 = 3
+</code></pre>
+      <p>
+        Read the three lines carefully, because they say something that the usual "operators are
+        fine" and "operators are evil" arguments both miss.
+      </p>
+      <p>
+        <strong><code>a + b</code> and <code>concat</code> cost exactly the same.</strong>
+        998,000 bytes copied to produce 4,000 bytes of output. Renaming the operator to a function
+        bought <em>nothing</em> in performance &mdash; the operands still say "return a new
+        value", and returning a new value means copying the accumulated string on every one of the
+        500 iterations. That is the O(n&sup2;) shape, and it is the shape that
+        <code>a = a + b</code> in a loop has in every language that defines <code>+</code> this
+        way.
+      </p>
+      <p>
+        <strong><code>append</code> costs zero.</strong> Not "less": zero. It extends the buffer
+        that already exists, so nothing that was already copied is copied again. To get that
+        behaviour out of <code>+</code> you would have to write <code>a += b</code>, which is a
+        different glyph with a different meaning, and which for a type that models "a value"
+        rather than "a container" is often not provided at all.
+      </p>
+      <p>
+        So the real lesson of the measurement is not "name it <code>concat</code>". It is:
+        <strong>the operator's spelling forces a copy semantics you did not choose</strong>, and
+        the name is what makes the choice visible. <code>concat(a, b)</code> tells the reader a
+        new value appears; <code>a.append(b)</code> tells the reader <code>a</code> grew and
+        nothing else happened. <code>a + b</code> tells the reader nothing at all, and one of the
+        two costs is 998,000 bytes.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. What fast_io's Own <code>concat</code> Shows</h2>
+
+      <p>
+        The last two lines of the program use <code>::fast_io::concat_fast_io</code>, and it is
+        worth pausing on, because it is the shape a named function allows and an operator refuses:
+      </p>
+      <pre><code class="language-cpp">
+auto const joined{::fast_io::concat_fast_io("concatenated: ", 1, " + ", 2, " = ", 3)};
+</code></pre>
+      <p>
+        Six arguments of three different types, formatted by fast_io's own
+        <code>print</code> machinery (<a href="/docs/15.genericprogramming/11.printscan/">Ch15.11</a>),
+        into one buffer, with one allocation, and <code>throws</code> iff any argument's
+        formatting can throw. Try expressing that with an operator: <code>+</code> is binary, so
+        you need five of them, each one allocating or at least each one being a separate
+        function-call node, and each one a chance for a reader to wonder whether the result is
+        numeric.
+      </p>
+      <p>
+        This is why <code>::fast_io::print</code> and <code>::fast_io::scan</code> are
+        <em>functions with names</em> and not <code>operator&lt;&lt;</code> and
+        <code>operator&gt;&gt;</code> (<a href="/docs/17.operatoroverloading/06.neveroverload/">Ch17.6</a>):
+        a library whose business is converting values to text cannot afford punctuation that
+        hides direction, encoding, or failure.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Four Questions Before You Write Punctuation</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>If the answer is "yes"</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Can it fail?</td>
+            <td><strong>do not use an operator.</strong> A single glyph hides either an error
+              return or a herbception, and the reader of <code>a + b</code> will not look for
+              either. Use a name and a <code>throws</code> contract.</td>
+          </tr>
+          <tr>
+            <td>Can it allocate or copy a lot?</td>
+            <td><strong>do not use an operator.</strong> Cost that cannot be seen is cost that
+              is not accounted for. <code>concat</code> at least warns you that a new value
+              appears; <code>+</code> does not.</td>
+          </tr>
+          <tr>
+            <td>Is the meaning obvious to someone who has never seen your type?</td>
+            <td>then the operator is probably fine &mdash; this is the arithmetic case
+              (<a href="/docs/17.operatoroverloading/03.valuearithmetic/">Ch17.3</a>).</td>
+          </tr>
+          <tr>
+            <td>Would a name be longer than a comment explaining the operator?</td>
+            <td>then the operator is cheaper for everybody, including the next reader.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        Apply the test to familiar operators: <code>::std::map</code>'s
+        <code>operator[]</code> inserts a default value when the key is missing, so
+        <code>m[k]</code> can fail (allocation) and can change the container &mdash; which is why
+        <a href="/docs/17.operatoroverloading/05.subscriptcall/">Ch17.5</a> prefers
+        <code>find</code>. <code>operator&lt;&lt;</code> writes to a stream and reports failure by
+        setting a stream state nobody checks &mdash; which is why
+        <a href="/docs/17.operatoroverloading/06.neveroverload/">Ch17.6</a> removes it.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Names to Reach For</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Instead of</th>
+            <th>Write</th>
+            <th>Because the name says</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>a + b</code> on two strings</td>
+            <td><code>concat(a, b)</code></td>
+            <td>a new sequence, made of both, allocated</td>
+          </tr>
+          <tr>
+            <td><code>a = a + b</code></td>
+            <td><code>a.append(b)</code></td>
+            <td>in place, amortised, no copy of <code>a</code></td>
+          </tr>
+          <tr>
+            <td><code>a + b + c + d</code></td>
+            <td><code>concat(a, b, c, d)</code></td>
+            <td>one operation with four inputs, one allocation</td>
+          </tr>
+          <tr>
+            <td><code>a | b</code> on sets or flags</td>
+            <td><code>set_union(a, b)</code>, <code>with_flag(f)</code></td>
+            <td>whether duplicates survive, and which side wins</td>
+          </tr>
+          <tr>
+            <td><code>a / b</code> on paths</td>
+            <td><code>join(a, b)</code></td>
+            <td>joining, not dividing; and separators are a policy</td>
+          </tr>
+          <tr>
+            <td><code>a * b</code> on matrices</td>
+            <td><code>a.multiply(b)</code> or <code>matmul(a, b)</code></td>
+            <td>which product, which order, and that it allocates</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The standard library eventually agrees with this page. C++26's range adapter for exactly
+        this operation is <code>::std::views::concat</code> &mdash; a named function &mdash; and
+        not an <code>operator+</code> between two ranges. When two ranges are concatenated
+        lazily, there is no new container and no allocation, and calling that
+        <code>+</code> would have implied both.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. When You Need Both</h2>
+      <p>
+        Sometimes an operator is worth having <em>on top of</em> the named function, for
+        readability in mathematical code. Then define the operator as a one-line alias, and put
+        the real work in the function:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename... Args&gt;
+[[nodiscard]] inline ::fast_io::string concat(Args const &amp;...args)
+	throws(!noexcept(::fast_io::concat_fast_io(args...)))
+{
+	return ::fast_io::concat_fast_io(args...);
+}
+</code></pre>
+      <p>
+        That inversion is the important part. If the operator is the primitive, callers will use
+        it, and the named function becomes a wrapper nobody reads. If the function is the
+        primitive, the operator is a documented convenience &mdash; and you can grep for how many
+        places actually chose the expensive spelling.
+      </p>
+
+    </section>
+    <section>
+      <h2>7. Rules of Thumb</h2>
+      <ul>
+        <li>Prefer a named function. The operator must earn its glyph.</li>
+        <li>No operator that can fail, allocate, or block. Those are the three things a reader
+          must be able to see.</li>
+        <li>If you provide an operator, define it in terms of the named function, not the other
+          way round.</li>
+        <li>One operator is one operation with one cost. If <code>a + b</code> sometimes copies
+          and sometimes does not, it is two operations wearing one glyph.</li>
+        <li>Never make an operator's meaning depend on a template parameter's value in a way that
+          changes whether it allocates or throws. Overload resolution is not a documentation
+          channel.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/17.operatoroverloading/01.whatoperatorsare/" class="prev-button">&larr; Ch17.1: Operators Are Functions</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/17.operatoroverloading/03.valuearithmetic/" class="next-button">Ch17.3: Arithmetic on Value Types &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

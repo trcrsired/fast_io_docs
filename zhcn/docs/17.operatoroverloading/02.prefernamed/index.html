@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第17.2章 优先用命名函数：concat，而不是 + - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第17.2章 优先用命名函数：concat，而不是 +</h1>
+    <p class="lang-switch"><a href="/docs/17.operatoroverloading/02.prefernamed/">English</a></p>
+
+    <section>
+      <h2>1. 主张</h2>
+
+      <p>
+        当运算符和一个函数能表达同一件事时，<strong>写那个函数</strong>。
+        不是因为运算符慢 —— 它们内联得很好 —— 而是因为标点符号是一个承诺：
+        这个操作就是所有人都已经知道的那个操作。对两个数，<code>+</code> 就是那个操作。
+        对两个字符串、两个向量、两个文件或两棵树，它不是：
+        没人能读着 <code>a + b</code> 就知道它是连接、是合并、是求并，
+        分配了内存、拷贝了十兆字节，还是失败了。
+      </p>
+      <p>
+        最典型的场合是序列连接，C++ 从 1998 年的标准库继承下来的
+        <code>operator+</code> 就是它。这是个好例子，因为它太熟悉了，以至于看起来无害，
+        而且它可以被测量。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 测量</h2>
+
+      <p>
+        我们用三种办法构造同样的 4000 字节结果 —— 用 <code>operator+</code>、
+        用一个返回新值的 <code>concat</code> 函数、用一个就地把内容接上去的
+        <code>append</code> 成员。这里的 <code>text</code> 统计它拷贝构造函数拷贝了多少字节；
+        那个计数器是测量仪器，不是你会发布出去的东西。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+#include &lt;cstddef&gt;
+
+struct text
+{
+	::fast_io::string chars{};
+
+	static inline ::std::size_t copied{}; /* a test instrument, not a member you ship */
+
+	text() = default;
+	explicit text(::fast_io::string_view vw) : chars{vw} {}
+	text(text const &amp;other) : chars{other.chars}
+	{
+		copied += chars.size();
+	}
+	text(text &amp;&amp;other) noexcept : chars{::std::move(other.chars)} {}
+	text &amp;operator=(text &amp;&amp;other) noexcept
+	{
+		chars = ::std::move(other.chars);
+		return *this;
+	}
+
+	void append(text const &amp;other)
+	{
+		chars.append(other.chars);
+	}
+};
+
+inline text operator+(text const &amp;a, text const &amp;b)
+{
+	text r{a}; /* copies every byte of a */
+	r.append(b);
+	return r;
+}
+
+inline text concat(text const &amp;a, text const &amp;b)
+{
+	return a + b; /* a named function that still copies - the name is not magic */
+}
+
+int main()
+{
+	try
+	{
+		text const word{::fast_io::string_view{"abcdefgh"}};
+
+		text with_plus{};
+		text::copied = 0;
+		for (int i{}; i != 500; ++i)
+		{
+			with_plus = with_plus + word;
+		}
+		::fast_io::io::println("a + b   size=", with_plus.chars.size(), " copied=", text::copied);
+
+		text with_concat{};
+		text::copied = 0;
+		for (int i{}; i != 500; ++i)
+		{
+			with_concat = concat(with_concat, word);
+		}
+		::fast_io::io::println("concat  size=", with_concat.chars.size(), " copied=", text::copied);
+
+		text with_append{};
+		text::copied = 0;
+		for (int i{}; i != 500; ++i)
+		{
+			with_append.append(word);
+		}
+		::fast_io::io::println("append  size=", with_append.chars.size(), " copied=", text::copied);
+
+		auto const joined{::fast_io::concat_fast_io("concatenated: ", 1, " + ", 2, " = ", 3)};
+		::fast_io::io::println(joined);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+a + b   size=4000 copied=998000
+concat  size=4000 copied=998000
+append  size=4000 copied=0
+concatenated: 1 + 2 = 3
+</code></pre>
+      <p>
+        仔细读这三行，因为它们说出了“运算符没问题”和“运算符是邪恶的”这两种说法都错过的内容。
+      </p>
+      <p>
+        <strong><code>a + b</code> 和 <code>concat</code> 花的代价完全相同。</strong>
+        为了产出 4000 字节输出，拷贝了 998000 字节。把运算符改名成函数，
+        在性能上<em>什么都没换来</em> —— 操作数仍然在说“返回一个新值”，
+        而返回新值就意味着在 500 次迭代的每一次里都把累积起来的字符串拷贝一遍。
+        这就是 O(n&sup2;) 的形状，也是每种把 <code>+</code> 这么定义的语言里
+        <code>a = a + b</code> 写进循环之后的形状。
+      </p>
+      <p>
+        <strong><code>append</code> 的代价是零。</strong>不是“更少”：是零。
+        它在已经存在的缓冲区上扩展，所以已经拷好过的字节一个都没再拷。
+        想从 <code>+</code> 拿到这个行为，你得写 <code>a += b</code>，
+        那是另一个标点、另一个含义，而对一个建模“一个值”而不是“一个容器”的类型来说，
+        这个运算符常常根本不存在。
+      </p>
+      <p>
+        所以这次测量真正的教训不是“把它叫 <code>concat</code>”。而是：
+        <strong>运算符的写法强行附加了一套你没有选择的拷贝语义</strong>，
+        而名字是让这个选择变得可见的东西。<code>concat(a, b)</code> 告诉读者出现了一个新值；
+        <code>a.append(b)</code> 告诉读者 <code>a</code> 长大了、别的什么都没发生。
+        <code>a + b</code> 什么都没告诉读者，而其中一种代价是 998000 字节。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. fast_io 自己的 <code>concat</code> 说明了什么</h2>
+
+      <p>
+        程序最后两行用了 <code>::fast_io::concat_fast_io</code>，它值得停一下看，
+        因为它展示了命名函数允许、而运算符拒绝的形状：
+      </p>
+      <pre><code class="language-cpp">
+auto const joined{::fast_io::concat_fast_io("concatenated: ", 1, " + ", 2, " = ", 3)};
+</code></pre>
+      <p>
+        三个不同类型的六个实参，由 fast_io 自己的 <code>print</code> 机制格式化
+        （<a href="/zhcn/docs/15.genericprogramming/11.printscan/">第15.11章</a>），
+        写进一个缓冲区，一次分配；并且当且仅当任何一个实参的格式化可能抛时它才
+        <code>throws</code>。试着用运算符表达这件事：<code>+</code> 是二元的，
+        所以你需要五个，每一个都在分配，或者至少每一个都是独立的函数调用节点，
+        每一个都是读者怀疑“这结果是不是数值”的机会。
+      </p>
+      <p>
+        这就是为什么 <code>::fast_io::print</code> 和 <code>::fast_io::scan</code>
+        是<em>有名字的函数</em>，而不是 <code>operator&lt;&lt;</code> 和
+        <code>operator&gt;&gt;</code>（<a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/">第17.6章</a>）：
+        一个以“把值变成文本”为业的库，承受不起隐藏方向、编码或失败的标点符号。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 写标点符号之前要问的四个问题</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>问题</th>
+            <th>如果答案是“是”</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>它会失败吗？</td>
+            <td><strong>不要用运算符。</strong>一个标点会同时隐藏错误返回和赫布异常，
+              而 <code>a + b</code> 的读者两个都不会去找。用名字，并写
+              <code>throws</code> 契约。</td>
+          </tr>
+          <tr>
+            <td>它会分配内存或大量拷贝吗？</td>
+            <td><strong>不要用运算符。</strong>看不见的代价就是没被计入的代价。
+              <code>concat</code> 至少会提醒你出现了一个新值；<code>+</code> 不会。</td>
+          </tr>
+          <tr>
+            <td>对一个从没见过你这个类型的人来说，含义显而易见吗？</td>
+            <td>那运算符大概没问题 —— 这就是算术的场合
+              （<a href="/zhcn/docs/17.operatoroverloading/03.valuearithmetic/">第17.3章</a>）。</td>
+          </tr>
+          <tr>
+            <td>用名字会比用一段注释解释这个运算符更长吗？</td>
+            <td>那运算符对所有人都更便宜，包括下一个读者。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        把这个测试用到熟悉的运算符上：<code>::std::map</code> 的 <code>operator[]</code>
+        在键缺失时会插入一个默认值，所以 <code>m[k]</code> 会失败（分配内存）并且会修改容器 ——
+        这就是 <a href="/zhcn/docs/17.operatoroverloading/05.subscriptcall/">第17.5章</a>
+        更偏爱 <code>find</code> 的原因。<code>operator&lt;&lt;</code> 往流里写，
+        并通过设置一个没人检查的流状态来报告失败 ——
+        这就是 <a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/">第17.6章</a>
+        把它删掉的原因。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 该用的名字</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>不要写</th>
+            <th>写</th>
+            <th>因为名字说明了</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>两个字符串上的 <code>a + b</code></td>
+            <td><code>concat(a, b)</code></td>
+            <td>一个由两者组成的新序列，分配了内存</td>
+          </tr>
+          <tr>
+            <td><code>a = a + b</code></td>
+            <td><code>a.append(b)</code></td>
+            <td>就地，摊还，不拷贝 <code>a</code></td>
+          </tr>
+          <tr>
+            <td><code>a + b + c + d</code></td>
+            <td><code>concat(a, b, c, d)</code></td>
+            <td>一次操作、四个输入、一次分配</td>
+          </tr>
+          <tr>
+            <td>集合或标志位上的 <code>a | b</code></td>
+            <td><code>set_union(a, b)</code>、<code>with_flag(f)</code></td>
+            <td>重复元素是保留还是去掉，以及哪一边优先</td>
+          </tr>
+          <tr>
+            <td>路径上的 <code>a / b</code></td>
+            <td><code>join(a, b)</code></td>
+            <td>是连接而不是除法；而且分隔符是一个策略</td>
+          </tr>
+          <tr>
+            <td>矩阵上的 <code>a * b</code></td>
+            <td><code>a.multiply(b)</code> 或 <code>matmul(a, b)</code></td>
+            <td>是哪种乘法、什么顺序，以及它会分配</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        标准库最终也同意这一页。C++26 里恰好做这个操作的 range 适配器叫
+        <code>::std::views::concat</code> —— 一个有名字的函数 ——
+        而不是两个 range 之间的 <code>operator+</code>。当两个 range 被惰性连接时，
+        既没有新容器也没有分配，而把这个叫 <code>+</code> 会同时暗示这两件事。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 当你两者都需要</h2>
+      <p>
+        有时候为了数学代码的可读性，在命名函数<em>之上</em>再提供一个运算符是值得的。
+        那就把运算符写成一行别名，把真正的工作放在函数里：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename... Args&gt;
+[[nodiscard]] inline ::fast_io::string concat(Args const &amp;...args)
+	throws(!noexcept(::fast_io::concat_fast_io(args...)))
+{
+	return ::fast_io::concat_fast_io(args...);
+}
+</code></pre>
+      <p>
+        这个反转才是重点。如果运算符是原语，调用者就会用它，命名函数变成没人读的包装。
+        如果函数是原语，运算符就是有文档的便利 —— 而且你可以 grep 出到底有多少地方
+        选择了那种昂贵的写法。
+      </p>
+
+    </section>
+    <section>
+      <h2>7. 经验法则</h2>
+      <ul>
+        <li>优先用命名函数。运算符必须自己挣得那个标点。</li>
+        <li>不要写会失败、会分配、会阻塞的运算符。这三件事是读者必须看得见的。</li>
+        <li>如果你提供了运算符，就让它拿命名函数定义，而不是反过来。</li>
+        <li>一个运算符就是一个操作、一种代价。如果 <code>a + b</code> 有时拷贝有时不拷贝，
+          那是两个操作共用一个标点。</li>
+        <li>永远不要让运算符的含义依赖于模板实参的取值，从而悄悄改变它是否分配或是否抛。
+          候选函数匹配不是文档通道。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/17.operatoroverloading/01.whatoperatorsare/" class="prev-button">&larr; 第17.1章 运算符就是函数</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/17.operatoroverloading/03.valuearithmetic/" class="next-button">第17.3章 值类型上的算术 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

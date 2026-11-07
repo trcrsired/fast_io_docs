@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch17.1: Operators Are Functions - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch17.1: Operators Are Functions</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/17.operatoroverloading/01.whatoperatorsare/">中文（简体）</a></p>
+    <section>
+      <h2>1. The Substitution, Stated Precisely</h2>
+
+      <p>
+        An operator expression is a function call with a different spelling. The compiler
+        rewrites it, then does ordinary overload resolution:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>You write</th>
+            <th>The compiler calls</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>a + b</code></td><td><code>operator+(a, b)</code></td></tr>
+          <tr><td><code>a += b</code></td><td><code>a.operator+=(b)</code></td></tr>
+          <tr><td><code>-a</code></td><td><code>operator-(a)</code></td></tr>
+          <tr><td><code>a[i]</code></td><td><code>a.operator[](i)</code></td></tr>
+          <tr><td><code>a(b, c)</code></td><td><code>a.operator()(b, c)</code></td></tr>
+          <tr><td><code>a == b</code></td><td><code>operator==(a, b)</code>, and in C++20 also
+            <code>a.operator==(b)</code> with the operands reversed if that is the only
+            candidate</td></tr>
+          <tr><td><code>delete p</code></td><td><code>p-&gt;~T()</code> then
+            <code>operator delete(p)</code> (<a href="/docs/18.virtual/01.newdelete/">Ch18.1</a>)</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Two consequences follow immediately. First, an operator is looked up exactly like a
+        function: if it is a member, the left operand must be of that class; if it is not a
+        member, argument-dependent lookup finds it in the namespace of its arguments. Second,
+        <strong>an operator can be called explicitly by name</strong>, which is how you prove to
+        yourself that nothing magical happens.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. A Complete Example: the Canonical Shape</h2>
+
+      <p>
+        The shape every arithmetic value type should follow: a compound assignment as the
+        primitive that mutates and returns a reference, and a binary operator defined on top of
+        it that takes its operands <em>by value</em> and returns a new value.
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+namespace money_ns
+{
+
+struct money
+{
+	::std::int_least64_t cents{};
+
+	constexpr money &amp;operator+=(money other) noexcept
+	{
+		cents += other.cents;
+		return *this;
+	}
+};
+
+[[nodiscard]] inline constexpr money operator+(money a, money b) noexcept
+{
+	return a += b;
+}
+
+}
+
+int main()
+{
+	try
+	{
+		using money_ns::money;
+		money const a{1250};
+		money const b{375};
+		::fast_io::io::println("a + b        = ", (a + b).cents);
+		::fast_io::io::println("operator+(a,b)= ", operator+(a, b).cents);
+		money c{a};
+		c += b;
+		::fast_io::io::println("c += b       = ", c.cents);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error: ");
+		::fast_io::io::println(e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+a + b        = 1625
+operator+(a,b)= 1625
+c += b       = 1625
+</code></pre>
+      <p>
+        Everything worth noticing is in those twenty-five lines:
+      </p>
+      <ul>
+        <li><code>operator+=</code> is a <strong>member</strong> because its left operand is
+          modified and is the object. It returns <code>money&amp;</code>, not
+          <code>void</code>, so that <code>a = b += c</code> keeps the meaning it has for
+          <code>int</code>.</li>
+        <li><code>operator+</code> is a <strong>non-member</strong> in the same namespace. It
+          takes both operands by value, adds into the copy of the left one, and returns it &mdash;
+          the copy is elided or moved, so this is the cheapest correct spelling. Because it is a
+          non-member, <code>money{1} + money{2}</code> and any implicit conversion on either side
+          work symmetrically (see <a href="/docs/17.operatoroverloading/03.valuearithmetic/">Ch17.3</a>).</li>
+        <li>Both are <code>constexpr</code> and <code>noexcept</code>: addition of two integers
+          cannot fail, so the type must not pretend it can
+          (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>).</li>
+        <li><code>[[nodiscard]]</code> on <code>operator+</code> catches
+          <code>a + b;</code> used as a statement &mdash; a discarded result that was almost
+          certainly a bug.</li>
+        <li><code>operator+(a, b)</code> in <code>main</code> is the same function. There is no
+          separate mechanism.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>3. What You Cannot Do</h2>
+
+      <p>
+        The feature is narrower than people expect. You cannot overload an operator unless at
+        least one operand is a class or enumeration type:
+      </p>
+      <pre><code class="language-cpp">
+int operator+(int a, int b) { return a * b; }
+</code></pre>
+      <pre><code class="language-text">
+error: ‘int operator+(int, int)’ must have an argument of class or enumerated type
+</code></pre>
+      <p>
+        You cannot invent an operator that does not exist, so no <code>**</code>, no
+        <code>&lt;&gt;</code>, no <code>&amp;&amp;&amp;</code>:
+      </p>
+      <pre><code class="language-cpp">
+s operator**(s a, s b) { return a; }
+</code></pre>
+      <pre><code class="language-text">
+error: expected initializer before ‘*’ token
+</code></pre>
+      <p>
+        You cannot change an operator's arity, its associativity, or its precedence:
+        <code>a + b * c</code> groups as <code>a + (b * c)</code> for your type too, and
+        <code>a.b.c</code> cannot be redefined as multiply. And you cannot overload
+        <code>::</code>, <code>.</code>, <code>.*</code>, <code>?:</code>, <code>sizeof</code>,
+        <code>alignof</code>, <code>typeid</code>, or a cast operator other than to a type.
+      </p>
+      <p>
+        That last restriction is what makes operator overloading safe to reason about: an
+        expression such as <code>a + b * c</code> means the same <em>shape</em> for every type in
+        the program, so a reader's parser never has to be told about your class. Everything this
+        chapter warns about is inside that shape: the punctuation is fixed, but its
+        <em>meaning</em> is not, and that is where the trouble lives.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Member or Non-Member?</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Operator</th>
+            <th>Must be a member</th>
+            <th>Must be a non-member</th>
+            <th>Choose freely, prefer</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>=</code>, <code>[]</code>, <code>()</code>, <code>-&gt;</code></td>
+            <td>yes</td>
+            <td></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><code>&lt;&lt;</code>, <code>&gt;&gt;</code> (as stream I/O)</td>
+            <td></td>
+            <td></td>
+            <td>member, unless you are doing iostreams &mdash; and you are not
+              (<a href="/docs/17.operatoroverloading/06.neveroverload/">Ch17.6</a>)</td>
+          </tr>
+          <tr>
+            <td><code>+= -= *= /=</code> and friends</td>
+            <td></td>
+            <td></td>
+            <td>member: they modify the object</td>
+          </tr>
+          <tr>
+            <td><code>+ - * / == &lt;=&gt;</code></td>
+            <td></td>
+            <td></td>
+            <td>non-member: symmetry, and implicit conversions on both sides</td>
+          </tr>
+          <tr>
+            <td><code>operator T()</code></td>
+            <td>yes</td>
+            <td></td>
+            <td>do not write it at all (<a href="/docs/17.operatoroverloading/06.neveroverload/">Ch17.6</a>)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The symmetry argument is the only one that matters in practice: <code>2 * v</code> calls
+        <code>operator*(int, vec2)</code>, which can only exist as a non-member, while
+        <code>v * 2</code> would work either way. If <code>v * 2</code> compiles and
+        <code>2 * v</code> does not, you have leaked an implementation choice into the
+        type's interface.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Rules of Thumb</h2>
+      <ul>
+        <li>Write the compound assignment first, and define the binary operator in terms of it.
+          That guarantees the two agree.</li>
+        <li>Binary operators take their operands by value and return by value. That is not a
+          pessimisation; it is what enables copy elision.</li>
+        <li>Every operator you write is a function, so it needs a contract:
+          <code>noexcept</code> or <code>throws</code>, no exceptions.</li>
+        <li>Mark value-returning operators <code>[[nodiscard]]</code>.</li>
+        <li>If the operator's result is not the obvious mathematical result &mdash; if it
+          allocates, if it can fail, if it only sometimes applies &mdash; stop here and read
+          <a href="/docs/17.operatoroverloading/02.prefernamed/">Ch17.2</a>: you want a named
+          function instead.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/17.operatoroverloading/" class="prev-button">&larr; Ch17: Operator Overloading</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/17.operatoroverloading/02.prefernamed/" class="next-button">Ch17.2: Prefer a Named Function &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

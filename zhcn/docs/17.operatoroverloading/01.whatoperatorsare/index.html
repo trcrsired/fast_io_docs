@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第17.1章 运算符就是函数 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第17.1章 运算符就是函数</h1>
+    <p class="lang-switch"><a href="/docs/17.operatoroverloading/01.whatoperatorsare/">English</a></p>
+
+    <section>
+      <h2>1. 精确地陈述这个替换</h2>
+
+      <p>
+        一个运算符表达式就是换了一种写法的函数调用。编译器先把它改写，然后做普通的候选函数匹配：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>你写</th>
+            <th>编译器调用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>a + b</code></td><td><code>operator+(a, b)</code></td></tr>
+          <tr><td><code>a += b</code></td><td><code>a.operator+=(b)</code></td></tr>
+          <tr><td><code>-a</code></td><td><code>operator-(a)</code></td></tr>
+          <tr><td><code>a[i]</code></td><td><code>a.operator[](i)</code></td></tr>
+          <tr><td><code>a(b, c)</code></td><td><code>a.operator()(b, c)</code></td></tr>
+          <tr><td><code>a == b</code></td><td><code>operator==(a, b)</code>；C++20 起如果它唯一存在，
+            也会用反序的 <code>a.operator==(b)</code></td></tr>
+          <tr><td><code>delete p</code></td><td>先 <code>p-&gt;~T()</code>，再
+            <code>operator delete(p)</code>（<a href="/zhcn/docs/18.virtual/01.newdelete/">第18.1章</a>）</td></tr>
+        </tbody>
+      </table>
+      <p>
+        立刻可以看出两个后果。第一，运算符的查找方式和普通函数完全一样：成员版本要求左操作数属于这个类；
+        非成员版本靠实参相关查找在操作数所在的命名空间里找到它。第二，
+        <strong>运算符可以显式按名字调用</strong>，你可以用它向自己证明没有任何魔法发生。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 完整例子：规范形状</h2>
+
+      <p>
+        每个算术值类型都该遵循这个形状：复合赋值是原语，它修改对象并返回引用；
+        二元运算符在它之上定义，按值接收操作数并返回一个新值。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+namespace money_ns
+{
+
+struct money
+{
+	::std::int_least64_t cents{};
+
+	constexpr money &amp;operator+=(money other) noexcept
+	{
+		cents += other.cents;
+		return *this;
+	}
+};
+
+[[nodiscard]] inline constexpr money operator+(money a, money b) noexcept
+{
+	return a += b;
+}
+
+}
+
+int main()
+{
+	try
+	{
+		using money_ns::money;
+		money const a{1250};
+		money const b{375};
+		::fast_io::io::println("a + b        = ", (a + b).cents);
+		::fast_io::io::println("operator+(a,b)= ", operator+(a, b).cents);
+		money c{a};
+		c += b;
+		::fast_io::io::println("c += b       = ", c.cents);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error: ");
+		::fast_io::io::println(e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+a + b        = 1625
+operator+(a,b)= 1625
+c += b       = 1625
+</code></pre>
+      <p>
+        这二十五行里值得注意的地方全在下面：
+      </p>
+      <ul>
+        <li><code>operator+=</code> 是<strong>成员</strong>，因为它的左操作数被修改，而且就是对象本身。
+          它返回 <code>money&amp;</code> 而不是 <code>void</code>，这样 <code>a = b += c</code>
+          保持它在 <code>int</code> 上的含义。</li>
+        <li><code>operator+</code> 是同一命名空间里的<strong>非成员</strong>。它按值接收两个操作数，
+          在左操作数的副本上做加法然后返回它 —— 这个副本会被消除或被移动，
+          所以这是最便宜的正确写法。因为它是非成员，<code>money{1} + money{2}</code>
+          以及任何一侧的隐式转换都是对称的（见 <a href="/zhcn/docs/17.operatoroverloading/03.valuearithmetic/">第17.3章</a>）。</li>
+        <li>两个都是 <code>constexpr</code> 和 <code>noexcept</code>：两个整数相加不会失败，
+          所以这个类型也不能假装它会失败
+          （<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）。</li>
+        <li><code>operator+</code> 上的 <code>[[nodiscard]]</code> 会抓住 <code>a + b;</code>
+          这种当语句用的写法 —— 丢弃结果几乎一定是 bug。</li>
+        <li><code>main</code> 里的 <code>operator+(a, b)</code> 是同一个函数。没有另一套机制。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>3. 你做不到的事</h2>
+
+      <p>
+        这个特性比人们想象的要窄。除非至少有一个操作数是类或枚举类型，否则你不能重载运算符：
+      </p>
+      <pre><code class="language-cpp">
+int operator+(int a, int b) { return a * b; }
+</code></pre>
+      <pre><code class="language-text">
+error: ‘int operator+(int, int)’ must have an argument of class or enumerated type
+</code></pre>
+      <p>
+        你也不能发明一个不存在的运算符，所以没有 <code>**</code>、没有 <code>&lt;&gt;</code>、
+        没有 <code>&amp;&amp;&amp;</code>：
+      </p>
+      <pre><code class="language-cpp">
+s operator**(s a, s b) { return a; }
+</code></pre>
+      <pre><code class="language-text">
+error: expected initializer before ‘*’ token
+</code></pre>
+      <p>
+        你不能改运算符的元数、结合性或者优先级：对你的类型，<code>a + b * c</code>
+        照样按 <code>a + (b * c)</code> 分组，<code>a.b.c</code> 也不能被重新定义成乘法。
+        你也不能重载 <code>::</code>、<code>.</code>、<code>.*</code>、<code>?:</code>、
+        <code>sizeof</code>、<code>alignof</code>、<code>typeid</code>，
+        或者除“到某个类型”之外的转换。
+      </p>
+      <p>
+        最后这条限制正是运算符重载可以安全推理的原因：<code>a + b * c</code>
+        这样的表达式对程序里的每个类型都表示同一个<em>形状</em>，
+        所以读者解析表达式时永远不需要被告知你的类。本章警告的一切都在这个形状内部：
+        标点是固定的，但它的<em>含义</em>不是，麻烦就住在那里。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 成员还是非成员？</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>运算符</th>
+            <th>必须是成员</th>
+            <th>必须是非成员</th>
+            <th>可自由选择时，倾向</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>=</code>、<code>[]</code>、<code>()</code>、<code>-&gt;</code></td>
+            <td>是</td>
+            <td></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><code>&lt;&lt;</code>、<code>&gt;&gt;</code>（当作流 I/O 用）</td>
+            <td></td>
+            <td></td>
+            <td>成员 —— 除非你在搞 iostream，而你没有
+              （<a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/">第17.6章</a>）</td>
+          </tr>
+          <tr>
+            <td><code>+= -= *= /=</code> 这一类</td>
+            <td></td>
+            <td></td>
+            <td>成员：它们修改对象</td>
+          </tr>
+          <tr>
+            <td><code>+ - * / == &lt;=&gt;</code></td>
+            <td></td>
+            <td></td>
+            <td>非成员：对称，而且两侧的隐式转换都成立</td>
+          </tr>
+          <tr>
+            <td><code>operator T()</code></td>
+            <td>是</td>
+            <td></td>
+            <td>根本不要写（<a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/">第17.6章</a>）</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        实践里唯一重要的理由是对称性：<code>2 * v</code> 调用的是
+        <code>operator*(int, vec2)</code>，它只能是非成员；而 <code>v * 2</code> 两种写法都行。
+        如果 <code>v * 2</code> 能编译而 <code>2 * v</code> 不能，
+        你就把一个实现选择泄漏到了类型的接口上。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 经验法则</h2>
+      <ul>
+        <li>先写复合赋值，再拿它定义二元运算符。这保证两者永不打架。</li>
+        <li>二元运算符按值接收操作数、按值返回。这不是悲观，这正是拷贝消除的前提。</li>
+        <li>你写的每个运算符都是函数，所以它需要契约：<code>noexcept</code> 或
+          <code>throws</code>，不许有异常。</li>
+        <li>返回值的运算符一律标 <code>[[nodiscard]]</code>。</li>
+        <li>如果运算符的结果不是显然的数学结果 —— 如果它会分配、会失败、只在某些时候适用 ——
+          就停在这里去读 <a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">第17.2章</a>：
+          你要的是命名函数。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/17.operatoroverloading/" class="prev-button">&larr; 第17章 运算符重载</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/" class="next-button">第17.2章 优先用命名函数 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

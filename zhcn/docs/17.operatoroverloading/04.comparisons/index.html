@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第17.4章 相等与序关系 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第17.4章 相等与序关系</h1>
+    <p class="lang-switch"><a href="/docs/17.operatoroverloading/04.comparisons/">English</a></p>
+
+    <section>
+      <h2>1. 两个不同的东西穿着同一套标点</h2>
+
+      <p>
+        <code>==</code> 和 <code>&lt;</code> 看起来是一对兄弟，其实不是。
+        相等是关于一个值的问题：“这两个是同一个吗？”。序是对一个集合的承诺：
+        “这些可以排序，而且排序会终止”。一个类型可以诚实地回答第一个问题，
+        同时对第二个问题根本没有答案 —— 这就是 C++20 把它们拆成两个名字
+        （<code>operator==</code> 和 <code>operator&lt;=&gt;</code>）
+        和三种序类型的原因。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>序</th>
+            <th>含义</th>
+            <th>你可以把这个类型放进</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::std::strong_ordering</code></td>
+            <td>全序，而且等价的值不可区分（<code>a == b</code> 意味着它们可以互换）</td>
+            <td><code>::std::set</code>、<code>::std::map</code>、任何有序容器</td>
+          </tr>
+          <tr>
+            <td><code>::std::weak_ordering</code></td>
+            <td>全序，但等价的值可以区分（大小写不敏感的字符串）</td>
+            <td>有序容器</td>
+          </tr>
+          <tr>
+            <td><code>::std::partial_ordering</code></td>
+            <td>有些对是<em>无序</em>的</td>
+            <td>任何需要排序的容器都不能用 —— 而这正是它的用处</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>2. 取代三十行的八行</h2>
+
+      <p>
+        对一个相等和序都是逐成员的类型，不要手写六个比较运算符。
+        写两个 <code>= default</code> 的友元；编译器把其余的都生成出来，
+        包括让 <code>c &gt; a</code> 和 <code>a != c</code> 各自只需一个定义就能生效的
+        反序与改写候选。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;compare&gt;
+#include &lt;cstdint&gt;
+
+struct semver
+{
+	::std::int_least32_t major{};
+	::std::int_least32_t minor{};
+	::std::int_least32_t patch{};
+
+	/* one line each: the compiler generates memberwise == and a lexicographic &lt;=&gt; */
+	friend constexpr bool operator==(semver const &amp;, semver const &amp;) noexcept = default;
+	friend constexpr ::std::strong_ordering operator&lt;=&gt;(semver const &amp;, semver const &amp;) noexcept = default;
+};
+
+struct interval
+{
+	::std::int_least32_t lo{};
+	::std::int_least32_t hi{};
+};
+
+/*
+No operator&lt;=&gt; for interval: two overlapping intervals are neither before nor after each
+other, so the comparison is partial. A named function says so; an operator would let anyone
+put an interval in a sorted container and silently break its invariant.
+*/
+[[nodiscard]] inline constexpr ::std::partial_ordering compare(interval a, interval b) noexcept
+{
+	if (a.hi &lt; b.lo)
+	{
+		return ::std::partial_ordering::less;
+	}
+	if (b.hi &lt; a.lo)
+	{
+		return ::std::partial_ordering::greater;
+	}
+	if (a.lo == b.lo &amp;&amp; a.hi == b.hi)
+	{
+		return ::std::partial_ordering::equivalent;
+	}
+	return ::std::partial_ordering::unordered;
+}
+
+int main()
+{
+	try
+	{
+		semver const a{1, 2, 0};
+		semver const b{1, 2, 0};
+		semver const c{1, 10, 0};
+		::fast_io::io::println("a == b: ", a == b, "   a != c: ", a != c);
+		::fast_io::io::println("a &lt; c: ", a &lt; c, "   c &gt; a: ", c &gt; a, "   a &lt;= b: ", a &lt;= b);
+		::fast_io::io::println("(a &lt;=&gt; c) &lt; 0: ", (a &lt;=&gt; c) &lt; 0, "   (a &lt;=&gt; b) == 0: ", (a &lt;=&gt; b) == 0);
+
+		::fast_io::io::println("compare({1,5},{6,9}) &lt; 0: ", compare({1, 5}, {6, 9}) &lt; 0);
+		::fast_io::io::println("compare({1,5},{3,7}) unordered: ", compare({1, 5}, {3, 7}) == ::std::partial_ordering::unordered);
+		::fast_io::io::println("compare({1,5},{1,5}) equivalent: ", compare({1, 5}, {1, 5}) == 0);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error: ");
+		::fast_io::io::println(e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+a == b: 1   a != c: 1
+a &lt; c: 1   c &gt; a: 1   a &lt;= b: 1
+(a &lt;=&gt; c) &lt; 0: 1   (a &lt;=&gt; b) == 0: 1
+compare({1,5},{6,9}) &lt; 0: 1
+compare({1,5},{3,7}) unordered: 1
+compare({1,5},{1,5}) equivalent: 1
+</code></pre>
+
+    </section>
+    <section>
+      <h2>3. 那几行到底给了你什么</h2>
+      <ul>
+        <li><code>a != c</code> 在任何地方都没写。编译器替你改写成 <code>!(a == c)</code>，
+          所以只写 <code>==</code> 就是完整的。</li>
+        <li><code>c &gt; a</code> 和 <code>a &lt;= b</code> 也没写。<code>&lt;=&gt;</code>
+          生成 <code>&lt;</code>、<code>&gt;</code>、<code>&lt;=</code>、<code>&gt;=</code>
+          以及它们反序的形式。</li>
+        <li><code>= default</code> 是逐成员的，而且关键的一点是：
+          <strong>它不是虚函数，也不能被做成虚函数</strong>：比较是一个值的属性，
+          而一个值只有一个类型（<a href="/zhcn/docs/18.virtual/03.marking/">第18.3章</a>）。</li>
+        <li>这里两个都是 <code>noexcept</code>，因为成员是整数。如果某个成员的比较会抛，
+          默认出来的函数也不是 <code>noexcept</code>，你写的那个 <code>noexcept</code>
+          会变成编译错误 —— 而这正是你想发现的事。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>4. 你绝对不能写的那个比较</h2>
+      <p>
+        区间是典型的偏序：两个不相交的区间有先后，两个重叠的没有，
+        而任何 <code>&lt;</code> 的排布都无法在不撒谎的前提下表达“无序”。
+        所以这个类型拿到的是一个返回 <code>::std::partial_ordering</code> 的<em>命名函数</em>，
+        拿不到任何运算符：
+      </p>
+      <pre><code class="language-cpp">
+[[nodiscard]] inline constexpr ::std::partial_ordering compare(interval a, interval b) noexcept
+{
+	if (a.hi &lt; b.lo)
+	{
+		return ::std::partial_ordering::less;
+	}
+	if (b.hi &lt; a.lo)
+	{
+		return ::std::partial_ordering::greater;
+	}
+	if (a.lo == b.lo &amp;&amp; a.hi == b.hi)
+	{
+		return ::std::partial_ordering::equivalent;
+	}
+	return ::std::partial_ordering::unordered;
+}
+</code></pre>
+      <p>
+        如果你给 <code>interval</code> 写了 <code>operator&lt;</code>，
+        那么 <code>::std::set&lt;interval&gt;</code> 会编译通过、会接受每一个元素，
+        然后会包含一些它再也找不到的元素 —— 因为对有序容器来说，
+        两个“既不更小也不更大”的区间就是同一个元素。这不是性能 bug，是数据丢失。
+        命名函数让调用者必须写
+        <code>compare(a, b) == ::std::partial_ordering::unordered</code>，然后自己做决定。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 比较器也是命名函数</h2>
+      <p>
+        同样的逻辑延伸到算法上。当你需要一种类型本身没有的序 —— “只按 <code>patch</code> 排”、
+        “大的在前” —— 传<em>命名比较器</em>，不要传 lambda：
+      </p>
+      <pre><code class="language-cpp">
+::std::ranges::sort(versions, ::std::ranges::greater{});          /* largest first */
+
+auto const newest{*::std::ranges::max_element(versions, ::std::ranges::less{}, &amp;semver::patch)};
+</code></pre>
+      <p>
+        <code>::std::ranges::less</code>、<code>::std::ranges::greater</code>、
+        <code>::std::ranges::equal_to</code> 这些本来就是 <code>noexcept</code> 正确的函数对象，
+        有能在诊断信息里读懂、也能在代码库里搜索到的名字。
+        lambda 是匿名的，所以它不可能以名字出现在栈回溯里，
+        也不可能被复用而不被复制粘贴。只有当这个比较真的只存在一次时才写 lambda ——
+        而且即使那样也要标 <code>noexcept</code>。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 经验法则</h2>
+      <ul>
+        <li><code>==</code> 和 <code>&lt;=&gt;</code> 优先用 <code>= default</code>。
+          永远不要手写那六个。</li>
+        <li>除非“等价但可区分”是真实场合，否则用 <code>strong_ordering</code>；
+          是就 <code>weak_ordering</code>。</li>
+        <li>如果有些对是无序的，就<em>不要</em>定义任何运算符，
+          而是给类型一个返回 <code>partial_ordering</code> 的命名函数。</li>
+        <li>永远不要定义互相矛盾的 <code>==</code> 和 <code>&lt;</code>：
+          <code>a == b</code> 必须蕴含 <code>!(a &lt; b) &amp;&amp; !(b &lt; a)</code>。</li>
+        <li>比较必须是 <code>noexcept</code>、不分配、无副作用。会修改东西的比较器
+          是每个排序算法里的未定义行为来源。</li>
+        <li>已经有现成的比较器时，传命名比较器（<code>::std::ranges::greater</code>），不要传 lambda。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/17.operatoroverloading/03.valuearithmetic/" class="prev-button">&larr; 第17.3章 值类型上的算术</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/17.operatoroverloading/05.subscriptcall/" class="next-button">第17.5章 下标、调用与解引用 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第18章 virtual - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第18章 virtual</h1>
+    <p class="lang-switch"><a href="/docs/18.virtual/">English</a></p>
+    <section>
+      <h2>本章是干什么的</h2>
+
+      <p>
+        本章讲 <code>new</code>、<code>delete</code>、<code>::std::unique_ptr</code>、
+        <code>virtual</code> 和 RTTI。它们是 C++ 里被滥用得最厉害的四个特性，
+        也是 C++ 教程最先教的四个特性。我们在本章讲它们，只有一个理由：
+        <strong>你必须读遗留代码</strong>。你将来被雇去改的 C++ 代码，几乎全是用它们堆出来的。
+      </p>
+      <p>新代码里我们不用它们，本章会用实测数据说明为什么。简版结论：</p>
+      <table>
+        <thead>
+          <tr>
+            <th>遗留特性</th>
+            <th>它真实的代价</th>
+            <th>该写什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>new</code> / <code>delete</code></td>
+            <td>手工生命周期、看不见的失败路径、失败以遗留的
+              <code>::std::bad_alloc</code> 异常形式出现</td>
+            <td>带析构函数的拥有型类型；自己拥有存储的容器</td>
+          </tr>
+          <tr>
+            <td><code>::std::unique_ptr&lt;T&gt;</code></td>
+            <td>每个对象一次堆往返，而且这个指针在调用点说不清
+              <code>T</code> 是什么意思</td>
+            <td>值类型；当你真的需要“一个类型对应多种表示”时用类型擦除</td>
+          </tr>
+          <tr>
+            <td><code>virtual</code></td>
+            <td>每个对象一个指针、每个类一张表、每个虚函数不管调不调用都要生成、
+              <code>__cxa_pure_virtual</code>、RTTI、不可移植的 ABI</td>
+            <td>模板分派，或者你自己拥有的函数指针表</td>
+          </tr>
+          <tr>
+            <td><code>typeid</code> / <code>dynamic_cast</code></td>
+            <td>每个类若干 type-info 对象、被 mangle 过的名字、每次转换一次运行时搜索</td>
+            <td>什么都不用写：用了类型擦除，就没有可转换的目标</td>
+          </tr>
+          <tr>
+            <td>类级 <code>operator new</code></td>
+            <td>分配策略藏在类型里，成对的 delete 陷阱</td>
+            <td>工厂函数，或者一个由你传进来的区域
+              （<a href="/zhcn/docs/18.virtual/07.operatornew/">第18.7章</a>）</td>
+          </tr>
+          <tr>
+            <td>Qt / MFC 风格 GUI</td>
+            <td>深继承层次、到处 <code>new</code>、整个程序绑定一个框架 ABI</td>
+            <td>Web 前端 + C++ 服务端
+              （<em>第21章 PWA</em>）</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        这个立场来自 <code>$HOME/libraries/Portable-Cpp-Guideline</code> 里的规则：
+        <em>避免 <code>new</code></em>、<em>避免 <code>::std::unique_ptr</code></em>、
+        <em>多态优先用类型擦除而不是虚函数</em>、<em>优先用 C 风格的伪 v-table 单例而不是
+        C++ v-table</em>。
+      </p>
+
+    </section>
+    <section>
+      <h2>为什么我们反对它们</h2>
+
+      <p>每个特性一段话，这样本章后面就有东西可证明：</p>
+      <ul>
+        <li><strong><code>new</code> 不是分配的语言原语，而是被焊进你源码里的一个策略决定。</strong>
+          它把你绑死在一个由实现选择的堆上，并且用 1998 年的类型来报告失败
+          （<a href="/zhcn/docs/18.virtual/01.newdelete/">第18.1章</a>）。
+          分配失败不可恢复，就该直接终止；把它做成异常是这门语言历史上最大的错误之一
+          （<a href="/zhcn/docs/18.virtual/07.operatornew/">第18.7章</a>）。</li>
+        <li><strong><code>::std::unique_ptr</code> 不是智能指针，它只是带析构函数的指针。</strong>
+          它只解决泄漏，别的都不解决：不解决类型混淆，不解决 vptr 注入，
+          不解决所有权含糊，也不解决 ABI。</li>
+        <li><strong><code>virtual</code> 是一张你看不见、控制不了、也裁不掉的派发表。</strong>
+          只要类被用到，编译器就会生成它的每一个虚函数，不管有没有人调用；
+          Itanium ABI 还在上面加了 <code>__cxa_pure_virtual</code> 和 RTTI
+          （<a href="/zhcn/docs/18.virtual/04.bloat/">第18.4章</a>）。</li>
+        <li><strong>类型擦除用值做同样的事。</strong>一个类型、多种表示、没有继承、没有 RTTI、
+          用户代码里没有分配，而通常出错的那几件事（重复释放、释放后使用、类型搞混、
+          覆盖 vptr）根本没有出错的空间
+          （<a href="/zhcn/docs/18.virtual/06.typeerasure/">第18.6章</a>）。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>本章目录</h2>
+
+      <ul>
+        <li><a href="/zhcn/docs/18.virtual/01.newdelete/">第18.1章 <code>new</code>、
+          <code>delete</code> 和 <code>::std::unique_ptr</code></a> —— 它们做什么、代价是什么、
+          以及为什么 <code>vector&lt;unique_ptr&lt;shape&gt;&gt;</code> 就是问题的形状</li>
+        <li><a href="/zhcn/docs/18.virtual/02.whatvirtual/">第18.2章 <code>virtual</code>
+          究竟是什么</a> —— vptr、vtable、分派、<code>sizeof</code>，
+          以及为什么只有配合分配它才“划算”</li>
+        <li><a href="/zhcn/docs/18.virtual/03.marking/">第18.3章 每个虚函数都要标注</a> ——
+          <code>virtual</code>、<code>override</code> 或 <code>final</code>，永远要写；
+          再外加 <code>noexcept</code> 或 <code>throws</code> 契约</li>
+        <li><a href="/zhcn/docs/18.virtual/04.bloat/">第18.4章 死虚函数膨胀</a> ——
+          没人调用的函数也会被编译器生成出来的那 12 KB，以及 <code>__cxa_pure_virtual</code></li>
+        <li><a href="/zhcn/docs/18.virtual/05.rtti/">第18.5章 RTTI、<code>typeid</code> 与
+          <code>dynamic_cast</code></a> —— type-info 对象要多少钱，
+          以及为什么 RTTI 提供的唯一安全网是一个没人检查的 <code>nullptr</code></li>
+        <li><a href="/zhcn/docs/18.virtual/06.typeerasure/">第18.6章 改用类型擦除</a> ——
+          用同一个值类型装下多种表示、用指定初始化器写函数指针表，
+          以及消失掉的那四类 bug</li>
+        <li><a href="/zhcn/docs/18.virtual/07.operatornew/">第18.7章 类级 <code>operator
+          new</code> 与 <code>operator delete</code></a> —— 真必须写的时候怎么写，
+          以及为什么你不该想写</li>
+        <li><a href="/zhcn/docs/18.virtual/08.gui/">第18.8章 Qt、MFC，以及为什么 GUI 是
+          C++ 走歪的地方</a> —— 最被滥用的领域里最被滥用的特性，以及 PWA 这条替代路线</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>怎么读这一章</h2>
+
+      <p>
+        18.1 到 18.5 当作<strong>识别训练</strong>来读：你在学的是在别人的代码里认出这些构造，
+        并知道每一个换来了什么、花掉了什么。18.6 是你真正要用的那一章。
+        18.7 只在你必须通过类型来分配内存的那天读。18.8 请在接下“Qt 开发”这份工作之前读。
+      </p>
+      <p>
+        这里所有规则都是关于<em>你自己的</em>代码的。你仍然得调用用了 <code>virtual</code>
+        的库；那没问题，<code>fast_io</code> 的设备层也这么做。
+        你不能做的是在它之上搭新的抽象。
+      </p>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/17.operatoroverloading/07.rules/" class="prev-button">&larr; 第17.7章 规则与检查表</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/18.virtual/01.newdelete/" class="next-button">第18.1章 new、delete 与 unique_ptr &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

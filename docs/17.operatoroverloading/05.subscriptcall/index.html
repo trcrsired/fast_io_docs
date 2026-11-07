@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch17.5: Subscript, Call, and Dereference - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch17.5: Subscript, Call, and Dereference</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/17.operatoroverloading/05.subscriptcall/">中文（简体）</a></p>
+    <section>
+      <h2>1. Three Operators With Real Jobs</h2>
+
+      <p>
+        Unlike <code>+</code>, these three do not stand for a mathematical operation. They stand
+        for three concrete capabilities, and each one has an honest use:
+      </p>
+      <ul>
+        <li><code>operator[]</code> &mdash; "give me the element at this position, now, without
+          doing anything else".</li>
+        <li><code>operator*</code> / <code>operator-&gt;</code> &mdash; "behave like a pointer to
+          this object".</li>
+        <li><code>operator()</code> &mdash; "this object's purpose is to be called".</li>
+      </ul>
+      <p>
+        The failure mode of all three is the same: the operator starts doing <em>more</em> than the
+        capability it advertises. When <code>a[i]</code> can insert, allocate, or fail, the
+        reader's mental model of an array access becomes wrong, silently.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. A Complete Example</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+
+struct matrix
+{
+	static constexpr ::std::size_t width{4};
+	::std::int_least32_t cells[8]{};
+
+	/* cost: one multiply and one add. No check, no allocation, no failure. */
+	[[nodiscard]] constexpr ::std::int_least32_t *operator[](::std::size_t row) noexcept
+	{
+		return cells + row * width;
+	}
+	[[nodiscard]] constexpr ::std::int_least32_t const *operator[](::std::size_t row) const noexcept
+	{
+		return cells + row * width;
+	}
+};
+
+struct word_count
+{
+	::fast_io::string_view *keys;
+	::std::int_least32_t *counts;
+	::std::size_t used;
+	::std::size_t capacity;
+
+	/* lookup: returns null when the key is absent, and never changes the table */
+	[[nodiscard]] constexpr ::std::int_least32_t *find(::fast_io::string_view key) noexcept
+	{
+		for (::std::size_t i{}; i != used; ++i)
+		{
+			if (keys[i] == key)
+			{
+				return counts + i;
+			}
+		}
+		return nullptr;
+	}
+
+	/* the creating operation has a name, and it says it creates */
+	constexpr ::std::int_least32_t &amp;insert_or_assign(::fast_io::string_view key, ::std::int_least32_t v) noexcept
+	{
+		if (::std::int_least32_t *p{find(key)}; p != nullptr)
+		{
+			*p = v;
+			return *p;
+		}
+		keys[used] = key;
+		counts[used] = v;
+		return counts[used++];
+	}
+};
+
+struct point
+{
+	::std::int_least32_t x{};
+	::std::int_least32_t y{};
+};
+
+/* a non-owning handle: * and -&gt; are the whole interface, and neither can fail */
+struct point_ref
+{
+	point *ptr;
+
+	[[nodiscard]] constexpr point &amp;operator*() const noexcept
+	{
+		return *ptr;
+	}
+	[[nodiscard]] constexpr point *operator-&gt;() const noexcept
+	{
+		return ptr;
+	}
+};
+
+/* () is for types whose purpose is to be called */
+struct scale_by
+{
+	::std::int_least32_t factor{};
+
+	[[nodiscard]] constexpr ::std::int_least32_t operator()(::std::int_least32_t v) const noexcept
+	{
+		return v * factor;
+	}
+};
+
+int main()
+{
+	try
+	{
+		matrix m;
+		m[1][2] = 7;
+		::fast_io::io::println("m[1][2] = ", m[1][2], "   m[0] row = ", m[0][0], " ", m[0][1], " ", m[0][2], " ", m[0][3]);
+
+		::fast_io::string_view keys[4]{"apple", "pear", "", ""};
+		::std::int_least32_t counts[4]{3, 5, 0, 0};
+		word_count table{keys, counts, 2, 4};
+		if (::std::int_least32_t *p{table.find("apple")}; p != nullptr)
+		{
+			::fast_io::io::println("apple: ", *p);
+		}
+		::fast_io::io::println("find(\"fig\") is null: ", table.find("fig") == nullptr);
+		::fast_io::io::println("used after find = ", table.used);
+		table.insert_or_assign("fig", 1);
+		::fast_io::io::println("after insert_or_assign: used = ", table.used, " fig = ", *table.find("fig"));
+
+		point pt{1, 2};
+		point_ref h{__builtin_addressof(pt)};
+		::fast_io::io::println("h-&gt;x = ", h-&gt;x, "  (*h).y = ", (*h).y);
+
+		::fast_io::io::println("scale_by{3}(7) = ", scale_by{3}(7));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error: ");
+		::fast_io::io::println(e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+m[1][2] = 7   m[0] row = 0 0 0 0
+apple: 3
+find("fig") is null: 1
+used after find = 2
+after insert_or_assign: used = 3 fig = 1
+h-&gt;x = 1  (*h).y = 2
+scale_by{3}(7) = 21
+</code></pre>
+
+    </section>
+    <section>
+      <h2>3. <code>operator[]</code>: Cheap, Infallible, or Not an Operator</h2>
+      <p>
+        <code>matrix::operator[]</code> returns a pointer to the first element of a row, and
+        <code>m[r][c]</code> is a pointer addition followed by another pointer addition. That is
+        the contract: <code>[]</code> is a notation for indexing, and indexing is arithmetic. It
+        performs no bounds check &mdash; the same as a C array, and the same as
+        <code>::fast_io::vector::operator[]</code> &mdash; so an out-of-range index is a bug in
+        your program, not an error to report.
+      </p>
+      <p>
+        If your container needs a check, that operation has a different name and a different
+        contract, and you write it as one:
+      </p>
+      <pre><code class="language-cpp">
+[[nodiscard]] ::std::int_least32_t at(::std::size_t i) const
+	throws(!noexcept(::fast_io::herbceptions::throws_errc(::std::errc::result_out_of_range)))
+{
+	if (i &gt;= size_)
+	{
+		::fast_io::herbceptions::throws_errc(::std::errc::result_out_of_range);
+	}
+	return cells_[i];
+}
+</code></pre>
+      <p>
+        Now the caller can see the cost of the check in the name, the compiler can see it in the
+        <code>throws</code>, and <code>operator[]</code> keeps meaning what it means.
+      </p>
+      <p>
+        Two well-known library examples show how bad the alternative is. <code>::std::map</code>'s
+        <code>operator[]</code> <em>inserts</em> when the key is missing, so
+        <code>m[k]</code> can allocate, can fail, and always writes to the container &mdash;
+        and one accidental lookup in a loop turns a read-only pass into a growing map.
+        <code>::std::vector&lt;bool&gt;</code> returns a proxy object rather than
+        <code>bool&amp;</code>, so <code>auto&amp; b = v[0];</code> does not compile and
+        <code>v[0]</code> is not a reference; the subscript stopped being a subscript.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Lookup Must Not Insert: the Named Alternative</h2>
+      <p>
+        The <code>word_count</code> type above is what <code>::std::map</code> would look like if
+        it had been designed around this chapter's rule. It has two operations with two names:
+      </p>
+      <ul>
+        <li><code>find(key)</code> returns a pointer to the count, or <code>nullptr</code>. It is
+          <code>noexcept</code>, it does not allocate, and it does not change
+          <code>used</code> &mdash; which the transcript proves: <code>used after find = 2</code>,
+          the same value as before the lookup.</li>
+        <li><code>insert_or_assign(key, v)</code> is the one that can create an entry, and its
+          name says so. The transcript shows <code>used</code> going from 2 to 3 only after this
+          call.</li>
+      </ul>
+      <p>
+        No subscript operator appears anywhere in the type. <code>t["fig"]</code> would have to
+        return something, and whatever it returned would make a lookup look like a read when it is
+        a write.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. <code>*</code>, <code>-&gt;</code>, and <code>()</code></h2>
+      <ul>
+        <li><strong><code>point_ref</code></strong> exists to pass a pointer that must not be
+          null, and its whole interface is <code>*p</code> and <code>p-&gt;member</code>. Neither
+          can fail, neither allocates, and the object is one pointer wide. This is the same shape
+          as a smart handle &mdash; <code>::std::unique_ptr</code> is just this plus ownership
+          (<a href="/docs/18.virtual/01.newdelete/">Ch18.1</a>).</li>
+        <li><strong><code>scale_by</code></strong> is a class whose purpose is to be called, so
+          <code>operator()</code> is its natural interface: it composes with algorithms and
+          callables, it can carry state (<code>factor</code>), and
+          <code>scale_by{3}(7)</code> cannot be confused with anything else.</li>
+        <li><strong>The anti-pattern</strong> is <code>operator()</code> used as "the entry point
+          of a service": <code>app()</code>, <code>db()</code>, <code>ctx(...)</code>, where the
+          object is not a function at all and the operator is being used because it is shorter
+          than <code>run</code>. A call should read <code>server.run()</code>, because
+          <code>server()</code> says the object <em>is</em> the operation.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>6. Rules of Thumb</h2>
+      <ul>
+        <li><code>operator[]</code> must be the cheapest access you have: no allocation, no
+          insertion, no check, no failure. Otherwise it is not a subscript, and it gets a
+          name.</li>
+        <li>If the operation can fail, put the check in a named function
+          (<code>at</code>, <code>find</code>, <code>try_get</code>) with a
+          <code>throws</code> contract.</li>
+        <li>Never return a proxy from <code>operator[]</code> unless the proxy is an ordinary
+          proxy reference that behaves like <code>T&amp;</code> in every context you care about
+          (<code>::std::vector&lt;bool&gt;</code> is the cautionary tale, not the model).</li>
+        <li><code>operator*</code> and <code>operator-&gt;</code> are for things that behave like
+          pointers. If the thing is not a pointer, use <code>.get()</code>,
+          <code>.value()</code>, or a named accessor.</li>
+        <li><code>operator()</code> only when the type's reason to exist is being called.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/17.operatoroverloading/04.comparisons/" class="prev-button">&larr; Ch17.4: Equality and Ordering</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/17.operatoroverloading/06.neveroverload/" class="next-button">Ch17.6: Operators That Should Not Exist &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
