@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第15.1章 类型特征：编译器知道哪些关于类型的事 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第15.1章 类型特征：编译器知道哪些关于类型的事</h1>
+    <p class="lang-switch"><a href="/docs/15.genericprogramming/01.typetraits/">English</a></p>
+    <section>
+      <h2>1. 关于类型的事实，作为值</h2>
+
+      <p>
+        <a href="/zhcn/docs/02.basics/07.sizeof/">第2.7章</a>用过 <code>sizeof(T)</code>
+        这个描述类型的编译期数字。<code>&lt;type_traits&gt;</code> 就是那个想法的其余部分：
+        一整套编译期提出的问题和编译期完成的变换，全部不需要运行任何东西就能回答。
+      </p>
+      <p>
+        每个特征只有两种形状：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>形状</th>
+            <th>例子</th>
+            <th>你拿到什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>布尔常量</td>
+            <td><code>::std::is_integral_v&lt;int&gt;</code></td>
+            <td><code>true</code>，可用于 <code>static_assert</code>、<code>if constexpr</code>
+              或概念中</td>
+          </tr>
+          <tr>
+            <td>一个类型</td>
+            <td><code>::std::remove_cvref_t&lt;int const &amp;&gt;</code></td>
+            <td><code>int</code>，可用作模板实参或变量类型</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        后缀 <code>_v</code> 表示“值”，<code>_t</code> 表示“类型”。不加后缀得到的是旧式辅助
+        结构体（<code>::std::is_integral&lt;int&gt;::value</code>），它只值得了解，好让你能读
+        2020 年以前的代码。
+      </p>
+      <p>
+        本章的主题从这里开始，因为模板在知道类型允许什么之前，什么都决定不了。问的方式有两种：
+        类型特征与概念；<a href="/zhcn/docs/15.genericprogramming/02.concepts/">第15.2章</a>
+        需要本页的词汇才能谈“要求”。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 你真正会用到的特征</h2>
+
+      <p>
+        标准里有一百多个特征，其中大约十个担起了绝大部分重量。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>特征</th>
+            <th>问的问题</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>is_integral_v&lt;T&gt;</code>、<code>is_floating_point_v&lt;T&gt;</code>、
+              <code>is_pointer_v&lt;T&gt;</code></td>
+            <td>它是这一类类型吗？</td>
+          </tr>
+          <tr>
+            <td><code>is_same_v&lt;A, B&gt;</code></td>
+            <td>这两个类型是否完全相同（不含转换）？</td>
+          </tr>
+          <tr>
+            <td><code>is_trivially_copyable_v&lt;T&gt;</code></td>
+            <td>能不能像 <code>int</code> 那样按字节拷贝？</td>
+          </tr>
+          <tr>
+            <td><code>is_nothrow_copy_constructible_v&lt;T&gt;</code>、
+              <code>is_nothrow_move_constructible_v&lt;T&gt;</code></td>
+            <td>拷贝/移动承诺不失败吗？</td>
+          </tr>
+          <tr>
+            <td><code>is_nothrow_destructible_v&lt;T&gt;</code></td>
+            <td>析构函数承诺不失败吗？（它必须如此，
+              <a href="/zhcn/docs/14.fiverules/02.destructor/">第14.2章</a>。）</td>
+          </tr>
+          <tr>
+            <td><code>is_nothrow_swappable_v&lt;T&gt;</code></td>
+            <td><code>swap</code> 能否用在 <code>noexcept</code> 语境里？
+              （<a href="/zhcn/docs/14.fiverules/07.swap/">第14.7章</a>）</td>
+          </tr>
+          <tr>
+            <td><code>is_copy_constructible_v&lt;T&gt;</code>、
+              <code>is_move_assignable_v&lt;T&gt;</code></td>
+            <td>这个操作到底存在吗？</td>
+          </tr>
+          <tr>
+            <td><code>is_base_of_v&lt;B, D&gt;</code>、<code>is_convertible_v&lt;A, B&gt;</code></td>
+            <td>继承与转换的问题（<a href="/zhcn/docs/17.inheritance/">第17章</a>）</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        注意所有 <code>nothrow</code> 那几行的共同点：它们正是
+        <a href="/zhcn/docs/14.fiverules/">第14章</a>需要的事实。<code>my_posix_file</code>
+        的移动构造是 <code>noexcept</code>，不是因为作者心情好，而是因为
+        <code>::std::is_nothrow_move_constructible_v</code> 正是让
+        <code>::fast_io::vector&lt;my_posix_file&gt;</code> 扩容时不必拷贝的那个条件。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 你真正会施加的特征</h2>
+
+      <p>
+        变换类特征产出一个类型，泛型代码就是用它们来表达“同一个类型，收拾干净之后的样子”：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+using stored_t = ::std::remove_cvref_t&lt;T&gt;;
+
+template &lt;typename T&gt;
+using widened_t = ::std::conditional_t&lt;(sizeof(T) &lt; 4), ::std::int_least32_t, T&gt;;
+</code></pre>
+      <ul>
+        <li><code>::std::remove_cvref_t&lt;T&gt;</code> 去掉 <code>const</code>、
+          <code>volatile</code> 和 <code>&amp;</code>：<code>int const&amp;</code> 变成
+          <code>int</code>。模板要存类型时几乎总该用它，因为
+          <code>vector&lt;T const &amp;&gt;</code> 不是“引用的容器”，而是一个错误。</li>
+        <li><code>::std::decay_t&lt;T&gt;</code> 在它之上再加数组退化成指针、函数退化成指针。
+          模拟按值传参时用它（<a href="/zhcn/docs/15.genericprogramming/04.deduction/">第15.4章</a>）；
+          其他场合一律用 <code>remove_cvref_t</code>，因为 <code>decay_t</code> 会扔掉你通常需要的信息。</li>
+        <li><code>::std::conditional_t&lt;cond, A, B&gt;</code> 是类型层面的 <code>if</code>。</li>
+        <li><code>::std::common_type_t&lt;A, B&gt;</code> 是两者都能转换到的那个类型，也正是二元运算该返回的类型。</li>
+        <li><code>::std::underlying_type_t&lt;E&gt;</code> 是 <code>enum class</code> 背后的整数类型
+          （<a href="/zhcn/docs/02.basics/16.enumclass/">第2.16章</a>）。</li>
+      </ul>
+      <p>
+        一个能省下大量时间的警告：<code>::std::conditional</code> 的 <code>_t</code> 形式对“条件”
+        是惰性的，对两个实参却<b>不</b>惰性。若 <code>A</code> 是一个非法类型，
+        <code>conditional_t</code> 照样得把它写出来。当两个分支都无法命名时，改用函数里的
+        <code>if constexpr</code>（<a href="/zhcn/docs/15.genericprogramming/07.ifconstexpr/">第15.7章</a>）。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 概念底下的类型特征</h2>
+
+      <p>
+        概念就是一个有名字的 <code>constexpr bool</code>，所以类型特征可以直接写进去：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+concept cheap_to_copy = ::std::is_trivially_copyable_v&lt;T&gt; &amp;&amp;
+						::std::is_nothrow_copy_constructible_v&lt;T&gt;;
+</code></pre>
+      <p>
+        两个 <code>struct</code> 用来看清这两半。<code>silent</code> 的拷贝操作是
+        <code>noexcept</code>；<code>loud</code> 的拷贝构造是 <code>throws</code>。
+        两者都能拷贝，但只有一个是 <code>cheap_to_copy</code>，而编译器在任何实例化之前就知道。
+      </p>
+      <pre><code class="language-cpp">
+struct silent
+{
+	silent() noexcept = default;
+	silent(silent const &amp;) noexcept = default;
+	~silent() noexcept = default;
+};
+
+struct loud
+{
+	loud() throws {}
+	loud(loud const &amp;other) throws {}
+};
+</code></pre>
+      <p>
+        这正是标准库自己的做法。<code>::std::vector</code> 靠问这些特征，在“移动式重新分配”
+        与“拷贝式重新分配”之间做决定；fast_io 的分配器则用
+        <code>throws_on_allocation_failure</code> 标志做同样的事，这也是为什么
+        <code>::fast_io::vector&lt;T&gt;</code> 是否 <code>throws</code>
+        取决于分配器而不是元素类型。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. <code>enable_if</code>：认得它，别写它</h2>
+
+      <p>
+        在概念之前，要让一个模板“关掉”，只能让推导失败，于是写成了这样：
+      </p>
+      <pre><code class="language-cpp">
+// pre-C++20, do not write this any more
+template &lt;typename T, typename = ::std::enable_if_t&lt;::std::is_integral_v&lt;T&gt;&gt;&gt;
+inline void only_integers(T) noexcept;
+</code></pre>
+      <p>
+        它能用，但不可读：约束藏在带默认值的模板实参里，报错信息指向
+        <code>enable_if</code> 而不是“要求什么”，而且两个这样的重载不会按“谁约束更强”排序。
+        你会在 2020 年前的代码里、以及必须兼容 C++17 的代码里见到它。把它读成
+        “requires” 然后跳过；要写就写 <code>requires</code>
+        （<a href="/zhcn/docs/15.genericprogramming/02.concepts/">第15.2章</a>）。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;stdfloat&gt;
+#include &lt;type_traits&gt;
+
+struct silent
+{
+	silent() noexcept = default;
+	silent(silent const &amp;) noexcept = default;
+	~silent() noexcept = default;
+};
+
+struct loud
+{
+	loud() throws {}
+	loud(loud const &amp;other) throws {}
+};
+
+template &lt;typename T&gt;
+using stored_t = ::std::remove_cvref_t&lt;T&gt;;
+
+template &lt;typename T&gt;
+using widened_t = ::std::conditional_t&lt;(sizeof(T) &lt; 4), ::std::int_least32_t, T&gt;;
+
+template &lt;typename T&gt;
+concept cheap_to_copy = ::std::is_trivially_copyable_v&lt;T&gt; &amp;&amp;
+						::std::is_nothrow_copy_constructible_v&lt;T&gt;;
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println("is_integral_v&lt;int&gt;=", ::std::is_integral_v&lt;int&gt;);
+		::fast_io::io::println("is_same_v&lt;stored_t&lt;int const &amp;&gt;, int&gt;=",
+							   ::std::is_same_v&lt;stored_t&lt;int const &amp;&gt;, int&gt;);
+		::fast_io::io::println("sizeof(widened_t&lt;char&gt;)=", sizeof(widened_t&lt;char&gt;));
+		::fast_io::io::println("cheap_to_copy&lt;silent&gt;=", cheap_to_copy&lt;silent&gt;);
+		::fast_io::io::println("cheap_to_copy&lt;loud&gt;=", cheap_to_copy&lt;loud&gt;);
+		::fast_io::io::println("is_nothrow_copy_constructible_v&lt;loud&gt;=",
+							   ::std::is_nothrow_copy_constructible_v&lt;loud&gt;);
+		::fast_io::io::println("common_type_t&lt;int,float64_t&gt; is float64_t: ",
+							   ::std::is_same_v&lt;::std::common_type_t&lt;int, ::std::float64_t&gt;,
+												 ::std::float64_t&gt;);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+is_integral_v&lt;int&gt;=1
+is_same_v&lt;stored_t&lt;int const &amp;&gt;, int&gt;=1
+sizeof(widened_t&lt;char&gt;)=4
+cheap_to_copy&lt;silent&gt;=1
+cheap_to_copy&lt;loud&gt;=0
+is_nothrow_copy_constructible_v&lt;loud&gt;=0
+common_type_t&lt;int,float64_t&gt; is float64_t: 1
+</code></pre>
+
+    </section>
+    <section>
+      <h2>7. 经验法则</h2>
+
+      <ul>
+        <li>类型特征回答问题；概念给答案起名；<code>if constexpr</code> 依据答案行事。三者不要混。</li>
+        <li>默认用 <code>remove_cvref_t</code>；只有在模拟按值推导时才用 <code>decay_t</code>。</li>
+        <li>优先用 <code>_v</code>/<code>_t</code> 形式；<code>::value</code>/<code>::type</code>
+          形式是给读老代码用的。</li>
+        <li>绝不测试算法用不到的特征：那只会毫无理由地拒绝类型，还多花编译时间。</li>
+        <li>写 <code>requires</code>，不写 <code>enable_if_t</code>。真要兼容 C++17，就把所有
+          <code>enable_if</code> 收进一个头文件，并加注释说明原因。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/15.genericprogramming/" class="prev-button">&larr; 第15章 泛型编程</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/15.genericprogramming/02.concepts/" class="next-button">第15.2章 概念 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch15.2: Concepts: Requirements the Compiler Checks - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch15.2: Concepts: Requirements the Compiler Checks</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/15.genericprogramming/02.concepts/">中文（简体）</a></p>
+    <section>
+      <h2>1. What a Template Without a Concept Costs You</h2>
+
+      <p>
+        A plain function template accepts anything. The compiler does not look at the body
+        until something calls it, and then it substitutes the argument into the body and
+        reports whatever breaks &mdash; several pages deep, in a header you did not write.
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view show(T const &amp;t) noexcept
+{
+	return t.name();
+}
+</code></pre>
+      <p>
+        <code>show(42)</code> does not say &ldquo;42 has no <code>name()</code>&rdquo;. It
+        says the instantiation of <code>show&lt;int&gt;</code> failed, and points at the body
+        with a note that <code>int</code> has no member <code>name</code>. With three nested
+        templates the message becomes a page of &ldquo;in instantiation of&rdquo; lines.
+      </p>
+      <p>
+        A <strong>concept</strong> fixes this by stating the requirement up front, where the
+        caller can read it and the compiler checks it before instantiating anything.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. A Concept Is a Named <code>requires</code>-Expression</h2>
+
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+concept named = requires(T const t) {
+	{ t.name() } -&gt; ::std::convertible_to&lt;::std::string_view&gt;;
+};
+
+template &lt;named T&gt;
+[[nodiscard]] inline ::std::string_view show(T const &amp;t) noexcept
+{
+	return t.name();
+}
+</code></pre>
+      <p>
+        Read <code>named</code> as a predicate on types. <code>named&lt;widget&gt;</code> is
+        <code>true</code> or <code>false</code>; <code>named&lt;int&gt;</code> is
+        <code>false</code>, checked without compiling the body.
+      </p>
+      <p>
+        The <code>requires(T const t) { ... }</code> form is a
+        <strong>requirement list</strong>. Each entry has one of four shapes:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Requirement</th>
+            <th>Means</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>t.name()</code></td>
+            <td>the expression is well-formed</td>
+          </tr>
+          <tr>
+            <td><code>{ t.name() } -&gt; X</code></td>
+            <td>well-formed, and its type satisfies concept <code>X</code></td>
+          </tr>
+          <tr>
+            <td><code>{ t.name() } noexcept</code></td>
+            <td>well-formed, and it cannot throw &mdash; a real requirement in this book</td>
+          </tr>
+          <tr>
+            <td><code>typename T::value_type</code></td>
+            <td>the type exists</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Everything inside the braces is <em>unevaluated</em>: nothing is called, nothing is
+        run, and a failure is not an error &mdash; it just makes the concept
+        <code>false</code>.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. Constraining a Comparator</h2>
+
+      <p>
+        This book requires every comparator to be <code>noexcept</code>
+        (<a href="/docs/08.algorithm/01.ranges/">Ch8.1</a>). A concept can say exactly that,
+        and then a comparator that forgot <code>noexcept</code> is rejected at the call site
+        instead of being silently slower or, worse, throwing out of a comparison:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename F&gt;
+concept comparator = requires(F f, int a, int b) {
+	{ f(a, b) } noexcept -&gt; ::std::convertible_to&lt;bool&gt;;
+};
+
+template &lt;comparator F&gt;
+inline void my_sort(int *first, ::std::size_t n, F cmp) noexcept
+{
+	for (::std::size_t i{1}; i &lt; n; ++i)
+	{
+		for (::std::size_t j{i}; j != 0 &amp;&amp; cmp(first[j], first[j - 1]); --j)
+		{
+			auto const t{first[j]};
+			first[j] = first[j - 1];
+			first[j - 1] = t;
+		}
+	}
+}
+</code></pre>
+      <p>
+        <code>my_sort(data, 3, ::std::ranges::greater{})</code> compiles: the call operator of
+        <code>::std::ranges::greater</code> is <code>noexcept</code>. A lambda written
+        without <code>noexcept</code> does not compile, and this compiler says exactly why:
+      </p>
+      <pre><code class="language-cpp">
+error: no matching function for call to ‘my_sort(int [3], int, main()::&lt;lambda(int, int)&gt;)’
+  • candidate 1: ‘template&lt;class F&gt;  requires  comparator&lt;F&gt; void my_sort(int*, std::size_t, F)’
+    • constraints not satisfied
+        { f(a, b) } noexcept -&gt; ::std::convertible_to&lt;bool&gt;;
+      • ‘f.main()::&lt;lambda(int, int)&gt;(a, b)’ is not ‘noexcept’
+</code></pre>
+      <p>
+        That is the entire benefit in six lines: the requirement is written once, in a place
+        the caller can find, and the error names the requirement instead of the body.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Constraining by Traits As Well As by Syntax</h2>
+
+      <p>
+        The two kinds of requirement combine freely. A concept can ask for a member function
+        (syntax) and for a property of the type (semantics):
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+concept byte_like = ::std::integral&lt;T&gt; &amp;&amp; (sizeof(T) == 1);
+</code></pre>
+      <p>
+        <code>::std::integral&lt;T&gt;</code> is a library concept built on
+        <code>::std::is_integral_v</code>; <code>(sizeof(T) == 1)</code> is a plain constant
+        expression. Both must hold.
+      </p>
+      <p>
+        Prefer the syntax half where it exists. <code>::std::integral</code> is a promise
+        about a type the standard library owns; <code>requires { t.size() }</code> is a
+        promise about whatever type the caller passes, and it stays true for the caller's
+        type even when the standard library adds another overload.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Subsumption: the Narrower Concept Wins</h2>
+
+      <p>
+        When two overloads are both viable, and one of them requires everything the other
+        requires plus more, the more constrained one is chosen. That is not a tie-break
+        hack; it follows from the concepts being <em>subsets</em> of each other.
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+concept integral_like = ::std::integral&lt;T&gt;;
+
+template &lt;typename T&gt;
+concept byte_like = integral_like&lt;T&gt; &amp;&amp; (sizeof(T) == 1);
+
+template &lt;integral_like T&gt;
+[[nodiscard]] inline ::std::string_view kind(T) noexcept
+{
+	return "integral";
+}
+
+template &lt;byte_like T&gt;
+[[nodiscard]] inline ::std::string_view kind(T) noexcept
+{
+	return "byte";
+}
+</code></pre>
+      <p>
+        <code>kind(static_cast&lt;char&gt;(1))</code> prints <code>byte</code>, because
+        <code>byte_like</code> is written in terms of <code>integral_like</code> and is
+        therefore known to be stricter. Note the direction: the subsumption only works when
+        the stricter concept's definition <em>contains</em> the weaker one by name. Two
+        unrelated concepts that happen to overlap are ambiguous, and the call does not
+        compile.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. Where the Concept Is Checked</h2>
+
+      <p>
+        Concepts appear in four places, all of them compile time:
+      </p>
+      <ul>
+        <li><strong>As a type constraint:</strong> <code>template &lt;named T&gt;</code>.</li>
+        <li><strong>As a trailing clause:</strong>
+          <code>template &lt;typename T&gt; requires named&lt;T&gt;</code>. Same meaning,
+          different spelling; use the clause when the constraint is long.</li>
+        <li><strong>As a shorthand variable:</strong> <code>named&lt;T&gt;</code> is a
+          <code>bool</code> you may test with <code>static_assert</code>, or use in
+          <code>if constexpr</code> (<a href="/docs/15.genericprogramming/07.ifconstexpr/">Ch15.7</a>).</li>
+        <li><strong>As an ad-hoc <code>requires</code>:</strong>
+          <code>requires { t.size(); }</code> inside a function body, with no name attached.</li>
+      </ul>
+      <p>
+        The whole program below prints four answers and never instantiates anything it was
+        not asked for:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;concepts&gt;
+#include &lt;string_view&gt;
+
+struct widget
+{
+	[[nodiscard]] ::std::string_view name() const noexcept { return "widget"; }
+};
+
+template &lt;typename T&gt;
+concept named = requires(T const t) {
+	{ t.name() } -&gt; ::std::convertible_to&lt;::std::string_view&gt;;
+};
+
+template &lt;typename T&gt;
+concept byte_like = ::std::integral&lt;T&gt; &amp;&amp; (sizeof(T) == 1);
+
+template &lt;named T&gt;
+[[nodiscard]] inline ::std::string_view show(T const &amp;t) noexcept
+{
+	return t.name();
+}
+
+template &lt;byte_like T&gt;
+[[nodiscard]] inline ::std::string_view kind(T) noexcept
+{
+	return "byte";
+}
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println(show(widget{}));
+		::fast_io::io::println(kind(static_cast&lt;char&gt;(1)));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+widget
+byte
+</code></pre>
+
+    </section>
+    <section>
+      <h2>7. What Concepts Cannot Do</h2>
+
+      <p>
+        A concept is a compile-time predicate. It cannot decide anything at run time, it
+        cannot let one variable hold a <code>widget</code> now and a <code>gadget</code> in
+        the next iteration, and it does not exist in the binary at all.
+      </p>
+      <p>
+        The two things people reach for instead are inheritance with <code>virtual</code>
+        (<a href="/docs/18.virtual/">Chapter 18</a>) and type erasure
+        (<a href="/docs/15.genericprogramming/09.typeerasure/">Ch15.9</a>). This chapter uses the
+        second one, because it keeps every call statically bound except the one that has to
+        be dynamic.
+      </p>
+
+    </section>
+    <section>
+      <h2>8. Rules of Thumb</h2>
+
+      <ul>
+        <li>Name a concept when it is used twice; use an inline
+          <code>requires</code> when it is used once.</li>
+        <li>Constrain in terms of other concepts, never in terms of raw
+          <code>enable_if</code>. Subsumption only works if the compiler can see the
+          containment.</li>
+        <li>Put <code>noexcept</code> in the concept when the algorithm depends on it; this
+          book's comparators and allocators always do.</li>
+        <li>Do not constrain what you do not use. A concept that demands five members and
+          uses two rejects types for no reason.</li>
+        <li>Remember that a concept does not reduce bloat: it only rejects bad arguments
+          earlier. Bloat is <a href="/docs/15.genericprogramming/08.bloat/">Ch15.8</a>.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/15.genericprogramming/01.typetraits/" class="prev-button">&larr; Ch15.1: Type Traits</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/15.genericprogramming/03.nttp/" class="next-button">Ch15.3: Non-Type Template Parameters &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

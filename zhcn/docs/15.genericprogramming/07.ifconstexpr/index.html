@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第15.7章 if constexpr 与条件错误契约 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第15.7章 <code>if constexpr</code> 与条件错误契约</h1>
+    <p class="lang-switch"><a href="/docs/15.genericprogramming/07.ifconstexpr/">English</a></p>
+    <section>
+      <h2>1. 不被编译的那个分支</h2>
+
+      <p>
+        <a href="/zhcn/docs/07.compiletimeprogramming/03.ifconstexpr/">第7.3章</a>把
+        <code>if constexpr</code> 介绍成编译期 <code>if</code>。在模板里它多做一件事：没被选中的
+        分支会被<strong>丢弃</strong>，而不是编译，所以它对当前模板实参来说可以是非法代码。
+      </p>
+      <p>
+        这就是它与普通 <code>if</code> 的全部差别。运行期 <code>if</code> 的两个分支都必须对每个
+        类型都编译通过；<code>if constexpr</code> 只要被选中的那个能编译。泛型函数就是靠它说
+        “如果类型是整型就做这个，否则做那个”，而不用给每个类别写一个函数：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+[[nodiscard]] inline constexpr ::std::string_view describe() noexcept
+{
+	if constexpr (::std::integral&lt;T&gt;)
+	{
+		return "integral";
+	}
+	else if constexpr (::std::floating_point&lt;T&gt;)
+	{
+		return "floating point";
+	}
+	else
+	{
+		return "something else";
+	}
+}
+</code></pre>
+      <p>
+        <code>describe&lt;no_size&gt;()</code> 返回 <code>"something else"</code>，
+        前两个分支在那个实例化里根本不存在 —— 不编译、不生成、也到不了。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. <code>if constexpr</code> 里的 <code>requires</code></h2>
+
+      <p>
+        条件可以是临时 <code>requires</code> 表达式
+        （<a href="/zhcn/docs/15.genericprogramming/02.concepts/">第15.2章</a>），
+        它问的是“这个表达式对这个类型合法吗”。泛型代码就是这样发现一个可选成员函数的，
+        而不必给调用者加约束：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+[[nodiscard]] inline constexpr ::std::size_t element_count() noexcept
+{
+	if constexpr (requires(T const &amp;t) { t.size(); })
+	{
+		return 8u;
+	}
+	else
+	{
+		return 1u;
+	}
+}
+</code></pre>
+      <p>
+        <code>::std::string_view</code> 有 <code>size()</code>，走第一个分支；
+        <code>no_size</code> 没有，走第二个。没有一处写了两次，而且某个类型明天多了
+        <code>size()</code>，这个函数不用改就会开始走第一个分支。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 取决于实例化的契约</h2>
+
+      <p>
+        <a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>说每个函数要么
+        <code>noexcept</code> 要么 <code>throws</code>。对模板来说这是麻烦事：对
+        <code>int</code> 不会失败的操作，对用户类型可能失败。答案是<strong>条件异常说明</strong>：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+inline void check_nonzero(T value) throws(::std::is_integral_v&lt;T&gt;)
+{
+	if constexpr (::std::is_integral_v&lt;T&gt;)
+	{
+		if (value == 0) [[unlikely]]
+		{
+			throw throws ::std::errc::invalid_argument;
+		}
+	}
+	else
+	{
+		static_cast&lt;void&gt;(value);
+	}
+}
+</code></pre>
+      <p>
+        <code>throws(condition)</code> 的含义是：条件为 <code>true</code> 时函数可以抛赫布异常；
+        为 <code>false</code> 时函数是 <code>noexcept</code>，并由编译器强制执行。
+        两个实例化是真正不同类型的函数：
+      </p>
+      <pre><code class="language-cpp">
+noexcept(check_nonzero&lt;::std::int_least32_t&gt;(7))   // false
+noexcept(check_nonzero&lt;::std::float64_t&gt;(1.0))     // true
+</code></pre>
+      <p>
+        为什么值得？因为 <code>noexcept</code> 才让一个操作能用在另一个 <code>noexcept</code>
+        操作里，也因为
+        <code>::std::is_nothrow_move_constructible_v</code> 之类
+        （<a href="/zhcn/docs/15.genericprogramming/01.typetraits/">第15.1章</a>）正是容器在移动与
+        拷贝之间做选择的依据。一个无条件 <code>throws</code> 的模板，会强迫装它的容器在扩容时拷贝。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 继承被包装调用的契约</h2>
+
+      <p>
+        最常见的条件异常说明与类型无关，与被转发的调用有关。<code>noexcept(表达式)</code>
+        是一个运算符：该表达式不会抛时得到 <code>true</code>。于是完美转发的包装函数可以承诺
+        与它调用的那次调用完全一样的强度：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename output, typename T&gt;
+inline void print_once(output &amp;&amp;out, T const &amp;value) throws(!noexcept(::fast_io::io::print(out, value)))
+{
+	::fast_io::io::print(out, value);
+}
+</code></pre>
+      <p>
+        <code>throws(!noexcept(...))</code> 读起来别扭，但意思就是它说的：
+        “除非被包装的调用不会抛，否则本函数可以抛”。如果你更喜欢，也可以写成
+        <code>noexcept(noexcept(...))</code> —— 在赫布异常工具链上两种写法一致。
+      </p>
+      <p>
+        fast_io 自己的头文件里到处是这个模式，只是藏在宏后面，以便库能同时面向两种异常模型构建：
+      </p>
+      <pre><code class="language-cpp">
+// fast_io_dsal/impl/misc/push_macros.h, herbceptions branch
+#define FAST_IO_HERBCEPTIONS_THROWS_IF(...) throws(__VA_ARGS__)
+#define FAST_IO_HERBCEPTIONS_THROWS_IF_NOT_NOEXCEPT(...) throws(!noexcept(__VA_ARGS__))
+
+// legacy branch
+#define FAST_IO_HERBCEPTIONS_THROWS_IF(...) noexcept(!(__VA_ARGS__))
+#define FAST_IO_HERBCEPTIONS_THROWS_IF_NOT_NOEXCEPT(...) noexcept(noexcept(__VA_ARGS__))
+</code></pre>
+      <p>
+        <code>::fast_io::native_global_allocator</code> 给每个分配函数都加上
+        <code>FAST_IO_HERBCEPTIONS_THROWS_IF(allocator::throws_on_allocation_failure)</code>，
+        这就是为什么 <code>::fast_io::vector&lt;T&gt;</code> 是 <code>throws</code>，
+        而建立在“永不失败”分配器上的 <code>vector</code> 是 <code>noexcept</code>
+        （<a href="/zhcn/docs/15.genericprogramming/08.bloat/">第15.8章</a>给出那段代码）。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 分支里放什么</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>条件</th>
+            <th>用来做什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::std::integral&lt;T&gt;</code>、<code>::std::floating_point&lt;T&gt;</code></td>
+            <td>按类型类别分开算法</td>
+          </tr>
+          <tr>
+            <td><code>::std::is_pointer_v&lt;T&gt;</code>、<code>sizeof(T) == N</code></td>
+            <td>布局决策、挑选内建指令</td>
+          </tr>
+          <tr>
+            <td><code>requires { t.size(); }</code></td>
+            <td>可选成员、能力探测</td>
+          </tr>
+          <tr>
+            <td><code>::std::is_constant_evaluated()</code></td>
+            <td>编译期用另一套算法
+              （<a href="/zhcn/docs/07.compiletimeprogramming/01.constexprfunction/">第7.1章</a>）</td>
+          </tr>
+          <tr>
+            <td><code>!noexcept(expr)</code></td>
+            <td>镜像某次调用的错误契约</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        两条规矩能让 <code>if constexpr</code> 不至于变成新的 <code>#ifdef</code> 面条。
+        第一，走不到的分支是死代码：它不编译，所以里面的笔误要等到有人用匹配的类型实例化时才会被发现。
+        第二，超过三个分支的链是设计味道 —— 要么这些类别该变成概念加重载（重载会按包含关系自动排序），
+        要么这个类型本该自己提供那个操作。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;string_view&gt;
+#include &lt;stdfloat&gt;
+#include &lt;type_traits&gt;
+
+struct no_size
+{
+	int value{};
+};
+
+template &lt;typename T&gt;
+[[nodiscard]] inline constexpr ::std::string_view describe() noexcept
+{
+	if constexpr (::std::integral&lt;T&gt;)
+	{
+		return "integral";
+	}
+	else if constexpr (::std::floating_point&lt;T&gt;)
+	{
+		return "floating point";
+	}
+	else
+	{
+		return "something else";
+	}
+}
+
+template &lt;typename T&gt;
+[[nodiscard]] inline constexpr ::std::size_t element_count() noexcept
+{
+	if constexpr (requires(T const &amp;t) { t.size(); })
+	{
+		return 8u;
+	}
+	else
+	{
+		return 1u;
+	}
+}
+
+// the error contract depends on the instantiation
+template &lt;typename T&gt;
+inline void check_nonzero(T value) throws(::std::is_integral_v&lt;T&gt;)
+{
+	if constexpr (::std::is_integral_v&lt;T&gt;)
+	{
+		if (value == 0) [[unlikely]]
+		{
+			throw throws ::std::errc::invalid_argument;
+		}
+	}
+	else
+	{
+		static_cast&lt;void&gt;(value);
+	}
+}
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println(describe&lt;int&gt;());
+		::fast_io::io::println(describe&lt;::std::float64_t&gt;());
+		::fast_io::io::println(describe&lt;no_size&gt;());
+		::fast_io::io::println("element_count&lt;no_size&gt;=", element_count&lt;no_size&gt;());
+		::fast_io::io::println("element_count&lt;string_view&gt;=", element_count&lt;::std::string_view&gt;());
+		::fast_io::io::println("noexcept(check_nonzero&lt;int&gt;)=", noexcept(check_nonzero&lt;::std::int_least32_t&gt;(1)));
+		::fast_io::io::println("noexcept(check_nonzero&lt;float64_t&gt;)=", noexcept(check_nonzero&lt;::std::float64_t&gt;(1.0)));
+
+		check_nonzero&lt;::std::int_least32_t&gt;(7);
+		::fast_io::io::println("check_nonzero&lt;int&gt;(7) returned");
+		try
+		{
+			check_nonzero&lt;::std::int_least32_t&gt;(0);
+		}
+		catch throws (::std::error)
+		{
+			::fast_io::io::println("zero rejected");
+		}
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+integral
+floating point
+something else
+element_count&lt;no_size&gt;=1
+element_count&lt;string_view&gt;=8
+noexcept(check_nonzero&lt;int&gt;)=0
+noexcept(check_nonzero&lt;float64_t&gt;)=1
+check_nonzero&lt;int&gt;(7) returned
+zero rejected
+</code></pre>
+      <p>
+        处理器收到的是 <code>[posix](22)Invalid argument</code>，即标准为
+        <code>::std::errc::invalid_argument</code> 给出的文本；程序只打印自己的消息，
+        好让上面的运行记录只有一条流。
+      </p>
+
+    </section>
+    <section>
+      <h2>7. 经验法则</h2>
+
+      <ul>
+        <li>分支取决于类型、且未被选中的分支无法编译时用 <code>if constexpr</code>；
+          取决于值时用普通 <code>if</code>。</li>
+        <li>绝不把 <code>if constexpr (true)</code> 当成 <code>#ifdef</code> 的替代品，
+          那会让死代码看起来是活的。</li>
+        <li>用 <code>throws(condition)</code> 表达随实例化变化的错误契约，而不是把函数拆成两个。
+          <code>throws</code> 形式写明了条件，也允许 <code>noexcept(...)</code> 去回答它。</li>
+        <li>转发包装函数用 <code>throws(!noexcept(...))</code> 镜像被包装调用的契约；
+          不要声称自己证明不了的 <code>noexcept</code>。</li>
+        <li>长长的 <code>if constexpr</code> 链应当换成概念加重载：重载按包含关系选择，
+          诊断信息也更好（<a href="/zhcn/docs/15.genericprogramming/02.concepts/">第15.2章</a>）。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/15.genericprogramming/06.templatefor/" class="prev-button">&larr; 第15.6章 <code>template for</code></a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/15.genericprogramming/08.bloat/" class="next-button">第15.8章 模板膨胀 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

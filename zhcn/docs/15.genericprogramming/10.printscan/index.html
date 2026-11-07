@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第15.10章 fast_io 如何找到你的打印与扫描代码 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第15.10章 fast_io 如何找到你的打印与扫描代码</h1>
+    <p class="lang-switch"><a href="/docs/15.genericprogramming/10.printscan/">English</a></p>
+    <section>
+      <h2>1. 不是运算符，也不是成员函数</h2>
+
+      <p>
+        <code>::fast_io::io::println(rgb{7, 128, 255})</code> 能打印出
+        <code>(7,128,255)</code>，只因为你写了两个自由函数。没有
+        <code>operator&lt;&lt;</code>、没有 <code>to_string()</code>、没有虚函数
+        <code>format()</code>。fast_io 调用自由函数，并且靠<strong>对标签做实参依赖查找</strong>
+        找到它们。
+      </p>
+      <p>
+        定制点的目录在 <a href="/zhcn/docs/11.io/02.customtypes/">第11.2章</a>。本页讲的是它
+        底下的<em>机制</em>，因为这个机制是纯粹的泛型编程：一个变量模板、一个概念，加一次重载解析。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 标签：一个变量模板</h2>
+
+      <p>
+        每个定制点的第一个实参都不是被打印的值，而是一个标签，说明这份定义是给<em>哪个字符类型</em>
+        与<em>哪个值类型</em>的：
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::io_reserve_type&lt;char, rgb&gt;        // the tag for rgb, printed as char
+::fast_io::io_reserve_type_t&lt;char, rgb&gt;     // its type
+</code></pre>
+      <p>
+        <code>io_reserve_type</code> 是一个<strong>变量模板</strong>
+        （<a href="/zhcn/docs/15.genericprogramming/03.nttp/">第15.3章</a>），一个
+        <code>inline constexpr</code> 对象，唯一的工作就是被按值传递。这个选择解决了一个函数模板
+        解决不了的问题：函数模板不能偏特化，所以“特化 <code>rgb</code> 的打印”需要别的东西来特化 ——
+        而一个类类型标签可以被重载。之后，普通的重载解析加上 ADL 就会选中你的函数：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;::std::integral char_type&gt;
+inline constexpr ::std::size_t print_reserve_size(::fast_io::io_reserve_type_t&lt;char_type, rgb&gt;) noexcept;
+</code></pre>
+      <p>
+        由此有两个后果，都重要。你的定义必须位于与 <code>rgb</code> 或 <code>::fast_io</code>
+        关联的命名空间里 —— 通常是 <code>rgb</code> 旁边的全局命名空间。而且
+        <code>char_type</code> 是模板参数，所以一份定义服务 <code>char</code>、
+        <code>char8_t</code>、<code>wchar_t</code> 以及其他所有字符类型。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 打印：先给大小，再写字节</h2>
+
+      <p>
+        fast_io 最快的打印路径写进一块它已经预留好的缓冲区。两个函数来描述它：一个说最多需要
+        多少个字符，另一个把它们填进去。
+      </p>
+      <pre><code class="language-cpp">
+template &lt;::std::integral char_type&gt;
+inline constexpr ::std::size_t print_reserve_size(::fast_io::io_reserve_type_t&lt;char_type, rgb&gt;) noexcept
+{
+	return 12;
+}
+
+template &lt;::std::integral char_type&gt;
+inline constexpr char_type *print_reserve_define(::fast_io::io_reserve_type_t&lt;char_type, rgb&gt;, char_type *iter, rgb c) noexcept
+{
+	*iter++ = static_cast&lt;char_type&gt;(u8'(');
+	iter = write_uint(iter, c.r);
+	*iter++ = static_cast&lt;char_type&gt;(u8',');
+	iter = write_uint(iter, c.g);
+	*iter++ = static_cast&lt;char_type&gt;(u8',');
+	iter = write_uint(iter, c.b);
+	*iter++ = static_cast&lt;char_type&gt;(u8')');
+	return iter;
+}
+</code></pre>
+      <p>
+        契约刻意写得很窄，也正是这条路快的原因：
+      </p>
+      <ul>
+        <li><code>print_reserve_size</code> 返回<strong>上界</strong>，计算时拿不到值。
+          十二个字符足够 <code>(255,255,255)</code>。</li>
+        <li><code>print_reserve_define</code> 最多写这么多个字符并返回新的末尾指针。
+          两者之差就是输出。</li>
+        <li>两者都不能失败。都是 <code>noexcept</code>，这只可能，因为缓冲区已经存在、
+          什么都不分配（<a href="/zhcn/docs/15.genericprogramming/07.ifconstexpr/">第15.7章</a>）。</li>
+      </ul>
+      <p>
+        如果你的类型不看值就不知道要多大，这条路就走不通：改用 <code>print_define</code>，
+        它把输出设备交给你，而不是缓冲区；或者用 <code>print_scatter_define</code>（文本已在内存里）。
+        两者在 <a href="/zhcn/docs/11.io/02.customtypes/">第11.2章</a>都有演示。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 扫描：一个状态、一步、一个结尾</h2>
+
+      <p>
+        扫描可能需要的输入比缓冲区里现有的多，所以它不可能是单次调用。fast_io 的答案与手写解析器
+        同形：一份跨调用存活下来的<strong>状态</strong>、一个消费现有输入的<strong>步骤</strong>、
+        以及给出最终裁决的 <strong>EOF 处理器</strong>。
+      </p>
+      <pre><code class="language-cpp">
+struct rgb_scan_state
+{
+	::std::uint_least32_t value{};
+	::std::uint_least8_t field{};
+	::std::uint_least8_t digits{};
+};
+
+template &lt;::std::integral char_type&gt;
+inline constexpr ::fast_io::io_type_t&lt;rgb_scan_state&gt;
+scan_context_type(::fast_io::io_reserve_type_t&lt;char_type, ::fast_io::parameter&lt;rgb &amp;&gt;&gt;) noexcept
+{
+	return {};
+}
+</code></pre>
+      <p>
+        <code>scan_context_type</code> 通过 <code>::fast_io::io_type_t&lt;S&gt;</code>
+        给状态类型命名，但不构造它。步骤函数随后返回一个<strong>解析结果</strong>：
+        指向它消费掉的最后一个字符之后的迭代器，加一个码。
+      </p>
+      <pre><code class="language-cpp">
+template &lt;::std::integral char_type&gt;
+inline constexpr ::fast_io::parse_result&lt;char_type const *&gt; scan_context_define(
+	::fast_io::io_reserve_type_t&lt;char_type, ::fast_io::parameter&lt;rgb &amp;&gt;&gt;, rgb_scan_state &amp;st,
+	char_type const *begin, char_type const *end, ::fast_io::parameter&lt;rgb &amp;&gt; token) noexcept
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>码</th>
+            <th>含义</th>
+            <th>fast_io 怎么做</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>parse_errc::ok</code></td>
+            <td>值已经完整</td>
+            <td>推进缓冲区，继续处理下一个实参</td>
+          </tr>
+          <tr>
+            <td><code>parse_errc::partial</code></td>
+            <td>目前合法，还需要更多输入</td>
+            <td>保留状态、填充缓冲区、再次调用</td>
+          </tr>
+          <tr>
+            <td><code>parse_errc::invalid</code></td>
+            <td>无法解析</td>
+            <td>抛赫布异常，<code>[parse](3)Invalid format</code></td>
+          </tr>
+          <tr>
+            <td><code>parse_errc::end_of_file</code></td>
+            <td>输入在值中间结束</td>
+            <td>由 <code>scan_context_eof_define</code> 上报</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        形参是 <code>::fast_io::parameter&lt;rgb &amp;&gt;</code> 而不是 <code>rgb</code>，
+        这才是有意思的地方。传给 <code>::fast_io::io::scan</code> 的左值是要被<em>写入</em>的，
+        所以 fast_io 把它包进 <code>::fast_io::parameter&lt;rgb &amp;&gt;</code> —— 一个只有一个
+        成员的 <code>struct</code>，里面是那个引用。把定制点建立在包装上，既让标签仍然从普通值类型
+        导出，又让步骤函数能写你的对象。载荷是 <code>token.reference</code>。
+      </p>
+      <p>
+        另外注意步骤函数<em>不</em>做的事：在整个颜色被校验通过之前，它从不写
+        <code>c.r</code>。中间结果待在状态里，目标对象只在解析成功的那一刻被修改 ——
+        这就是 <a href="/zhcn/docs/14.fiverules/09.exceptionsafety/">第14.9章</a>的强异常安全保证，
+        用在了解析上。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 把关的那些概念</h2>
+
+      <p>
+        没有任何地方手工检查你的签名。
+        <code>fast_io_core_impl/concepts/operation.h</code> 给每个定制点定义了一个概念，
+        <code>println</code> 只是要求其中之一：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename char_type, typename T&gt;
+concept reserve_printable = ::std::integral&lt;char_type&gt; &amp;&amp; requires(T t, char_type *ptr) {
+	{
+		print_reserve_define(io_reserve_type&lt;char_type, T&gt;, ptr, t)
+	} -&gt; ::std::same_as&lt;char_type *&gt;;
+	constexpr ::std::size_t sz{print_reserve_size(io_reserve_type&lt;char_type, T&gt;)};
+};
+
+template &lt;typename char_type, typename T&gt;
+concept context_scannable = requires(char_type const *begin, char_type const *end, T t) {
+	requires requires(
+		typename ::std::remove_cvref_t&lt;decltype(scan_context_type(io_reserve_type&lt;char_type, T&gt;))&gt;::type st) {
+		{
+			scan_context_define(io_reserve_type&lt;char_type, T&gt;, st, begin, end, t)
+		} -&gt; ::std::same_as&lt;parse_result&lt;char_type const *&gt;&gt;;
+		{ scan_context_eof_define(io_reserve_type&lt;char_type, T&gt;, st, t) } -&gt; ::std::same_as&lt;::fast_io::freestanding::parse_errc&gt;;
+	};
+};
+</code></pre>
+      <p>
+        这就是为什么少写一个定制时，你得到的是
+        <code>type not scannable. need context_scannable</code>，而不是一页模板噪音：
+        要求在事先就被写下来了（<a href="/zhcn/docs/15.genericprogramming/02.concepts/">第15.2章</a>）。
+        也正因为如此，返回类型必须精确 —— <code>-&gt; ::std::same_as&lt;char_type *&gt;</code>
+        是被检查的，不是猜的。
+      </p>
+      <p>
+        最后，整套东西按字符类型实例化，但<em>不</em>按输出设备实例化：
+        <code>print_reserve_define</code> 写的是 <code>char_type *</code>，所以同一份实例化服务
+        文件、套接字、管道和内存缓冲区。这是设计层面的去模板化
+        （<a href="/zhcn/docs/15.genericprogramming/08.bloat/">第15.8章</a>）。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;string_view&gt;
+
+struct rgb
+{
+	::std::uint_least8_t r{}, g{}, b{};
+
+	[[nodiscard]] ::std::string_view name() const noexcept { return "rgb"; }
+};
+
+struct rgb_scan_state
+{
+	::std::uint_least32_t value{};
+	::std::uint_least8_t field{};
+	::std::uint_least8_t digits{};
+};
+
+// ---- printing: a compile-time-known size, then a write into the buffer
+template &lt;::std::integral char_type&gt;
+inline constexpr ::std::size_t print_reserve_size(::fast_io::io_reserve_type_t&lt;char_type, rgb&gt;) noexcept
+{
+	return 12;
+}
+
+template &lt;::std::integral char_type&gt;
+inline constexpr char_type *write_uint(char_type *iter, ::std::uint_least32_t v) noexcept
+{
+	char_type buf[3];
+	::std::size_t n{};
+	do
+	{
+		buf[n++] = static_cast&lt;char_type&gt;(u8'0' + v % 10u);
+		v /= 10u;
+	} while (v != 0);
+	for (; n != 0; --n)
+	{
+		*iter++ = buf[n - 1];
+	}
+	return iter;
+}
+
+template &lt;::std::integral char_type&gt;
+inline constexpr char_type *print_reserve_define(::fast_io::io_reserve_type_t&lt;char_type, rgb&gt;, char_type *iter, rgb c) noexcept
+{
+	*iter++ = static_cast&lt;char_type&gt;(u8'(');
+	iter = write_uint(iter, c.r);
+	*iter++ = static_cast&lt;char_type&gt;(u8',');
+	iter = write_uint(iter, c.g);
+	*iter++ = static_cast&lt;char_type&gt;(u8',');
+	iter = write_uint(iter, c.b);
+	*iter++ = static_cast&lt;char_type&gt;(u8')');
+	return iter;
+}
+
+// ---- scanning: a context type, a step function and an EOF handler
+template &lt;::std::integral char_type&gt;
+inline constexpr ::fast_io::io_type_t&lt;rgb_scan_state&gt;
+scan_context_type(::fast_io::io_reserve_type_t&lt;char_type, ::fast_io::parameter&lt;rgb &amp;&gt;&gt;) noexcept
+{
+	return {};
+}
+
+template &lt;::std::integral char_type&gt;
+inline constexpr ::fast_io::parse_result&lt;char_type const *&gt; scan_context_define(
+	::fast_io::io_reserve_type_t&lt;char_type, ::fast_io::parameter&lt;rgb &amp;&gt;&gt;, rgb_scan_state &amp;st,
+	char_type const *begin, char_type const *end, ::fast_io::parameter&lt;rgb &amp;&gt; token) noexcept
+{
+	rgb &amp;c{token.reference};
+	auto it{begin};
+	for (; it != end; ++it)
+	{
+		char_type const ch{*it};
+		if (st.field == 0)
+		{
+			if (ch != static_cast&lt;char_type&gt;(u8'('))
+			{
+				return {it, ::fast_io::freestanding::parse_errc::invalid};
+			}
+			st.field = 1;
+			continue;
+		}
+		if (ch &gt;= static_cast&lt;char_type&gt;(u8'0') &amp;&amp; ch &lt;= static_cast&lt;char_type&gt;(u8'9'))
+		{
+			if (++st.digits &gt; 3)
+			{
+				return {it, ::fast_io::freestanding::parse_errc::invalid};
+			}
+			st.value = st.value * 10u + static_cast&lt;::std::uint_least32_t&gt;(ch - static_cast&lt;char_type&gt;(u8'0'));
+			continue;
+		}
+		if (ch == static_cast&lt;char_type&gt;(u8',') || ch == static_cast&lt;char_type&gt;(u8')'))
+		{
+			if (st.digits == 0 || st.value &gt; 255u)
+			{
+				return {it, ::fast_io::freestanding::parse_errc::invalid};
+			}
+			auto const channel{static_cast&lt;::std::uint_least8_t&gt;(st.value)};
+			if (st.field == 1)
+			{
+				c.r = channel;
+			}
+			else if (st.field == 2)
+			{
+				c.g = channel;
+			}
+			else
+			{
+				c.b = channel;
+			}
+			if (ch == static_cast&lt;char_type&gt;(u8')'))
+			{
+				if (st.field != 3)
+				{
+					return {it, ::fast_io::freestanding::parse_errc::invalid};
+				}
+				return {it + 1, ::fast_io::freestanding::parse_errc::ok};
+			}
+			++st.field;
+			st.digits = 0;
+			st.value = 0;
+			continue;
+		}
+		return {it, ::fast_io::freestanding::parse_errc::invalid};
+	}
+	return {it, ::fast_io::freestanding::parse_errc::partial};
+}
+
+template &lt;::std::integral char_type&gt;
+inline constexpr ::fast_io::freestanding::parse_errc scan_context_eof_define(
+	::fast_io::io_reserve_type_t&lt;char_type, ::fast_io::parameter&lt;rgb &amp;&gt;&gt;, rgb_scan_state &amp;,
+	::fast_io::parameter&lt;rgb &amp;&gt;) noexcept
+{
+	return ::fast_io::freestanding::parse_errc::end_of_file;
+}
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println(rgb{7, 128, 255});
+
+		rgb parsed{};
+		{
+			::fast_io::ibuf_file inpf(u8"/tmp/rgb.txt");
+			::fast_io::io::scan(inpf, parsed);
+		}
+		::fast_io::io::println("scanned: r=", parsed.r, " g=", parsed.g, " b=", parsed.b);
+
+		try
+		{
+			::fast_io::ibuf_file bad(u8"/tmp/rgb_bad.txt");
+			::fast_io::io::scan(bad, parsed);
+		}
+		catch throws (::std::error)
+		{
+			::fast_io::io::println("bad input rejected");
+		}
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>
+        当 <code>/tmp/rgb.txt</code> 里是 <code>(7,128,255)</code>、
+        <code>/tmp/rgb_bad.txt</code> 里是 <code>(300,1,2)</code> 时，输出是：
+      </p>
+      <pre><code class="language-text">
+(7,128,255)
+scanned: r=7 g=128 b=255
+bad input rejected
+</code></pre>
+      <p>
+        <code>300</code> 超过了一路通道能装下的范围，于是步骤函数返回
+        <code>parse_errc::invalid</code>，fast_io 抛出
+        <code>[parse](3)Invalid format</code>；上面的处理器打印自己的消息，让运行记录只有一条流。
+        删掉那个 <code>try</code>，程序就会带着这条诊断终止 —— 对“不知道该怎么处理坏输入”的程序，
+        这正是正确行为。
+      </p>
+
+    </section>
+    <section>
+      <h2>7. 经验法则</h2>
+
+      <ul>
+        <li>把定义放在类型旁边、它的命名空间里；ADL 就是查找机制，没有注册这一步。</li>
+        <li><code>print_reserve_size</code> 是不许看值的上界。做不到就用 <code>print_define</code>。</li>
+        <li>两个打印函数都是 <code>noexcept</code>：会分配的打印函数，就是管道断了会失败的打印函数。</li>
+        <li>解析完成之前绝不修改目标对象；中间结果留在状态对象里。</li>
+        <li>只有“更多输入还有救”时才返回 <code>partial</code>。在输入末尾返回
+          <code>partial</code> 会变成 <code>end_of_file</code>，而不是死循环，因为
+          <code>scan_context_eof_define</code> 存在。</li>
+        <li>用一种字符类型写成模板，就得到所有字符类型；只有文本真的是按字节处理时才写
+          <code>char</code> 专用重载。</li>
+        <li>完整目录 —— 包括 <code>print_alias_define</code> 与 scatter 路径，
+          它们往往比你刚写的那段更短 —— 在
+          <a href="/zhcn/docs/11.io/02.customtypes/">第11.2章</a>。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/15.genericprogramming/09.typeerasure/" class="prev-button">&larr; 第15.9章 类型擦除</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/16.operatoroverloading/" class="next-button">第16章 运算符重载 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

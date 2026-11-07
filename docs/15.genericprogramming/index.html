@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch15: Generic Programming: Concepts, Templates, and Type Erasure - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch15: Generic Programming: Concepts, Templates, and Type Erasure</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/15.genericprogramming/">中文（简体）</a></p>
+    <section>
+      <h2>1. Why This Chapter Exists</h2>
+
+      <p>
+        <a href="/docs/04.dsal/03.vector/">Chapter 4</a> answered &ldquo;what is a
+        <code>vector</code>&rdquo; with <code>::fast_io::vector&lt;int&gt;</code>, and never
+        said where the <code>&lt;int&gt;</code> came from. <a href="/docs/06.function/06.overload/">Ch6.6</a>
+        showed overload resolution picking between <code>add(int, int)</code> and
+        <code>add(double, double)</code>, and stopped where overloading stops helping: the
+        moment the bodies are identical and only the type differs.
+      </p>
+      <p>
+        That moment is where <strong>generic programming</strong> begins. Its idea is not
+        &ldquo;fill in a type&rdquo;; it is <em>write the algorithm once, state what it needs,
+        and let the compiler check that statement</em>. Four tools do the work, and they are
+        the four halves of this chapter:
+      </p>
+      <ul>
+        <li><strong>traits</strong> &mdash; compile-time facts about a type
+          (<a href="/docs/15.genericprogramming/01.typetraits/">Ch15.1</a>);</li>
+        <li><strong>concepts</strong> &mdash; named requirements the compiler checks before it
+          instantiates (<a href="/docs/15.genericprogramming/02.concepts/">Ch15.2</a>);</li>
+        <li><strong>templates</strong> &mdash; the thing being generated, and everything about
+          instantiating it: values as parameters, deduction, packs, expansion
+          (<a href="/docs/15.genericprogramming/03.nttp/">Ch15.3</a>&ndash;<a href="/docs/15.genericprogramming/07.ifconstexpr/">Ch15.7</a>);</li>
+        <li><strong>type erasure</strong> &mdash; what to do when the choice really must be
+          made at run time (<a href="/docs/15.genericprogramming/09.typeerasure/">Ch15.9</a>).</li>
+      </ul>
+      <p>
+        This chapter has one enemy: <strong>bloat</strong>. Every distinct template argument
+        produces a full copy of everything the template touches, and a program that
+        instantiates the same logic a thousand times is a slow-to-compile, huge binary. So
+        the chapter teaches templates and, in the same breath, the discipline of keeping them
+        small: concepts to sharpen them, detemplatization to shrink them, and type erasure to
+        hide them behind one type.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. The One-Sentence Summary of Each Idea</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Idea</th>
+            <th>One sentence</th>
+            <th>Subchapter</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>type trait</td>
+            <td>A compile-time fact about a type, as a <code>bool</code> or as another
+              type.</td>
+            <td><a href="/docs/15.genericprogramming/01.typetraits/">Ch15.1</a></td>
+          </tr>
+          <tr>
+            <td>concept</td>
+            <td>A named list of requirements the compiler checks before it instantiates.</td>
+            <td><a href="/docs/15.genericprogramming/02.concepts/">Ch15.2</a></td>
+          </tr>
+          <tr>
+            <td>non-type parameter</td>
+            <td>A template argument that is a value, not a type.</td>
+            <td><a href="/docs/15.genericprogramming/03.nttp/">Ch15.3</a></td>
+          </tr>
+          <tr>
+            <td>deduction</td>
+            <td>The compiler writing the <code>&lt;...&gt;</code> for you, from the
+              arguments.</td>
+            <td><a href="/docs/15.genericprogramming/04.deduction/">Ch15.4</a></td>
+          </tr>
+          <tr>
+            <td>parameter pack</td>
+            <td>Zero or more template arguments, consumed by a fold or by a
+              <code>template for</code>.</td>
+            <td><a href="/docs/15.genericprogramming/05.variadic/">Ch15.5</a></td>
+          </tr>
+          <tr>
+            <td><code>template for</code></td>
+            <td>A loop the compiler unrolls at compile time, one iteration per element.</td>
+            <td><a href="/docs/15.genericprogramming/06.templatefor/">Ch15.6</a></td>
+          </tr>
+          <tr>
+            <td><code>if constexpr</code></td>
+            <td>An <code>if</code> whose unselected branch is thrown away, not compiled.</td>
+            <td><a href="/docs/15.genericprogramming/07.ifconstexpr/">Ch15.7</a></td>
+          </tr>
+          <tr>
+            <td>detemplatization</td>
+            <td>Move everything that does not touch the template argument out of the
+              template.</td>
+            <td><a href="/docs/15.genericprogramming/08.bloat/">Ch15.8</a></td>
+          </tr>
+          <tr>
+            <td>type erasure</td>
+            <td>One non-template type that can hold values of many types, with no
+              inheritance.</td>
+            <td><a href="/docs/15.genericprogramming/09.typeerasure/">Ch15.9</a></td>
+          </tr>
+          <tr>
+            <td><code>print</code>/<code>scan</code> support</td>
+            <td>A tag variable and a concept: how fast_io's generic printing finds your
+              type.</td>
+            <td><a href="/docs/15.genericprogramming/10.printscan/">Ch15.10</a></td>
+          </tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>3. The Running Example</h2>
+
+      <p>
+        One tiny type follows us through the chapter: a colour with three 8-bit channels and
+        a name.
+      </p>
+      <pre><code class="language-cpp">
+struct rgb
+{
+	::std::uint_least8_t r{}, g{}, b{};
+
+	[[nodiscard]] ::std::string_view name() const noexcept
+	{
+		return "rgb";
+	}
+};
+</code></pre>
+      <p>
+        It is small enough to print in the middle of a page, it has a member function to
+        constrain, fields to compare, and an obvious textual form
+        <code>(7,128,255)</code> to scan back in. The last page of the chapter teaches
+        fast_io to print and scan exactly this type.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Conventions Used in This Chapter</h2>
+
+      <ul>
+        <li>
+          Every function is <code>noexcept</code> or <code>throws</code>; nothing is left
+          without an error contract (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>).
+          A <code>noexcept</code> template is a promise about every instantiation, so
+          <code>noexcept</code> is used only where no instantiation can fail. When the
+          contract depends on the argument, it is written conditionally &mdash;
+          <code>throws(!noexcept(...))</code>
+          (<a href="/docs/15.genericprogramming/07.ifconstexpr/">Ch15.7</a>).
+        </li>
+        <li>
+          Failures are herbceptions: <code>throw throws ...</code> and
+          <code>catch throws (::std::error e)</code>
+          (<a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>). Function-pointer and
+          template-parameter <em>types</em> carry their error contract too, so
+          <code>void (*)(void *) noexcept</code> and <code>void (*)(void *) throws</code> are
+          different types.
+        </li>
+        <li>
+          Integers are <code>::std::int_least64_t</code>, <code>::std::uint_least8_t</code>,
+          <code>::std::size_t</code>; floating point is <code>::std::float64_t</code>.
+        </li>
+        <li>
+          Every complete program on these pages was compiled with
+          <code>-std=c++26 -fherbceptions -lherbceptions</code> and run; the output shown is
+          what it actually printed. Instantiation counts were read from
+          <code>nm -C</code> on the linked binary.
+        </li>
+        <li>
+          Comparators are named function objects (<code>::std::ranges::greater</code>),
+          never lambdas, unless a lambda is the point being made
+          (<a href="/docs/15.genericprogramming/08.bloat/">Ch15.8</a>).
+        </li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>5. What You Should Already Know</h2>
+
+      <ul>
+        <li>Overloading (<a href="/docs/06.function/06.overload/">Ch6.6</a>) &mdash; templates
+          are overloading where the compiler writes the copies.</li>
+        <li><code>constexpr</code> and <code>consteval</code>
+          (<a href="/docs/07.compiletimeprogramming/">Chapter 7</a>) &mdash; a template
+          argument usually has to be a constant expression.</li>
+        <li>Lambdas (<a href="/docs/06.function/13.lambda/">Ch6.13</a>) &mdash; every lambda is
+          a distinct type, which is why Ch15.8 exists.</li>
+        <li>The Rule of Five (<a href="/docs/14.fiverules/">Chapter 14</a>) &mdash; the traits
+          in <a href="/docs/15.genericprogramming/01.typetraits/">Ch15.1</a> are the ones that
+          chapter used implicitly, and Ch15.9 needs copy, move and destructor again.</li>
+        <li><code>::std::vector</code>'s interface
+          (<a href="/docs/04.dsal/03.vector/">Ch4.3</a>) &mdash; Ch15.8 takes fast_io's
+          <code>vector</code> apart.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>6. Contents</h2>
+
+      <ul>
+        <li><a href="/docs/15.genericprogramming/01.typetraits/">Ch15.1: Type Traits: What the Compiler Knows About a Type</a></li>
+        <li><a href="/docs/15.genericprogramming/02.concepts/">Ch15.2: Concepts: Requirements the Compiler Checks</a></li>
+        <li><a href="/docs/15.genericprogramming/03.nttp/">Ch15.3: Non-Type Template Parameters: Enums, Structural Types, Variable Templates</a></li>
+        <li><a href="/docs/15.genericprogramming/04.deduction/">Ch15.4: Template Argument Deduction and CTAD</a></li>
+        <li><a href="/docs/15.genericprogramming/05.variadic/">Ch15.5: Variadic Templates, Fold Expressions, Perfect Forwarding</a></li>
+        <li><a href="/docs/15.genericprogramming/06.templatefor/">Ch15.6: <code>template for</code>: Expansion Statements and Template Indexing</a></li>
+        <li><a href="/docs/15.genericprogramming/07.ifconstexpr/">Ch15.7: <code>if constexpr</code> and Conditional Error Contracts</a></li>
+        <li><a href="/docs/15.genericprogramming/08.bloat/">Ch15.8: Template Bloat, Lambdas, and How fast_io Detemplatizes <code>vector</code></a></li>
+        <li><a href="/docs/15.genericprogramming/09.typeerasure/">Ch15.9: Type Erasure: <code>shape</code>, Without Inheritance</a></li>
+        <li><a href="/docs/15.genericprogramming/10.printscan/">Ch15.10: How fast_io Finds Your Print and Scan Code</a></li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/14.fiverules/11.myposixfile/" class="prev-button">&larr; Ch14.11: The Whole Class, and fast_io's posix_file</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/15.genericprogramming/01.typetraits/" class="next-button">Ch15.1: Type Traits &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

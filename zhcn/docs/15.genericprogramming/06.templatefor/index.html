@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第15.6章 template for：展开语句与模板下标 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第15.6章 <code>template for</code>：展开语句与模板下标</h1>
+    <p class="lang-switch"><a href="/docs/15.genericprogramming/06.templatefor/">English</a></p>
+    <section>
+      <h2>1. 在编译期跑的循环</h2>
+
+      <p>
+        对 <code>::std::tuple</code> 用范围 <code>for</code> 编译不过：元素类型不同，循环变量
+        没有共同类型。<code>template for</code> —— <strong>展开语句</strong> —— 可以，
+        因为它不是一个循环：函数体按元素各实例化一次，每次都能看到该元素的真实类型。
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename... Ts&gt;
+inline void print_tuple(::std::tuple&lt;Ts...&gt; const &amp;t) throws
+{
+	template for (auto const &amp;e : t)
+	{
+		::fast_io::io::println(e);
+	}
+}
+</code></pre>
+      <p>
+        <code>print_tuple(::std::tuple&lt;int, ::std::string_view, ::std::int_least64_t&gt;{7, "seven", 7})</code>
+        实例化之后就是三次 <code>println</code>：一次 <code>int</code>、一次
+        <code>::std::string_view</code>、一次 <code>::std::int_least64_t</code>。
+        没有装箱、没有类型擦除，也没有需要优化掉的运行期计数器。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. <code>constexpr</code> 的循环变量</h2>
+
+      <p>
+        循环变量可以声明为 <code>constexpr</code>，于是每次迭代都是编译期常量。走<em>下标</em>
+        而不是元素时就这么写：
+      </p>
+      <pre><code class="language-cpp">
+inline void print_squares() throws
+{
+	template for (constexpr ::std::size_t i : ::std::views::iota(::std::size_t{}, ::std::size_t{4}))
+	{
+		::fast_io::io::println(i, " squared is ", i * i);
+	}
+}
+</code></pre>
+      <p>
+        <code>i</code> 可以当模板实参、数组界、包下标使用。四次迭代就是函数体的四次实例化，
+        而 <code>i</code> 能被打印并不是巧合：<code>i</code> 是常量，编译器完全可以把
+        <code>i * i</code> 折出来打印字面量。
+      </p>
+      <p>
+        函数体在编译期需要下标时（调用 <code>::std::get&lt;I&gt;</code>、给包取下标）用
+        <code>constexpr</code> 循环变量；只需要元素时用普通的 <code>auto</code>。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 模板下标：<code>args...[i]</code></h2>
+
+      <p>
+        包可以直接取下标。<code>args...[1]</code> 就是第二个元素，下标必须是常量表达式：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename... Ts&gt;
+[[nodiscard]] inline auto second(Ts... args) noexcept
+{
+	static_assert(sizeof...(Ts) &gt;= 2, "need at least two arguments");
+	return args...[1];
+}
+</code></pre>
+      <p>
+        <code>second(10u, 20u, 30u)</code> 返回 <code>unsigned</code> 的 <code>20</code>
+        —— 没有递归、没有 tuple、没有 <code>::std::get</code>。在包下标出现之前，同样的事情要么靠
+        一个辅助结构体，要么靠带 <code>sizeof...(Ts) - 1</code> 算术的递归模板，
+        每个元素一层实例化。
+      </p>
+      <p>
+        <code>args...[1]</code> 是<em>编译期</em>下标。唯一看起来像运行期的是用
+        <code>constexpr</code> 循环变量取下标，但每次迭代它仍是常量：
+      </p>
+      <pre><code class="language-cpp">
+template for (constexpr ::std::size_t i : ::std::views::iota(::std::size_t{}, sizeof...(Args)))
+{
+	using arg_type = ::std::remove_cvref_t&lt;Args...[i]&gt;;
+	// ... one instantiation per i
+}
+</code></pre>
+
+    </section>
+    <section>
+      <h2>4. fast_io 自己怎么用它</h2>
+
+      <p>
+        这不是语言律师的角落。<code>::fast_io::io::print</code> 必须知道：每个实参是可以直接打印，
+        还是必须经过临时缓冲区 —— 而且它必须在写出第一个字节之前就知道。真正的代码位于
+        <code>fast_io_core_impl/operations/printimpl/print_freestanding.h</code>：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;::std::integral char_type, typename... Args&gt;
+inline consteval ::fast_io::details::first_print_define_index_range_result
+first_print_define_index_range() noexcept
+{
+	::std::size_t startpos{sizeof...(Args)};
+	::std::size_t endpos{sizeof...(Args)};
+	template for (constexpr auto i :
+				  ::fast_io::details::index_array_range&lt;0, sizeof...(Args)&gt;)
+	{
+		using ArgsIType = ::std::remove_cvref_t&lt;Args...[i]&gt;;
+		if constexpr (::fast_io::reserve_printable&lt;char_type, ArgsIType&gt; ||
+					  ::fast_io::dynamic_reserve_printable&lt;char_type, ArgsIType&gt; ||
+					  ::fast_io::scatter_printable&lt;char_type, ArgsIType&gt; ||
+					  ::fast_io::context_printable&lt;char_type, ArgsIType&gt; ||
+					  ::fast_io::printable&lt;char_type, ArgsIType&gt;)
+		{
+			startpos = i;
+			break;
+		}
+	}
+	// ...
+}
+</code></pre>
+      <p>
+        三件事同时发生，全在编译期。<code>first_print_define_index_range</code> 是
+        <code>consteval</code>，所以它在编译时求值、不留代码。<code>template for</code>
+        按实参位置展开。<code>Args...[i]</code> 给出每个位置的类型。<code>break</code>
+        停止展开，于是答案就是“第一个能直接打印的实参位置” —— 这正是
+        <code>print</code> 用来决定如何把直接写与缓冲写交织起来的那个事实。
+      </p>
+      <p>
+        对用户来说的结论是：编译不了展开语句的编译器，根本编译不了 fast_io。这是库真正无法缺少的
+        两个 C++26 特性之一（另一个是赫布异常）。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 老写法：<code>index_sequence</code></h2>
+
+      <p>
+        如果必须支持没有展开语句的工具链，惯用法是
+        <code>::std::index_sequence</code>：一个把 <code>0, 1, ..., N-1</code>
+        作为模板实参携带的类型，展开成一个下标包，再对这个包折叠：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename... Ts, ::std::size_t... I&gt;
+inline void print_indexed(::std::index_sequence&lt;I...&gt;, ::std::tuple&lt;Ts...&gt; const &amp;t) throws
+{
+	(::fast_io::io::println(I, ": ", ::std::get&lt;I&gt;(t)), ...);
+}
+
+template &lt;typename... Ts&gt;
+inline void print_indexed(::std::tuple&lt;Ts...&gt; const &amp;t) throws
+{
+	print_indexed(::std::make_index_sequence&lt;sizeof...(Ts)&gt;{}, t);
+}
+</code></pre>
+      <p>
+        诀窍是 <code>I...</code> 与 <code>Ts...</code> 同步展开：
+        <code>::std::get&lt;I&gt;(t)</code> 里的 <code>I</code> 与 <code>t</code> 同时展开，
+        一次折叠就得到 <code>::std::get&lt;0&gt;</code>、<code>::std::get&lt;1&gt;</code>、
+        <code>::std::get&lt;2&gt;</code>。它确实能用，代价是每次调用多一个函数。
+      </p>
+      <p>
+        学它是为了读懂老代码，不是为了写新代码。<code>template for</code> 更短、少一层实例化，
+        而且它说的就是它做的。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;string_view&gt;
+#include &lt;tuple&gt;
+#include &lt;utility&gt;
+#include &lt;ranges&gt;
+
+template &lt;typename... Ts&gt;
+inline void print_tuple(::std::tuple&lt;Ts...&gt; const &amp;t) throws
+{
+	template for (auto const &amp;e : t)
+	{
+		::fast_io::io::println(e);
+	}
+}
+
+inline void print_squares() throws
+{
+	template for (constexpr ::std::size_t i : ::std::views::iota(::std::size_t{}, ::std::size_t{4}))
+	{
+		::fast_io::io::println(i, " squared is ", i * i);
+	}
+}
+
+template &lt;typename... Ts&gt;
+[[nodiscard]] inline auto second(Ts... args) noexcept
+{
+	static_assert(sizeof...(Ts) &gt;= 2, "need at least two arguments");
+	return args...[1];
+}
+
+template &lt;typename... Ts, ::std::size_t... I&gt;
+inline void print_indexed(::std::index_sequence&lt;I...&gt;, ::std::tuple&lt;Ts...&gt; const &amp;t) throws
+{
+	(::fast_io::io::println(I, ": ", ::std::get&lt;I&gt;(t)), ...);
+}
+
+template &lt;typename... Ts&gt;
+inline void print_indexed(::std::tuple&lt;Ts...&gt; const &amp;t) throws
+{
+	print_indexed(::std::make_index_sequence&lt;sizeof...(Ts)&gt;{}, t);
+}
+
+int main()
+{
+	try
+	{
+		print_tuple(::std::tuple&lt;int, ::std::string_view, ::std::int_least64_t&gt;{7, "seven", 7});
+		print_squares();
+		::fast_io::io::println(second(10u, 20u, 30u));
+		print_indexed(::std::tuple&lt;int, ::std::string_view, ::std::int_least64_t&gt;{7, "seven", 7});
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+7
+seven
+7
+0 squared is 0
+1 squared is 1
+2 squared is 4
+3 squared is 9
+20
+0: 7
+1: seven
+2: 7
+</code></pre>
+
+    </section>
+    <section>
+      <h2>7. 经验法则</h2>
+
+      <ul>
+        <li>异质序列上，<code>template for</code> 取代递归；只要函数体对每个元素相同，就优先用它。</li>
+        <li>需要把循环变量当模板实参或包下标时，声明为 <code>constexpr</code>；否则用普通 <code>auto</code>。</li>
+        <li>展开语句在源码里是一个循环，在二进制里是 N 次实例化：二十个元素配五十行函数体
+          就是一千行机器码。让函数体保持短小
+          （<a href="/zhcn/docs/15.genericprogramming/08.bloat/">第15.8章</a>）。</li>
+        <li>用包下标（<code>args...[i]</code>）代替
+          <code>::std::get&lt;I&gt;(::std::tuple{args...})</code>；前者不构造 tuple。</li>
+        <li>为读老代码而了解 <code>index_sequence</code>，但不要教给新代码。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/15.genericprogramming/05.variadic/" class="prev-button">&larr; 第15.5章 变参模板</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/15.genericprogramming/07.ifconstexpr/" class="next-button">第15.7章 <code>if constexpr</code> &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

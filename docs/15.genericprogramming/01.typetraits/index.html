@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch15.1: Type Traits: What the Compiler Knows About a Type - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch15.1: Type Traits: What the Compiler Knows About a Type</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/15.genericprogramming/01.typetraits/">中文（简体）</a></p>
+    <section>
+      <h2>1. Facts About Types, As Values</h2>
+
+      <p>
+        <a href="/docs/02.basics/07.sizeof/">Ch2.7</a> used <code>sizeof(T)</code>, a
+        compile-time number describing a type. <code>&lt;type_traits&gt;</code> is the rest of
+        that idea: a library of compile-time questions and compile-time transformations, all
+        answered without running anything.
+      </p>
+      <p>
+        Every trait comes in one of two shapes:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Shape</th>
+            <th>Example</th>
+            <th>You get</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>a boolean constant</td>
+            <td><code>::std::is_integral_v&lt;int&gt;</code></td>
+            <td><code>true</code>, usable in <code>static_assert</code>,
+              <code>if constexpr</code>, or a concept</td>
+          </tr>
+          <tr>
+            <td>a type</td>
+            <td><code>::std::remove_cvref_t&lt;int const &amp;&gt;</code></td>
+            <td><code>int</code>, usable as a template argument or a variable type</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The <code>_v</code> suffix means &ldquo;the value&rdquo; and <code>_t</code> means
+        &ldquo;the type&rdquo;. Without the suffix you get an old-style helper struct
+        (<code>::std::is_integral&lt;int&gt;::value</code>), which is only worth knowing so
+        you can read pre-C++17 code.
+      </p>
+      <p>
+        The chapter's subject starts here because a template cannot decide anything until it
+        knows what the type allows. Traits and concepts are the two ways of asking, and
+        <a href="/docs/15.genericprogramming/02.concepts/">Ch15.2</a> needs this page's
+        vocabulary to talk about requirements.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. The Traits You Will Actually Use</h2>
+
+      <p>
+        There are over a hundred traits in the standard; about ten carry most of the weight.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Trait</th>
+            <th>Question</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>is_integral_v&lt;T&gt;</code>, <code>is_floating_point_v&lt;T&gt;</code>,
+              <code>is_pointer_v&lt;T&gt;</code></td>
+            <td>is it this kind of type?</td>
+          </tr>
+          <tr>
+            <td><code>is_same_v&lt;A, B&gt;</code></td>
+            <td>are these the same type, exactly (no conversions)?</td>
+          </tr>
+          <tr>
+            <td><code>is_trivially_copyable_v&lt;T&gt;</code></td>
+            <td>can it be copied byte by byte, like an <code>int</code>?</td>
+          </tr>
+          <tr>
+            <td><code>is_nothrow_copy_constructible_v&lt;T&gt;</code>,
+              <code>is_nothrow_move_constructible_v&lt;T&gt;</code></td>
+            <td>does copying/moving promise not to fail?</td>
+          </tr>
+          <tr>
+            <td><code>is_nothrow_destructible_v&lt;T&gt;</code></td>
+            <td>does the destructor promise not to fail? (It must &mdash;
+              <a href="/docs/14.fiverules/02.destructor/">Ch14.2</a>.)</td>
+          </tr>
+          <tr>
+            <td><code>is_nothrow_swappable_v&lt;T&gt;</code></td>
+            <td>can <code>swap</code> be used in a <code>noexcept</code> context?
+              (<a href="/docs/14.fiverules/07.swap/">Ch14.7</a>)</td>
+          </tr>
+          <tr>
+            <td><code>is_copy_constructible_v&lt;T&gt;</code>,
+              <code>is_move_assignable_v&lt;T&gt;</code></td>
+            <td>does that operation exist at all?</td>
+          </tr>
+          <tr>
+            <td><code>is_base_of_v&lt;B, D&gt;</code>, <code>is_convertible_v&lt;A, B&gt;</code></td>
+            <td>inheritance and conversion questions
+              (<a href="/docs/17.inheritance/">Chapter 17</a>)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Notice what the <code>nothrow</code> rows have in common: they are exactly the facts
+        <a href="/docs/14.fiverules/">Chapter 14</a> needed. <code>my_posix_file</code>'s move
+        constructor is <code>noexcept</code> not because the author felt like it but because
+        <code>::std::is_nothrow_move_constructible_v</code> is what lets
+        <code>::fast_io::vector&lt;my_posix_file&gt;</code> grow without copying.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. The Traits You Will Actually Apply</h2>
+
+      <p>
+        The transformations produce a type, and they are how generic code spells &ldquo;the
+        same type, cleaned up&rdquo;:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+using stored_t = ::std::remove_cvref_t&lt;T&gt;;
+
+template &lt;typename T&gt;
+using widened_t = ::std::conditional_t&lt;(sizeof(T) &lt; 4), ::std::int_least32_t, T&gt;;
+</code></pre>
+      <ul>
+        <li><code>::std::remove_cvref_t&lt;T&gt;</code> strips <code>const</code>,
+          <code>volatile</code> and <code>&amp;</code>: <code>int const&amp;</code> becomes
+          <code>int</code>. This is the trait you want almost every time a template stores a
+          type, because <code>vector&lt;T const &amp;&gt;</code> is not a container of
+          references, it is an error.</li>
+        <li><code>::std::decay_t&lt;T&gt;</code> does the same plus array-to-pointer and
+          function-to-pointer. Use it when mimicking by-value parameter passing
+          (<a href="/docs/15.genericprogramming/04.deduction/">Ch15.4</a>); use
+          <code>remove_cvref_t</code> everywhere else, because <code>decay_t</code> throws
+          away information you usually want.</li>
+        <li><code>::std::conditional_t&lt;cond, A, B&gt;</code> is <code>if</code> for types.</li>
+        <li><code>::std::common_type_t&lt;A, B&gt;</code> is the type both convert to, which
+          is what a binary operation should return.</li>
+        <li><code>::std::underlying_type_t&lt;E&gt;</code> is the integer behind an
+          <code>enum class</code> (<a href="/docs/02.basics/16.enumclass/">Ch2.16</a>).</li>
+      </ul>
+      <p>
+        A warning that pays for itself: the <code>_t</code> form of
+        <code>::std::conditional</code> is <em>lazy</em> about the condition, not about its
+        arguments. If <code>A</code> is an invalid type, <code>conditional_t</code> still has
+        to name it. When both branches cannot be named, use <code>if constexpr</code> inside a
+        function instead (<a href="/docs/15.genericprogramming/07.ifconstexpr/">Ch15.7</a>).
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Traits Under Concepts</h2>
+
+      <p>
+        A concept is a <code>constexpr bool</code> with a name, so traits go straight into
+        one:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+concept cheap_to_copy = ::std::is_trivially_copyable_v&lt;T&gt; &amp;&amp;
+						::std::is_nothrow_copy_constructible_v&lt;T&gt;;
+</code></pre>
+      <p>
+        Two <code>struct</code>s tell the two halves apart. <code>silent</code> has
+        <code>noexcept</code> copy operations; <code>loud</code>'s copy constructor is
+        <code>throws</code>. Both are copyable, only one is <code>cheap_to_copy</code>, and
+        the compiler knows it before either is instantiated anywhere:
+      </p>
+      <pre><code class="language-cpp">
+struct silent
+{
+	silent() noexcept = default;
+	silent(silent const &amp;) noexcept = default;
+	~silent() noexcept = default;
+};
+
+struct loud
+{
+	loud() throws {}
+	loud(loud const &amp;other) throws {}
+};
+</code></pre>
+      <p>
+        This is the standard library's own technique. <code>::std::vector</code> decides
+        between &ldquo;reallocate by moving&rdquo; and &ldquo;reallocate by copying&rdquo; by
+        asking exactly these traits; fast_io's allocators do the same thing with their
+        <code>throws_on_allocation_failure</code> flag, which is why
+        <code>::fast_io::vector&lt;T&gt;</code> is <code>throws</code> or not depending on the
+        allocator rather than on the element type.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. <code>enable_if</code>: Recognise It, Do Not Write It</h2>
+
+      <p>
+        Before concepts, a template had to be switched off by making deduction fail, which
+        produced this:
+      </p>
+      <pre><code class="language-cpp">
+// pre-C++20, do not write this any more
+template &lt;typename T, typename = ::std::enable_if_t&lt;::std::is_integral_v&lt;T&gt;&gt;&gt;
+inline void only_integers(T) noexcept;
+</code></pre>
+      <p>
+        It works, and it is unreadable: the constraint hides inside a defaulted template
+        argument, the error message names <code>enable_if</code> instead of the requirement,
+        and two such overloads do not order themselves by how constrained they are. You will
+        meet it in code written before 2020 and in code that has to compile with C++17. Read
+        it as &ldquo;requires&rdquo; and move on; write <code>requires</code> instead
+        (<a href="/docs/15.genericprogramming/02.concepts/">Ch15.2</a>).
+      </p>
+
+    </section>
+    <section>
+      <h2>6. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;stdfloat&gt;
+#include &lt;type_traits&gt;
+
+struct silent
+{
+	silent() noexcept = default;
+	silent(silent const &amp;) noexcept = default;
+	~silent() noexcept = default;
+};
+
+struct loud
+{
+	loud() throws {}
+	loud(loud const &amp;other) throws {}
+};
+
+template &lt;typename T&gt;
+using stored_t = ::std::remove_cvref_t&lt;T&gt;;
+
+template &lt;typename T&gt;
+using widened_t = ::std::conditional_t&lt;(sizeof(T) &lt; 4), ::std::int_least32_t, T&gt;;
+
+template &lt;typename T&gt;
+concept cheap_to_copy = ::std::is_trivially_copyable_v&lt;T&gt; &amp;&amp;
+						::std::is_nothrow_copy_constructible_v&lt;T&gt;;
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println("is_integral_v&lt;int&gt;=", ::std::is_integral_v&lt;int&gt;);
+		::fast_io::io::println("is_same_v&lt;stored_t&lt;int const &amp;&gt;, int&gt;=",
+							   ::std::is_same_v&lt;stored_t&lt;int const &amp;&gt;, int&gt;);
+		::fast_io::io::println("sizeof(widened_t&lt;char&gt;)=", sizeof(widened_t&lt;char&gt;));
+		::fast_io::io::println("cheap_to_copy&lt;silent&gt;=", cheap_to_copy&lt;silent&gt;);
+		::fast_io::io::println("cheap_to_copy&lt;loud&gt;=", cheap_to_copy&lt;loud&gt;);
+		::fast_io::io::println("is_nothrow_copy_constructible_v&lt;loud&gt;=",
+							   ::std::is_nothrow_copy_constructible_v&lt;loud&gt;);
+		::fast_io::io::println("common_type_t&lt;int,float64_t&gt; is float64_t: ",
+							   ::std::is_same_v&lt;::std::common_type_t&lt;int, ::std::float64_t&gt;,
+												 ::std::float64_t&gt;);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+is_integral_v&lt;int&gt;=1
+is_same_v&lt;stored_t&lt;int const &amp;&gt;, int&gt;=1
+sizeof(widened_t&lt;char&gt;)=4
+cheap_to_copy&lt;silent&gt;=1
+cheap_to_copy&lt;loud&gt;=0
+is_nothrow_copy_constructible_v&lt;loud&gt;=0
+common_type_t&lt;int,float64_t&gt; is float64_t: 1
+</code></pre>
+
+    </section>
+    <section>
+      <h2>7. Rules of Thumb</h2>
+
+      <ul>
+        <li>Traits answer questions; concepts name the answers; <code>if constexpr</code> acts
+          on them. Do not confuse the three.</li>
+        <li>Use <code>remove_cvref_t</code> by default, <code>decay_t</code> only when
+          imitating by-value deduction.</li>
+        <li>Prefer the <code>_v</code>/<code>_t</code> forms; the <code>::value</code>/<code>::type</code>
+          forms are for reading old code.</li>
+        <li>Never test a trait that the algorithm does not use: it rejects types for no
+          reason and it costs compile time.</li>
+        <li>Write <code>requires</code>, not <code>enable_if_t</code>. If you must target
+          C++17, isolate every <code>enable_if</code> in one header with a comment saying so.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/15.genericprogramming/" class="prev-button">&larr; Ch15: Generic Programming</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/15.genericprogramming/02.concepts/" class="next-button">Ch15.2: Concepts &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

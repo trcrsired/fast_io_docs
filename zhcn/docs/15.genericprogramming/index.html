@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第15章 泛型编程：概念、模板与类型擦除 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第15章 泛型编程：概念、模板与类型擦除</h1>
+    <p class="lang-switch"><a href="/docs/15.genericprogramming/">English</a></p>
+    <section>
+      <h2>1. 为什么要有这一章</h2>
+
+      <p>
+        <a href="/zhcn/docs/04.dsal/03.vector/">第4章</a>用
+        <code>::fast_io::vector&lt;int&gt;</code> 解释了“什么是 vector”，却从没说过那个
+        <code>&lt;int&gt;</code> 是从哪儿来的。<a href="/zhcn/docs/06.function/06.overload/">第6.6章</a>
+        演示了重载解析如何在 <code>add(int, int)</code> 与 <code>add(double, double)</code>
+        之间选择，也停在了重载失效的地方：函数体一模一样，只有类型不同。
+      </p>
+      <p>
+        那里正是<strong>泛型编程</strong>的起点。它的想法不是“把类型填进空里”，而是
+        <em>把算法写一遍、把它的要求写出来、让编译器去检查这些要求</em>。做这件事的工具有四个，
+        也正是本章的四条主线：
+      </p>
+      <ul>
+        <li><strong>类型特征（traits）</strong> —— 关于类型的编译期事实
+          （<a href="/zhcn/docs/15.genericprogramming/01.typetraits/">第15.1章</a>）；</li>
+        <li><strong>概念（concepts）</strong> —— 编译器在实例化之前就检查的具名要求
+          （<a href="/zhcn/docs/15.genericprogramming/02.concepts/">第15.2章</a>）；</li>
+        <li><strong>模板</strong> —— 被生成出来的东西，以及实例化的一切细节：值作为参数、推导、
+          参数包、展开语句（<a href="/zhcn/docs/15.genericprogramming/03.nttp/">第15.3章</a>至
+          <a href="/zhcn/docs/15.genericprogramming/07.ifconstexpr/">第15.7章</a>）；</li>
+        <li><strong>类型擦除</strong> —— 当选择真的必须发生在运行期时该怎么做
+          （<a href="/zhcn/docs/15.genericprogramming/09.typeerasure/">第15.9章</a>）。</li>
+      </ul>
+      <p>
+        本章只有一个敌人：<strong>代码膨胀</strong>。每一个不同的模板实参都会把模板碰到的一切
+        原样生成一份；把同一套逻辑实例化一千次的程序，编译很慢、二进制很大。所以本章在讲模板的
+        同时，也讲怎么把它压小：用概念把它收紧，用去模板化把它缩小，用类型擦除把它藏到一个类型后面。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 每个想法的一句话总结</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>想法</th>
+            <th>一句话</th>
+            <th>章节</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>类型特征</td>
+            <td>关于类型的编译期事实，形式是一个 <code>bool</code> 或另一个类型。</td>
+            <td><a href="/zhcn/docs/15.genericprogramming/01.typetraits/">第15.1章</a></td>
+          </tr>
+          <tr>
+            <td>概念</td>
+            <td>编译器在实例化之前检查的一份具名要求清单。</td>
+            <td><a href="/zhcn/docs/15.genericprogramming/02.concepts/">第15.2章</a></td>
+          </tr>
+          <tr>
+            <td>非类型参数</td>
+            <td>一个“是值而不是类型”的模板实参。</td>
+            <td><a href="/zhcn/docs/15.genericprogramming/03.nttp/">第15.3章</a></td>
+          </tr>
+          <tr>
+            <td>推导</td>
+            <td>编译器替你写 <code>&lt;...&gt;</code>。</td>
+            <td><a href="/zhcn/docs/15.genericprogramming/04.deduction/">第15.4章</a></td>
+          </tr>
+          <tr>
+            <td>参数包</td>
+            <td>零个或多个模板实参，由折叠表达式或 <code>template for</code> 消费。</td>
+            <td><a href="/zhcn/docs/15.genericprogramming/05.variadic/">第15.5章</a></td>
+          </tr>
+          <tr>
+            <td><code>template for</code></td>
+            <td>编译器在编译期展开的循环，每个元素一次迭代。</td>
+            <td><a href="/zhcn/docs/15.genericprogramming/06.templatefor/">第15.6章</a></td>
+          </tr>
+          <tr>
+            <td><code>if constexpr</code></td>
+            <td>一个把未选中分支丢弃掉、而不编译它的 <code>if</code>。</td>
+            <td><a href="/zhcn/docs/15.genericprogramming/07.ifconstexpr/">第15.7章</a></td>
+          </tr>
+          <tr>
+            <td>去模板化</td>
+            <td>把不碰模板实参的代码移出模板。</td>
+            <td><a href="/zhcn/docs/15.genericprogramming/08.bloat/">第15.8章</a></td>
+          </tr>
+          <tr>
+            <td>类型擦除</td>
+            <td>一个非模板类型装下许多类型的值，而且不用继承。</td>
+            <td><a href="/zhcn/docs/15.genericprogramming/09.typeerasure/">第15.9章</a></td>
+          </tr>
+          <tr>
+            <td><code>print</code>/<code>scan</code> 支持</td>
+            <td>一个标签变量加一个概念：fast_io 的泛型打印如何找到你的类型。</td>
+            <td><a href="/zhcn/docs/15.genericprogramming/10.printscan/">第15.10章</a></td>
+          </tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>3. 贯穿全章的示例</h2>
+
+      <p>
+        有一个小类型会跟着我们走完本章：三路 8 位通道、外加一个名字的颜色。
+      </p>
+      <pre><code class="language-cpp">
+struct rgb
+{
+	::std::uint_least8_t r{}, g{}, b{};
+
+	[[nodiscard]] ::std::string_view name() const noexcept
+	{
+		return "rgb";
+	}
+};
+</code></pre>
+      <p>
+        它小到可以直接印在页面中间，有成员函数可以用来约束，有字段可以比较，还有一个显然的文本形式
+        <code>(7,128,255)</code> 可以扫回来。本章最后一页就教 fast_io 打印并扫描这个类型。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 本章约定</h2>
+
+      <ul>
+        <li>
+          每个函数要么 <code>noexcept</code>，要么 <code>throws</code>，绝不留空
+          （<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）。
+          对模板来说，<code>noexcept</code> 是对<em>所有</em>实例化的承诺，所以只有任何实例化都不会失败时才写。
+          当契约取决于实参时，写成条件形式 <code>throws(!noexcept(...))</code>
+          （<a href="/zhcn/docs/15.genericprogramming/07.ifconstexpr/">第15.7章</a>）。
+        </li>
+        <li>
+          失败用赫布异常：<code>throw throws ...</code> 与
+          <code>catch throws (::std::error e)</code>
+          （<a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>）。
+          函数指针<em>类型</em>同样带错误契约，所以
+          <code>void (*)(void *) noexcept</code> 和 <code>void (*)(void *) throws</code> 是不同类型。
+        </li>
+        <li>
+          整数用 <code>::std::int_least64_t</code>、<code>::std::uint_least8_t</code>、
+          <code>::std::size_t</code>；浮点用 <code>::std::float64_t</code>。
+        </li>
+        <li>
+          本页所有完整程序都用 <code>-std=c++26 -fherbceptions -lherbceptions</code>
+          编译并运行过；显示的输出就是它真正打印出来的内容。实例化个数用
+          <code>nm -C</code> 在链接后的可执行文件上读出。
+        </li>
+        <li>
+          比较器一律用具名函数对象（<code>::std::ranges::greater</code>），不用 lambda；
+          除非那一节谈的正是 lambda（<a href="/zhcn/docs/15.genericprogramming/08.bloat/">第15.8章</a>）。
+        </li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>5. 你应该已经会的东西</h2>
+
+      <ul>
+        <li>重载（<a href="/zhcn/docs/06.function/06.overload/">第6.6章</a>）—— 模板就是“让编译器去写那几份拷贝”的重载。</li>
+        <li><code>constexpr</code> 与 <code>consteval</code>
+          （<a href="/zhcn/docs/07.compiletimeprogramming/">第7章</a>）—— 模板实参通常必须是常量表达式。</li>
+        <li>lambda（<a href="/zhcn/docs/06.function/13.lambda/">第6.13章</a>）—— 每个 lambda 都是一个独立类型，这正是第15.8章存在的理由。</li>
+        <li>五法则（<a href="/zhcn/docs/14.fiverules/">第14章</a>）—— 第15.1章的特征就是那一章隐式用到的特征，第15.9章还要再用一次拷贝、移动、析构。</li>
+        <li><code>::std::vector</code> 的接口（<a href="/zhcn/docs/04.dsal/03.vector/">第4.3章</a>）—— 第15.8章要拆开 fast_io 的
+          <code>vector</code>。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>6. 目录</h2>
+
+      <ul>
+        <li><a href="/zhcn/docs/15.genericprogramming/01.typetraits/">第15.1章 类型特征：编译器知道哪些关于类型的事</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/02.concepts/">第15.2章 概念：编译器替你检查的要求</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/03.nttp/">第15.3章 非类型模板参数：枚举、结构化类型、变量模板</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/04.deduction/">第15.4章 模板实参推导与 CTAD</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/05.variadic/">第15.5章 变参模板、折叠表达式、完美转发</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/06.templatefor/">第15.6章 <code>template for</code>：展开语句与模板下标</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/07.ifconstexpr/">第15.7章 <code>if constexpr</code> 与条件错误契约</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/08.bloat/">第15.8章 模板膨胀、lambda，以及 fast_io 如何对 <code>vector</code> 去模板化</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/09.typeerasure/">第15.9章 类型擦除：不用继承的 <code>shape</code></a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/10.printscan/">第15.10章 fast_io 如何找到你的打印与扫描代码</a></li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/14.fiverules/11.myposixfile/" class="prev-button">&larr; 第14.11章 整个类，以及 fast_io 的 posix_file</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/15.genericprogramming/01.typetraits/" class="next-button">第15.1章 类型特征 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

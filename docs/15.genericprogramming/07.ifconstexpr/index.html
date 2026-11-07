@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch15.7: if constexpr and Conditional Error Contracts - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch15.7: <code>if constexpr</code> and Conditional Error Contracts</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/15.genericprogramming/07.ifconstexpr/">中文（简体）</a></p>
+    <section>
+      <h2>1. The Branch That Is Not Compiled</h2>
+
+      <p>
+        <a href="/docs/07.compiletimeprogramming/03.ifconstexpr/">Ch7.3</a> introduced
+        <code>if constexpr</code> as a compile-time <code>if</code>. Inside a template it does
+        something extra: the branch that is not taken is <strong>discarded</strong>, not
+        compiled, so it may be illegal for the current template arguments.
+      </p>
+      <p>
+        That is the whole difference from an ordinary <code>if</code>. Both branches of a
+        runtime <code>if</code> must compile for every type; with <code>if constexpr</code>
+        only the taken branch has to. It is how a generic function says &ldquo;if the type is
+        an integer do this, otherwise do that&rdquo; without writing one function per
+        category:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+[[nodiscard]] inline constexpr ::std::string_view describe() noexcept
+{
+	if constexpr (::std::integral&lt;T&gt;)
+	{
+		return "integral";
+	}
+	else if constexpr (::std::floating_point&lt;T&gt;)
+	{
+		return "floating point";
+	}
+	else
+	{
+		return "something else";
+	}
+}
+</code></pre>
+      <p>
+        <code>describe&lt;no_size&gt;()</code> returns <code>"something else"</code> and the
+        first two branches do not exist in that instantiation &mdash; they are not compiled,
+        not emitted, and not reachable.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. <code>requires</code> Inside <code>if constexpr</code></h2>
+
+      <p>
+        The condition can be an ad-hoc <code>requires</code>-expression
+        (<a href="/docs/15.genericprogramming/02.concepts/">Ch15.2</a>), which asks whether an
+        expression is valid for this type. That is how generic code discovers an optional
+        member function without constraining the caller:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+[[nodiscard]] inline constexpr ::std::size_t element_count() noexcept
+{
+	if constexpr (requires(T const &amp;t) { t.size(); })
+	{
+		return 8u;
+	}
+	else
+	{
+		return 1u;
+	}
+}
+</code></pre>
+      <p>
+        <code>::std::string_view</code> has <code>size()</code> and takes the first branch;
+        <code>no_size</code> does not and takes the second. Nothing is written twice, and a
+        type that gains a <code>size()</code> tomorrow starts taking the first branch with no
+        edit to this function.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. A Contract That Depends on the Instantiation</h2>
+
+      <p>
+        <a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a> said every function is
+        <code>noexcept</code> or <code>throws</code>. For a template that is a problem: an
+        operation that cannot fail for <code>int</code> may fail for a user type. The answer
+        is a <strong>conditional exception specification</strong>:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+inline void check_nonzero(T value) throws(::std::is_integral_v&lt;T&gt;)
+{
+	if constexpr (::std::is_integral_v&lt;T&gt;)
+	{
+		if (value == 0) [[unlikely]]
+		{
+			throw throws ::std::errc::invalid_argument;
+		}
+	}
+	else
+	{
+		static_cast&lt;void&gt;(value);
+	}
+}
+</code></pre>
+      <p>
+        <code>throws(condition)</code> means: when the condition is <code>true</code> the
+        function may throw herbceptions; when it is <code>false</code> the function is
+        <code>noexcept</code> and the compiler enforces it. The two instantiations are
+        genuinely different types of function:
+      </p>
+      <pre><code class="language-cpp">
+noexcept(check_nonzero&lt;::std::int_least32_t&gt;(7))   // false
+noexcept(check_nonzero&lt;::std::float64_t&gt;(1.0))     // true
+</code></pre>
+      <p>
+        Why bother? Because <code>noexcept</code> is what makes an operation usable inside
+        another <code>noexcept</code> one, and because
+        <code>::std::is_nothrow_move_constructible_v</code> and friends
+        (<a href="/docs/15.genericprogramming/01.typetraits/">Ch15.1</a>) are how containers
+        choose between moving and copying. A template that is unconditionally
+        <code>throws</code> is a template that forces every container holding it to copy on
+        growth.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Inheriting the Wrapped Call's Contract</h2>
+
+      <p>
+        The commonest conditional specification is not about the type at all; it is about the
+        call being forwarded. <code>noexcept(expression)</code> is an operator that yields
+        <code>true</code> if that expression cannot throw, so a perfect-forwarding wrapper can
+        promise exactly as much as the call it makes:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename output, typename T&gt;
+inline void print_once(output &amp;&amp;out, T const &amp;value) throws(!noexcept(::fast_io::io::print(out, value)))
+{
+	::fast_io::io::print(out, value);
+}
+</code></pre>
+      <p>
+        <code>throws(!noexcept(...))</code> reads backwards but means exactly what it says:
+        &ldquo;may throw unless the wrapped call cannot&rdquo;. Write it as
+        <code>noexcept(noexcept(...))</code> if you prefer &mdash; on a herbceptions
+        toolchain the two spellings agree.
+      </p>
+      <p>
+        This is the same pattern fast_io uses everywhere in its own headers, hidden behind
+        macros so the library builds against both exception models:
+      </p>
+      <pre><code class="language-cpp">
+// fast_io_dsal/impl/misc/push_macros.h, herbceptions branch
+#define FAST_IO_HERBCEPTIONS_THROWS_IF(...) throws(__VA_ARGS__)
+#define FAST_IO_HERBCEPTIONS_THROWS_IF_NOT_NOEXCEPT(...) throws(!noexcept(__VA_ARGS__))
+
+// legacy branch
+#define FAST_IO_HERBCEPTIONS_THROWS_IF(...) noexcept(!(__VA_ARGS__))
+#define FAST_IO_HERBCEPTIONS_THROWS_IF_NOT_NOEXCEPT(...) noexcept(noexcept(__VA_ARGS__))
+</code></pre>
+      <p>
+        <code>::fast_io::native_global_allocator</code> uses
+        <code>FAST_IO_HERBCEPTIONS_THROWS_IF(allocator::throws_on_allocation_failure)</code>
+        on every allocate function, which is why
+        <code>::fast_io::vector&lt;T&gt;</code> is <code>throws</code> while a
+        <code>vector</code> over a no-fail allocator is <code>noexcept</code>
+        (<a href="/docs/15.genericprogramming/08.bloat/">Ch15.8</a> shows that code).
+      </p>
+
+    </section>
+    <section>
+      <h2>5. What to Put in the Branch</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Condition</th>
+            <th>Use it for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::std::integral&lt;T&gt;</code>, <code>::std::floating_point&lt;T&gt;</code></td>
+            <td>type categories, one algorithm per category</td>
+          </tr>
+          <tr>
+            <td><code>::std::is_pointer_v&lt;T&gt;</code>, <code>sizeof(T) == N</code></td>
+            <td>layout decisions, choosing an intrinsic</td>
+          </tr>
+          <tr>
+            <td><code>requires { t.size(); }</code></td>
+            <td>optional members, capability detection</td>
+          </tr>
+          <tr>
+            <td><code>::std::is_constant_evaluated()</code></td>
+            <td>a different algorithm at compile time
+              (<a href="/docs/07.compiletimeprogramming/01.constexprfunction/">Ch7.1</a>)</td>
+          </tr>
+          <tr>
+            <td><code>!noexcept(expr)</code></td>
+            <td>an error contract that mirrors a call</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Two rules keep <code>if constexpr</code> from becoming the new
+        <code>#ifdef</code> spaghetti. First, an unreachable branch is dead code: it is not
+        compiled, so a typo in it is not found until someone instantiates with the matching
+        type. Second, a chain longer than three branches is a design smell &mdash; either the
+        categories should be concepts with overloads (which order themselves by subsumption),
+        or the type should provide the operation itself.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;string_view&gt;
+#include &lt;stdfloat&gt;
+#include &lt;type_traits&gt;
+
+struct no_size
+{
+	int value{};
+};
+
+template &lt;typename T&gt;
+[[nodiscard]] inline constexpr ::std::string_view describe() noexcept
+{
+	if constexpr (::std::integral&lt;T&gt;)
+	{
+		return "integral";
+	}
+	else if constexpr (::std::floating_point&lt;T&gt;)
+	{
+		return "floating point";
+	}
+	else
+	{
+		return "something else";
+	}
+}
+
+template &lt;typename T&gt;
+[[nodiscard]] inline constexpr ::std::size_t element_count() noexcept
+{
+	if constexpr (requires(T const &amp;t) { t.size(); })
+	{
+		return 8u;
+	}
+	else
+	{
+		return 1u;
+	}
+}
+
+// the error contract depends on the instantiation
+template &lt;typename T&gt;
+inline void check_nonzero(T value) throws(::std::is_integral_v&lt;T&gt;)
+{
+	if constexpr (::std::is_integral_v&lt;T&gt;)
+	{
+		if (value == 0) [[unlikely]]
+		{
+			throw throws ::std::errc::invalid_argument;
+		}
+	}
+	else
+	{
+		static_cast&lt;void&gt;(value);
+	}
+}
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println(describe&lt;int&gt;());
+		::fast_io::io::println(describe&lt;::std::float64_t&gt;());
+		::fast_io::io::println(describe&lt;no_size&gt;());
+		::fast_io::io::println("element_count&lt;no_size&gt;=", element_count&lt;no_size&gt;());
+		::fast_io::io::println("element_count&lt;string_view&gt;=", element_count&lt;::std::string_view&gt;());
+		::fast_io::io::println("noexcept(check_nonzero&lt;int&gt;)=", noexcept(check_nonzero&lt;::std::int_least32_t&gt;(1)));
+		::fast_io::io::println("noexcept(check_nonzero&lt;float64_t&gt;)=", noexcept(check_nonzero&lt;::std::float64_t&gt;(1.0)));
+
+		check_nonzero&lt;::std::int_least32_t&gt;(7);
+		::fast_io::io::println("check_nonzero&lt;int&gt;(7) returned");
+		try
+		{
+			check_nonzero&lt;::std::int_least32_t&gt;(0);
+		}
+		catch throws (::std::error)
+		{
+			::fast_io::io::println("zero rejected");
+		}
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+integral
+floating point
+something else
+element_count&lt;no_size&gt;=1
+element_count&lt;string_view&gt;=8
+noexcept(check_nonzero&lt;int&gt;)=0
+noexcept(check_nonzero&lt;float64_t&gt;)=1
+check_nonzero&lt;int&gt;(7) returned
+zero rejected
+</code></pre>
+      <p>
+        The handler received <code>[posix](22)Invalid argument</code>, the standard's text for
+        <code>::std::errc::invalid_argument</code>; the program prints only its own message so
+        that the transcript above stays one stream.
+      </p>
+
+    </section>
+    <section>
+      <h2>7. Rules of Thumb</h2>
+
+      <ul>
+        <li>Use <code>if constexpr</code> when the branch depends on the type and the
+          untaken branch would not compile; use an ordinary <code>if</code> when it depends on
+          a value.</li>
+        <li>Never write <code>if constexpr (true)</code> as an
+          <code>#ifdef</code> substitute; it makes dead code look alive.</li>
+        <li>Express a per-instantiation error contract with
+          <code>throws(condition)</code>, not by splitting the function in two. The
+          <code>throws</code> form documents the condition and lets
+          <code>noexcept(...)</code> answer it.</li>
+        <li>Mirror the wrapped call's contract with <code>throws(!noexcept(...))</code> in
+          forwarding wrappers; do not claim <code>noexcept</code> you cannot prove.</li>
+        <li>Prefer concepts and overloads to a long <code>if constexpr</code> chain: overloads
+          are selected by subsumption and produce better diagnostics
+          (<a href="/docs/15.genericprogramming/02.concepts/">Ch15.2</a>).</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/15.genericprogramming/06.templatefor/" class="prev-button">&larr; Ch15.6: <code>template for</code></a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/15.genericprogramming/08.bloat/" class="next-button">Ch15.8: Template Bloat &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

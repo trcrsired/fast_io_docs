@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch15.8: Template Bloat, Lambdas, and How fast_io Detemplatizes vector - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch15.8: Template Bloat, Lambdas, and How fast_io Detemplatizes <code>vector</code></h1>
+    <p class="lang-switch"><a href="/zhcn/docs/15.genericprogramming/08.bloat/">中文（简体）</a></p>
+    <section>
+      <h2>1. What Bloat Actually Is</h2>
+
+      <p>
+        A template is a machine for producing code. Every distinct argument produces a
+        complete copy of <em>everything inside the template</em> &mdash; not just the parts
+        that mention the argument. If a forty-line function uses <code>T</code> on one line and
+        runs a loop of thirty lines that never mentions it, the thirty lines are compiled
+        again for every <code>T</code>.
+      </p>
+      <p>
+        The bill arrives in three currencies: binary size, instruction-cache pressure, and
+        compile time. It is easy to pay without noticing, because each individual
+        instantiation looks reasonable.
+      </p>
+      <p>
+        There are two ways out, and they are not alternatives &mdash; a well-written library
+        uses both:
+      </p>
+      <ul>
+        <li><strong>Stop instantiating per type.</strong> Each lambda you pass to a template
+          is a new type, so every lambda is a new instantiation
+          (&sect;2, &sect;3).</li>
+        <li><strong>Detemplatize.</strong> Move the part that does not depend on the argument
+          out of the template, so it is compiled once (&sect;4&ndash;&sect;6).</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>2. Counting Instantiations</h2>
+
+      <p>
+        Bloat is measurable, and measuring it takes one command. Write the obvious template,
+        use it with two element types, and count the symbols:
+      </p>
+      <pre><code class="language-cpp">
+namespace naive
+{
+template &lt;typename T&gt;
+[[nodiscard]] inline T *grow(T *old, ::std::size_t oldn, ::std::size_t newn) throws
+{
+	auto const res{::fast_io::native_global_allocator::allocate_aligned_at_least(alignof(T), newn * sizeof(T))};
+	auto *const p{static_cast&lt;T *&gt;(res.ptr)};
+	for (::std::size_t i{}; i != oldn; ++i)
+	{
+		::new (p + i) T(::std::move(old[i]));
+	}
+	::fast_io::native_global_allocator::deallocate_aligned_n(old, alignof(T), oldn * sizeof(T));
+	return p;
+}
+} // namespace naive
+</code></pre>
+      <pre><code class="language-text">
+$ nm -C prog | grep -c 'naive::grow&lt;'
+2
+</code></pre>
+      <p>
+        Two element types, two functions. Nothing in that body is type-specific except
+        <code>sizeof(T)</code>, <code>alignof(T)</code>, and the move constructor &mdash; and
+        the loop around them is duplicated verbatim.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. Every Lambda Is a New Type</h2>
+
+      <p>
+        The most expensive source of instantiations in modern C++ is the lambda, because a
+        lambda's type is not &ldquo;a function&rdquo;; it is a unique class the compiler
+        invents at that exact point in the source. Two lambdas with identical bodies are two
+        different types, so a template taking a comparator is instantiated twice:
+      </p>
+      <pre><code class="language-cpp">
+int data[4]{3, 1, 4, 2};
+my_sort(data, 4, [](int x, int y) noexcept { return x &lt; y; });
+my_sort(data, 4, [](int x, int y) noexcept { return x &gt; y; });
+my_sort(data, 4, ::std::ranges::greater{});
+</code></pre>
+      <pre><code class="language-text">
+$ nm -C prog | grep 'my_sort&lt;' | sed 's/.*\(my_sort&lt;\)/\1/' | sort | uniq -c
+   1 my_sort&lt;main::{lambda(int, int)#1}&gt;(int*, unsigned long, main::{lambda(int, int)#1})
+   1 my_sort&lt;main::{lambda(int, int)#2}&gt;(int*, unsigned long, main::{lambda(int, int)#2})
+   1 my_sort&lt;std::ranges::greater&gt;(int*, unsigned long, std::ranges::greater)
+</code></pre>
+      <p>
+        Three calls, three instantiations of the sort. The demangler shows the difference the
+        eye cannot: <code>#1</code> and <code>#2</code>.
+      </p>
+      <p>
+        The rule that follows is not &ldquo;never use lambdas&rdquo; &mdash; it is
+        <strong>use a named function object when the algorithm is a template and the
+        comparator is not the point</strong>. <code>::std::ranges::greater</code>,
+        <code>::std::ranges::less</code>, <code>::std::plus&lt;&gt;</code>,
+        <code>::std::identity</code> and friends are ordinary types, so every call site that
+        passes <code>::std::ranges::greater</code> shares one instantiation. That is why every
+        comparator in this book is named (<a href="/docs/08.algorithm/01.ranges/">Ch8.1</a>).
+      </p>
+      <p>
+        When the lambda really is the point &mdash; a one-off predicate in one place &mdash;
+        write the lambda. One instantiation is not bloat. A thousand call sites each with its
+        own copy is.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Detemplatization: the Rule</h2>
+
+      <p>
+        fast_io's own contributor guide states the rule in three lines:
+      </p>
+      <blockquote>
+        <p>
+          Template parameters must pay for themselves. Code inside a template that does not
+          touch the template parameter is generated per instantiation &mdash; N template
+          arguments means N copies of identical machine code.
+        </p>
+      </blockquote>
+      <p>
+        Applying it means asking, for every line in a template body: <em>does this line need
+        the type, or does it only need its size?</em> A grow loop needs
+        <code>sizeof(T)</code>, <code>alignof(T)</code> and a move of one element. It does not
+        need <code>T</code>. So the loop can be written once, taking bytes:
+      </p>
+      <pre><code class="language-cpp">
+namespace erased
+{
+struct model
+{
+	::std::byte *begin_ptr{};
+	::std::byte *curr_ptr{};
+	::std::byte *end_ptr{};
+};
+
+namespace detemplate
+{
+template &lt;typename allocator&gt;
+inline void *grow_to_byte_size(model &amp;m, ::std::size_t newbytes, ::std::size_t size, ::std::size_t align) throws
+{
+	auto const oldbytes{static_cast&lt;::std::size_t&gt;(m.curr_ptr - m.begin_ptr)};
+	auto const res{allocator::allocate_aligned_at_least(align, newbytes)};
+	auto *const p{static_cast&lt;::std::byte *&gt;(res.ptr)};
+	(void)::fast_io::freestanding::nonoverlapped_bytes_copy(m.begin_ptr, m.curr_ptr, p);
+	allocator::deallocate_aligned_n(m.begin_ptr, align, oldbytes);
+	m.end_ptr = p + (res.count / size * size);
+	m.curr_ptr = m.begin_ptr = p;
+	return p;
+}
+} // namespace detemplate
+</code></pre>
+      <p>
+        Three details make this work, and they are the whole technique:
+      </p>
+      <ul>
+        <li><strong>The model is element-free.</strong> <code>model</code> is three
+          <code>::std::byte *</code>; no <code>T</code> appears in the layout, so one function
+          can take it by reference.</li>
+        <li><strong>Size and alignment became numbers.</strong> They are ordinary
+          <code>::std::size_t</code> parameters, passed at run time (and folded away by the
+          optimiser at the call site).</li>
+        <li><strong>The template parameter is the allocator, not the element type.</strong>
+          Allocation policy is the only thing the loop genuinely depends on, and there are
+          very few allocators.</li>
+      </ul>
+      <p>
+        The element type still has to construct and destroy elements, so that part stays in a
+        template &mdash; but it is now a thin wrapper:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+class buffer
+{
+	using allocator = ::fast_io::native_global_allocator;
+	model m_{};
+
+public:
+	void reserve_bytes(::std::size_t n) throws
+	{
+		detemplate::grow_to_byte_size&lt;allocator&gt;(m_, n * sizeof(T), sizeof(T), alignof(T));
+	}
+};
+</code></pre>
+      <pre><code class="language-text">
+$ nm -C prog | grep -c 'grow_to_byte_size&lt;'
+1
+</code></pre>
+      <p>
+        One function, no matter how many element types. The two programs in this page are the
+        same operation; the first produces two copies of the loop, the second produces one.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. The Real Thing: fast_io's <code>vector</code></h2>
+
+      <p>
+        This is exactly how <code>::fast_io::vector</code> is built. The data layout has no
+        element type in it
+        (<code>include/fast_io_dsal/impl/vector.h</code>):
+      </p>
+      <pre><code class="language-cpp">
+struct
+#if __has_cpp_attribute(__gnu__::__may_alias__)
+	[[__gnu__::__may_alias__]]
+#endif
+	vector_model
+{
+	::std::byte *begin_ptr;
+	::std::byte *curr_ptr;
+	::std::byte *end_ptr;
+};
+
+template &lt;typename allochandle&gt;
+struct
+#if __has_cpp_attribute(__gnu__::__may_alias__)
+	[[__gnu__::__may_alias__]]
+#endif
+	vector_alloc_handle_model
+{
+	::std::byte *begin_ptr;
+	::std::byte *curr_ptr;
+	::std::byte *end_ptr;
+#if __has_cpp_attribute(msvc::no_unique_address)
+	[[msvc::no_unique_address]]
+#else
+	[[no_unique_address]]
+#endif
+	allochandle alloc;
+};
+</code></pre>
+      <p>
+        The growth algorithm lives in
+        <code>::fast_io::containers::details::vector::detemplate</code> and is parameterised on
+        the allocator only. Here is its innermost layer; note the
+        <code>::std::byte *</code> pointers, the runtime <code>size</code> and
+        <code>alignment</code>, and the conditional error contract from
+        <a href="/docs/15.genericprogramming/07.ifconstexpr/">Ch15.7</a>. The
+        <code>#if 0</code> block that would reallocate in place is elided here; everything
+        else is as it appears in the header:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename allocator&gt;
+inline void *grow_to_byte_size_iter_impl(vector_model &amp;imp, void *iter, ::std::size_t newcap, ::std::size_t gap, ::std::size_t size, ::std::size_t alignment)
+	FAST_IO_HERBCEPTIONS_THROWS_IF(allocator::throws_on_allocation_failure)
+{
+	::std::byte *old_begin_ptr{imp.begin_ptr};
+	::std::byte *old_curr_ptr{imp.curr_ptr};
+	::std::size_t const old_size{static_cast&lt;::std::size_t&gt;(old_curr_ptr - old_begin_ptr)};
+	::std::size_t const old_capacity{static_cast&lt;::std::size_t&gt;(imp.end_ptr - old_begin_ptr)};
+
+	auto const newres{allocator::allocate_aligned_at_least(alignment, newcap)};
+	auto *const begin_ptr{static_cast&lt;::std::byte *&gt;(newres.ptr)};
+	auto *const newiter{::fast_io::freestanding::nonoverlapped_bytes_copy(old_begin_ptr, static_cast&lt;::std::byte const *&gt;(iter), begin_ptr)};
+	static_cast&lt;void&gt;(::fast_io::freestanding::nonoverlapped_bytes_copy(static_cast&lt;::std::byte const *&gt;(iter), old_curr_ptr, newiter + gap));
+	allocator::deallocate_aligned_n(old_begin_ptr, alignment, old_capacity);
+
+	imp.begin_ptr = begin_ptr;
+	imp.curr_ptr = begin_ptr + old_size;
+	imp.end_ptr = begin_ptr + (newres.count / size * size);
+	return newiter;
+}
+</code></pre>
+      <p>
+        Above it sits a five-line wrapper that is templated on <code>size</code> and
+        <code>alignment</code> &mdash; but only to decide an alignment policy, never to do
+        work:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename allocator, ::std::size_t size, ::std::size_t alignment&gt;
+inline constexpr void *grow_to_size_iter_impl(vector_model &amp;imp, void *iter, ::std::size_t newcap)
+	FAST_IO_HERBCEPTIONS_THROWS_IF(allocator::throws_on_allocation_failure || allocator::throws_on_violations)
+{
+	if constexpr (alignment &lt; allocator::default_alignment)
+	{
+		return ::fast_io::containers::details::vector::grow_to_size_iter_impl&lt;allocator, size, allocator::default_alignment&gt;(imp, iter, newcap);
+	}
+	else
+	{
+		return ::fast_io::containers::details::vector::detemplate::grow_to_size_iter_impl&lt;allocator&gt;(imp, iter, newcap, size, alignment);
+	}
+}
+</code></pre>
+      <p>
+        And the user-visible class is the thin, templated layer that knows about
+        <code>T</code> &mdash; element construction, destruction, and calling the
+        detemplated growth when capacity runs out:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T, typename Alloc = ::fast_io::native_global_allocator&gt;
+using vector = ::fast_io::containers::vector&lt;T, Alloc&gt;;
+
+// CTAD guides, so the allocator is never written at a call site
+template &lt;::std::input_iterator InputIt&gt;
+vector(InputIt, InputIt) -&gt; vector&lt;typename ::std::iterator_traits&lt;InputIt&gt;::value_type, ::fast_io::native_global_allocator&gt;
+</code></pre>
+      <p>
+        The same shape repeats in <code>deque</code>, <code>sized_vector</code>,
+        <code>string</code> and <code>list</code>: an element-free model struct, a
+        <code>detemplate</code> namespace of algorithms parameterised on the allocator, and a
+        thin templated shell. That is why fast_io's compile times and code size stay flat as
+        you add element types &mdash; adding <code>vector&lt;my_struct&gt;</code> costs you one
+        <code>my_struct</code>'s constructor calls, not another copy of the buffer machinery.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. When Not to Detemplatize</h2>
+
+      <ul>
+        <li><strong>When the type is needed for speed.</strong> A detemplated loop over bytes
+          cannot inline <code>T</code>'s move constructor. For trivial types the optimiser
+          recovers it; for a move constructor that does real work per element, the templated
+          version is faster. fast_io keeps <code>uninitialized_move</code> templated for that
+          reason and detemplatizes only the allocation-and-copy-of-raw-bytes part.</li>
+        <li><strong>When there is only one instantiation.</strong> A template used with one
+          type is not bloated; it is just a function.</li>
+        <li><strong>When the extraction makes the code unreadable.</strong> Three
+          <code>void *</code> parameters and two runtime sizes are worse than a duplicate if
+          the function is ten lines and used twice.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>7. Rules of Thumb</h2>
+
+      <ul>
+        <li>Measure before you refactor: <code>nm -C binary | grep -c 'name&lt;'</code> is the
+          whole toolchain you need.</li>
+        <li>Pass named function objects (<code>::std::ranges::greater</code>) to templates;
+          keep lambdas for one-off use.</li>
+        <li>Split a template at the point where the type is used: everything before and after
+          that point belongs in a non-template function.</li>
+        <li>Replace &ldquo;the type&rdquo; with <code>sizeof</code>, <code>alignof</code>,
+          <code>::std::byte *</code> and <code>void *</code> wherever the code does not
+          construct, destroy or call something on an element.</li>
+        <li>Parameterise on what changes rarely (the allocator), not on what changes often
+          (the element type).</li>
+        <li>Bloat compounds: a templated algorithm that calls a templated helper that calls a
+          templated logger is one instantiation tree per call site.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/15.genericprogramming/07.ifconstexpr/" class="prev-button">&larr; Ch15.7: <code>if constexpr</code></a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/15.genericprogramming/09.typeerasure/" class="next-button">Ch15.9: Type Erasure &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

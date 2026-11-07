@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch15.10: How fast_io Finds Your Print and Scan Code - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch15.10: How fast_io Finds Your Print and Scan Code</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/15.genericprogramming/10.printscan/">中文（简体）</a></p>
+    <section>
+      <h2>1. Not an Operator, and Not a Member</h2>
+
+      <p>
+        <code>::fast_io::io::println(rgb{7, 128, 255})</code> prints
+        <code>(7,128,255)</code> only because of two free functions you write yourself. There
+        is no <code>operator&lt;&lt;</code>, no <code>to_string()</code>, no virtual
+        <code>format()</code>. fast_io calls free functions, and it finds them by
+        <strong>argument-dependent lookup on a tag</strong>.
+      </p>
+      <p>
+        The catalogue of customization points is
+        <a href="/docs/11.io/02.customtypes/">Ch11.2</a>. This page is about the
+        <em>mechanism</em> underneath it, because that mechanism is pure generic programming:
+        a variable template, a concept, and overload resolution.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. The Tag: a Variable Template</h2>
+
+      <p>
+        The first argument of every customization point is not the value being printed. It is
+        a tag that says <em>which character type</em> and <em>which value type</em> this
+        definition is for:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::io_reserve_type&lt;char, rgb&gt;        // the tag for rgb, printed as char
+::fast_io::io_reserve_type_t&lt;char, rgb&gt;     // its type
+</code></pre>
+      <p>
+        <code>io_reserve_type</code> is a <strong>variable template</strong>
+        (<a href="/docs/15.genericprogramming/03.nttp/">Ch15.3</a>), an
+        <code>inline constexpr</code> object whose only job is to be passed by value. That
+        choice solves a problem a function template cannot: you cannot partially specialize a
+        function template, so &ldquo;specialise the printing of <code>rgb</code>&rdquo; needs
+        something else to specialise &mdash; and a class-type tag can be overloaded on
+        instead. Then ordinary overload resolution, with ADL, picks your function:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;::std::integral char_type&gt;
+inline constexpr ::std::size_t print_reserve_size(::fast_io::io_reserve_type_t&lt;char_type, rgb&gt;) noexcept;
+</code></pre>
+      <p>
+        Two consequences follow, and both matter. Your definition must live in a namespace
+        associated with either <code>rgb</code> or <code>::fast_io</code> &mdash; usually the
+        global namespace next to <code>rgb</code>. And the <code>char_type</code> is a
+        template parameter, so one definition serves <code>char</code>,
+        <code>char8_t</code>, <code>wchar_t</code> and everything else.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. Printing: Size First, Then Bytes</h2>
+
+      <p>
+        fast_io's fastest printing path writes into a buffer it has already reserved. Two
+        functions describe it: one says how many characters are needed at most, the other
+        fills them in.
+      </p>
+      <pre><code class="language-cpp">
+template &lt;::std::integral char_type&gt;
+inline constexpr ::std::size_t print_reserve_size(::fast_io::io_reserve_type_t&lt;char_type, rgb&gt;) noexcept
+{
+	return 12;
+}
+
+template &lt;::std::integral char_type&gt;
+inline constexpr char_type *print_reserve_define(::fast_io::io_reserve_type_t&lt;char_type, rgb&gt;, char_type *iter, rgb c) noexcept
+{
+	*iter++ = static_cast&lt;char_type&gt;(u8'(');
+	iter = write_uint(iter, c.r);
+	*iter++ = static_cast&lt;char_type&gt;(u8',');
+	iter = write_uint(iter, c.g);
+	*iter++ = static_cast&lt;char_type&gt;(u8',');
+	iter = write_uint(iter, c.b);
+	*iter++ = static_cast&lt;char_type&gt;(u8')');
+	return iter;
+}
+</code></pre>
+      <p>
+        The contract is deliberately narrow, and it is what makes this path fast:
+      </p>
+      <ul>
+        <li><code>print_reserve_size</code> returns an <strong>upper bound</strong>, computed
+          with no access to the value. Twelve characters covers
+          <code>(255,255,255)</code>.</li>
+        <li><code>print_reserve_define</code> writes at most that many characters and returns
+          the new end pointer. The difference between the two is the output.</li>
+        <li>Neither may fail. Both are <code>noexcept</code>, which is only possible because
+          the buffer already exists and nothing is allocated
+          (<a href="/docs/15.genericprogramming/07.ifconstexpr/">Ch15.7</a>).</li>
+      </ul>
+      <p>
+        If your type's size cannot be known without looking at the value, you cannot use this
+        path: use <code>print_define</code>, which hands you the output device instead of a
+        buffer, or <code>print_scatter_define</code> if the text is already in memory. Both are
+        demonstrated in <a href="/docs/11.io/02.customtypes/">Ch11.2</a>.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Scanning: a State, a Step, and an End</h2>
+
+      <p>
+        Scanning may need more input than is currently in the buffer, so it cannot be a single
+        function call. fast_io's answer is the same shape as a hand-written parser: a
+        <strong>state</strong> that survives between calls, a <strong>step</strong> that
+        consumes what is available, and an <strong>EOF handler</strong> that gives the final
+        verdict.
+      </p>
+      <pre><code class="language-cpp">
+struct rgb_scan_state
+{
+	::std::uint_least32_t value{};
+	::std::uint_least8_t field{};
+	::std::uint_least8_t digits{};
+};
+
+template &lt;::std::integral char_type&gt;
+inline constexpr ::fast_io::io_type_t&lt;rgb_scan_state&gt;
+scan_context_type(::fast_io::io_reserve_type_t&lt;char_type, ::fast_io::parameter&lt;rgb &amp;&gt;&gt;) noexcept
+{
+	return {};
+}
+</code></pre>
+      <p>
+        <code>scan_context_type</code> names the state type without constructing it, through
+        <code>::fast_io::io_type_t&lt;S&gt;</code>. The step function then returns a
+        <strong>parse result</strong>: an iterator pointing just past what it consumed, plus a
+        code.
+      </p>
+      <pre><code class="language-cpp">
+template &lt;::std::integral char_type&gt;
+inline constexpr ::fast_io::parse_result&lt;char_type const *&gt; scan_context_define(
+	::fast_io::io_reserve_type_t&lt;char_type, ::fast_io::parameter&lt;rgb &amp;&gt;&gt;, rgb_scan_state &amp;st,
+	char_type const *begin, char_type const *end, ::fast_io::parameter&lt;rgb &amp;&gt; token) noexcept
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Meaning</th>
+            <th>What fast_io does</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>parse_errc::ok</code></td>
+            <td>the value is complete</td>
+            <td>advances the buffer and continues with the next argument</td>
+          </tr>
+          <tr>
+            <td><code>parse_errc::partial</code></td>
+            <td>valid so far, needs more input</td>
+            <td>keeps the state, fills the buffer, calls again</td>
+          </tr>
+          <tr>
+            <td><code>parse_errc::invalid</code></td>
+            <td>cannot be parsed</td>
+            <td>raises a herbception, <code>[parse](3)Invalid format</code></td>
+          </tr>
+          <tr>
+            <td><code>parse_errc::end_of_file</code></td>
+            <td>input ended inside the value</td>
+            <td>reported by <code>scan_context_eof_define</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The parameter is <code>::fast_io::parameter&lt;rgb &amp;&gt;</code>, not
+        <code>rgb</code>, and that is the interesting part. An lvalue you pass to
+        <code>::fast_io::io::scan</code> is meant to be <em>written into</em>, so fast_io wraps
+        it in <code>::fast_io::parameter&lt;rgb &amp;&gt;</code>, a one-member
+        <code>struct</code> holding the reference. Keying the customization on the wrapper
+        keeps the tag derived from a normal value type while still letting the step function
+        write to your object. The payload is <code>token.reference</code>.
+      </p>
+      <p>
+        Note also what the step function does <em>not</em> do: it never writes to
+        <code>c.r</code> before the whole colour is validated. Partial results live in the
+        state, and the destination is only modified at the moment the parse succeeds &mdash;
+        the strong exception-safety guarantee of
+        <a href="/docs/14.fiverules/09.exceptionsafety/">Ch14.9</a>, applied to parsing.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. The Concepts That Gate It</h2>
+
+      <p>
+        Nothing checks your signatures by hand. <code>fast_io_core_impl/concepts/operation.h</code>
+        defines one concept per customization point, and <code>println</code> simply requires
+        one of them:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename char_type, typename T&gt;
+concept reserve_printable = ::std::integral&lt;char_type&gt; &amp;&amp; requires(T t, char_type *ptr) {
+	{
+		print_reserve_define(io_reserve_type&lt;char_type, T&gt;, ptr, t)
+	} -&gt; ::std::same_as&lt;char_type *&gt;;
+	constexpr ::std::size_t sz{print_reserve_size(io_reserve_type&lt;char_type, T&gt;)};
+};
+
+template &lt;typename char_type, typename T&gt;
+concept context_scannable = requires(char_type const *begin, char_type const *end, T t) {
+	requires requires(
+		typename ::std::remove_cvref_t&lt;decltype(scan_context_type(io_reserve_type&lt;char_type, T&gt;))&gt;::type st) {
+		{
+			scan_context_define(io_reserve_type&lt;char_type, T&gt;, st, begin, end, t)
+		} -&gt; ::std::same_as&lt;parse_result&lt;char_type const *&gt;&gt;;
+		{ scan_context_eof_define(io_reserve_type&lt;char_type, T&gt;, st, t) } -&gt; ::std::same_as&lt;::fast_io::freestanding::parse_errc&gt;;
+	};
+};
+</code></pre>
+      <p>
+        This is why a missing customization produces
+        <code>type not scannable. need context_scannable</code> rather than a page of template
+        noise: the requirement was written down in advance
+        (<a href="/docs/15.genericprogramming/02.concepts/">Ch15.2</a>). It is also why the
+        exact return types matter &mdash; <code>-&gt; ::std::same_as&lt;char_type *&gt;</code>
+        is checked, not guessed.
+      </p>
+      <p>
+        Finally, the whole thing is instantiated per character type but <em>not</em> per output
+        device: <code>print_reserve_define</code> writes to a <code>char_type *</code>, so the
+        same instantiation serves files, sockets, pipes and memory buffers. That is
+        detemplatization (<a href="/docs/15.genericprogramming/08.bloat/">Ch15.8</a>) at the
+        design level.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;string_view&gt;
+
+struct rgb
+{
+	::std::uint_least8_t r{}, g{}, b{};
+
+	[[nodiscard]] ::std::string_view name() const noexcept { return "rgb"; }
+};
+
+struct rgb_scan_state
+{
+	::std::uint_least32_t value{};
+	::std::uint_least8_t field{};
+	::std::uint_least8_t digits{};
+};
+
+// ---- printing: a compile-time-known size, then a write into the buffer
+template &lt;::std::integral char_type&gt;
+inline constexpr ::std::size_t print_reserve_size(::fast_io::io_reserve_type_t&lt;char_type, rgb&gt;) noexcept
+{
+	return 12;
+}
+
+template &lt;::std::integral char_type&gt;
+inline constexpr char_type *write_uint(char_type *iter, ::std::uint_least32_t v) noexcept
+{
+	char_type buf[3];
+	::std::size_t n{};
+	do
+	{
+		buf[n++] = static_cast&lt;char_type&gt;(u8'0' + v % 10u);
+		v /= 10u;
+	} while (v != 0);
+	for (; n != 0; --n)
+	{
+		*iter++ = buf[n - 1];
+	}
+	return iter;
+}
+
+template &lt;::std::integral char_type&gt;
+inline constexpr char_type *print_reserve_define(::fast_io::io_reserve_type_t&lt;char_type, rgb&gt;, char_type *iter, rgb c) noexcept
+{
+	*iter++ = static_cast&lt;char_type&gt;(u8'(');
+	iter = write_uint(iter, c.r);
+	*iter++ = static_cast&lt;char_type&gt;(u8',');
+	iter = write_uint(iter, c.g);
+	*iter++ = static_cast&lt;char_type&gt;(u8',');
+	iter = write_uint(iter, c.b);
+	*iter++ = static_cast&lt;char_type&gt;(u8')');
+	return iter;
+}
+
+// ---- scanning: a context type, a step function and an EOF handler
+template &lt;::std::integral char_type&gt;
+inline constexpr ::fast_io::io_type_t&lt;rgb_scan_state&gt;
+scan_context_type(::fast_io::io_reserve_type_t&lt;char_type, ::fast_io::parameter&lt;rgb &amp;&gt;&gt;) noexcept
+{
+	return {};
+}
+
+template &lt;::std::integral char_type&gt;
+inline constexpr ::fast_io::parse_result&lt;char_type const *&gt; scan_context_define(
+	::fast_io::io_reserve_type_t&lt;char_type, ::fast_io::parameter&lt;rgb &amp;&gt;&gt;, rgb_scan_state &amp;st,
+	char_type const *begin, char_type const *end, ::fast_io::parameter&lt;rgb &amp;&gt; token) noexcept
+{
+	rgb &amp;c{token.reference};
+	auto it{begin};
+	for (; it != end; ++it)
+	{
+		char_type const ch{*it};
+		if (st.field == 0)
+		{
+			if (ch != static_cast&lt;char_type&gt;(u8'('))
+			{
+				return {it, ::fast_io::freestanding::parse_errc::invalid};
+			}
+			st.field = 1;
+			continue;
+		}
+		if (ch &gt;= static_cast&lt;char_type&gt;(u8'0') &amp;&amp; ch &lt;= static_cast&lt;char_type&gt;(u8'9'))
+		{
+			if (++st.digits &gt; 3)
+			{
+				return {it, ::fast_io::freestanding::parse_errc::invalid};
+			}
+			st.value = st.value * 10u + static_cast&lt;::std::uint_least32_t&gt;(ch - static_cast&lt;char_type&gt;(u8'0'));
+			continue;
+		}
+		if (ch == static_cast&lt;char_type&gt;(u8',') || ch == static_cast&lt;char_type&gt;(u8')'))
+		{
+			if (st.digits == 0 || st.value &gt; 255u)
+			{
+				return {it, ::fast_io::freestanding::parse_errc::invalid};
+			}
+			auto const channel{static_cast&lt;::std::uint_least8_t&gt;(st.value)};
+			if (st.field == 1)
+			{
+				c.r = channel;
+			}
+			else if (st.field == 2)
+			{
+				c.g = channel;
+			}
+			else
+			{
+				c.b = channel;
+			}
+			if (ch == static_cast&lt;char_type&gt;(u8')'))
+			{
+				if (st.field != 3)
+				{
+					return {it, ::fast_io::freestanding::parse_errc::invalid};
+				}
+				return {it + 1, ::fast_io::freestanding::parse_errc::ok};
+			}
+			++st.field;
+			st.digits = 0;
+			st.value = 0;
+			continue;
+		}
+		return {it, ::fast_io::freestanding::parse_errc::invalid};
+	}
+	return {it, ::fast_io::freestanding::parse_errc::partial};
+}
+
+template &lt;::std::integral char_type&gt;
+inline constexpr ::fast_io::freestanding::parse_errc scan_context_eof_define(
+	::fast_io::io_reserve_type_t&lt;char_type, ::fast_io::parameter&lt;rgb &amp;&gt;&gt;, rgb_scan_state &amp;,
+	::fast_io::parameter&lt;rgb &amp;&gt;) noexcept
+{
+	return ::fast_io::freestanding::parse_errc::end_of_file;
+}
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println(rgb{7, 128, 255});
+
+		rgb parsed{};
+		{
+			::fast_io::ibuf_file inpf(u8"/tmp/rgb.txt");
+			::fast_io::io::scan(inpf, parsed);
+		}
+		::fast_io::io::println("scanned: r=", parsed.r, " g=", parsed.g, " b=", parsed.b);
+
+		try
+		{
+			::fast_io::ibuf_file bad(u8"/tmp/rgb_bad.txt");
+			::fast_io::io::scan(bad, parsed);
+		}
+		catch throws (::std::error)
+		{
+			::fast_io::io::println("bad input rejected");
+		}
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>
+        With <code>/tmp/rgb.txt</code> containing <code>(7,128,255)</code> and
+        <code>/tmp/rgb_bad.txt</code> containing <code>(300,1,2)</code>, the output is:
+      </p>
+      <pre><code class="language-text">
+(7,128,255)
+scanned: r=7 g=128 b=255
+bad input rejected
+</code></pre>
+      <p>
+        <code>300</code> is larger than a channel can hold, so the step function returns
+        <code>parse_errc::invalid</code> and fast_io raises
+        <code>[parse](3)Invalid format</code>; the handler above prints its own message so the
+        transcript stays one stream. Delete the <code>try</code> and the program terminates
+        with that diagnostic &mdash; which is the correct behaviour for malformed input in a
+        program that has no idea what to do about it.
+      </p>
+
+    </section>
+    <section>
+      <h2>7. Rules of Thumb</h2>
+
+      <ul>
+        <li>Put the definitions next to your type, in its namespace; ADL is the lookup
+          mechanism and there is no registration step.</li>
+        <li><code>print_reserve_size</code> is an upper bound that must not look at the value.
+          If it cannot, use <code>print_define</code>.</li>
+        <li>Both print functions are <code>noexcept</code>: a printing function that allocates
+          is a printing function that fails on a broken pipe.</li>
+        <li>Never modify the destination before the parse is complete; keep partial results in
+          the state object.</li>
+        <li>Return <code>partial</code> only when more input can help. Returning
+          <code>partial</code> at end of input turns into <code>end_of_file</code>, not an
+          infinite loop, because <code>scan_context_eof_define</code> exists.</li>
+        <li>Customize one character type with a template and get all of them; do not write
+          <code>char</code>-only overloads unless the text really is byte-oriented.</li>
+        <li>The full catalogue &mdash; including <code>print_alias_define</code> and the
+          scatter path, which are often shorter than what you just wrote &mdash; is
+          <a href="/docs/11.io/02.customtypes/">Ch11.2</a>.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/15.genericprogramming/09.typeerasure/" class="prev-button">&larr; Ch15.9: Type Erasure</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/16.operatoroverloading/" class="next-button">Ch16: Operator Overloading &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
