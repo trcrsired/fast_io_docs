@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch17.3: Mark Every Virtual Function - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch17.3: Mark Every Virtual Function</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/17.virtual/03.marking/">中文（简体）</a></p>
+    <section>
+      <h2>1. The Rule</h2>
+
+      <p>
+        If you write a virtual function, in a codebase that follows this book, it must satisfy
+        <strong>both</strong> of these:
+      </p>
+      <ul>
+        <li><strong>It is marked</strong> &mdash; one of <code>virtual</code>,
+          <code>override</code>, or <code>final</code>, always, on every declaration and every
+          definition. No exceptions, not even for a function you just made virtual five seconds
+          ago.</li>
+        <li><strong>It has an error contract</strong> &mdash; exactly one of
+          <code>noexcept</code> or <code>throws</code>, like every other function
+          (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>).</li>
+      </ul>
+      <p>
+        Which marker goes where is not a style choice:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Position</th>
+            <th>Marker</th>
+            <th>Meaning, mechanically</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>first declaration, in the base</td>
+            <td><code>virtual</code></td>
+            <td>"this slot exists in the table" &mdash; this is the only place the word belongs</td>
+          </tr>
+          <tr>
+            <td>a function that overrides</td>
+            <td><code>override</code></td>
+            <td>"I claim to override something; error if I do not"</td>
+          </tr>
+          <tr>
+            <td>a function or class that closes the hierarchy</td>
+            <td><code>final</code></td>
+            <td>"no further override exists; calls to this may be devirtualised"</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Never write <code>virtual</code> in a derived class. It is legal, it is redundant, and it
+        actively hides the mistake you are most likely making: writing <code>virtual</code> on a
+        function that does <em>not</em> override anything because the signature is slightly
+        wrong.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. What Happens Without <code>override</code></h2>
+
+      <p>
+        The base has <code>who() const</code>. The derived class forgets <code>const</code>.
+        The compiler accepts this silently and creates a brand-new function, unrelated to the
+        virtual one:
+      </p>
+      <pre><code class="language-cpp">
+struct base
+{
+	virtual ::std::string_view who() const noexcept { return "base"; }
+	virtual int rank() const noexcept { return 1; }
+	virtual ~base() noexcept = default;
+};
+
+struct forgetful : base
+{
+	// missing const: a brand-new function, not an override
+	::std::string_view who() noexcept { return "forgetful"; }
+};
+
+struct marked : base
+{
+	::std::string_view who() const noexcept override { return "marked"; }
+};
+</code></pre>
+      <pre><code class="language-text">
+forgetful direct=forgetful through base=base | marked direct=marked through base=marked
+</code></pre>
+      <p>
+        <code>forgetful</code> answers "forgetful" when you call it on a
+        <code>forgetful</code> and "base" when you call it through a
+        <code>base&amp;</code>. Both are the same object. The program is well-formed, and
+        without <code>-Wall</code> there is not even a warning; with
+        <code>-Wall -Wextra</code> you get one, and it is easy to misread:
+      </p>
+      <pre><code class="language-text">
+mark.cc:6:36: warning: ‘virtual std::string_view base::who() const’ was hidden [-Woverloaded-virtual=]
+</code></pre>
+      <p>
+        Add the missing <code>const</code> and <code>override</code>, and the same call
+        dispatches the way you meant: <code>marked direct=marked through base=marked</code>.
+        With <code>override</code> written, a wrong signature is a compile error instead of a
+        silent third function. That is the entire value of the keyword: <strong>it converts your
+        intent into a checked claim.</strong>
+      </p>
+
+    </section>
+    <section>
+      <h2>3. The Contract Is Checked, the Marker Is Not</h2>
+
+      <p>
+        The good news: the error contract <em>is</em> enforced by the compiler, in the direction
+        that matters. If the base promises not to fail and the derived class does not, you get
+        an error:
+      </p>
+      <pre><code class="language-cpp">
+struct base
+{
+	virtual int rank() const noexcept { return 1; }
+	virtual ~base() noexcept = default;
+};
+
+struct child : base
+{
+	int rank() const override { return 2; }
+};
+</code></pre>
+      <pre><code class="language-text">
+mark2.cc:9:13: error: looser exception specification on overriding virtual function ‘virtual int child::rank() const’
+    9 |         int rank() const override { return 2; }
+      |             ^~~~
+mark2.cc:3:21: note: overridden function is ‘virtual int base::rank() const noexcept’
+    3 |         virtual int rank() const noexcept { return 1; }
+      |                     ^~~~
+</code></pre>
+      <p>
+        The reverse direction is allowed and is what you want: a <code>throws</code> virtual may
+        be overridden by a <code>noexcept</code> one, because narrowing the failure set cannot
+        break a caller. This is why the contract belongs on the base: <strong>the base decides
+        the weakest contract every implementation must honour</strong>, and callers only need to
+        look at the base.
+      </p>
+      <p>
+        Write the contracts on the pure virtuals too &mdash; <code>virtual double area() const
+        noexcept = 0;</code> &mdash; they are the ones the callers actually read.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. <code>final</code>: More Than Documentation</h2>
+
+      <p><code>final</code> appears in two places, with two different payoffs:</p>
+      <ul>
+        <li><strong>On a function:</strong> no further derived class may override it. The
+          compiler can then call it directly whenever it can prove the static type, because no
+          derived implementation can exist.</li>
+        <li><strong>On a class:</strong> nothing may derive from it. This lets the compiler skip
+          the vptr entirely when the object is local and never escapes &mdash; measured in this
+          book's toolchain: with <code>final</code> and a local object, the vtable is not emitted
+          at all at <code>-O2</code>, and a subsequent
+          <code>dynamic_cast</code>/link step loses the typeinfo it no longer needs.</li>
+      </ul>
+      <p>
+        <code>final</code> is the only marker with a codegen effect. It is also the only one that
+        makes a hierarchy safe to close: once a class is <code>final</code>, adding a derived
+        class later becomes a compile error, which is usually what you wanted to know.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Where the Marker Goes, Precisely</h2>
+
+      <pre><code class="language-cpp">
+struct shape
+{
+	virtual double area() const noexcept = 0;              // base: virtual
+	virtual ::std::string_view name() const noexcept = 0;
+	virtual ~shape() noexcept = default;                   // virtual, noexcept
+};
+
+struct square final : shape                             // final class
+{
+	double side{};
+
+	explicit square(double s) noexcept : side{s} {}
+
+	double area() const noexcept override { return side * side; }   // const, then override, then noexcept
+	::std::string_view name() const noexcept override { return "square"; }
+	~square() noexcept override = default;                          // a destructor can override too
+};
+</code></pre>
+      <p>
+        The order in the declaration is <code>const</code> &rarr; <code>override</code> &rarr;
+        <code>noexcept</code>/<code>throws</code>, the same order used throughout this book
+        (<a href="/docs/16.inheritance/07.override/">Ch16.7</a>). Putting <code>override</code>
+        somewhere else is usually a syntax error, and always a reading speed problem.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. Enforcing It Without a Compiler Flag</h2>
+
+      <p>
+        There is no <code>-Wrequire-override</code> in this toolchain, and there is no flag that
+        demands a contract on a virtual function (measured: <code>-Wall -Wextra</code> stays
+        silent on a virtual function with no specification). So the rule is a project rule, and
+        project rules need a grep that fails the build:
+      </p>
+      <pre><code class="language-sh">
+# every 'virtual' must also be = 0, noexcept or throws
+grep -rn 'virtual ' include/ \
+  | grep -v '= 0' | grep -v 'noexcept' | grep -v 'throws'
+
+# nothing outside a base declaration may say 'virtual'
+grep -rn 'virtual ' include/ | grep -v 'struct \|class '
+</code></pre>
+      <p>
+        Run those two lines in CI. They catch more real defects than the compiler does, because
+        the compiler is happy with all of the mistakes this chapter is about.
+      </p>
+
+    </section>
+    <section>
+      <h2>7. Rules of Thumb</h2>
+
+      <ul>
+        <li>Every virtual function carries <code>virtual</code>, <code>override</code> or
+          <code>final</code>. Every one. In a diff review, an unmarked virtual is a rejected
+          patch.</li>
+        <li>Every virtual function carries <code>noexcept</code> or <code>throws</code>. The base
+          decides; the derived may narrow.</li>
+        <li>Never repeat <code>virtual</code> in a derived class. Write
+          <code>override</code>, and let the compiler check your signature.</li>
+        <li>Mark leaf classes <code>final</code>. It is free, it is checked, and it is the only
+          marker that removes code.</li>
+        <li>If a class is <code>final</code> and the objects stay local, prefer deleting the
+          <code>virtual</code> altogether and using an overload set or
+          <code>::std::variant</code> &mdash; then there is nothing to mark.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/17.virtual/02.whatvirtual/" class="prev-button">&larr; Ch17.2: What virtual Really Is</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/17.virtual/04.bloat/" class="next-button">Ch17.4: Dead Virtual Function Bloat &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

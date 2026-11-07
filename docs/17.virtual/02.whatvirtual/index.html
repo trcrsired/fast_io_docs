@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch17.2: What virtual Really Is - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch17.2: What <code>virtual</code> Really Is</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/17.virtual/02.whatvirtual/">中文（简体）</a></p>
+    <section>
+      <h2>1. Three Things, in This Order</h2>
+
+      <p>
+        A <code>virtual</code> function is not magic. It is three mechanical facts:
+      </p>
+      <ol>
+        <li><strong>Every object of a polymorphic class carries a hidden pointer</strong> (the
+          <em>vptr</em>), which points to its class's table of function pointers. This is why
+          such an object cannot be smaller than a pointer, and why it is at least
+          <code>alignof(void*)</code>-aligned.</li>
+        <li><strong>Every polymorphic class has one table</strong> (the <em>vtable</em>) in
+          read-only data, with one slot per virtual function, in declaration order. It is
+          emitted by the compiler; you never write it and cannot edit it.</li>
+        <li><strong>A virtual call reads the vptr, then the slot, then jumps.</strong> Two
+          dependent loads instead of one direct jump, and the target address is not known until
+          runtime, so nothing can be inlined through it.</li>
+      </ol>
+      <p>
+        That is the whole mechanism. Everything else in this chapter &mdash; the bloat, the RTTI,
+        the <code>__cxa_pure_virtual</code> symbol, the ABI &mdash; follows from it.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. What It Costs in Bytes</h2>
+
+      <pre><code class="language-cpp">
+struct drawable
+{
+	virtual ::std::string_view kind() const noexcept = 0;
+	virtual ~drawable() noexcept = default;
+};
+
+struct point : drawable
+{
+	double x{}, y{};
+	point(double px, double py) noexcept : x{px}, y{py} {}
+	::std::string_view kind() const noexcept override { return "point"; }
+};
+
+struct square : drawable
+{
+	double side{};
+	explicit square(double s) noexcept : side{s} {}
+	::std::string_view kind() const noexcept override { return "square"; }
+};
+</code></pre>
+      <pre><code class="language-text">
+sizeof(drawable)=8 sizeof(point)=24 sizeof(square)=16 through base=point through object=square
+</code></pre>
+      <p>
+        Do the arithmetic: <code>point</code> is two <code>double</code>s (16 bytes) plus the
+        vptr (8) = 24. <code>square</code> is one <code>double</code> (8) plus the vptr (8) = 16.
+        A single <code>double</code> shape doubled in size because one of its functions is
+        virtual, and it doubled again as a pointer with an allocator header once you put it
+        behind <code>::std::unique_ptr</code>
+        (<a href="/docs/17.virtual/01.newdelete/">Ch17.1</a>).
+      </p>
+      <p>
+        Compare with the type-erased version later in this chapter: one pointer plus one table
+        pointer, 16 bytes, <em>holding any shape at all</em>, with no vptr in the payload and no
+        allocation for the header.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. Why Virtual Only Pays Off With Allocation</h2>
+
+      <p>
+        There is a way to use <code>virtual</code> without the heap: put derived objects in a
+        container by value and call through a reference.
+      </p>
+      <pre><code class="language-cpp">
+point p{1.0, 2.0};
+square q{3.0};
+drawable &amp;d = p;                  // dispatch through a reference
+::fast_io::io::println(d.kind());  // "point"
+</code></pre>
+      <p>
+        This is correct and allocation-free, but notice what it does <em>not</em> buy you: the
+        set of types is fixed at compile time, each variable has one static type, and you cannot
+        put a <code>point</code> and a <code>square</code> into one
+        <code>::fast_io::vector</code>. The moment you want a container of "any drawable", the
+        only thing <code>virtual</code> gives you is a base pointer, and a base pointer that
+        outlives its scope requires an owner, and C++'s owner is
+        <code>::std::unique_ptr</code>, and <code>::std::unique_ptr</code> requires
+        <code>new</code>.
+      </p>
+      <p>
+        <strong>That is the chain.</strong> <code>virtual</code> is not the expensive part by
+        itself; <code>virtual</code> <em>plus heterogeneity</em> is, and heterogeneity is
+        exactly what people want when they choose OOP. Break the chain at any link &mdash;
+        values instead of pointers, type erasure instead of inheritance &mdash; and the whole
+        cost structure disappears.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. The Cost Model, Honestly</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>What you pay</th>
+            <th>When</th>
+            <th>Measured in this chapter</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>8 bytes per object</td>
+            <td>always</td>
+            <td><code>sizeof(square)</code> 8 &rarr; 16</td>
+          </tr>
+          <tr>
+            <td>a vtable per class</td>
+            <td>always</td>
+            <td><code>vtable for square</code>, 48 bytes of <code>.rodata</code></td>
+          </tr>
+          <tr>
+            <td>every virtual function emitted</td>
+            <td>even if never called</td>
+            <td>12,448 bytes of dead code
+              (<a href="/docs/17.virtual/04.bloat/">Ch17.4</a>)</td>
+          </tr>
+          <tr>
+            <td>an indirect call per dispatch</td>
+            <td>per call</td>
+            <td>no inlining, no constant folding, no vectorisation across it</td>
+          </tr>
+          <tr>
+            <td>RTTI objects per class</td>
+            <td>always</td>
+            <td>6 type-info symbols for 3 classes
+              (<a href="/docs/17.virtual/05.rtti/">Ch17.5</a>)</td>
+          </tr>
+          <tr>
+            <td><code>__cxa_pure_virtual</code> and its runtime</td>
+            <td>any pure virtual</td>
+            <td>pulls in <code>std::terminate</code>, the demangler, <code>fwrite</code>,
+              <code>fputs</code>, <code>abort</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        For a program with one dispatch site, none of that matters. For a program with a thousand
+        types in a plugin-ish hierarchy, it is the difference between a 200 KB binary and a
+        2 MB one, and between "starts instantly" and "loads its own type names from disk".
+      </p>
+
+    </section>
+    <section>
+      <h2>5. So When Is <code>virtual</code> Acceptable?</h2>
+
+      <ul>
+        <li><strong>When you are reading legacy code.</strong> This is the honest answer for
+          Chapter 17 as a whole: <code>virtual</code> is a legacy feature. Qt, MFC, COM and
+          three decades of libraries are built on it, and you must be able to read them.</li>
+        <li><strong>When a library's ABI requires it.</strong> If the platform hands you a
+          <code>struct</code> with virtuals (COM, some driver models), implement it; do not
+          design with it.</li>
+        <li><strong>When the set of implementations is fixed, closed, and few</strong>, and the
+          objects live on the stack. Then <code>virtual</code> is a switch statement with nicer
+          syntax &mdash; and <code>::std::variant</code> plus
+          <code>::std::visit</code> would do the same with no vptr at all.</li>
+        <li><strong>Never in a new abstraction you are designing.</strong> For that, use a
+          function-pointer table (<a href="/docs/17.virtual/06.typeerasure/">Ch17.6</a>), which
+          is the same dispatch mechanism with three advantages: you can see it, you can
+          instantiate it as a constant, and it does not bring RTTI, <code>virtual</code> ABI
+          rules, or <code>__cxa_pure_virtual</code> with it.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>6. Rules of Thumb</h2>
+
+      <ul>
+        <li>Before writing <code>virtual</code>, write down the list of types. If the list is
+          fixed and known, you want a tag, a <code>variant</code>, or a
+          <code>switch</code> &mdash; not a vtable.</li>
+        <li>If the list is open (plugins, user-provided callbacks), you want a table you own, so
+          that you can version it, keep it in <code>.rodata</code>, and make it part of your own
+          ABI instead of the C++ one.</li>
+        <li>Never make a type polymorphic "just in case". The 8 bytes are the cheapest part of
+          the mistake.</li>
+        <li>If you must inherit for dispatch, keep the hierarchy shallow, mark everything
+          (<a href="/docs/17.virtual/03.marking/">Ch17.3</a>), and never let a base pointer
+          escape into your own API.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/17.virtual/01.newdelete/" class="prev-button">&larr; Ch17.1: new, delete, and unique_ptr</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/17.virtual/03.marking/" class="next-button">Ch17.3: Mark Every Virtual Function &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
