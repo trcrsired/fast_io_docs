@@ -210,6 +210,88 @@ void report() const throws;                    // read, may fail (it prints)
         (<a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>).
       </p>
     </section>
+    <section>
+      <h2>5. <code>mutable</code>: The One Exception</h2>
+
+      <p>
+        A <code>const</code> member function may not modify the object. There is exactly one
+        exception, and it is written in the class: a data member declared
+        <code>mutable</code> may be modified even through a <code>const</code> object.
+      </p>
+
+<pre><code class="language-cpp">
+class counter
+{
+	::std::size_t calls_{};
+	mutable ::std::size_t hits_{};
+
+public:
+	[[nodiscard]] ::std::size_t calls() const noexcept { return calls_; }
+	[[nodiscard]] ::std::size_t hits() const noexcept { return hits_; }
+	void bump() noexcept { ++calls_; }
+
+	[[nodiscard]] ::std::size_t inspect() const noexcept
+	{
+		++hits_;
+		return calls_;
+	}
+};
+</code></pre>
+      <p>
+        <code>++calls_</code> in a <code>const</code> function is an error;
+        <code>++hits_</code> is not, because <code>hits_</code> is declared
+        <code>mutable</code>. The object is not <code>const</code> as far as that one member
+        is concerned.
+      </p>
+
+<pre><code class="language-cpp">
+::std::size_t const a{c.inspect()};      // ++hits_ is legal here
+::std::size_t const b{c.inspect()};
+counter const &amp;view{c};                // a const reference
+::std::size_t const d{view.inspect()};   // still legal: hits_ is mutable
+::fast_io::io::println("calls=", a, " ", b, " ", d);
+::fast_io::io::println("hits=", view.hits());
+</code></pre>
+      <pre><code class="language-text">
+calls=2 2 2
+hits=3
+</code></pre>
+
+      <p>
+        Three lines of output from three calls, and <code>calls_</code> is still
+        <code>2</code>: <code>inspect</code> may observe, but it may only <em>write</em> to
+        the one member the class allowed.
+      </p>
+      <p>
+        <code>mutable</code> exists for bookkeeping that does not change the value the object
+        represents: a hit counter, a memoised result, a cached size, a mutex. In every one of
+        those cases the operation really is logically <code>const</code> &mdash; asking the
+        same question twice gives the same answer &mdash; and the member is an optimisation or
+        a statistic, not the value.
+      </p>
+      <p>
+        It is also a trap, and this book treats it as one:
+      </p>
+      <ul>
+        <li><strong>It is invisible at the call site.</strong> <code>view.inspect()</code>
+          looks read-only and is not. Every mutable member is a lie told to the reader, so
+          there must be exactly one reason for it and a comment saying so.</li>
+        <li><strong>It is not thread-safe.</strong> Two threads calling a
+          <code>const</code> member function on the same object is the normal case; if that
+          function writes a <code>mutable</code> member, it is a data race
+          (<a href="/docs/11.io/06.mutex/">Ch11.6</a>). Make the member atomic or take a
+          lock.</li>
+        <li><strong>It is not for lazy errors.</strong> If a member function needs to write
+          real state, it is not <code>const</code>. Remove the <code>const</code> instead of
+          hiding the write behind <code>mutable</code>.</li>
+      </ul>
+      <p>
+        <code>mutable</code> cannot be applied to anything but a non-static data member, and
+        it never appears in a constructor's initialiser list or in a member function
+        declaration.
+      </p>
+
+    </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">

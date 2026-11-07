@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch16.2: Construction and Destruction Order - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch16.2: Construction and Destruction Order</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/16.inheritance/02.construction/">中文（简体）</a></p>
+    <section>
+      <h2>1. The Order Is Fixed, and It Is Not the Initialiser List</h2>
+
+      <p>
+        Building a derived object happens in three phases, and the order is fixed by the
+        language:
+      </p>
+      <ol>
+        <li>The <strong>base subobject</strong> is constructed, in the order bases are listed.</li>
+        <li>The <strong>members</strong> are constructed, in the order they are
+          <em>declared</em> in the class &mdash; not in the order the initialiser list mentions
+          them (<a href="/docs/13.class/06.constructors/">Ch13.6</a>).</li>
+        <li>The <strong>body</strong> of the derived constructor runs.</li>
+      </ol>
+      <p>
+        Destruction is exactly the reverse: body's scope ends, then members are destroyed in
+        reverse declaration order, then the base. That is why a derived destructor may read
+        the base's members: they are still alive. A base destructor must not touch anything
+        the derived class added &mdash; those are already gone.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. Initialising the Base</h2>
+
+      <p>
+        If the base has a default constructor, the derived class need not mention it. If it
+        does not, the derived constructor <em>must</em> name it in the initialiser list:
+      </p>
+      <pre><code class="language-cpp">
+class machine_part
+{
+protected:
+	::std::int_least32_t serial_{};
+
+public:
+	machine_part() noexcept = default;
+	explicit machine_part(::std::int_least32_t s) noexcept : serial_{s} {}
+};
+
+class machine : public machine_part
+{
+	::std::int_least32_t power_{};
+
+public:
+	machine(::std::int_least32_t serial, ::std::int_least32_t power) noexcept
+		: machine_part{serial}, power_{power}
+	{
+	}
+};
+</code></pre>
+      <p>
+        The base is named by its <em>type</em>, not by a member name:
+        <code>machine_part{serial}</code>. Writing <code>serial_{serial}</code> would be an
+        error &mdash; <code>serial_</code> belongs to the base subobject, and base subobjects
+        are initialised through their constructor.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. A Destructor Cannot Print</h2>
+
+      <p>
+        <a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a> said every function is
+        <code>noexcept</code> or <code>throws</code>, and destructors are
+        <code>noexcept</code> &mdash; always. Printing can fail (a closed pipe, a full disk), so
+        a destructor that prints is rejected by the compiler. This is what it says:
+      </p>
+      <pre><code class="language-cpp">
+error: call to a ‘throws’ or ‘return_failure{E}’ function must be handled by an enclosing
+       ‘try { } catch throws’, or the calling function needs a herbceptions specification
+       so the error can propagate
+</code></pre>
+      <p>
+        The message is precise: a <code>noexcept</code> function cannot call a
+        <code>throws</code> function without handling the failure itself. The diagnostic alone
+        is the lesson, but the fix matters too, so the example below records events into a
+        small buffer with a <code>noexcept</code> writer and prints the trace afterwards, from
+        <code>main</code>, where failing is allowed.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Watching the Order</h2>
+
+      <pre><code class="language-cpp">
+namespace trace
+{
+inline ::std::string_view events[8]{};
+inline ::std::size_t count{};
+
+inline void add(::std::string_view e) noexcept
+{
+	if (count != 8)
+	{
+		events[count++] = e;
+	}
+}
+} // namespace trace
+
+struct base
+{
+	base() throws { trace::add("base()"); }
+	~base() noexcept { trace::add("~base()"); }
+};
+
+struct engine
+{
+	engine() throws { trace::add("  engine()"); }
+	~engine() noexcept { trace::add("  ~engine()"); }
+};
+
+struct machine : base
+{
+	engine eng{};
+	::std::string_view tag{};
+
+	machine() throws : base{}, tag{"built"} { trace::add("machine()"); }
+	~machine() noexcept { trace::add("~machine()"); }
+};
+</code></pre>
+      <p>
+        Note the two contracts: the constructors are <code>throws</code> because a derived
+        constructor that can fail must be allowed to propagate, and the destructors are
+        <code>noexcept</code> and therefore only touch a fixed array. If a base constructor
+        throws, the derived object never exists, and destructors run only for the parts that
+        were fully constructed.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;string_view&gt;
+
+namespace trace
+{
+inline ::std::string_view events[8]{};
+inline ::std::size_t count{};
+
+inline void add(::std::string_view e) noexcept
+{
+	if (count != 8)
+	{
+		events[count++] = e;
+	}
+}
+} // namespace trace
+
+struct base
+{
+	base() throws { trace::add("base()"); }
+	~base() noexcept { trace::add("~base()"); }
+};
+
+struct engine
+{
+	engine() throws { trace::add("  engine()"); }
+	~engine() noexcept { trace::add("  ~engine()"); }
+};
+
+struct machine : base
+{
+	engine eng{};
+	::std::string_view tag{};
+
+	machine() throws : base{}, tag{"built"} { trace::add("machine()"); }
+	~machine() noexcept { trace::add("~machine()"); }
+};
+
+int main()
+{
+	try
+	{
+		{
+			machine m{};
+			::fast_io::io::println("in scope: ", m.tag);
+		}
+		::fast_io::io::println("out of scope");
+
+		for (::std::size_t i{}; i != trace::count; ++i)
+		{
+			::fast_io::io::println(trace::events[i]);
+		}
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+in scope: built
+out of scope
+base()
+  engine()
+machine()
+~machine()
+  ~engine()
+~base()
+</code></pre>
+      <p>
+        Read the bottom six lines as the two symmetric halves. Construction: base, then
+        members, then body. Destruction: body, then members in reverse, then base. The
+        <code>tag</code> member is constructed before <code>machine()</code> runs, which is
+        why the body can already rely on it.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. Two Consequences People Get Wrong</h2>
+
+      <ul>
+        <li><strong>The derived body cannot help build the base.</strong> By the time
+          <code>machine()</code>'s body runs, the base is complete. Anything the base needs
+          must be passed to it, through a constructor argument, a virtual call
+          (never during construction &mdash; <a href="/docs/18.virtual/">Chapter 18</a>) or a
+          setter used afterwards.</li>
+        <li><strong>Destruction of a derived object never runs a derived destructor through a
+          base pointer</strong> unless the base destructor is <code>virtual</code>. Deleting a
+          <code>machine</code> through a <code>base*</code> without a virtual destructor is
+          undefined behaviour. The rule for this chapter's non-virtual hierarchies is simple:
+          do not own objects through base pointers.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>7. Rules of Thumb</h2>
+
+      <ul>
+        <li>Order the initialiser list in the same order as the declarations. It runs in
+          declaration order, and a list that contradicts it reads as a lie.</li>
+        <li>Name the base in the initialiser list whenever it has no default constructor, and
+          prefer naming it always: it documents the dependency.</li>
+        <li>A destructor is <code>noexcept</code>: it may not allocate meaningfully, may not
+          print, and may not throw. Record state and report it later.</li>
+        <li>A derived constructor that can fail is <code>throws</code>; a base constructor that
+          can fail makes every derived constructor <code>throws</code>.</li>
+        <li>Store no pointer to a derived object in a base pointer unless the base has a
+          <code>virtual</code> destructor (<a href="/docs/16.inheritance/06.override/">Ch16.6</a>).</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/16.inheritance/01.whatinheritance/" class="prev-button">&larr; Ch16.1: The Base Subobject</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/16.inheritance/03.access/" class="next-button">Ch16.3: public, protected, private &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

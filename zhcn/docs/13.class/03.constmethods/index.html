@@ -162,6 +162,80 @@ void report() const throws;                    // read, may fail (it prints)
         在上面的例子里，<code>show</code> 是 <code>throws</code> 而不是 <code>noexcept</code>，因为它要打印，而它在 <code>main</code> 里的调用者把调用包进了 <code>try { } catch throws (::std::error e)</code>。类本身不需要为这一点的成立做任何事：成员函数的失败会从 <code>c.value()</code> 传出，再从 <code>show</code> 传出，最后在程序准备好处理它的地方被捕获（<a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>）。
       </p>
     </section>
+    <section>
+      <h2>5. <code>mutable</code>：唯一的例外</h2>
+
+      <p>
+        <code>const</code> 成员函数不可以修改对象。只有一个例外，而且它写在类里：被声明为
+        <code>mutable</code> 的数据成员，即使通过 <code>const</code> 对象也可以被修改。
+      </p>
+
+<pre><code class="language-cpp">
+class counter
+{
+	::std::size_t calls_{};
+	mutable ::std::size_t hits_{};
+
+public:
+	[[nodiscard]] ::std::size_t calls() const noexcept { return calls_; }
+	[[nodiscard]] ::std::size_t hits() const noexcept { return hits_; }
+	void bump() noexcept { ++calls_; }
+
+	[[nodiscard]] ::std::size_t inspect() const noexcept
+	{
+		++hits_;
+		return calls_;
+	}
+};
+</code></pre>
+      <p>
+        在 <code>const</code> 函数里 <code>++calls_</code> 是错误；<code>++hits_</code> 不是，
+        因为 <code>hits_</code> 被声明为 <code>mutable</code>。就这一个成员而言，对象并不是
+        <code>const</code> 的。
+      </p>
+
+<pre><code class="language-cpp">
+::std::size_t const a{c.inspect()};      // ++hits_ is legal here
+::std::size_t const b{c.inspect()};
+counter const &amp;view{c};                // a const reference
+::std::size_t const d{view.inspect()};   // still legal: hits_ is mutable
+::fast_io::io::println("calls=", a, " ", b, " ", d);
+::fast_io::io::println("hits=", view.hits());
+</code></pre>
+      <pre><code class="language-text">
+calls=2 2 2
+hits=3
+</code></pre>
+
+      <p>
+        三次调用打出三行，而 <code>calls_</code> 仍然是 <code>2</code>：
+        <code>inspect</code> 可以观察，但它只被允许<em>写</em>类放行的那一个成员。
+      </p>
+      <p>
+        <code>mutable</code> 是为“不改变对象所代表的值的记账工作”而存在的：命中计数、备忘结果、
+        缓存的大小、互斥量。在这些场合，这个操作在逻辑上确实是 <code>const</code> 的 ——
+        同一个问题问两次得到同一个答案 —— 那个成员只是优化或统计，不是值本身。
+      </p>
+      <p>
+        它同时也是陷阱，本书就是把它当陷阱讲的：
+      </p>
+      <ul>
+        <li><strong>它在调用点看不见。</strong><code>view.inspect()</code> 看起来只读，
+          其实不是。每个 <code>mutable</code> 成员都是对读者说的一句谎，所以必须恰好有一个理由，
+          并且有注释写出来。</li>
+        <li><strong>它不是线程安全的。</strong>两个线程同时在同一个对象上调用
+          <code>const</code> 成员函数是常态；若那个函数写了一个 <code>mutable</code> 成员，
+          那就是数据竞争（<a href="/zhcn/docs/11.io/06.mutex/">第11.6章</a>）。
+          把成员做成原子类型，或者加锁。</li>
+        <li><strong>它不是给偷懒用的。</strong>如果成员函数需要写真正的状态，它就不是
+          <code>const</code> 的。去掉 <code>const</code>，不要把写入藏在 <code>mutable</code> 后面。</li>
+      </ul>
+      <p>
+        <code>mutable</code> 只能用于非静态数据成员，它从不出现在构造函数的初始化列表里，
+        也不会出现在成员函数的声明中。
+      </p>
+
+    </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第16.3章 public、protected 与 private 继承 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第16.3章 public、protected 与 private 继承</h1>
+    <p class="lang-switch"><a href="/docs/16.inheritance/03.access/">English</a></p>
+    <section>
+      <h2>1. 三种继承，三种职责</h2>
+
+      <p>
+        基类名前面那个词是访问说明符，它同时回答两个问题：派生类能用基类的哪些成员，
+        而程序的其余部分能用这个“派生到基类”的关系做什么？
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>写法</th>
+            <th>含义</th>
+            <th>外部代码可以</th>
+            <th>用来做什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>: public base</code></td>
+            <td>is-a</td>
+            <td>把 <code>D&amp;</code> 转成 <code>B&amp;</code>，使用基类的
+              <code>public</code> 成员</td>
+            <td>唯一表达“类型关系”的一种</td>
+          </tr>
+          <tr>
+            <td><code>: private base</code></td>
+            <td>用……实现</td>
+            <td>完全不行</td>
+            <td><strong>接管一个现成实现</strong>，再用 <code>using</code>
+              精确公开你选中的那些操作 —— 见 §5，这是语言里最有用的惯用法之一</td>
+          </tr>
+          <tr>
+            <td><code>: protected base</code></td>
+            <td>用……实现</td>
+            <td>不行：这个关系只在层次结构内部可见</td>
+            <td>更深层的派生类必须看到基类的 <code>protected</code> 成员 ——
+              三者中少见的一种</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        基类的成员在派生类内部保留它们自己的访问级别：基类的 <code>public</code> 成员派生类和外部代码
+        都能用（在 public 继承下）；基类的 <code>protected</code> 成员派生类和更深层派生类能用；
+        基类的 <code>private</code> 成员除了基类自己谁都别想用。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. <code>protected</code> 是对派生类的承诺</h2>
+
+      <pre><code class="language-cpp">
+class machine_part
+{
+protected:
+	::std::int_least32_t serial_{};
+
+public:
+	::std::int_least32_t serial() const noexcept { return serial_; }
+};
+
+class machine : public machine_part
+{
+	::std::int_least32_t power_{};
+
+public:
+	void set_serial(::std::int_least32_t s) noexcept
+	{
+		serial_ = s;              // legal: protected member, derived class
+	}
+
+	::std::int_least32_t power() const noexcept { return power_; }
+};
+</code></pre>
+      <p>
+        <code>serial_</code> 是 <code>protected</code>，所以 <code>machine</code> 可以写它，
+        但外部世界只能调用 <code>serial()</code>。这是一个真实的取舍，代价也真实：
+        现在每个派生类都成了基类不变式的一部分。如果 <code>machine_part</code> 将来想要求每次写入
+        都校验 <code>serial_</code>，它做不到 —— 因为它已经把写权限交给了一个数量不受限的未来类集合。
+      </p>
+      <p>
+        <a href="/zhcn/docs/13.class/04.access/">第13.4章</a>里的规则仍然成立：数据优先
+        <code>private</code>，只有当派生类确实必须自己维持不变式时才用 <code>protected</code> ——
+        序列化基类、迭代器基类、流基类。一个 <code>protected</code> 数据成员，就是受众更小的
+        <code>public</code> 数据。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 每种继承允许什么：实测</h2>
+
+      <p>
+        这些差别不是口味问题，它们在类型系统里看得见，而
+        <code>::std::is_convertible_v</code> 会把它们打印出来
+        （<a href="/zhcn/docs/15.genericprogramming/01.typetraits/">第15.1章</a>）：
+      </p>
+      <pre><code class="language-cpp">
+class base
+{
+protected:
+	::std::int_least32_t prot_{7};
+
+public:
+	::std::int_least32_t pub_{1};
+};
+
+struct public_derived : public base
+{
+	[[nodiscard]] ::std::int_least32_t read() const noexcept { return prot_ + pub_; }
+};
+
+struct protected_derived : protected base
+{
+	[[nodiscard]] ::std::int_least32_t read() const noexcept { return prot_ + pub_; }
+};
+
+struct private_derived : private base
+{
+	[[nodiscard]] ::std::int_least32_t read() const noexcept { return prot_ + pub_; }
+};
+</code></pre>
+      <p>
+        三者都能读 <code>prot_</code> 与 <code>pub_</code>，都得到 <code>8</code>。
+        但对外部世界而言，只有第一个是一个 <code>base</code>。差别就这一点，
+        而这正是 private 继承有用的原因：基类的<em>一切</em>你都能用，而其中最<em>没有一样</em>
+        对你的使用者可见，除非你亲口说。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. <code>using</code> 决定公开什么</h2>
+
+      <p>
+        一条 <code>using</code> 声明点名一个基类成员，并在声明所在的位置把它按那个访问级别
+        重新公开：
+      </p>
+      <pre><code class="language-cpp">
+class buffer
+{
+protected:
+	char *data_{};
+	::std::size_t size_{};
+
+public:
+	[[nodiscard]] ::std::size_t size() const noexcept { return size_; }
+};
+
+class message : private buffer
+{
+public:
+	using buffer::size;            // size() is public again
+};
+</code></pre>
+      <p>
+        <code>using buffer::size;</code> 只改变 <code>message</code> 内部那一个名字的访问级别；
+        继承关系本身依然是 private，所以 <code>message&amp;</code> 仍然不能转成
+        <code>buffer&amp;</code>。下一节系统性地使用它。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. private 继承非常有用：选择性公开</h2>
+
+      <p>
+        设想在一个 vector 之上做一个栈。用组合，意味着你要为每个想公开的操作手写一个转发函数，
+        还要把每个签名、每个重载、每个 <code>noexcept</code>/<code>throws</code> 契约都写对。
+        用 private 继承加 <code>using</code>，意味着<strong>什么都不用写</strong>：
+        接管整个实现，然后公开其中你选中的子集，签名保持原样。
+      </p>
+      <pre><code class="language-cpp">
+// adopt a vector's storage, publish only a stack's operations
+class int_stack : private ::fast_io::vector&lt;int&gt;
+{
+	using base = ::fast_io::vector&lt;int&gt;;
+
+public:
+	using base::is_empty;
+	using base::push_back;
+	using base::size;
+
+	[[nodiscard]] int top() const throws { return base::back(); }
+
+	void pop() noexcept { base::pop_back(); }
+};
+</code></pre>
+      <pre><code class="language-text">
+size=3 is_empty=0 top=3
+after pop: size=2 top=2
+</code></pre>
+      <p>
+        那三行 <code>using</code> 换来了什么，以及没有带来什么：
+      </p>
+      <ul>
+        <li><strong>没有样板代码。</strong><code>push_back</code> 有两个重载（const 左值与右值）
+          和它自己的错误契约；<code>using</code> 把两个都原样公开，永远与基类同步。
+          手写的转发函数会把它压成一个签名，最后还会丢掉契约。</li>
+        <li><strong>别的都不泄漏。</strong><code>int_stack</code> 没有
+          <code>operator[]</code>、没有 <code>insert</code>、没有 <code>data()</code>、
+          没有迭代器、也没有 <code>push_back_unchecked</code> —— 对任何调用者来说，
+          一个 <code>int_stack</code> 都不是 <code>::fast_io::vector&lt;int&gt;</code>，
+          也不能传给需要它的地方。可替换性链条被有意切断了。</li>
+        <li><strong>零空间代价。</strong>基类子对象就是整个对象，所以
+          <code>sizeof(int_stack) == sizeof(::fast_io::vector&lt;int&gt;)</code>。
+          用成员也一样大，但你必须给它起名字、写转发。</li>
+        <li><strong>它仍然只是实现，不是类型。</strong>因为关系是 private 的，
+          基类的非虚析构函数无害：没人能通过 <code>::fast_io::vector&lt;int&gt;*</code>
+          去删除一个 <code>int_stack</code>
+          （<a href="/zhcn/docs/16.inheritance/02.construction/">第16.2章</a>）。</li>
+      </ul>
+      <p>
+        对比 <a href="/zhcn/docs/15.genericprogramming/">第15章</a>的替代方案：概念加模板更灵活，
+        但它让 <code>int_stack</code> 变成模板，而有时你要的正是一个具体类型。
+        private 继承是“一个具体类型，它是某个现成类型的严格子集”这件事的工具。标准库自己也在用：
+        若干实现里的 <code>::std::stack</code> 就是建立在 <code>::std::deque</code> 之上的私有适配器，
+        C++11 之前那些基于 <code>::std::istream</code> 的适配器也是同样的做法。
+      </p>
+      <p>
+        它用错的地方：当基类并不是你这个抽象的好实现时；当你其实想公开基类的大部分时
+        （那应该是 public 继承或成员）；当你需要在运行期换实现时（那应该是 variant 或擦除类型）。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 测试：<code>#define private public</code></h2>
+
+      <p>
+        访问说明符是编译期的、头文件层面的属性，这意味着一个测试翻译单元可以在包含被测头文件之前
+        改掉它们：
+      </p>
+      <pre><code class="language-cpp">
+// counter.hpp
+#pragma once
+#include &lt;cstddef&gt;
+
+class counter
+{
+public:
+	counter() noexcept = default;
+	void bump() noexcept { ++hidden_; }
+	[[nodiscard]] ::std::size_t value() const noexcept { return hidden_; }
+
+private:
+	::std::size_t hidden_{};
+};
+</code></pre>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+#define private public
+#include "counter.hpp"
+#undef private
+
+int main()
+{
+	try
+	{
+		counter c{};
+		c.bump();
+		c.hidden_ = 41;            // reachable only because of the #define
+		::fast_io::io::println("value()=", c.value(), " hidden_=", c.hidden_);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+value()=41 hidden_=41
+</code></pre>
+      <p>
+        去掉那两行预处理指令，同一条语句就会被拒绝 —— 这正是这个技巧值得知道的原因：
+      </p>
+      <pre><code class="language-cpp">
+error: ‘std::size_t counter::hidden_’ is private within this context
+</code></pre>
+      <p>
+        它<strong>对测试非常有用</strong> —— 直接检查不变式、构造公开接口到不了的状态、
+        断言被移动后的对象真的是空的 —— 同时它也是一把快刀。让它不至于变成灾难的规则：
+      </p>
+      <ul>
+        <li><strong>只在测试源文件里用。</strong>紧贴在 <code>#include</code> 之前，
+          紧接其后 <code>#undef</code>。绝不写在头文件里，绝不写进任何发布出去的东西。</li>
+        <li><strong>它只改写 <code>private</code> 这个记号。</strong>在第一个访问说明符之前声明的
+          成员仍然是 private 的，因为它位于 <code>class</code> 隐含的私有区；宏碰不到它。
+          （更重的手法 <code>#define class struct</code> 能改，但改的远不止这一点 —— 不要用。）</li>
+        <li><strong>严格说这是 ODR 违规：</strong>这个类在测试翻译单元里和在库里有着不同的定义。
+          访问说明符不影响布局，所以实践中什么都不会坏；而当被测库是一个你不会改其 ABI 的预编译
+          二进制时，它是无害的。</li>
+        <li><strong>它把测试和实现绑在一起。</strong>测试读到的每个 <code>hidden_</code>
+          都是作者明天可以改名的东西。测公开行为；只有公开接口观察不到的不变式才伸进去看。</li>
+        <li><strong>用 <code>#define</code>/<code>#undef</code> 成对写，不要用
+          <code>-Dprivate=public</code>。</strong>命令行形式会作用于你包含的每一个头文件，
+          包括标准库的，那是在自找麻烦。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>7. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+#include &lt;type_traits&gt;
+
+class base
+{
+protected:
+	::std::int_least32_t prot_{7};
+
+public:
+	::std::int_least32_t pub_{1};
+};
+
+struct public_derived : public base
+{
+	[[nodiscard]] ::std::int_least32_t read() const noexcept { return prot_ + pub_; }
+};
+
+struct protected_derived : protected base
+{
+	[[nodiscard]] ::std::int_least32_t read() const noexcept { return prot_ + pub_; }
+};
+
+struct private_derived : private base
+{
+	[[nodiscard]] ::std::int_least32_t read() const noexcept { return prot_ + pub_; }
+};
+
+int main()
+{
+	try
+	{
+		public_derived a{};
+		protected_derived b{};
+		private_derived c{};
+
+		::fast_io::io::println("reads: ", a.read(), " ", b.read(), " ", c.read());
+		::fast_io::io::println("public -> base convertible: ", ::std::is_convertible_v&lt;public_derived &amp;, base &amp;&gt;);
+		::fast_io::io::println("protected -> base convertible: ", ::std::is_convertible_v&lt;protected_derived &amp;, base &amp;&gt;);
+		::fast_io::io::println("private -> base convertible: ", ::std::is_convertible_v&lt;private_derived &amp;, base &amp;&gt;);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+reads: 8 8 8
+public -> base convertible: 1
+protected -> base convertible: 0
+private -> base convertible: 0
+</code></pre>
+      <p>
+        三个类，一种行为，而只有一个是 <code>base</code>。那两个 0 不是要绕开的限制 ——
+        它们就是目的：接管实现，但不公开关系。
+      </p>
+
+    </section>
+    <section>
+      <h2>8. 经验法则</h2>
+
+      <ul>
+        <li>is-a 那句话为真时用 <code>public</code> 继承；想接管一个实现、并用
+          <code>using</code> 公开其中选定子集时用 <code>private</code> 继承。</li>
+        <li>优先用 <code>private</code> 数据加 <code>protected</code> 访问函数，而不是
+          <code>protected</code> 数据成员。</li>
+        <li>不要在脑子里混淆“基类的访问说明符”和“成员的访问级别”：它们是相乘的。
+          <code>private</code> 继承下派生类照样能用基类的 <code>public</code> 成员。</li>
+        <li>private 继承下，把要公开的操作写成一组 <code>using</code> 声明，
+          让公开接口一眼看得清。</li>
+        <li>记住 private 继承是实现细节：没有转换、不能持有基类指针、没有
+          <code>virtual</code> 接口。这是目的，不是限制。</li>
+        <li><code>#define private public</code> 只属于测试源文件，并且要以
+          <code>#define</code>/<code>#undef</code> 成对包住一次包含。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/16.inheritance/02.construction/" class="prev-button">&larr; 第16.2章 构造顺序</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/16.inheritance/04.conversions/" class="next-button">第16.4章 转换与截断 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

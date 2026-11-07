@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch16.4: Derived-to-Base Conversion and Slicing - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch16.4: Derived-to-Base Conversion and Slicing</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/16.inheritance/04.conversions/">中文（简体）</a></p>
+    <section>
+      <h2>1. A Derived Object Is a Base Object</h2>
+
+      <p>
+        Because the base subobject is a real part of the derived object
+        (<a href="/docs/16.inheritance/01.whatinheritance/">Ch16.1</a>), a derived object can be
+        used wherever a base object is expected, with no cast:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Target</th>
+            <th>From a <code>derived</code> lvalue</th>
+            <th>What happens</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>base&amp;</code></td>
+            <td><code>base&amp; r = d;</code></td>
+            <td>binds to the base subobject <em>inside</em> <code>d</code>; no copy</td>
+          </tr>
+          <tr>
+            <td><code>base const&amp;</code></td>
+            <td><code>base const&amp; r = d;</code></td>
+            <td>same, read-only</td>
+          </tr>
+          <tr>
+            <td><code>base*</code></td>
+            <td><code>base* p = &amp;d;</code></td>
+            <td>points at the base subobject; no copy</td>
+          </tr>
+          <tr>
+            <td><code>base</code></td>
+            <td><code>base b = d;</code></td>
+            <td><strong>copies only the base part</strong> &mdash; this is slicing</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The first three are the useful ones: they are free, they preserve the object, and
+        writes through the reference reach the original. The fourth is the trap, and it is
+        the subject of this page.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. Slicing: the Derived Part Is Thrown Away</h2>
+
+      <p>
+        <code>base b = d;</code> does not &ldquo;convert&rdquo; <code>d</code>; it constructs
+        a new <code>base</code> from the base subobject of <code>d</code>. The new object has
+        the size and the members of a <code>base</code>, so everything the derived class added
+        is gone &mdash; silently, with no warning, because for the compiler this is an ordinary
+        copy constructor call.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+struct base
+{
+	::std::int_least32_t v{};
+};
+
+struct derived : base
+{
+	::std::int_least32_t extra{};
+};
+
+int main()
+{
+	try
+	{
+		derived d{};
+		d.v = 1;
+		d.extra = 2;
+
+		base sliced = d;                       // copies only the base subobject
+		::fast_io::io::println("sliced.v=", sliced.v, " sizeof(sliced)=", sizeof(sliced));
+
+		base &amp;ref = d;                         // refers to the base subobject inside d
+		ref.v = 5;
+		::fast_io::io::println("after ref.v=5: d.v=", d.v, " d.extra=", d.extra);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+sliced.v=1 sizeof(sliced)=4
+after ref.v=5: d.v=5 d.extra=2
+</code></pre>
+      <p>
+        <code>sizeof(sliced)</code> is <code>4</code>: the object is a <code>base</code>, not
+        a <code>derived</code>. <code>ref</code>, by contrast, is the real base subobject &mdash;
+        writing <code>ref.v</code> changed <code>d.v</code>, and <code>d.extra</code> is
+        untouched because it was never involved.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. Where Slicing Happens Without You Writing It</h2>
+
+      <p>
+        Slicing is not an exotic operation. It happens whenever a derived object is copied
+        into a base-typed value:
+      </p>
+      <ul>
+        <li><strong>A function parameter taken by value:</strong>
+          <code>void f(base b); ... f(d);</code> &mdash; the derived part is dropped inside the
+          call. Take <code>base const&amp;</code> instead and nothing is lost.</li>
+        <li><strong>A container of base values:</strong>
+          <code>::fast_io::vector&lt;base&gt; v; v.push_back(d);</code> &mdash; the vector holds
+          <code>base</code>, so it stores <code>base</code>. If you wanted the derived parts,
+          you wanted a collection of something else: a variant, or an erased type
+          (<a href="/docs/15.genericprogramming/10.typeerasure/">Ch15.10</a>).</li>
+        <li><strong>Assignment to a base object:</strong> <code>b = d;</code> &mdash; only the
+          base subobject is assigned.</li>
+        <li><strong>Returning a derived object from a function whose return type is the
+          base.</strong></li>
+      </ul>
+      <p>
+        In a hierarchy with no <code>virtual</code> functions all of these are at least
+        <em>type-honest</em>: a <code>base</code> value really is a <code>base</code>, and
+        every operation on it is the base's. Once the base has virtual functions, slicing
+        becomes a logic bug as well, because the copy no longer behaves like the original
+        &mdash; <a href="/docs/18.virtual/">Chapter 18</a> takes that up.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Passing by Reference, Not by Value</h2>
+
+      <p>
+        The rule that follows is one line long: <strong>a base class in a parameter list is a
+        reference or a pointer, never a value.</strong>
+      </p>
+      <pre><code class="language-cpp">
+inline void report(base const &amp;b) throws;      // uses the object you passed
+inline void report(base b) throws;              // uses a copy of its base subobject
+
+inline void mutate(base &amp;b) noexcept;          // writes reach the original
+</code></pre>
+      <p>
+        This is also why the fast_io examples pass devices by reference:
+        <code>::fast_io::io::println(out, ...)</code> takes the output device by forwarding
+        reference, so an <code>obuf_file</code> stays an <code>obuf_file</code> and its
+        buffer is not copied (<a href="/docs/11.io/01.fileio/">Ch11.1</a>).
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Rules of Thumb</h2>
+
+      <ul>
+        <li>Take base classes as <code>B const&amp;</code> or <code>B&amp;</code>. By-value
+          base parameters are slicing machines.</li>
+        <li>Never store a derived object in a container of base values and expect the derived
+          part back.</li>
+        <li>If you need &ldquo;many different derived things in one collection&rdquo;, the
+          answer is not <code>vector&lt;base&gt;</code>: it is a
+          <code>::std::variant</code>, or the type-erased
+          <a href="/docs/15.genericprogramming/10.typeerasure/"><code>shape</code> of Ch15.10</a>.</li>
+        <li>A conversion to <code>base&amp;</code> is free and preserves identity; a conversion
+          to <code>base</code> allocates a new object. When in doubt about which one happened,
+          print <code>sizeof</code>.</li>
+        <li>Slicing is not an error the language reports. It is a copy, and copies are
+          legal &mdash; which is exactly why it needs a rule.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/16.inheritance/03.access/" class="prev-button">&larr; Ch16.3: public, protected, private</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/16.inheritance/05.hiding/" class="next-button">Ch16.5: Name Hiding &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

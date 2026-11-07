@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第16.2章 构造与析构顺序 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第16.2章 构造与析构顺序</h1>
+    <p class="lang-switch"><a href="/docs/16.inheritance/02.construction/">English</a></p>
+    <section>
+      <h2>1. 顺序是固定的，而且不是初始化列表的顺序</h2>
+
+      <p>
+        构造一个派生对象分三个阶段，顺序由语言规定：
+      </p>
+      <ol>
+        <li><strong>基类子对象</strong>被构造，按基类列出的顺序；</li>
+        <li><strong>成员</strong>被构造，按它们在类中<em>声明</em>的顺序 ——
+          不是初始化列表提到它们的顺序（<a href="/zhcn/docs/13.class/06.constructors/">第13.6章</a>）；</li>
+        <li>派生类构造函数的<strong>函数体</strong>执行。</li>
+      </ol>
+      <p>
+        析构完全相反：函数体作用域结束，然后成员按声明逆序销毁，最后是基类。这就是为什么派生类的
+        析构函数可以读基类的成员：它们还活着。而基类的析构函数绝不能碰派生类新增的东西 ——
+        那些已经没了。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 初始化基类</h2>
+
+      <p>
+        如果基类有默认构造函数，派生类不必提到它。如果没有，派生类构造函数<em>必须</em>在初始化
+        列表里点名：
+      </p>
+      <pre><code class="language-cpp">
+class machine_part
+{
+protected:
+	::std::int_least32_t serial_{};
+
+public:
+	machine_part() noexcept = default;
+	explicit machine_part(::std::int_least32_t s) noexcept : serial_{s} {}
+};
+
+class machine : public machine_part
+{
+	::std::int_least32_t power_{};
+
+public:
+	machine(::std::int_least32_t serial, ::std::int_least32_t power) noexcept
+		: machine_part{serial}, power_{power}
+	{
+	}
+};
+</code></pre>
+      <p>
+        基类是用它的<em>类型</em>点名的，不是用某个成员名：
+        <code>machine_part{serial}</code>。写成 <code>serial_{serial}</code> 是错误 ——
+        <code>serial_</code> 属于基类子对象，而基类子对象要通过它自己的构造函数初始化。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 析构函数不能打印</h2>
+
+      <p>
+        <a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>说每个函数要么
+        <code>noexcept</code> 要么 <code>throws</code>，而析构函数永远是
+        <code>noexcept</code>。打印会失败（管道被关、磁盘写满），所以会打印的析构函数会被编译器
+        拒绝。它说的是：
+      </p>
+      <pre><code class="language-cpp">
+error: call to a ‘throws’ or ‘return_failure{E}’ function must be handled by an enclosing
+       ‘try { } catch throws’, or the calling function needs a herbceptions specification
+       so the error can propagate
+</code></pre>
+      <p>
+        这条信息很精确：<code>noexcept</code> 函数不能调用 <code>throws</code> 函数除非它自己
+        处理失败。光这条诊断就是教训，但修法也要讲，所以下面的例子把事件记进一个小缓冲区
+        （写入函数是 <code>noexcept</code>），之后在 <code>main</code> 里把轨迹打印出来 ——
+        那里允许失败。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 观察顺序</h2>
+
+      <pre><code class="language-cpp">
+namespace trace
+{
+inline ::std::string_view events[8]{};
+inline ::std::size_t count{};
+
+inline void add(::std::string_view e) noexcept
+{
+	if (count != 8)
+	{
+		events[count++] = e;
+	}
+}
+} // namespace trace
+
+struct base
+{
+	base() throws { trace::add("base()"); }
+	~base() noexcept { trace::add("~base()"); }
+};
+
+struct engine
+{
+	engine() throws { trace::add("  engine()"); }
+	~engine() noexcept { trace::add("  ~engine()"); }
+};
+
+struct machine : base
+{
+	engine eng{};
+	::std::string_view tag{};
+
+	machine() throws : base{}, tag{"built"} { trace::add("machine()"); }
+	~machine() noexcept { trace::add("~machine()"); }
+};
+</code></pre>
+      <p>
+        注意两个契约：构造函数是 <code>throws</code>，因为可能失败的派生构造函数必须被允许向上
+        传播；析构函数是 <code>noexcept</code>，所以只碰一个固定数组。如果基类构造函数抛出，
+        派生对象根本不存在，只有那些已经完整构造好的部分才会被析构。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;string_view&gt;
+
+namespace trace
+{
+inline ::std::string_view events[8]{};
+inline ::std::size_t count{};
+
+inline void add(::std::string_view e) noexcept
+{
+	if (count != 8)
+	{
+		events[count++] = e;
+	}
+}
+} // namespace trace
+
+struct base
+{
+	base() throws { trace::add("base()"); }
+	~base() noexcept { trace::add("~base()"); }
+};
+
+struct engine
+{
+	engine() throws { trace::add("  engine()"); }
+	~engine() noexcept { trace::add("  ~engine()"); }
+};
+
+struct machine : base
+{
+	engine eng{};
+	::std::string_view tag{};
+
+	machine() throws : base{}, tag{"built"} { trace::add("machine()"); }
+	~machine() noexcept { trace::add("~machine()"); }
+};
+
+int main()
+{
+	try
+	{
+		{
+			machine m{};
+			::fast_io::io::println("in scope: ", m.tag);
+		}
+		::fast_io::io::println("out of scope");
+
+		for (::std::size_t i{}; i != trace::count; ++i)
+		{
+			::fast_io::io::println(trace::events[i]);
+		}
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+in scope: built
+out of scope
+base()
+  engine()
+machine()
+~machine()
+  ~engine()
+~base()
+</code></pre>
+      <p>
+        把最后六行读成对称的两半。构造：基类、成员、函数体。析构：函数体、成员逆序、基类。
+        <code>tag</code> 成员在 <code>machine()</code> 之前构造，所以函数体已经可以依赖它。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 人们常搞错的两个后果</h2>
+
+      <ul>
+        <li><strong>派生类的函数体帮不上基类的忙。</strong><code>machine()</code> 的函数体执行时，
+          基类已经完整。基类需要的一切都必须传给它：构造函数实参、虚调用（绝不要在构造期间 ——
+          <a href="/zhcn/docs/18.virtual/">第18章</a>），或者之后用 setter 设置。</li>
+        <li><strong>除非基类析构函数是 <code>virtual</code>，否则通过基类指针析构派生对象不会调用
+          派生析构函数。</strong>用 <code>base*</code> 删除一个 <code>machine</code> 而没有虚析构函数
+          是未定义行为。本章这种非虚层次结构的规则很简单：不要通过基类指针持有对象。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>7. 经验法则</h2>
+
+      <ul>
+        <li>初始化列表按声明顺序写。实际按声明顺序执行，一个自相矛盾的列表就是在撒谎。</li>
+        <li>基类没有默认构造函数时必须在初始化列表里点名；最好总是点名，它把依赖关系写在了明面上。</li>
+        <li>析构函数是 <code>noexcept</code>：不能有意义地分配、不能打印、不能抛。
+          把状态记下来，之后再报告。</li>
+        <li>可能失败的派生构造函数是 <code>throws</code>；一个可能失败的基类构造函数会让每个
+          派生构造函数都是 <code>throws</code>。</li>
+        <li>除非基类有 <code>virtual</code> 析构函数，否则不要把派生对象的指针存进基类指针
+          （<a href="/zhcn/docs/16.inheritance/06.override/">第16.6章</a>）。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/16.inheritance/01.whatinheritance/" class="prev-button">&larr; 第16.1章 基类子对象</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/16.inheritance/03.access/" class="next-button">第16.3章 public、protected、private &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

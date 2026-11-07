@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第16章 继承：共享布局，而不是共享分派 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第16章 继承：共享布局，而不是共享分派</h1>
+    <p class="lang-switch"><a href="/docs/16.inheritance/">English</a></p>
+    <section>
+      <h2>1. 本章是什么，以及不是什么</h2>
+
+      <p>
+        C++ 的继承是一个特性，两半。<strong>布局与访问</strong>那一半：派生类在最前面含有一个
+        基类子对象，继承它的成员，可以在任何需要基类的地方使用。另一半是<b>通过 <code>virtual</code>
+        函数实现的动态分派</b>。
+      </p>
+      <p>
+        本章只讲第一半。这里每个例子都在编译期被编译器解析完；没有一个需要 vtable，而
+        <code>virtual</code> 这个词只在一页里出现 ——
+        <a href="/zhcn/docs/16.inheritance/06.override/">第16.6章</a> ——
+        因为 <code>override</code> 这个关键字没有它就毫无意义。分派那一章是第18章。
+      </p>
+      <p>
+        分开讲的理由是：两半的用途和代价都不同。<strong>继承布局</strong>是免费的、常见的、
+        自身就有用的：<code>labeled_point</code> 确实就是一个带名字的 <code>point</code>。
+        <strong>继承接口</strong>则是每个对象一个指针、每次操作一次间接调用，而且它就是
+        <a href="/zhcn/docs/15.genericprogramming/10.typeerasure/">第15.10章</a>类型擦除的替代方案。
+        把这两件事混在一起谈，正是人们最后以为“继承就是多态”的原因。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 每个想法的一句话总结</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>想法</th>
+            <th>一句话</th>
+            <th>章节</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>基类子对象</td>
+            <td>派生对象把自己基类对象含在自己里面，且排在最前面。</td>
+            <td><a href="/zhcn/docs/16.inheritance/01.whatinheritance/">第16.1章</a></td>
+          </tr>
+          <tr>
+            <td>构造顺序</td>
+            <td>先基类，再成员，最后函数体；析构顺序完全相反。</td>
+            <td><a href="/zhcn/docs/16.inheritance/02.construction/">第16.2章</a></td>
+          </tr>
+          <tr>
+            <td>访问说明符</td>
+            <td><code>public</code> 继承意味着 is-a；<code>private</code> 继承接管一个实现，
+              并用 <code>using</code> 公开选中的操作。</td>
+            <td><a href="/zhcn/docs/16.inheritance/03.access/">第16.3章</a></td>
+          </tr>
+          <tr>
+            <td>转换与截断</td>
+            <td>派生对象<em>就是</em>一个基类对象，所以能绑到基类引用上 ——
+              也能被拷贝进基类值里，从而丢掉其余部分。</td>
+            <td><a href="/zhcn/docs/16.inheritance/04.conversions/">第16.4章</a></td>
+          </tr>
+          <tr>
+            <td>名字隐藏</td>
+            <td>派生类里声明的名字会隐藏基类同名的一切重载，除非你写 <code>using</code>。</td>
+            <td><a href="/zhcn/docs/16.inheritance/05.hiding/">第16.5章</a></td>
+          </tr>
+          <tr>
+            <td><code>override</code></td>
+            <td>一个注解，让编译器去证明这个派生函数确实覆盖了基类函数。</td>
+            <td><a href="/zhcn/docs/16.inheritance/06.override/">第16.6章</a></td>
+          </tr>
+          <tr>
+            <td>组合</td>
+            <td>只要 is-a 不是字面为真，成员就比基类更好。</td>
+            <td><a href="/zhcn/docs/16.inheritance/07.composition/">第16.7章</a></td>
+          </tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>3. 贯穿全章的示例</h2>
+
+      <p>
+        一个小小的层次结构会走完本章：一台由基类部件与发动机组成的机器。
+      </p>
+      <pre><code class="language-cpp">
+class machine_part
+{
+protected:
+	::std::int_least32_t serial_{};
+
+public:
+	::std::int_least32_t serial() const noexcept { return serial_; }
+};
+
+class machine : public machine_part
+{
+protected:
+	::std::int_least32_t power_{};
+
+public:
+	::std::int_least32_t power() const noexcept { return power_; }
+};
+</code></pre>
+      <p>
+        <code>machine</code> is-a <code>machine_part</code>：每台机器都有序列号，
+        而任何机器都能绑定到 <code>machine_part&amp;</code> 上。这里没有任何东西是虚的，
+        一切都在编译期决定。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 本章约定</h2>
+
+      <ul>
+        <li>
+          每个函数都是 <code>noexcept</code> 或 <code>throws</code>，构造函数与析构函数也一样
+          （<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）。
+          析构函数永远是 <code>noexcept</code>，这在
+          <a href="/zhcn/docs/16.inheritance/02.construction/">第16.2章</a>里有一个看得见的后果：
+          它不能打印，因为打印可能失败。
+        </li>
+        <li>
+          <code>public</code> 继承一律显式写成 <code>: public base</code>，
+          即使在 <code>struct</code> 里它是隐含的。那个词就是文档。
+        </li>
+        <li>
+          失败用赫布异常：<code>throw throws ...</code> 与
+          <code>catch throws (::std::error e)</code>
+          （<a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>）。
+        </li>
+        <li>
+          本页所有完整程序都用 <code>-std=c++26 -fherbceptions -lherbceptions</code>
+          编译并运行过；诊断信息照抄编译器的真实输出。
+        </li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>5. 你应该已经会的东西</h2>
+
+      <ul>
+        <li>类、访问控制与 <code>const</code> 成员（<a href="/zhcn/docs/13.class/">第13章</a>）。</li>
+        <li>五法则（<a href="/zhcn/docs/14.fiverules/">第14章</a>）—— 派生类的特殊成员是由基类的特殊成员搭起来的。</li>
+        <li>概念与类型擦除（<a href="/zhcn/docs/15.genericprogramming/">第15章</a>）——
+          继承接口的编译期替代方案。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>6. 目录</h2>
+
+      <ul>
+        <li><a href="/zhcn/docs/16.inheritance/01.whatinheritance/">第16.1章 继承是什么：基类子对象</a></li>
+        <li><a href="/zhcn/docs/16.inheritance/02.construction/">第16.2章 构造与析构顺序</a></li>
+        <li><a href="/zhcn/docs/16.inheritance/03.access/">第16.3章 public、protected、private 继承、选择性公开，以及测试用的 <code>#define private public</code></a></li>
+        <li><a href="/zhcn/docs/16.inheritance/04.conversions/">第16.4章 派生到基类的转换与截断</a></li>
+        <li><a href="/zhcn/docs/16.inheritance/05.hiding/">第16.5章 名字隐藏与 <code>using</code></a></li>
+        <li><a href="/zhcn/docs/16.inheritance/06.override/">第16.6章 <code>override</code> 关键字</a></li>
+        <li><a href="/zhcn/docs/16.inheritance/07.composition/">第16.7章 继承还是组合？</a></li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/15.genericprogramming/11.printscan/" class="prev-button">&larr; 第15.11章 fast_io 的打印与扫描</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/16.inheritance/01.whatinheritance/" class="next-button">第16.1章 基类子对象 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

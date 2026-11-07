@@ -1,4 +1,4 @@
-const CACHE_NAME = "fast_io-docs-v66.0";
+const CACHE_NAME = "fast_io-docs-v67.0";
 const urlsToCache = [
   "/",
   "/style.css",
@@ -214,6 +214,22 @@ const urlsToCache = [
   "/zhcn/docs/14.fiverules/09.exceptionsafety/",
   "/zhcn/docs/14.fiverules/10.movedfrom/",
   "/zhcn/docs/14.fiverules/11.myposixfile/",
+  "/docs/16.inheritance/",
+  "/docs/16.inheritance/01.whatinheritance/",
+  "/docs/16.inheritance/02.construction/",
+  "/docs/16.inheritance/03.access/",
+  "/docs/16.inheritance/04.conversions/",
+  "/docs/16.inheritance/05.hiding/",
+  "/docs/16.inheritance/06.override/",
+  "/docs/16.inheritance/07.composition/",
+  "/zhcn/docs/16.inheritance/",
+  "/zhcn/docs/16.inheritance/01.whatinheritance/",
+  "/zhcn/docs/16.inheritance/02.construction/",
+  "/zhcn/docs/16.inheritance/03.access/",
+  "/zhcn/docs/16.inheritance/04.conversions/",
+  "/zhcn/docs/16.inheritance/05.hiding/",
+  "/zhcn/docs/16.inheritance/06.override/",
+  "/zhcn/docs/16.inheritance/07.composition/",
   "/docs/15.genericprogramming/02.definingtemplates/",
   "/zhcn/docs/15.genericprogramming/02.definingtemplates/",
   "/docs/15.genericprogramming/",

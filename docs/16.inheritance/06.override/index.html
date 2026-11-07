@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch16.6: The override Keyword - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch16.6: The <code>override</code> Keyword</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/16.inheritance/06.override/">中文（简体）</a></p>
+    <section>
+      <h2>1. The One Page That Needs <code>virtual</code></h2>
+
+      <p>
+        <code>override</code> is the only keyword in this chapter that has no meaning without
+        <code>virtual</code>: it marks a function that <em>overrides</em> a virtual base-class
+        function, and if the base function is not virtual there is nothing to override. So this
+        page declares one virtual function, writes <code>override</code> on the derived one, and
+        stops there. How the call is dispatched &mdash; vtables, dynamic type, why
+        <code>virtual</code> costs a pointer per object &mdash; is
+        <a href="/docs/18.virtual/">Chapter 18</a>.
+      </p>
+      <p>
+        There is a good reason to learn the annotation before the mechanism. <strong>Forgetting
+        <code>override</code> is one of the cheapest bugs in C++ to create and one of the most
+        expensive to find</strong>: the derived function compiles, hides the base function, and
+        the program keeps running the base version.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. The Rule</h2>
+
+      <ul>
+        <li>The <em>base</em> function is declared <code>virtual</code>; that is the only place
+          the keyword is needed.</li>
+        <li>Every <em>overriding</em> function in a derived class is written with
+          <code>override</code> at the end of its declaration, after <code>const</code> and
+          before <code>noexcept</code>/<code>throws</code>.</li>
+        <li>The derived class does <strong>not</strong> repeat <code>virtual</code>. It is
+          still virtual &mdash; virtuality is inherited &mdash; and writing it twice adds
+          nothing but the suggestion that the author was unsure.</li>
+      </ul>
+      <pre><code class="language-cpp">
+struct shape
+{
+	[[nodiscard]] virtual ::std::string_view name() const noexcept { return "shape"; }
+	[[nodiscard]] ::std::string_view category() const noexcept { return "polygon"; }
+	virtual ~shape() noexcept = default;
+};
+
+struct square : shape
+{
+	[[nodiscard]] ::std::string_view name() const noexcept override { return "square"; }
+};
+
+struct unit_square final : square
+{
+	[[nodiscard]] ::std::string_view name() const noexcept override { return "unit square"; }
+};
+</code></pre>
+      <p>
+        <code>name()</code> is virtual, so a call through a
+        <code>shape const&amp;</code> reaches the most-derived override;
+        <code>category()</code> is not virtual, so the same call runs
+        <code>shape::category()</code> no matter what the object really is. That contrast is
+        the whole of <a href="/docs/18.virtual/">Chapter 18</a> in one line.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. What <code>override</code> Buys: Three Errors Become Compile Errors</h2>
+
+      <p>
+        <code>override</code> asks the compiler to <em>prove</em> that this function overrides
+        something. If it does not, the program does not compile. Without the keyword, each of
+        these three programs compiles silently and misbehaves.
+      </p>
+      <h3>Forgetting the keyword on a non-virtual base function</h3>
+      <pre><code class="language-cpp">
+struct base
+{
+	[[nodiscard]] ::std::string_view name() const noexcept { return "base"; }   // not virtual
+};
+
+struct derived : base
+{
+	[[nodiscard]] ::std::string_view name() const noexcept override { return "derived"; }
+};
+</code></pre>
+      <pre><code class="language-text">
+error: ‘std::string_view derived::name() const’ marked ‘override’, but does not override
+</code></pre>
+      <h3>A signature that almost matches</h3>
+      <pre><code class="language-cpp">
+struct base2
+{
+	[[nodiscard]] virtual ::std::string_view name() const noexcept { return "base"; }
+	virtual ~base2() noexcept = default;
+};
+
+struct derived2 : base2
+{
+	[[nodiscard]] ::std::string_view name() noexcept override { return "derived"; }   // missing const
+};
+</code></pre>
+      <pre><code class="language-text">
+error: ‘std::string_view derived2::name()’ marked ‘override’, but does not override
+</code></pre>
+      <p>
+        The second case is the dangerous one. Drop the <code>const</code> and drop
+        <code>override</code>, and nobody says anything: <code>derived2</code> declares a new
+        function, the base's <code>name()</code> stays in place, and every call through a base
+        reference keeps printing <code>base</code>.
+      </p>
+      <h3>Deriving from something <code>final</code></h3>
+      <pre><code class="language-cpp">
+struct base3 final { /* ... */ };
+struct derived3 : base3 { /* ... */ };
+</code></pre>
+      <pre><code class="language-text">
+error: cannot derive from ‘final’ base ‘base3’ in derived type ‘derived3’
+</code></pre>
+      <p>
+        <code>final</code> on a class forbids deriving from it; <code>final</code> on a virtual
+        function forbids overriding it further. Both are documentation the compiler enforces,
+        and both belong next to <code>override</code> in a well-written hierarchy.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;string_view&gt;
+#include &lt;type_traits&gt;
+
+struct shape
+{
+	[[nodiscard]] virtual ::std::string_view name() const noexcept { return "shape"; }
+	[[nodiscard]] ::std::string_view category() const noexcept { return "polygon"; }
+	virtual ~shape() noexcept = default;
+};
+
+struct square : shape
+{
+	[[nodiscard]] ::std::string_view name() const noexcept override { return "square"; }
+};
+
+struct unit_square final : square
+{
+	[[nodiscard]] ::std::string_view name() const noexcept override { return "unit square"; }
+};
+
+int main()
+{
+	try
+	{
+		unit_square u{};
+		shape const &amp;r{u};
+
+		::fast_io::io::println("r.name()=", r.name());
+		::fast_io::io::println("r.category()=", r.category());
+		::fast_io::io::println("is_polymorphic&lt;shape&gt;=", ::std::is_polymorphic_v&lt;shape&gt;);
+		::fast_io::io::println("sizeof(shape)=", sizeof(shape), " sizeof(square)=", sizeof(square));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+r.name()=unit square
+r.category()=polygon
+is_polymorphic&lt;shape&gt;=1
+sizeof(shape)=8 sizeof(square)=8
+</code></pre>
+      <p>
+        <code>r.name()</code> printed <code>unit square</code> although <code>r</code> is a
+        <code>shape const&amp;</code>: that is the virtual call.
+        <code>r.category()</code> printed <code>polygon</code> for the same object: that is the
+        non-virtual one. <code>is_polymorphic_v</code> is <code>true</code> because the class
+        has a virtual function, and <code>sizeof(shape)</code> is <code>8</code> because it now
+        carries a pointer to the vtable.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. What This Chapter Does Not Do With It</h2>
+
+      <ul>
+        <li><strong>No owning base pointers.</strong> <code>vector&lt;shape*&gt;</code> of
+          objects that must be deleted through a base pointer needs
+          <code>virtual ~shape()</code> and careful ownership; Chapter 18 covers both. In this
+          chapter's non-virtual hierarchies the rule was: do not own through a base pointer at
+          all.</li>
+        <li><strong>No <code>virtual</code> in constructors or destructors.</strong> During
+          construction the object is still a base object; the derived override is not reachable.
+          That is why <a href="/docs/16.inheritance/02.construction/">Ch16.2</a> says the
+          derived body cannot help build the base.</li>
+        <li><strong>No dispatch-based design.</strong> If the set of types is known at compile
+          time, a template or a <code>::std::variant</code> is faster; if it is open, the
+          type erasure of <a href="/docs/15.genericprogramming/10.typeerasure/">Ch15.10</a> needs
+          no base class at all.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>6. Rules of Thumb</h2>
+
+      <ul>
+        <li>Write <code>override</code> on every overriding function, always, with no
+          exceptions.</li>
+        <li>Never write <code>virtual</code> in a derived class; write
+          <code>override</code> instead.</li>
+        <li>Mark classes <code>final</code> unless you designed them to be inherited from, and
+          mark individual virtual functions <code>final</code> when a further override would be
+          a bug.</li>
+        <li>Put <code>override</code> after <code>const</code> and before
+          <code>noexcept</code>/<code>throws</code>:
+          <code>name() const noexcept override</code> &mdash; note the order this book uses,
+          <code>const noexcept override</code>.</li>
+        <li>A base destructor must be <code>virtual</code> (and still <code>noexcept</code>)
+          before any code deletes through a base pointer.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/16.inheritance/05.hiding/" class="prev-button">&larr; Ch16.5: Name Hiding</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/16.inheritance/07.composition/" class="next-button">Ch16.7: Inheritance or Composition? &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

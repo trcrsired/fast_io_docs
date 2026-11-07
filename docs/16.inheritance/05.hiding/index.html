@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch16.5: Name Hiding and using - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch16.5: Name Hiding and <code>using</code></h1>
+    <p class="lang-switch"><a href="/zhcn/docs/16.inheritance/05.hiding/">中文（简体）</a></p>
+    <section>
+      <h2>1. A Name in the Derived Class Hides Every Base Overload</h2>
+
+      <p>
+        Name lookup inside a class stops at the first class that declares a name. It does
+        <strong>not</strong> gather the base class's overloads and then pick the best one. So
+        declaring one <code>f</code> in a derived class hides <em>all</em> the base's
+        <code>f</code>s, including the ones that would have matched better.
+      </p>
+      <pre><code class="language-cpp">
+struct base
+{
+	[[nodiscard]] ::std::string_view f(::std::int_least32_t) const noexcept { return "base::f(int)"; }
+	[[nodiscard]] ::std::string_view f(double) const noexcept { return "base::f(double)"; }
+};
+
+struct hiding : base
+{
+	[[nodiscard]] ::std::string_view f(::std::int_least32_t) const noexcept { return "hiding::f(int)"; }
+};
+</code></pre>
+      <p>
+        <code>h.f(1.5)</code> does not fail, because <code>1.5</code> converts to
+        <code>::std::int_least32_t</code> &mdash; it silently calls
+        <code>hiding::f(int)</code> with a truncated value, which is worse than an error. Call
+        it with something that cannot convert and the compiler shows that only one candidate
+        existed:
+      </p>
+      <pre><code class="language-cpp">
+error: invalid conversion from ‘const char*’ to ‘int_least32_t’ {aka ‘int’} [-fpermissive]
+note: initializing argument 1 of ‘std::string_view hiding::f(int_least32_t) const’
+</code></pre>
+      <p>
+        Nothing mentions <code>base::f(double)</code>, because lookup never reached the base
+        class. Compare that with <a href="/docs/06.function/06.overload/">Ch6.6</a>, where all
+        the overloads lived in one scope and the compiler ranked them.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. <code>using</code> Puts the Base's Names Back in Scope</h2>
+
+      <pre><code class="language-cpp">
+struct revealing : base
+{
+	using base::f;               // bring every base::f into this scope
+
+	[[nodiscard]] ::std::string_view f(::std::int_least32_t) const noexcept { return "revealing::f(int)"; }
+};
+</code></pre>
+      <p>
+        Now <code>r.f(1)</code> and <code>r.f(1.5)</code> both work: the
+        <code>using</code>-declaration makes the base's overloads members of the derived class
+        for lookup purposes, and normal overload resolution ranks all three candidates. This is
+        the standard way to extend an overload set instead of replacing it, and it is the same
+        mechanism that re-publishes a member under private inheritance
+        (<a href="/docs/16.inheritance/03.access/">Ch16.3</a>).
+      </p>
+      <p>
+        Two rules about the shape of the declaration:
+      </p>
+      <ul>
+        <li>It names the <em>base</em> and the member: <code>using base::f;</code>, not
+          <code>using f;</code>.</li>
+        <li>It never has a parameter list. <code>using base::f;</code> brings in
+          <em>every</em> overload named <code>f</code>; you cannot pick one.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>3. Inheriting Constructors</h2>
+
+      <p>
+        Constructors are not inherited &mdash; a derived class builds its own. But a
+        <code>using</code>-declaration naming the base class inherits all of its
+        constructors except the special members, which saves writing a forwarding constructor
+        per signature:
+      </p>
+      <pre><code class="language-cpp">
+class machine_part
+{
+protected:
+	::std::int_least32_t serial_{};
+
+public:
+	machine_part() noexcept = default;
+	explicit machine_part(::std::int_least32_t s) noexcept : serial_{s} {}
+};
+
+class machine : public machine_part
+{
+public:
+	using machine_part::machine_part;   // inherits machine_part(int)
+};
+</code></pre>
+      <p>
+        <code>machine m{42};</code> now works and initialises the base directly. What is
+        <em>not</em> inherited is the base's copy/move constructors and its destructor: those
+        are generated for the derived class as usual
+        (<a href="/docs/16.inheritance/02.construction/">Ch16.2</a>).
+      </p>
+      <p>
+        Inherited constructors keep the base's error contract, so
+        <code>machine m{42};</code> is <code>noexcept</code> exactly when
+        <code>machine_part(int)</code> is &mdash; which matters when the base's constructor
+        allocates and is therefore <code>throws</code>
+        (<a href="/docs/15.genericprogramming/08.ifconstexpr/">Ch15.8</a>).
+      </p>
+
+    </section>
+    <section>
+      <h2>4. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+#include &lt;string_view&gt;
+
+struct base
+{
+	[[nodiscard]] ::std::string_view f(::std::int_least32_t) const noexcept { return "base::f(int)"; }
+	[[nodiscard]] ::std::string_view f(double) const noexcept { return "base::f(double)"; }
+};
+
+struct hiding : base
+{
+	[[nodiscard]] ::std::string_view f(::std::int_least32_t) const noexcept { return "hiding::f(int)"; }
+};
+
+struct revealing : base
+{
+	using base::f;
+
+	[[nodiscard]] ::std::string_view f(::std::int_least32_t) const noexcept { return "revealing::f(int)"; }
+};
+
+int main()
+{
+	try
+	{
+		hiding h{};
+		revealing r{};
+
+		::fast_io::io::println("hiding f(1)=", h.f(1));
+		::fast_io::io::println("hiding through base f(1.5)=", static_cast&lt;base const &amp;&gt;(h).f(1.5));
+		::fast_io::io::println("revealing f(1)=", r.f(1));
+		::fast_io::io::println("revealing f(1.5)=", r.f(1.5));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+hiding f(1)=hiding::f(int)
+hiding through base f(1.5)=base::f(double)
+revealing f(1)=revealing::f(int)
+revealing f(1.5)=base::f(double)
+</code></pre>
+      <p>
+        Line two is how you reach a hidden overload without <code>using</code>: qualify the
+        object as a base reference. It works, and it is a smell &mdash; it means the derived
+        class deliberately broke the interface, and the caller had to know that.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Rules of Thumb</h2>
+
+      <ul>
+        <li>When you add an overload to a derived class, add <code>using base::name;</code>
+          next to it. Without it you silently removed the base's versions for every caller
+          using the derived type.</li>
+        <li>A hidden overload is not an error, so no test will find it. Review for it.</li>
+        <li>Prefer giving the derived operation a different name over hiding and re-exposing
+          it; a class whose interface depends on which type you happened to name is hard to
+          use.</li>
+        <li>Use <code>using base::base;</code> rather than forwarding constructors by hand; it
+          copies the base's contracts exactly.</li>
+        <li>Name lookup is per <em>name</em>, not per signature. One overload added in a
+          derived class hides all of them.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/16.inheritance/04.conversions/" class="prev-button">&larr; Ch16.4: Conversion and Slicing</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/16.inheritance/06.override/" class="next-button">Ch16.6: The <code>override</code> Keyword &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

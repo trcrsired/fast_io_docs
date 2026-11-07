@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch16.3: public, protected and private Inheritance - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch16.3: public, protected and private Inheritance</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/16.inheritance/03.access/">中文（简体）</a></p>
+    <section>
+      <h2>1. Three Kinds of Inheritance, Three Jobs</h2>
+
+      <p>
+        The word before the base class name is an access specifier, and it answers two
+        questions at once: what may the derived class do with the base's members, and what may
+        the rest of the program do with the derived-to-base relationship?
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Written as</th>
+            <th>Means</th>
+            <th>Outside code may</th>
+            <th>Use it for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>: public base</code></td>
+            <td>is-a</td>
+            <td>convert <code>D&amp;</code> to <code>B&amp;</code>, use
+              <code>public</code> base members</td>
+            <td>the only kind that states a type relationship</td>
+          </tr>
+          <tr>
+            <td><code>: private base</code></td>
+            <td>implemented in terms of</td>
+            <td>nothing at all</td>
+            <td><strong>adopting an existing implementation</strong> and publishing exactly
+              the operations you choose with <code>using</code> &mdash; &sect;5, and this is
+              one of the most useful idioms in the language</td>
+          </tr>
+          <tr>
+            <td><code>: protected base</code></td>
+            <td>implemented in terms of</td>
+            <td>nothing: the relationship is visible only inside the hierarchy</td>
+            <td>a further-derived class must see the base's
+              <code>protected</code> members &mdash; the rarest of the three</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Members of the base keep their own access inside the derived class: base
+        <code>public</code> members are usable by the derived class and by outside code (under
+        public inheritance); base <code>protected</code> members are usable by the derived class
+        and by further derived classes; base <code>private</code> members are usable by nobody
+        but the base itself.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. <code>protected</code> Is a Promise to Derived Classes</h2>
+
+      <pre><code class="language-cpp">
+class machine_part
+{
+protected:
+	::std::int_least32_t serial_{};
+
+public:
+	::std::int_least32_t serial() const noexcept { return serial_; }
+};
+
+class machine : public machine_part
+{
+	::std::int_least32_t power_{};
+
+public:
+	void set_serial(::std::int_least32_t s) noexcept
+	{
+		serial_ = s;              // legal: protected member, derived class
+	}
+
+	::std::int_least32_t power() const noexcept { return power_; }
+};
+</code></pre>
+      <p>
+        <code>serial_</code> is <code>protected</code>, so <code>machine</code> may write it
+        but the rest of the world may only call <code>serial()</code>. That is a real choice
+        with a real cost: every derived class is now part of the base's invariant. If
+        <code>machine_part</code> later wants <code>serial_</code> to be validated on every
+        write, it cannot, because it handed the write permission to an unbounded number of
+        future classes.
+      </p>
+      <p>
+        This book's rule, stated in <a href="/docs/13.class/04.access/">Ch13.4</a>, still
+        holds: prefer <code>private</code> data, and reach for <code>protected</code> only when
+        a derived class genuinely must maintain the invariant itself &mdash; a serialisation
+        base, an iterator base, a stream base. A <code>protected</code> data member is
+        <code>public</code> data with a smaller audience.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. What Each Kind of Inheritance Allows, Measured</h2>
+
+      <p>
+        The differences are not a matter of opinion; they are visible in the type system, and
+        <code>::std::is_convertible_v</code> prints them
+        (<a href="/docs/15.genericprogramming/01.typetraits/">Ch15.1</a>):
+      </p>
+      <pre><code class="language-cpp">
+class base
+{
+protected:
+	::std::int_least32_t prot_{7};
+
+public:
+	::std::int_least32_t pub_{1};
+};
+
+struct public_derived : public base
+{
+	[[nodiscard]] ::std::int_least32_t read() const noexcept { return prot_ + pub_; }
+};
+
+struct protected_derived : protected base
+{
+	[[nodiscard]] ::std::int_least32_t read() const noexcept { return prot_ + pub_; }
+};
+
+struct private_derived : private base
+{
+	[[nodiscard]] ::std::int_least32_t read() const noexcept { return prot_ + pub_; }
+};
+</code></pre>
+      <p>
+        All three can read <code>prot_</code> and <code>pub_</code> and produce
+        <code>8</code>. Only the first is a <code>base</code> as far as the outside world is
+        concerned. That is the whole difference, and it is exactly what makes private
+        inheritance useful: <em>everything</em> of the base is available to you, and
+        <em>nothing</em> of it is visible to your users until you say so.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. <code>using</code> Chooses What to Publish</h2>
+
+      <p>
+        A <code>using</code>-declaration names a base member and re-publishes it at the access
+        level where the declaration appears:
+      </p>
+      <pre><code class="language-cpp">
+class buffer
+{
+protected:
+	char *data_{};
+	::std::size_t size_{};
+
+public:
+	[[nodiscard]] ::std::size_t size() const noexcept { return size_; }
+};
+
+class message : private buffer
+{
+public:
+	using buffer::size;            // size() is public again
+};
+</code></pre>
+      <p>
+        <code>using buffer::size;</code> changes the access of that one name inside
+        <code>message</code>; the inheritance itself stays private, so a
+        <code>message&amp;</code> still does not convert to a <code>buffer&amp;</code>. The
+        next section uses this systematically.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Private Inheritance Is Very Useful: Selective Exposure</h2>
+
+      <p>
+        Consider building a stack on top of a vector. Composition means writing a forwarding
+        function for every operation you want, and getting each signature, each overload and
+        each <code>noexcept</code>/<code>throws</code> contract right by hand. Private
+        inheritance plus <code>using</code> means writing <strong>nothing</strong>: you adopt
+        the whole implementation and then publish a chosen subset of it, with the original
+        signatures intact.
+      </p>
+      <pre><code class="language-cpp">
+// adopt a vector's storage, publish only a stack's operations
+class int_stack : private ::fast_io::vector&lt;int&gt;
+{
+	using base = ::fast_io::vector&lt;int&gt;;
+
+public:
+	using base::is_empty;
+	using base::push_back;
+	using base::size;
+
+	[[nodiscard]] int top() const throws { return base::back(); }
+
+	void pop() noexcept { base::pop_back(); }
+};
+</code></pre>
+      <pre><code class="language-text">
+size=3 is_empty=0 top=3
+after pop: size=2 top=2
+</code></pre>
+      <p>
+        What the three <code>using</code> lines bought, and what they did not:
+      </p>
+      <ul>
+        <li><strong>No boilerplate.</strong> <code>push_back</code> has two overloads (const
+          lvalue and rvalue) and its own error contract; <code>using</code> re-publishes both
+          exactly, forever in sync with the base. A hand-written forwarder would have
+          collapsed them into one signature and eventually lost the contract.</li>
+        <li><strong>Nothing else leaks.</strong> <code>int_stack</code> has no
+          <code>operator[]</code>, no <code>insert</code>, no <code>data()</code>, no
+          iterators, no <code>push_back_unchecked</code> &mdash; an
+          <code>int_stack</code> is not a <code>::fast_io::vector&lt;int&gt;</code> for any
+          caller, and it cannot be passed to anything expecting one. The chain of
+          substitutability is cut, deliberately.</li>
+        <li><strong>Zero size cost.</strong> The base subobject is the whole object, so
+          <code>sizeof(int_stack) == sizeof(::fast_io::vector&lt;int&gt;)</code>. A member
+          would be the same, but you would have to name it and forward to it.</li>
+        <li><strong>Still an implementation, not a type.</strong> Because the relation is
+          private, the base's non-virtual destructor is harmless: nobody can delete an
+          <code>int_stack</code> through a
+          <code>::fast_io::vector&lt;int&gt;*</code>
+          (<a href="/docs/16.inheritance/02.construction/">Ch16.2</a>).</li>
+      </ul>
+      <p>
+        Compare with the alternative from
+        <a href="/docs/15.genericprogramming/">Chapter 15</a>: a concept plus a template is
+        even more flexible, but it makes <code>int_stack</code> a template, and sometimes you
+        want one concrete type. Private inheritance is the tool for &ldquo;one concrete type
+        that is a strict subset of an existing one&rdquo;. The standard library itself uses it:
+        <code>::std::stack</code> in several implementations is a private adapter over
+        <code>::std::deque</code>, and the pre-C++11
+        <code>::std::istream</code>-based adapters were built the same way.
+      </p>
+      <p>
+        Where it is the wrong tool: when the base is not a good implementation of your
+        abstraction, when you want to expose most of the base anyway (then it is public
+        inheritance or a member), and when you need to swap the implementation at run time
+        (then it is a variant or an erased type).
+      </p>
+
+    </section>
+    <section>
+      <h2>6. Testing: <code>#define private public</code></h2>
+
+      <p>
+        Access specifiers are a compile-time, header-level property, which means a test
+        translation unit can change them before including the header it is testing:
+      </p>
+      <pre><code class="language-cpp">
+// counter.hpp
+#pragma once
+#include &lt;cstddef&gt;
+
+class counter
+{
+public:
+	counter() noexcept = default;
+	void bump() noexcept { ++hidden_; }
+	[[nodiscard]] ::std::size_t value() const noexcept { return hidden_; }
+
+private:
+	::std::size_t hidden_{};
+};
+</code></pre>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+#define private public
+#include "counter.hpp"
+#undef private
+
+int main()
+{
+	try
+	{
+		counter c{};
+		c.bump();
+		c.hidden_ = 41;            // reachable only because of the #define
+		::fast_io::io::println("value()=", c.value(), " hidden_=", c.hidden_);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+value()=41 hidden_=41
+</code></pre>
+      <p>
+        Without the two preprocessor lines the same statement is rejected, which is what makes
+        the trick worth knowing:
+      </p>
+      <pre><code class="language-cpp">
+error: ‘std::size_t counter::hidden_’ is private within this context
+</code></pre>
+      <p>
+        It is <strong>very useful for testing</strong> &mdash; checking an invariant directly,
+        setting up a state that the public interface cannot reach, asserting that a moved-from
+        object really is empty &mdash; and it is a sharp tool. The rules that keep it from
+        becoming a disaster:
+      </p>
+      <ul>
+        <li><strong>Only in a test source file.</strong> Immediately before the
+          <code>#include</code>, immediately <code>#undef</code> after it. Never in a header,
+          never in anything that ships.</li>
+        <li><strong>It rewrites the token <code>private</code> only.</strong> A member declared
+          before the first access specifier is still private, because it is in the
+          <code>class</code>'s implicit private section; the macro cannot reach it. (The
+          heavier trick <code>#define class struct</code> changes that, and changes much more
+          &mdash; do not use it.)</li>
+        <li><strong>It is formally an ODR violation:</strong> the class has a different
+          definition in the test translation unit than in the library's. Access specifiers do
+          not affect layout, so nothing breaks in practice, and the moment the library under
+          test is a prebuilt binary with an ABI you are not changing, it stays harmless.</li>
+        <li><strong>It couples the test to the implementation.</strong> Every
+          <code>hidden_</code> a test reads is a name the author may rename tomorrow. Test the
+          public behaviour; reach inside only for invariants the public interface cannot
+          observe.</li>
+        <li><strong>Use the <code>#define</code>/<code>#undef</code> pair, not
+          <code>-Dprivate=public</code>.</strong> The command-line form applies to every header
+          you include, including the standard library's, which is asking for trouble.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>7. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+#include &lt;type_traits&gt;
+
+class base
+{
+protected:
+	::std::int_least32_t prot_{7};
+
+public:
+	::std::int_least32_t pub_{1};
+};
+
+struct public_derived : public base
+{
+	[[nodiscard]] ::std::int_least32_t read() const noexcept { return prot_ + pub_; }
+};
+
+struct protected_derived : protected base
+{
+	[[nodiscard]] ::std::int_least32_t read() const noexcept { return prot_ + pub_; }
+};
+
+struct private_derived : private base
+{
+	[[nodiscard]] ::std::int_least32_t read() const noexcept { return prot_ + pub_; }
+};
+
+int main()
+{
+	try
+	{
+		public_derived a{};
+		protected_derived b{};
+		private_derived c{};
+
+		::fast_io::io::println("reads: ", a.read(), " ", b.read(), " ", c.read());
+		::fast_io::io::println("public -> base convertible: ", ::std::is_convertible_v&lt;public_derived &amp;, base &amp;&gt;);
+		::fast_io::io::println("protected -> base convertible: ", ::std::is_convertible_v&lt;protected_derived &amp;, base &amp;&gt;);
+		::fast_io::io::println("private -> base convertible: ", ::std::is_convertible_v&lt;private_derived &amp;, base &amp;&gt;);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+reads: 8 8 8
+public -> base convertible: 1
+protected -> base convertible: 0
+private -> base convertible: 0
+</code></pre>
+      <p>
+        Three classes, one behaviour, and only one of them is a <code>base</code>. The two
+        zeros are not a restriction to work around &mdash; they are the point: the
+        implementation is adopted, the relationship is not published.
+      </p>
+
+    </section>
+    <section>
+      <h2>8. Rules of Thumb</h2>
+
+      <ul>
+        <li>Use <code>public</code> inheritance when the is-a sentence is true; use
+          <code>private</code> inheritance when you want to adopt an implementation and publish
+          a chosen subset of it with <code>using</code>.</li>
+        <li>Prefer <code>private</code> data with <code>protected</code> accessor functions
+          over <code>protected</code> data members.</li>
+        <li>Do not mix the access specifier of a base with its members' accessibilities in your
+          head: they multiply. <code>private</code> inheritance still lets the derived class
+          use base <code>public</code> members.</li>
+        <li>With private inheritance, list the published operations in one block of
+          <code>using</code> declarations, so the public interface is readable at a glance.</li>
+        <li>Remember that private inheritance is an implementation detail: no conversion, no
+          owning base pointers, no <code>virtual</code> interface. That is the point, not a
+          limitation.</li>
+        <li><code>#define private public</code> belongs in test sources only, as a
+          <code>#define</code>/<code>#undef</code> pair around one include.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/16.inheritance/02.construction/" class="prev-button">&larr; Ch16.2: Construction Order</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/16.inheritance/04.conversions/" class="next-button">Ch16.4: Conversion and Slicing &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

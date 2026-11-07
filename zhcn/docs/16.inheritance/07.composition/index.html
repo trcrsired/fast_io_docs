@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第16.7章 继承还是组合？ - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第16.7章 继承还是组合？</h1>
+    <p class="lang-switch"><a href="/docs/16.inheritance/07.composition/">English</a></p>
+    <section>
+      <h2>1. 复用有两种写法</h2>
+
+      <p>
+        车有一台发动机。把它写成继承，得到的句子是“车是发动机”，这是假的，而这个假有后果：
+        每个 <code>engine&amp;</code> 形参都会接受一辆车，一辆车不能有两台发动机，
+        而改动 <code>engine</code> 会悄悄改变 <code>car</code> 的公开接口。
+      </p>
+      <pre><code class="language-cpp">
+struct engine
+{
+	::std::int_least32_t power{};
+};
+
+struct car_inherits : engine          // "a car is an engine"
+{
+	::std::string_view model{};
+};
+
+struct car_has                    // "a car has an engine"
+{
+	engine eng{};
+	::std::string_view model{};
+};
+</code></pre>
+      <p>
+        两者在这台机器上一样大（<code>24</code> 字节：一个
+        <code>::std::int_least32_t</code> 加一个 <code>::std::string_view</code>，凑到
+        <code>8</code> 的倍数），存的数据也一样。不同的是类型关系，而价值全在那里。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 组合买到了什么</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>继承</th>
+            <th>组合</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>is-a 断言的正确性</td>
+            <td>必须字面为真</td>
+            <td>根本不断言</td>
+          </tr>
+          <tr>
+            <td>能否装两台发动机</td>
+            <td>不能</td>
+            <td>能，再加一个成员</td>
+          </tr>
+          <tr>
+            <td>部件接口变化时</td>
+            <td>整体接口跟着变，可能还动 ABI</td>
+            <td>被包住了；只有包装类自己的成员才算数</td>
+          </tr>
+          <tr>
+            <td>访问控制</td>
+            <td>继承来的成员按名字就能用</td>
+            <td>只能通过成员名用，包装类因此能设关卡</td>
+          </tr>
+          <tr>
+            <td>运行期换实现</td>
+            <td>不行（基类子对象换不掉）</td>
+            <td>可以，如果成员是 variant 或擦除类型</td>
+          </tr>
+          <tr>
+            <td>sizeof</td>
+            <td>与部件加上新成员相同</td>
+            <td>相同，除非部件是空类型（§4）</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        倒数第二行要记住：成员是一道<em>边界</em>。每个派生类永远待在基类的不变式里；
+        每个持有成员的人都能决定公开什么。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 继承才是对的答案的情形</h2>
+
+      <p>
+        当下面四条全部成立时，继承才配得上它的位置：
+      </p>
+      <ol>
+        <li>is-a 那句话对每个调用者都成立，</li>
+        <li>基类就是设计来被继承的（有文档、有正确的析构函数、该 <code>protected</code> 的地方
+          <code>protected</code>），</li>
+        <li>派生类增加的是行为，不只是数据，</li>
+        <li>派生类型集合要么封闭且已知，要么基类真的是一个接口。</li>
+      </ol>
+      <p>
+        本章自己的例子都通过：<code>labeled_point</code> 是一个点，<code>machine</code> 是一个
+        <code>machine_part</code>。车在第一条就失败了，再怎么共享实现也救不回来。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 空基类：继承在尺寸上真正赢的唯一地方</h2>
+
+      <p>
+        有一种情况下继承在 <code>sizeof</code> 上胜过成员：空基类不占字节，而空成员仍然必须可寻址
+        —— 至少要一个字节，再加填充。
+      </p>
+      <pre><code class="language-cpp">
+struct empty
+{
+};
+
+struct with_member
+{
+	empty e{};
+	::std::int_least32_t x{};
+};
+
+struct with_member_no_unique
+{
+	[[no_unique_address]] empty e{};
+	::std::int_least32_t x{};
+};
+
+struct derived : empty
+{
+	::std::int_least32_t x{};
+};
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th><code>sizeof</code></th>
+            <th>原因</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>empty</code></td>
+            <td><code>1</code></td>
+            <td>每个对象都需要唯一地址</td>
+          </tr>
+          <tr>
+            <td><code>derived</code></td>
+            <td><code>4</code></td>
+            <td>空基类优化：基类不占空间</td>
+          </tr>
+          <tr>
+            <td><code>with_member</code></td>
+            <td><code>8</code></td>
+            <td>成员必须有自己的地址，于是 1 字节 + 3 填充</td>
+          </tr>
+          <tr>
+            <td><code>with_member_no_unique</code></td>
+            <td><code>4</code></td>
+            <td><code>[[no_unique_address]]</code>（C++20）给了成员同样的许可</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        C++20 之后尺寸这条理由也没了：<code>[[no_unique_address]]</code> 让空成员免费，
+        所以组合不再花字节。注意它没有解决的问题：类型关系、两台发动机的问题、接口的 containment。
+        尺寸从来都不是有意思的部分。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 第三种选择：完全没有关系</h2>
+
+      <p>
+        当层次结构的理由是“这些东西必须被统一处理”时，继承和成员都不是现代答案：
+      </p>
+      <ul>
+        <li><strong>封闭的类型集合：</strong><code>::std::variant</code> 加访问者。
+          没有基类、没有指针、没有分配，而编译器会检查每一个分支。</li>
+        <li><strong>开放的集合：</strong><a href="/zhcn/docs/15.genericprogramming/10.typeerasure/">第15.10章</a>
+          的类型擦除 —— 一个非模板类、一张函数指针表、值语义，完全没有继承。</li>
+        <li><strong>编译期要求：</strong>概念加模板
+          （<a href="/zhcn/docs/15.genericprogramming/03.concepts/">第15.3章</a>），运行期零成本，
+          但把调用者锁定在一种类型上。</li>
+      </ul>
+      <p>
+        继承是这张清单里第四种情况的正解，对前三种都是错解。fast_io 自己的容器就是这样：
+        它们不共享基类，它们是模板，而真的需要一个公共类型时，库选择擦除而不是搬出一个基类。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+#include &lt;cstddef&gt;
+#include &lt;string_view&gt;
+
+struct engine
+{
+	::std::int_least32_t power{};
+};
+
+struct car_inherits : engine
+{
+	::std::string_view model{};
+};
+
+struct car_has
+{
+	engine eng{};
+	::std::string_view model{};
+};
+
+struct empty
+{
+};
+
+struct with_member
+{
+	empty e{};
+	::std::int_least32_t x{};
+};
+
+struct with_member_no_unique
+{
+	[[no_unique_address]] empty e{};
+	::std::int_least32_t x{};
+};
+
+struct derived : empty
+{
+	::std::int_least32_t x{};
+};
+
+int main()
+{
+	try
+	{
+		car_inherits a{};
+		car_has b{};
+		a.power = 120;
+		b.eng.power = 120;
+
+		::fast_io::io::println("inherits: ", a.power, " sizeof=", sizeof(car_inherits));
+		::fast_io::io::println("has:      ", b.eng.power, " sizeof=", sizeof(car_has));
+		::fast_io::io::println("sizeof(empty)=", sizeof(empty), " sizeof(derived)=", sizeof(derived));
+		::fast_io::io::println("sizeof(with_member)=", sizeof(with_member),
+							   " sizeof(with_member_no_unique)=", sizeof(with_member_no_unique));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+inherits: 120 sizeof=24
+has:      120 sizeof=24
+sizeof(empty)=1 sizeof(derived)=4
+sizeof(with_member)=8 sizeof(with_member_no_unique)=4
+</code></pre>
+
+    </section>
+    <section>
+      <h2>7. 经验法则</h2>
+
+      <ul>
+        <li>默认用成员。继承必须被论证，而论证就是那句 is-a。</li>
+        <li>“用……实现”是组合，不是 private 继承 —— 除非你要用 <code>using</code> 精确挑选公开的
+          操作子集（<a href="/zhcn/docs/16.inheritance/03.access/">第16.3章</a>）。</li>
+        <li>不要为了加几个辅助函数而继承；写自由函数或模板。</li>
+        <li>不要继承你不拥有的类型，除非它自己声明了它是基类。</li>
+        <li>加基类之前先看看：概念
+          （<a href="/zhcn/docs/15.genericprogramming/03.concepts/">第15.3章</a>）、
+          <code>::std::variant</code>，或者擦除的
+          <a href="/zhcn/docs/15.genericprogramming/10.typeerasure/">第15.10章的 shape</a>
+          是不是不用类型关系就能表达同一件事。</li>
+        <li>如果基类的唯一理由是省一个字节，用 <code>[[no_unique_address]]</code>，
+          不要用继承。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/16.inheritance/06.override/" class="prev-button">&larr; 第16.6章 <code>override</code> 关键字</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>

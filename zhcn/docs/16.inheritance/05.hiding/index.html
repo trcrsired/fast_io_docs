@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第16.5章 名字隐藏与 using - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第16.5章 名字隐藏与 <code>using</code></h1>
+    <p class="lang-switch"><a href="/docs/16.inheritance/05.hiding/">English</a></p>
+    <section>
+      <h2>1. 派生类里的名字会隐藏基类的每一个重载</h2>
+
+      <p>
+        类内部的名字查找在第一个声明了该名字的类处就停下。它<b>不会</b>把基类的重载收集起来再挑
+        最好的那个。所以派生类里声明一个 <code>f</code>，会隐藏基类<em>所有</em>的
+        <code>f</code>，包括本来匹配得更好的那些。
+      </p>
+      <pre><code class="language-cpp">
+struct base
+{
+	[[nodiscard]] ::std::string_view f(::std::int_least32_t) const noexcept { return "base::f(int)"; }
+	[[nodiscard]] ::std::string_view f(double) const noexcept { return "base::f(double)"; }
+};
+
+struct hiding : base
+{
+	[[nodiscard]] ::std::string_view f(::std::int_least32_t) const noexcept { return "hiding::f(int)"; }
+};
+</code></pre>
+      <p>
+        <code>h.f(1.5)</code> 不会失败，因为 <code>1.5</code> 可以转换成
+        <code>::std::int_least32_t</code> —— 它会悄悄用截断后的值调用
+        <code>hiding::f(int)</code>，这比报错更糟。用一个无法转换的实参调用，编译器就会显示
+        候选只有一个：
+      </p>
+      <pre><code class="language-cpp">
+error: invalid conversion from ‘const char*’ to ‘int_least32_t’ {aka ‘int’} [-fpermissive]
+note: initializing argument 1 of ‘std::string_view hiding::f(int_least32_t) const’
+</code></pre>
+      <p>
+        一个字都没提到 <code>base::f(double)</code>，因为查找根本没走到基类。对比
+        <a href="/zhcn/docs/06.function/06.overload/">第6.6章</a>：所有重载在同一个作用域里，
+        编译器会给它们排序。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. <code>using</code> 把基类的名字放回作用域</h2>
+
+      <pre><code class="language-cpp">
+struct revealing : base
+{
+	using base::f;               // bring every base::f into this scope
+
+	[[nodiscard]] ::std::string_view f(::std::int_least32_t) const noexcept { return "revealing::f(int)"; }
+};
+</code></pre>
+      <p>
+        现在 <code>r.f(1)</code> 和 <code>r.f(1.5)</code> 都能用：<code>using</code> 声明让基类的
+        重载在查找时成为派生类的成员，然后由普通重载解析排序全部三个候选。这是“扩展重载集，
+        而不是替换它”的标准做法，也正是在 private 继承下重新公开某个成员的同一套机制
+        （<a href="/zhcn/docs/16.inheritance/03.access/">第16.3章</a>）。
+      </p>
+      <p>
+        关于这个声明形状的两条规则：
+      </p>
+      <ul>
+        <li>它点名<em>基类</em>和成员：<code>using base::f;</code>，不是 <code>using f;</code>。</li>
+        <li>它永远不带形参列表。<code>using base::f;</code> 把叫 <code>f</code>
+          的<em>每一个</em>重载都拉进来；你没法只挑一个。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>3. 继承构造函数</h2>
+
+      <p>
+        构造函数不被继承 —— 派生类构造自己的。但一个点名基类的 <code>using</code> 声明会继承它的
+        全部构造函数（特殊成员除外），省掉为每个签名手写一个转发构造函数的麻烦：
+      </p>
+      <pre><code class="language-cpp">
+class machine_part
+{
+protected:
+	::std::int_least32_t serial_{};
+
+public:
+	machine_part() noexcept = default;
+	explicit machine_part(::std::int_least32_t s) noexcept : serial_{s} {}
+};
+
+class machine : public machine_part
+{
+public:
+	using machine_part::machine_part;   // inherits machine_part(int)
+};
+</code></pre>
+      <p>
+        <code>machine m{42};</code> 现在能用了，并且直接初始化基类。<b>不会</b>被继承的是基类的
+        拷贝/移动构造函数与析构函数：这些照常为派生类生成
+        （<a href="/zhcn/docs/16.inheritance/02.construction/">第16.2章</a>）。
+      </p>
+      <p>
+        继承来的构造函数保留基类的错误契约，所以 <code>machine m{42};</code> 是
+        <code>noexcept</code> 当且仅当 <code>machine_part(int)</code> 是 —— 当基类构造函数
+        会分配、因而是 <code>throws</code> 时，这一点很重要
+        （<a href="/zhcn/docs/15.genericprogramming/08.ifconstexpr/">第15.8章</a>）。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+#include &lt;string_view&gt;
+
+struct base
+{
+	[[nodiscard]] ::std::string_view f(::std::int_least32_t) const noexcept { return "base::f(int)"; }
+	[[nodiscard]] ::std::string_view f(double) const noexcept { return "base::f(double)"; }
+};
+
+struct hiding : base
+{
+	[[nodiscard]] ::std::string_view f(::std::int_least32_t) const noexcept { return "hiding::f(int)"; }
+};
+
+struct revealing : base
+{
+	using base::f;
+
+	[[nodiscard]] ::std::string_view f(::std::int_least32_t) const noexcept { return "revealing::f(int)"; }
+};
+
+int main()
+{
+	try
+	{
+		hiding h{};
+		revealing r{};
+
+		::fast_io::io::println("hiding f(1)=", h.f(1));
+		::fast_io::io::println("hiding through base f(1.5)=", static_cast&lt;base const &amp;&gt;(h).f(1.5));
+		::fast_io::io::println("revealing f(1)=", r.f(1));
+		::fast_io::io::println("revealing f(1.5)=", r.f(1.5));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+hiding f(1)=hiding::f(int)
+hiding through base f(1.5)=base::f(double)
+revealing f(1)=revealing::f(int)
+revealing f(1.5)=base::f(double)
+</code></pre>
+      <p>
+        第二行是不用 <code>using</code> 也能碰到被隐藏重载的办法：把对象限定成基类引用。
+        它能用，而且是一种坏味道 —— 它意味着派生类故意破坏了接口，调用者必须知道这件事。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 经验法则</h2>
+
+      <ul>
+        <li>给派生类增加一个重载时，在它旁边写 <code>using base::name;</code>。
+          否则你就悄悄把所有使用派生类型的调用者那里的基类版本都删掉了。</li>
+        <li>被隐藏的重载不是错误，所以没有测试能发现它。靠代码评审。</li>
+        <li>比起“隐藏再重新暴露”，更愿意给派生操作换个名字：一个接口取决于你恰好用了哪个类型名的类，
+          很难用。</li>
+        <li>用 <code>using base::base;</code>，而不是手写转发构造函数；它精确复制基类的契约。</li>
+        <li>名字查找是按<em>名字</em>，不是按签名。派生类里加一个重载，隐藏的是全部。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/16.inheritance/04.conversions/" class="prev-button">&larr; 第16.4章 转换与截断</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/16.inheritance/06.override/" class="next-button">第16.6章 <code>override</code> 关键字 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

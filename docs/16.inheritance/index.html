@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch16: Inheritance: Sharing a Layout, Not a Dispatcher - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch16: Inheritance: Sharing a Layout, Not a Dispatcher</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/16.inheritance/">中文（简体）</a></p>
+    <section>
+      <h2>1. What This Chapter Is, and What It Is Not</h2>
+
+      <p>
+        Inheritance in C++ is one feature with two halves. The first half is a
+        <strong>layout and access</strong> mechanism: a derived class contains a base-class
+        subobject at the front, inherits its members, and may be used wherever the base is
+        expected. The second half is <strong>dynamic dispatch</strong> through
+        <code>virtual</code> functions.
+      </p>
+      <p>
+        This chapter is the first half only. Every example here is resolved at compile time by
+        the compiler; none of them needs a vtable, and the word <code>virtual</code> appears
+        on exactly one page &mdash; <a href="/docs/16.inheritance/06.override/">Ch16.6</a>
+        &mdash; where the <code>override</code> keyword is introduced, because that keyword has
+        no meaning without it. Chapter 18 is the dispatch chapter.
+      </p>
+      <p>
+        The reason to split them is that the two halves are used for different things and
+        cost different things. <strong>Inheriting a layout</strong> is free, common, and
+        useful on its own: a <code>labeled_point</code> really is a <code>point</code> with a
+        name attached. <strong>Inheriting an interface</strong> costs a pointer per object and
+        an indirect call per operation, and is <a href="/docs/15.genericprogramming/10.typeerasure/">Ch15.10</a>'s
+        alternative. Mixing the two discussions is how people end up believing that
+        inheritance is polymorphism.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. The One-Sentence Summary of Each Idea</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Idea</th>
+            <th>One sentence</th>
+            <th>Subchapter</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>base subobject</td>
+            <td>A derived object contains its base object, first, as a part of itself.</td>
+            <td><a href="/docs/16.inheritance/01.whatinheritance/">Ch16.1</a></td>
+          </tr>
+          <tr>
+            <td>construction order</td>
+            <td>Bases, then members, then the body; destroyed in exactly the reverse.</td>
+            <td><a href="/docs/16.inheritance/02.construction/">Ch16.2</a></td>
+          </tr>
+          <tr>
+            <td>access specifiers</td>
+            <td><code>public</code> inheritance means is-a; <code>private</code> inheritance
+              adopts an implementation and publishes chosen operations with
+              <code>using</code>.</td>
+            <td><a href="/docs/16.inheritance/03.access/">Ch16.3</a></td>
+          </tr>
+          <tr>
+            <td>conversion and slicing</td>
+            <td>A derived object <em>is</em> a base object, so it can be bound to a base
+              reference &mdash; and copied into a base value, which loses the rest.</td>
+            <td><a href="/docs/16.inheritance/04.conversions/">Ch16.4</a></td>
+          </tr>
+          <tr>
+            <td>name hiding</td>
+            <td>A name declared in the derived class hides every base-class overload of that
+              name, unless you say <code>using</code>.</td>
+            <td><a href="/docs/16.inheritance/05.hiding/">Ch16.5</a></td>
+          </tr>
+          <tr>
+            <td><code>override</code></td>
+            <td>An annotation that makes the compiler prove the derived function really does
+              override a base one.</td>
+            <td><a href="/docs/16.inheritance/06.override/">Ch16.6</a></td>
+          </tr>
+          <tr>
+            <td>composition</td>
+            <td>A member is a better answer than a base class whenever is-a is not literally
+              true.</td>
+            <td><a href="/docs/16.inheritance/07.composition/">Ch16.7</a></td>
+          </tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>3. The Running Example</h2>
+
+      <p>
+        One small hierarchy runs through the chapter: a machine made of a base part and an
+        engine.
+      </p>
+      <pre><code class="language-cpp">
+class machine_part
+{
+protected:
+	::std::int_least32_t serial_{};
+
+public:
+	::std::int_least32_t serial() const noexcept { return serial_; }
+};
+
+class machine : public machine_part
+{
+protected:
+	::std::int_least32_t power_{};
+
+public:
+	::std::int_least32_t power() const noexcept { return power_; }
+};
+</code></pre>
+      <p>
+        <code>machine</code> is-a <code>machine_part</code>: every machine has a serial
+        number, and a <code>machine_part&amp;</code> can be bound to any machine. Nothing here
+        is virtual, and everything is decided while compiling.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Conventions Used in This Chapter</h2>
+
+      <ul>
+        <li>
+          Every function is <code>noexcept</code> or <code>throws</code>, including
+          constructors and destructors
+          (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>). A destructor is always
+          <code>noexcept</code>, which has a visible consequence in
+          <a href="/docs/16.inheritance/02.construction/">Ch16.2</a>: it cannot print, because
+          printing can fail.
+        </li>
+        <li>
+          <code>public</code> inheritance is written <code>: public base</code> explicitly,
+          even on a <code>struct</code> where it is implied. The word is the documentation.
+        </li>
+        <li>
+          Failures are herbceptions: <code>throw throws ...</code> and
+          <code>catch throws (::std::error e)</code>
+          (<a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>).
+        </li>
+        <li>
+          Every complete program on these pages was compiled with
+          <code>-std=c++26 -fherbceptions -lherbceptions</code> and run; diagnostics are
+          copied from the compiler's real output.
+        </li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>5. What You Should Already Know</h2>
+
+      <ul>
+        <li>Classes, access control and <code>const</code> members
+          (<a href="/docs/13.class/">Chapter 13</a>).</li>
+        <li>The Rule of Five (<a href="/docs/14.fiverules/">Chapter 14</a>) &mdash; a derived
+          class's special members are built out of the base's.</li>
+        <li>Concepts and type erasure (<a href="/docs/15.genericprogramming/">Chapter 15</a>)
+          &mdash; the compile-time alternative to inheriting an interface.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>6. Contents</h2>
+
+      <ul>
+        <li><a href="/docs/16.inheritance/01.whatinheritance/">Ch16.1: What Inheritance Is: the Base Subobject</a></li>
+        <li><a href="/docs/16.inheritance/02.construction/">Ch16.2: Construction and Destruction Order</a></li>
+        <li><a href="/docs/16.inheritance/03.access/">Ch16.3: public, protected and private Inheritance, selective exposure, and <code>#define private public</code> for tests</a></li>
+        <li><a href="/docs/16.inheritance/04.conversions/">Ch16.4: Derived-to-Base Conversion and Slicing</a></li>
+        <li><a href="/docs/16.inheritance/05.hiding/">Ch16.5: Name Hiding and <code>using</code></a></li>
+        <li><a href="/docs/16.inheritance/06.override/">Ch16.6: The <code>override</code> Keyword</a></li>
+        <li><a href="/docs/16.inheritance/07.composition/">Ch16.7: Inheritance or Composition?</a></li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/15.genericprogramming/11.printscan/" class="prev-button">&larr; Ch15.11: fast_io Print and Scan</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/16.inheritance/01.whatinheritance/" class="next-button">Ch16.1: The Base Subobject &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

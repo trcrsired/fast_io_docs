@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第16.4章 派生到基类的转换与截断 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第16.4章 派生到基类的转换与截断</h1>
+    <p class="lang-switch"><a href="/docs/16.inheritance/04.conversions/">English</a></p>
+    <section>
+      <h2>1. 派生对象就是一个基类对象</h2>
+
+      <p>
+        因为基类子对象是派生对象真实的一部分
+        （<a href="/zhcn/docs/16.inheritance/01.whatinheritance/">第16.1章</a>），
+        所以在需要基类对象的地方可以直接使用派生对象，不需要任何转换：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>目标</th>
+            <th>从一个 <code>derived</code> 左值出发</th>
+            <th>发生了什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>base&amp;</code></td>
+            <td><code>base&amp; r = d;</code></td>
+            <td>绑定到 <code>d</code> <em>内部</em>的基类子对象；不拷贝</td>
+          </tr>
+          <tr>
+            <td><code>base const&amp;</code></td>
+            <td><code>base const&amp; r = d;</code></td>
+            <td>同上，只读</td>
+          </tr>
+          <tr>
+            <td><code>base*</code></td>
+            <td><code>base* p = &amp;d;</code></td>
+            <td>指向基类子对象；不拷贝</td>
+          </tr>
+          <tr>
+            <td><code>base</code></td>
+            <td><code>base b = d;</code></td>
+            <td><strong>只拷贝基类那部分</strong> —— 这就是截断</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        前三种是有用的：免费、保留对象本身，而且通过引用写入会落到原对象上。第四种是陷阱，
+        也是本页的主题。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 截断：派生部分是会被扔掉的</h2>
+
+      <p>
+        <code>base b = d;</code> 不是“转换”<code>d</code>，而是用 <code>d</code> 的基类子对象
+        构造一个新的 <code>base</code>。新对象的大小和成员都是 <code>base</code> 的，
+        所以派生类新增的一切都消失了 —— 悄无声息，没有警告，因为对编译器来说这只是一次普通的
+        拷贝构造调用。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+struct base
+{
+	::std::int_least32_t v{};
+};
+
+struct derived : base
+{
+	::std::int_least32_t extra{};
+};
+
+int main()
+{
+	try
+	{
+		derived d{};
+		d.v = 1;
+		d.extra = 2;
+
+		base sliced = d;                       // copies only the base subobject
+		::fast_io::io::println("sliced.v=", sliced.v, " sizeof(sliced)=", sizeof(sliced));
+
+		base &amp;ref = d;                         // refers to the base subobject inside d
+		ref.v = 5;
+		::fast_io::io::println("after ref.v=5: d.v=", d.v, " d.extra=", d.extra);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+sliced.v=1 sizeof(sliced)=4
+after ref.v=5: d.v=5 d.extra=2
+</code></pre>
+      <p>
+        <code>sizeof(sliced)</code> 是 <code>4</code>：那个对象是一个 <code>base</code>，
+        不是 <code>derived</code>。相反，<code>ref</code> 是真实的基类子对象 ——
+        写 <code>ref.v</code> 改变了 <code>d.v</code>，而 <code>d.extra</code> 没被动过，
+        因为它从头到尾没参与。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 你没写也会发生的截断</h2>
+
+      <p>
+        截断不是冷门操作。每当派生对象被拷贝进一个基类类型的值里，它就发生了：
+      </p>
+      <ul>
+        <li><strong>按值接收的形参：</strong><code>void f(base b); ... f(d);</code> ——
+          派生部分在调用内部被丢掉。改成 <code>base const&amp;</code> 就什么都不丢。</li>
+        <li><strong>基类值的容器：</strong><code>::fast_io::vector&lt;base&gt; v; v.push_back(d);</code>
+          —— 容器装的是 <code>base</code>，所以它存的就是 <code>base</code>。若你想要派生部分，
+          你要的其实是别的东西：variant，或者擦除类型
+          （<a href="/zhcn/docs/15.genericprogramming/10.typeerasure/">第15.10章</a>）。</li>
+        <li><strong>赋值给基类对象：</strong><code>b = d;</code> —— 只赋值基类子对象。</li>
+        <li><strong>从返回类型是基类的函数返回派生对象。</strong></li>
+      </ul>
+      <p>
+        在没有 <code>virtual</code> 函数的层次结构里，这些至少还是<em>类型诚实</em>的：
+        一个 <code>base</code> 值确实是 <code>base</code>，对它的每个操作都是基类的操作。
+        一旦基类有了虚函数，截断还会变成逻辑 bug，因为那份拷贝不再表现得像原对象 ——
+        <a href="/zhcn/docs/18.virtual/">第18章</a>会讲这件事。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 传引用，不要传值</h2>
+
+      <p>
+        由此得到的规则只有一行：<strong>形参列表里的基类永远是引用或指针，绝不是值。</strong>
+      </p>
+      <pre><code class="language-cpp">
+inline void report(base const &amp;b) throws;      // uses the object you passed
+inline void report(base b) throws;              // uses a copy of its base subobject
+
+inline void mutate(base &amp;b) noexcept;          // writes reach the original
+</code></pre>
+      <p>
+        这也是 fast_io 的例子都用引用传设备的原因：
+        <code>::fast_io::io::println(out, ...)</code> 用转发引用接收输出设备，
+        所以 <code>obuf_file</code> 仍然是 <code>obuf_file</code>，它的缓冲区不会被拷贝
+        （<a href="/zhcn/docs/11.io/01.fileio/">第11.1章</a>）。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 经验法则</h2>
+
+      <ul>
+        <li>基类形参用 <code>B const&amp;</code> 或 <code>B&amp;</code>。按值的基类形参就是截断机器。</li>
+        <li>绝不要把派生对象存进基类值的容器，还指望把派生部分拿回来。</li>
+        <li>如果你需要“一个集合里放各种不同的派生东西”，答案不是
+          <code>vector&lt;base&gt;</code>，而是 <code>::std::variant</code>，或者
+          <a href="/zhcn/docs/15.genericprogramming/10.typeerasure/">第15.10章的 <code>shape</code></a>
+          那种类型擦除。</li>
+        <li>转成 <code>base&amp;</code> 是免费且保留身份的；转成 <code>base</code> 是新建一个对象。
+          不确定发生了哪一种时，打印 <code>sizeof</code>。</li>
+        <li>截断不会报错。它是一次拷贝，而拷贝是合法的 —— 这正是它需要一条规则的原因。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/16.inheritance/03.access/" class="prev-button">&larr; 第16.3章 public、protected、private</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/16.inheritance/05.hiding/" class="next-button">第16.5章 名字隐藏 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

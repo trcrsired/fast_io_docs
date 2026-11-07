@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第16.1章 继承是什么：基类子对象 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第16.1章 继承是什么：基类子对象</h1>
+    <p class="lang-switch"><a href="/docs/16.inheritance/01.whatinheritance/">English</a></p>
+    <section>
+      <h2>1. 派生对象含有一个基类对象</h2>
+
+      <p>
+        <code>struct labeled_point : point</code> 并不会把 <code>point</code> 的代码拷进
+        <code>labeled_point</code>。它让每个 <code>labeled_point</code>
+        <strong>含有</strong>一个 <code>point</code>，作为自己的一部分，并把这个部分叫作
+        <strong>基类子对象</strong>。关于继承的其他一切，都是从这一句话推出来的。
+      </p>
+      <pre><code class="language-cpp">
+struct point
+{
+	::std::int_least32_t x{}, y{};
+
+	[[nodiscard]] ::std::int_least32_t sum() const noexcept { return x + y; }
+};
+
+struct labeled_point : point
+{
+	::std::string_view label{};
+};
+</code></pre>
+      <ul>
+        <li><code>p.x</code> 与 <code>p.y</code> 在 <code>labeled_point</code> 上照样能用：
+          它们是基类子对象的成员，名字查找找得到。</li>
+        <li><code>p.sum()</code> 也能用：<code>sum</code> 是在 <code>point</code> 里声明的，
+          被继承了。并没有为它在 <code>labeled_point</code> 里生成什么。</li>
+        <li><code>sizeof(labeled_point)</code> 至少是 <code>sizeof(point)</code> 加上新增的成员 ——
+          在这台机器上 <code>point</code> 是 <code>8</code>、<code>::std::string_view</code>
+          是 <code>16</code>，所以结果是 <code>24</code>。</li>
+        <li>一个 <code>labeled_point</code> <em>就是</em> 一个 <code>point</code>：
+          可以把 <code>point const&amp;</code> 绑定到它上面
+          （<a href="/zhcn/docs/16.inheritance/04.conversions/">第16.4章</a>）。</li>
+      </ul>
+      <p>
+        这个关系从派生类一侧写出来，而基类名前面那个访问说明符不是装饰 ——
+        它是 <code>public</code>、<code>protected</code> 或 <code>private</code>，
+        并且会改变程序其余部分能对这个关系做什么
+        （<a href="/zhcn/docs/16.inheritance/03.access/">第16.3章</a>）。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. is-a 测试</h2>
+
+      <p>
+        public 继承是 C++ 能对类型做出的最强断言：它说派生类型<strong>就是</strong>基类型，
+        对任何用途、永远成立。把这句话读出来，然后检查：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>候选</th>
+            <th>“一个 <code>D</code> 是一个 <code>B</code> 吗”</th>
+            <th>结论</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>labeled_point : point</code></td>
+            <td>带标签的点是一个点</td>
+            <td>是 —— 标签是附加信息，点承诺的一切仍然成立</td>
+          </tr>
+          <tr>
+            <td><code>point : labeled_point</code></td>
+            <td>一个点是一个带标签的点</td>
+            <td>不是 —— 普通点没有标签</td>
+          </tr>
+          <tr>
+            <td><code>car : engine</code></td>
+            <td>一辆车是一台发动机</td>
+            <td>不是 —— 车<em>有</em>一台发动机
+              （<a href="/zhcn/docs/16.inheritance/07.composition/">第16.7章</a>）</td>
+          </tr>
+          <tr>
+            <td><code>square : rectangle</code></td>
+            <td>正方形是矩形</td>
+            <td>看着像、其实错 —— 矩形可以被改成 2&times;3，正方形不能，
+              所以把 <code>square&amp;</code> 当 <code>rectangle&amp;</code> 传出去就会破坏它</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        最后一行是严格要求的经典理由。public 继承意味着基类的承诺对派生对象<em>对所有调用者</em>
+        成立，包括那些在派生类存在之前就写好的调用者。“is-a”不是现实世界的事，而是可替换性的事。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 布局：基类在最前面</h2>
+
+      <p>
+        在不涉及 <code>virtual</code> 继承时，基类子对象位于派生对象的最前面，这正是“指向派生对象的
+        基类引用不需要任何调整”的原因：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>表达式</th>
+            <th>类型</th>
+            <th>值</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>sizeof(point)</code></td>
+            <td><code>::std::size_t</code></td>
+            <td><code>8</code></td>
+          </tr>
+          <tr>
+            <td><code>sizeof(labeled_point)</code></td>
+            <td><code>::std::size_t</code></td>
+            <td><code>24</code></td>
+          </tr>
+          <tr>
+            <td><code>sizeof(std::string_view)</code></td>
+            <td><code>::std::size_t</code></td>
+            <td><code>16</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        继承本身不额外占一个字节的填充：没有新增数据成员的派生类和它的基类一样大。
+        这属于“空基类优化”的话题，也是本章倒数第二个惊喜
+        （<a href="/zhcn/docs/16.inheritance/07.composition/">第16.7章</a>）。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+#include &lt;string_view&gt;
+
+struct point
+{
+	::std::int_least32_t x{}, y{};
+
+	[[nodiscard]] ::std::int_least32_t sum() const noexcept { return x + y; }
+};
+
+struct labeled_point : point
+{
+	::std::string_view label{};
+};
+
+int main()
+{
+	try
+	{
+		labeled_point p{};
+		p.x = 3;
+		p.y = 4;
+		p.label = "corner";
+
+		::fast_io::io::println(p.label, " ", p.sum());
+		::fast_io::io::println("sizeof(point)=", sizeof(point), " sizeof(labeled_point)=", sizeof(labeled_point));
+
+		point const &amp;base{p};
+		::fast_io::io::println("base.sum()=", base.sum());
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+corner 7
+sizeof(point)=8 sizeof(labeled_point)=24
+base.sum()=7
+</code></pre>
+      <p>
+        第三行才是有意思的：<code>base</code> 是绑定到 <code>p</code> 内部那个
+        <code>point</code> 子对象的引用，不是拷贝，而且它没有经过任何强制转换。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 经验法则</h2>
+
+      <ul>
+        <li>写下冒号之前，先把 is-a 那句话读出来。如果它对每个调用者都不是字面为真的，就用成员。</li>
+        <li>显式写 <code>: public base</code>；在 <code>struct</code> 里 <code>public</code> 是隐含的，
+          而在 <code>class</code> 里隐含的是相反的，所以这个词能防止有人把
+          <code>struct</code> 改成 <code>class</code> 时含义悄悄变化。</li>
+        <li>让基类小而自洽。你放进基类的一切都会被它下面的所有类型继承，包括未来代码必须维持的不变式。</li>
+        <li>不要用继承来复用代码。基类是一个<em>类型</em>，不是宏；复用是函数和模板的事。</li>
+        <li>不要继承你不拥有的类型，除非它的作者写明了它是基类（公开且非虚的析构函数通常意味着相反的意思）。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/16.inheritance/" class="prev-button">&larr; 第16章 继承</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/16.inheritance/02.construction/" class="next-button">第16.2章 构造顺序 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

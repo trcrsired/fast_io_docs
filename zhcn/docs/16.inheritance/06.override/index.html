@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第16.6章 override 关键字 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第16.6章 <code>override</code> 关键字</h1>
+    <p class="lang-switch"><a href="/docs/16.inheritance/06.override/">English</a></p>
+    <section>
+      <h2>1. 唯一需要 <code>virtual</code> 的一页</h2>
+
+      <p>
+        <code>override</code> 是本章唯一离开 <code>virtual</code> 就没有意义的关键字：
+        它标记一个<em>覆盖</em>基类虚函数的函数，而基类函数不是虚的就没有东西可覆盖。
+        所以本页只声明一个虚函数、在派生类那个函数上写 <code>override</code>，然后就到此为止。
+        调用如何被分派 —— vtable、动态类型、为什么 <code>virtual</code> 要花每个对象一个指针 ——
+        都在<a href="/zhcn/docs/18.virtual/">第18章</a>。
+      </p>
+      <p>
+        在机制之前先学这个注解是有好处的。<strong>忘记写 <code>override</code> 是 C++ 里最容易
+        制造、也最难发现的 bug 之一</strong>：派生函数能编译，把基类函数隐藏掉，
+        然后程序一直跑的是基类版本。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 规则</h2>
+
+      <ul>
+        <li><em>基类</em>函数声明为 <code>virtual</code>；那是唯一需要这个词的地方。</li>
+        <li>派生类里每个<em>覆盖</em>函数都在声明末尾写 <code>override</code>，
+          写在 <code>const</code> 之后、<code>noexcept</code>/<code>throws</code> 之前。</li>
+        <li>派生类<b>不</b>重复 <code>virtual</code>。它仍然是虚的 —— 虚性是继承来的 ——
+          写第二遍毫无收益，只会暗示作者自己也不确定。</li>
+      </ul>
+      <pre><code class="language-cpp">
+struct shape
+{
+	[[nodiscard]] virtual ::std::string_view name() const noexcept { return "shape"; }
+	[[nodiscard]] ::std::string_view category() const noexcept { return "polygon"; }
+	virtual ~shape() noexcept = default;
+};
+
+struct square : shape
+{
+	[[nodiscard]] ::std::string_view name() const noexcept override { return "square"; }
+};
+
+struct unit_square final : square
+{
+	[[nodiscard]] ::std::string_view name() const noexcept override { return "unit square"; }
+};
+</code></pre>
+      <p>
+        <code>name()</code> 是虚的，所以通过 <code>shape const&amp;</code> 的调用会走到最派生的
+        覆盖版本；<code>category()</code> 不是虚的，所以同一个调用无论对象真实类型是什么，
+        跑的都是 <code>shape::category()</code>。这个对比就是
+        <a href="/zhcn/docs/18.virtual/">第18章</a>的全部内容，一行说完。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. <code>override</code> 买到了什么：三个错误变成编译错误</h2>
+
+      <p>
+        <code>override</code> 是在要求编译器<em>证明</em>这个函数确实覆盖了什么。证明不了，
+        就编译不过。没有这个关键字，下面三个程序都会安安静静编译成功然后行为错误。
+      </p>
+      <h3>在非虚基类函数上写了它</h3>
+      <pre><code class="language-cpp">
+struct base
+{
+	[[nodiscard]] ::std::string_view name() const noexcept { return "base"; }   // not virtual
+};
+
+struct derived : base
+{
+	[[nodiscard]] ::std::string_view name() const noexcept override { return "derived"; }
+};
+</code></pre>
+      <pre><code class="language-text">
+error: ‘std::string_view derived::name() const’ marked ‘override’, but does not override
+</code></pre>
+      <h3>签名差一点点</h3>
+      <pre><code class="language-cpp">
+struct base2
+{
+	[[nodiscard]] virtual ::std::string_view name() const noexcept { return "base"; }
+	virtual ~base2() noexcept = default;
+};
+
+struct derived2 : base2
+{
+	[[nodiscard]] ::std::string_view name() noexcept override { return "derived"; }   // missing const
+};
+</code></pre>
+      <pre><code class="language-text">
+error: ‘std::string_view derived2::name()’ marked ‘override’, but does not override
+</code></pre>
+      <p>
+        第二种才危险。去掉 <code>const</code>、再去掉 <code>override</code>，
+        编译器一个字都不说：<code>derived2</code> 声明了一个新函数，基类的 <code>name()</code>
+        原地不动，所有通过基类引用的调用继续打印 <code>base</code>。
+      </p>
+      <h3>从 <code>final</code> 的东西派生</h3>
+      <pre><code class="language-cpp">
+struct base3 final { /* ... */ };
+struct derived3 : base3 { /* ... */ };
+</code></pre>
+      <pre><code class="language-text">
+error: cannot derive from ‘final’ base ‘base3’ in derived type ‘derived3’
+</code></pre>
+      <p>
+        <code>final</code> 写在类上就是禁止从它派生；写在虚函数上就是禁止再被覆盖。
+        两者都是编译器会强制执行的文档，在写得好的层次结构里它们和 <code>override</code> 是邻居。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;string_view&gt;
+#include &lt;type_traits&gt;
+
+struct shape
+{
+	[[nodiscard]] virtual ::std::string_view name() const noexcept { return "shape"; }
+	[[nodiscard]] ::std::string_view category() const noexcept { return "polygon"; }
+	virtual ~shape() noexcept = default;
+};
+
+struct square : shape
+{
+	[[nodiscard]] ::std::string_view name() const noexcept override { return "square"; }
+};
+
+struct unit_square final : square
+{
+	[[nodiscard]] ::std::string_view name() const noexcept override { return "unit square"; }
+};
+
+int main()
+{
+	try
+	{
+		unit_square u{};
+		shape const &amp;r{u};
+
+		::fast_io::io::println("r.name()=", r.name());
+		::fast_io::io::println("r.category()=", r.category());
+		::fast_io::io::println("is_polymorphic&lt;shape&gt;=", ::std::is_polymorphic_v&lt;shape&gt;);
+		::fast_io::io::println("sizeof(shape)=", sizeof(shape), " sizeof(square)=", sizeof(square));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+r.name()=unit square
+r.category()=polygon
+is_polymorphic&lt;shape&gt;=1
+sizeof(shape)=8 sizeof(square)=8
+</code></pre>
+      <p>
+        <code>r.name()</code> 打印的是 <code>unit square</code>，尽管 <code>r</code> 是
+        <code>shape const&amp;</code>：那就是虚调用。<code>r.category()</code> 对同一个对象打印
+        <code>polygon</code>：那就是非虚调用。<code>is_polymorphic_v</code> 是 <code>true</code>
+        因为类里有虚函数，而 <code>sizeof(shape)</code> 变成 <code>8</code>，因为它现在带着一个
+        指向 vtable 的指针。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 本章不用它做什么</h2>
+
+      <ul>
+        <li><strong>不用来持有基类指针。</strong>要通过基类指针删除的
+          <code>vector&lt;shape*&gt;</code> 需要 <code>virtual ~shape()</code> 和严格的归属管理；
+          第18章两件都讲。本章这种非虚层次结构的规则是：根本不通过基类指针持有对象。</li>
+        <li><strong>不在构造/析构函数里用虚调用。</strong>构造期间对象还只是基类对象，
+          派生覆盖够不到。这就是<a href="/zhcn/docs/16.inheritance/02.construction/">第16.2章</a>
+          说“派生类的函数体帮不上基类的忙”的原因。</li>
+        <li><strong>不用它作为设计的默认。</strong>类型集合在编译期已知时，模板或
+          <code>::std::variant</code> 更快；集合是开放的时，
+          <a href="/zhcn/docs/15.genericprogramming/10.typeerasure/">第15.10章</a>的类型擦除
+          根本不需要基类。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>6. 经验法则</h2>
+
+      <ul>
+        <li>每个覆盖函数都写 <code>override</code>，永远，没有例外。</li>
+        <li>派生类里永远不写 <code>virtual</code>，而是写 <code>override</code>。</li>
+        <li>除非你就是设计来被继承的，否则把类标成 <code>final</code>；再覆盖一次就是 bug 时，
+          把那个虚函数标成 <code>final</code>。</li>
+        <li><code>override</code> 写在 <code>const</code> 之后、<code>noexcept</code>/<code>throws</code>
+          之前：<code>name() const noexcept override</code> —— 顺序就是本书用的
+          <code>const noexcept override</code>。</li>
+        <li>任何通过基类指针删除的代码之前，基类析构函数必须是 <code>virtual</code>
+          （而且仍然是 <code>noexcept</code>）。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/16.inheritance/05.hiding/" class="prev-button">&larr; 第16.5章 名字隐藏</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/16.inheritance/07.composition/" class="next-button">第16.7章 继承还是组合？ &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

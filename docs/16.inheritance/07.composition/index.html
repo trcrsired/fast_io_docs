@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch16.7: Inheritance or Composition? - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch16.7: Inheritance or Composition?</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/16.inheritance/07.composition/">中文（简体）</a></p>
+    <section>
+      <h2>1. The Two Ways to Reuse</h2>
+
+      <p>
+        A car has an engine. Writing that as inheritance produces the sentence &ldquo;a car is
+        an engine&rdquo;, which is false, and the falseness has consequences: every
+        <code>engine&amp;</code> parameter accepts a car, a car cannot have two engines, and
+        changing <code>engine</code> silently changes <code>car</code>'s public interface.
+      </p>
+      <pre><code class="language-cpp">
+struct engine
+{
+	::std::int_least32_t power{};
+};
+
+struct car_inherits : engine          // "a car is an engine"
+{
+	::std::string_view model{};
+};
+
+struct car_has                    // "a car has an engine"
+{
+	engine eng{};
+	::std::string_view model{};
+};
+</code></pre>
+      <p>
+        Both are the same size on this machine (<code>24</code> bytes: a
+        <code>::std::int_least32_t</code> plus a <code>::std::string_view</code>, rounded to
+        <code>8</code>), and both hold the same data. What differs is the type relationship,
+        and that is where all the value is.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. What Composition Buys You</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>Inheritance</th>
+            <th>Composition</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Correctness of the is-a claim</td>
+            <td>must be literally true</td>
+            <td>not claimed at all</td>
+          </tr>
+          <tr>
+            <td>Can hold two engines</td>
+            <td>no</td>
+            <td>yes, add another member</td>
+          </tr>
+          <tr>
+            <td>Changing the part's interface</td>
+            <td>changes the whole's interface, maybe its ABI</td>
+            <td>contained; only the wrapper's own members matter</td>
+          </tr>
+          <tr>
+            <td>Access control</td>
+            <td>inherited members are reachable by name</td>
+            <td>only through the member name, so the wrapper can guard them</td>
+          </tr>
+          <tr>
+            <td>Swap the implementation at run time</td>
+            <td>no (a base subobject cannot be replaced)</td>
+            <td>yes, if the member is a variant or an erased type</td>
+          </tr>
+          <tr>
+            <td>sizeof</td>
+            <td>same as the part plus new members</td>
+            <td>same, unless the part is empty (&sect;4)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The last-but-one row is the one to remember: a member is a <em>boundary</em>. Every
+        derived class is inside the base class's invariant forever; every holder of a member
+        can decide what to publish.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. When Inheritance Is the Right Answer</h2>
+
+      <p>
+        Inheritance earns its place when all four of these hold:
+      </p>
+      <ol>
+        <li>the is-a sentence is true for every caller,</li>
+        <li>the base class is designed to be inherited from (documented, with the right
+          destructor, <code>protected</code> members where needed),</li>
+        <li>the derived class adds behaviour, not just data,</li>
+        <li>the set of derived types is either closed and known, or the base is genuinely an
+          interface.</li>
+      </ol>
+      <p>
+        The chapter's own examples pass: a <code>labeled_point</code> is a point, a
+        <code>machine</code> is a <code>machine_part</code>. A car fails the first test, and no
+        amount of implementation sharing makes it pass.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. The Empty Base: Where Inheritance Actually Wins on Size</h2>
+
+      <p>
+        There is one case where inheritance beats a member on <code>sizeof</code>. An empty
+        base class contributes no bytes, while an empty member still has to be addressable
+        &mdash; it needs at least one byte, plus padding.
+      </p>
+      <pre><code class="language-cpp">
+struct empty
+{
+};
+
+struct with_member
+{
+	empty e{};
+	::std::int_least32_t x{};
+};
+
+struct with_member_no_unique
+{
+	[[no_unique_address]] empty e{};
+	::std::int_least32_t x{};
+};
+
+struct derived : empty
+{
+	::std::int_least32_t x{};
+};
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th><code>sizeof</code></th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>empty</code></td>
+            <td><code>1</code></td>
+            <td>every object needs a unique address</td>
+          </tr>
+          <tr>
+            <td><code>derived</code></td>
+            <td><code>4</code></td>
+            <td>empty base optimisation: the base takes no space</td>
+          </tr>
+          <tr>
+            <td><code>with_member</code></td>
+            <td><code>8</code></td>
+            <td>a member must have its own address, so 1 byte + 3 padding</td>
+          </tr>
+          <tr>
+            <td><code>with_member_no_unique</code></td>
+            <td><code>4</code></td>
+            <td><code>[[no_unique_address]]</code> (C++20) gives the member the same
+              permission</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Since C++20 the size argument is gone: <code>[[no_unique_address]]</code> makes an
+        empty member free, so composition no longer costs bytes. Note what it does not fix: the
+        type relationship, the two-engines problem, or the interface containment. Size was
+        never the interesting part.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. The Third Option: No Relationship at All</h2>
+
+      <p>
+        When the reason for the hierarchy is &ldquo;these things must all be handled
+        uniformly&rdquo;, neither inheritance nor a member is the modern answer:
+      </p>
+      <ul>
+        <li><strong>A closed set of types:</strong> <code>::std::variant</code> plus a visitor.
+          No base class, no pointer, no allocation, and the compiler checks every case.</li>
+        <li><strong>An open set:</strong> the type erasure of
+          <a href="/docs/15.genericprogramming/10.typeerasure/">Ch15.10</a> &mdash; one
+          non-template class, a table of function pointers, value semantics, and no inheritance
+          at all.</li>
+        <li><strong>A compile-time requirement:</strong> a concept and a template
+          (<a href="/docs/15.genericprogramming/03.concepts/">Ch15.3</a>), which costs nothing
+          at run time but commits the caller to one type.</li>
+      </ul>
+      <p>
+        Inheritance is the right tool for the fourth case in that list and the wrong tool for
+        the first three. fast_io's own containers follow this: they share no base class, they
+        are templates, and where a common type is genuinely needed the library erases it rather
+        than hoisting a base class.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+#include &lt;cstddef&gt;
+#include &lt;string_view&gt;
+
+struct engine
+{
+	::std::int_least32_t power{};
+};
+
+struct car_inherits : engine
+{
+	::std::string_view model{};
+};
+
+struct car_has
+{
+	engine eng{};
+	::std::string_view model{};
+};
+
+struct empty
+{
+};
+
+struct with_member
+{
+	empty e{};
+	::std::int_least32_t x{};
+};
+
+struct with_member_no_unique
+{
+	[[no_unique_address]] empty e{};
+	::std::int_least32_t x{};
+};
+
+struct derived : empty
+{
+	::std::int_least32_t x{};
+};
+
+int main()
+{
+	try
+	{
+		car_inherits a{};
+		car_has b{};
+		a.power = 120;
+		b.eng.power = 120;
+
+		::fast_io::io::println("inherits: ", a.power, " sizeof=", sizeof(car_inherits));
+		::fast_io::io::println("has:      ", b.eng.power, " sizeof=", sizeof(car_has));
+		::fast_io::io::println("sizeof(empty)=", sizeof(empty), " sizeof(derived)=", sizeof(derived));
+		::fast_io::io::println("sizeof(with_member)=", sizeof(with_member),
+							   " sizeof(with_member_no_unique)=", sizeof(with_member_no_unique));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+inherits: 120 sizeof=24
+has:      120 sizeof=24
+sizeof(empty)=1 sizeof(derived)=4
+sizeof(with_member)=8 sizeof(with_member_no_unique)=4
+</code></pre>
+
+    </section>
+    <section>
+      <h2>7. Rules of Thumb</h2>
+
+      <ul>
+        <li>Default to a member. Inheritance has to be argued for, and the argument is the
+          is-a sentence.</li>
+        <li>&ldquo;Implemented in terms of&rdquo; is composition, not private inheritance.</li>
+        <li>Do not inherit to add a couple of helpers; write free functions or a template.</li>
+        <li>Do not inherit from types you do not own, unless they document themselves as base
+          classes.</li>
+        <li>Before adding a base class, check whether a concept
+          (<a href="/docs/15.genericprogramming/03.concepts/">Ch15.3</a>), a
+          <code>::std::variant</code> or the erased
+          <a href="/docs/15.genericprogramming/10.typeerasure/">Ch15.10 shape</a> says the same
+          thing without a type relationship.</li>
+        <li>Use <code>[[no_unique_address]]</code> rather than inheritance when the only reason
+          for the base class was saving a byte.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/16.inheritance/06.override/" class="prev-button">&larr; Ch16.6: The <code>override</code> Keyword</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

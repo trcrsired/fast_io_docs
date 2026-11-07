@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch16.1: What Inheritance Is: the Base Subobject - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch16.1: What Inheritance Is: the Base Subobject</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/16.inheritance/01.whatinheritance/">中文（简体）</a></p>
+    <section>
+      <h2>1. A Derived Object Contains a Base Object</h2>
+
+      <p>
+        <code>struct labeled_point : point</code> does not copy <code>point</code>'s code into
+        <code>labeled_point</code>. It makes every <code>labeled_point</code>
+        <strong>contain</strong> a <code>point</code>, as a part of itself, and calls that part
+        the <strong>base subobject</strong>. Everything else about inheritance follows from
+        that one sentence.
+      </p>
+      <pre><code class="language-cpp">
+struct point
+{
+	::std::int_least32_t x{}, y{};
+
+	[[nodiscard]] ::std::int_least32_t sum() const noexcept { return x + y; }
+};
+
+struct labeled_point : point
+{
+	::std::string_view label{};
+};
+</code></pre>
+      <ul>
+        <li><code>p.x</code> and <code>p.y</code> work on a <code>labeled_point</code>: they
+          are members of its base subobject, and name lookup finds them.</li>
+        <li><code>p.sum()</code> works: <code>sum</code> was declared in <code>point</code>
+          and is inherited. Nothing was generated for it in <code>labeled_point</code>.</li>
+        <li><code>sizeof(labeled_point)</code> is at least
+          <code>sizeof(point)</code> plus the new members &mdash; here <code>24</code>, on a
+          machine where <code>point</code> is <code>8</code> and a
+          <code>::std::string_view</code> is <code>16</code>.</li>
+        <li>A <code>labeled_point</code> <em>is</em> a <code>point</code>: a
+          <code>point const&amp;</code> can be bound to it
+          (<a href="/docs/16.inheritance/04.conversions/">Ch16.4</a>).</li>
+      </ul>
+      <p>
+        The relation is written from the derived side, and the access specifier in front of
+        the base name is not decoration &mdash; it is <code>public</code>, <code>protected</code>
+        or <code>private</code>, and it changes what the rest of the program may do with the
+        relationship (<a href="/docs/16.inheritance/03.access/">Ch16.3</a>).
+      </p>
+
+    </section>
+    <section>
+      <h2>2. The is-a Test</h2>
+
+      <p>
+        Public inheritance is the strongest statement about a type that C++ has: it says the
+        derived type <strong>is</strong> a base type, for every purpose, forever. Hold the
+        sentence and check it:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Candidate</th>
+            <th>&ldquo;A <code>D</code> is a <code>B</code>&rdquo;</th>
+            <th>Verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>labeled_point : point</code></td>
+            <td>a labeled point is a point</td>
+            <td>yes &mdash; the label is extra, everything a point guarantees still holds</td>
+          </tr>
+          <tr>
+            <td><code>point : labeled_point</code></td>
+            <td>a point is a labeled point</td>
+            <td>no &mdash; a plain point has no label</td>
+          </tr>
+          <tr>
+            <td><code>car : engine</code></td>
+            <td>a car is an engine</td>
+            <td>no &mdash; a car <em>has</em> an engine
+              (<a href="/docs/16.inheritance/07.composition/">Ch16.7</a>)</td>
+          </tr>
+          <tr>
+            <td><code>square : rectangle</code></td>
+            <td>a square is a rectangle</td>
+            <td>tempting and wrong &mdash; a rectangle can be resized to 2&times;3, a square
+              cannot, so a <code>square&amp;</code> passed as a
+              <code>rectangle&amp;</code> would be breakable</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The last row is the classic reason to be strict. Public inheritance means the base
+        class's promises hold for the derived object <em>for all callers</em>, including ones
+        written before the derived class existed. &ldquo;Is-a&rdquo; is not about the real
+        world; it is about substitutability.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. Layout: the Base Comes First</h2>
+
+      <p>
+        A base subobject sits at the start of a derived object with no
+        <code>virtual</code> inheritance involved, which is why a base reference to a derived
+        object needs no adjustment:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Expression</th>
+            <th>Type</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>sizeof(point)</code></td>
+            <td><code>::std::size_t</code></td>
+            <td><code>8</code></td>
+          </tr>
+          <tr>
+            <td><code>sizeof(labeled_point)</code></td>
+            <td><code>::std::size_t</code></td>
+            <td><code>24</code></td>
+          </tr>
+          <tr>
+            <td><code>sizeof(std::string_view)</code></td>
+            <td><code>::std::size_t</code></td>
+            <td><code>16</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        No padding is added for the inheritance itself: a derived class with no new data
+        members is exactly as large as its base. That is the empty base optimisation's
+        business and this chapter's last-but-one surprise
+        (<a href="/docs/16.inheritance/07.composition/">Ch16.7</a>).
+      </p>
+
+    </section>
+    <section>
+      <h2>4. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+#include &lt;string_view&gt;
+
+struct point
+{
+	::std::int_least32_t x{}, y{};
+
+	[[nodiscard]] ::std::int_least32_t sum() const noexcept { return x + y; }
+};
+
+struct labeled_point : point
+{
+	::std::string_view label{};
+};
+
+int main()
+{
+	try
+	{
+		labeled_point p{};
+		p.x = 3;
+		p.y = 4;
+		p.label = "corner";
+
+		::fast_io::io::println(p.label, " ", p.sum());
+		::fast_io::io::println("sizeof(point)=", sizeof(point), " sizeof(labeled_point)=", sizeof(labeled_point));
+
+		point const &amp;base{p};
+		::fast_io::io::println("base.sum()=", base.sum());
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+corner 7
+sizeof(point)=8 sizeof(labeled_point)=24
+base.sum()=7
+</code></pre>
+      <p>
+        The third line is the interesting one: <code>base</code> is a reference to the
+        <code>point</code> subobject inside <code>p</code>, not to a copy, and it was created
+        without a cast.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Rules of Thumb</h2>
+
+      <ul>
+        <li>Say the is-a sentence out loud before writing the colon. If it is not literally
+          true for every caller, use a member instead.</li>
+        <li>Write <code>: public base</code> explicitly; on a <code>struct</code> the
+          <code>public</code> is implied, and on a <code>class</code> the opposite is, so the
+          word prevents a silent change of meaning when someone edits
+          <code>struct</code> to <code>class</code>.</li>
+        <li>Keep base classes small and self-contained. Everything you put in a base class is
+          inherited by everything below it, including invariants that future code must
+          maintain.</li>
+        <li>Do not use inheritance to reuse code. A base class is a <em>type</em>, not a
+          macro; reuse is what functions and templates are for.</li>
+        <li>Do not inherit from a type you do not own unless its author documented that it is
+          a base class (a public, non-virtual destructor being the usual sign the opposite is
+          intended).</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/16.inheritance/" class="prev-button">&larr; Ch16: Inheritance</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/16.inheritance/02.construction/" class="next-button">Ch16.2: Construction Order &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
