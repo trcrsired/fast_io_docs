@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第15.10章 类型擦除：不用继承的 shape - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第15.10章 类型擦除：不用继承的 <code>shape</code></h1>
+    <p class="lang-switch"><a href="/docs/15.genericprogramming/10.typeerasure/">English</a></p>
+    <section>
+      <h2>1. 问题：装着不同东西的容器</h2>
+
+      <p>
+        <code>::fast_io::vector&lt;rectangle&gt;</code> 装不下 <code>circle</code>。
+        模板在编译期解析，<code>vector</code> 的元素类型也在编译期固定，所以“任意形状的集合”
+        需要别的办法。
+      </p>
+      <p>
+        在 C++ 里恰好只有两个答案：
+      </p>
+      <ul>
+        <li><strong>带 <code>virtual</code> 的继承</strong>
+          （<a href="/zhcn/docs/18.virtual/">第18章</a>）：一个声明虚函数的基类
+          <code>shape</code>，再加 <code>vector&lt;::std::unique_ptr&lt;shape&gt;&gt;</code>。
+          它能用，但它强迫每个具体形状去<em>继承</em> —— 作者必须知道你的基类，
+          也不能让它只是一个装着两个数字的 <code>struct</code>。</li>
+        <li><strong>类型擦除</strong>，也就是本页：一个具体的、非模板的类
+          <code>shape</code>，装下任何满足某个概念的类型，并通过一张函数指针表分派。
+          没有继承、没有基类、没有 <code>virtual</code> 关键字，<code>rectangle</code> 与
+          <code>circle</code> 一行都不用改。</li>
+      </ul>
+      <p>
+        第二种就是 Adobe 那套<em>值语义</em>库以及 Sean Parent“继承是万恶之基”演讲的做法，
+        本页把它完整造出来。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. <code>shape</code> 必须做到什么</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>要求</th>
+            <th>做法</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>装下 <code>rectangle</code>、<code>circle</code>、<code>square</code></td>
+            <td>一个指向具体类型堆对象的 <code>void *</code></td>
+          </tr>
+          <tr>
+            <td>对被装的对象调用 <code>area()</code>、<code>name()</code>、<code>grow()</code></td>
+            <td>一个函数指针 <code>struct</code>，每个操作一个指针</td>
+          </tr>
+          <tr>
+            <td>像值一样工作：拷贝、移动、析构</td>
+            <td>再加两个函数指针：<code>clone</code> 与 <code>destroy</code></td>
+          </tr>
+          <tr>
+            <td>在具体类型已知处也能用</td>
+            <td>一个概念 <code>shape_like</code>，让同一套算法两条路都走得通</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        设计就这么点。那张函数指针表就是<strong>手写的 vtable</strong>；与 <code>virtual</code>
+        的差别在于，具体类型的任何信息都没有进入类型系统 —— <code>rectangle</code> 根本不知道
+        <code>shape</code> 存在。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 具体类型与概念</h2>
+
+      <p>
+        这里没有任何特殊之处。三个 <code>struct</code>，每个都有同样三个
+        <code>noexcept</code> 成员，每个都写得好像 <code>shape</code> 不存在：
+      </p>
+      <pre><code class="language-cpp">
+struct rectangle
+{
+	::std::float64_t w{}, h{};
+	[[nodiscard]] ::std::float64_t area() const noexcept { return w * h; }
+	[[nodiscard]] ::std::string_view name() const noexcept { return "rectangle"; }
+	void grow(::std::float64_t d) noexcept { w += d; h += d; }
+};
+
+struct square
+{
+	::std::float64_t side{};
+	[[nodiscard]] ::std::float64_t area() const noexcept { return side * side; }
+	[[nodiscard]] ::std::string_view name() const noexcept { return "square"; }
+	void grow(::std::float64_t d) noexcept { side += d; }
+};
+
+struct circle
+{
+	::std::float64_t r{};
+	[[nodiscard]] ::std::float64_t area() const noexcept { return ::std::numbers::pi * r * r; }
+	[[nodiscard]] ::std::string_view name() const noexcept { return "circle"; }
+	void grow(::std::float64_t d) noexcept { r += d; }
+};
+</code></pre>
+      <p>
+        概念写明了 <code>shape</code> 需要什么，连错误契约一起：三个操作都是
+        <code>noexcept</code>，所以擦除后的版本也可以 <code>noexcept</code>
+        （<a href="/zhcn/docs/15.genericprogramming/03.concepts/">第15.3章</a>）：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+concept shape_like = requires(T const c, T t, ::std::float64_t d) {
+	{ c.area() } noexcept -&gt; ::std::same_as&lt;::std::float64_t&gt;;
+	{ c.name() } noexcept -&gt; ::std::convertible_to&lt;::std::string_view&gt;;
+	{ t.grow(d) } noexcept -&gt; ::std::same_as&lt;void&gt;;
+};
+</code></pre>
+      <p>
+        同一个概念让算法的编译期版本能与擦除版本并存，既不共享代码也没有虚调用：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;shape_like S, ::std::size_t N&gt;
+[[nodiscard]] inline ::std::float64_t total_area(S const (&amp;arr)[N]) noexcept
+{
+	::std::float64_t sum{};
+	for (auto const &amp;s : arr)
+	{
+		sum += s.area();
+	}
+	return sum;
+}
+</code></pre>
+
+    </section>
+    <section>
+      <h2>4. 手写的 vtable</h2>
+
+      <p>
+        五个函数指针。前三个是操作，后两个是让 <code>shape</code> 成为值类型、而不是借用引用的东西：
+      </p>
+      <pre><code class="language-cpp">
+class shape
+{
+	struct vtable
+	{
+		::std::float64_t (*area)(void const *) noexcept;
+		::std::string_view (*name)(void const *) noexcept;
+		void (*grow)(void *, ::std::float64_t) noexcept;
+		void *(*clone)(void const *) throws;
+		void (*destroy)(void *) noexcept;
+	};
+</code></pre>
+      <p>
+        <code>clone</code> 是 <code>throws</code>，因为它要分配；另外四个是
+        <code>noexcept</code>，这是概念已经保证的。<code>void *</code> 形参是擦除的代价：
+        表里的函数不可能知道具体类型，所以它们要转回去；这个转换是安全的，因为表与指针总是被
+        一起设置。
+      </p>
+      <p>
+        每个具体类型生成一张表，靠一个 <code>static constexpr</code> 成员完成，它的初值是一组
+        无捕获 lambda 转成的函数指针（前面的 <code>+</code> 强制发生这次转换）：
+      </p>
+      <pre><code class="language-cpp">
+	template &lt;typename T&gt;
+	static constexpr vtable table_for{
+		+[](void const *p) noexcept -&gt; ::std::float64_t { return static_cast&lt;T const *&gt;(p)-&gt;area(); },
+		+[](void const *p) noexcept -&gt; ::std::string_view { return static_cast&lt;T const *&gt;(p)-&gt;name(); },
+		+[](void *p, ::std::float64_t d) noexcept { static_cast&lt;T *&gt;(p)-&gt;grow(d); },
+		+[](void const *p) throws -&gt; void * { return allocate_and_copy&lt;T&gt;(*static_cast&lt;T const *&gt;(p)); },
+		+[](void *p) noexcept
+		{
+			static_cast&lt;T *&gt;(p)-&gt;~T();
+			allocator::deallocate_aligned_n(p, alignof(T), sizeof(T));
+		}};
+</code></pre>
+      <p>
+        这是 <code>shape</code> 里唯一的模板，每个实例化只是五个一行的转发薄片 ——
+        真正干活的东西留在具体类型里，这就是把
+        <a href="/zhcn/docs/15.genericprogramming/09.bloat/">第15.9章</a>的去模板化规则用在了分派上。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 存储：每个形状一次分配</h2>
+
+      <p>
+        被擦除的对象住在堆上，用 fast_io 的分配器
+        （<code>::fast_io::native_global_allocator</code>）而不是 <code>::new</code> 分配，
+        这样分配失败会变成行为明确的赫布异常，对齐也是显式的：
+      </p>
+      <pre><code class="language-cpp">
+	using allocator = ::fast_io::native_global_allocator;
+
+	template &lt;typename T&gt;
+	[[nodiscard]] static void *allocate_and_copy(T const &amp;v) throws
+	{
+		auto const res{allocator::allocate_aligned_at_least(alignof(T), sizeof(T))};
+		void *const p{res.ptr};
+		::new (p) T(v);
+		return p;
+	}
+</code></pre>
+      <p>
+        <code>allocate_aligned_at_least(alignof(T), sizeof(T))</code> 返回
+        <code>{ptr, count}</code>，并且可能抛 <code>::std::error</code>；
+        <code>deallocate_aligned_n(p, align, n)</code> 是配套的 <code>noexcept</code> 释放，
+        这就是析构薄片可以 <code>noexcept</code> 的原因。定位 <code>new</code> 在原始存储上构造，
+        没有别的分配发生。
+      </p>
+      <p>
+        每个形状一次堆分配是这套设计诚实的代价。替代方案 —— 一个足够大的 union —— 省掉分配，
+        但一旦某个形状比 union 大、或对齐是你没预料到的值，它就崩了。在性能剖析说别的之前，
+        选堆。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 再一次五法则</h2>
+
+      <p>
+        <a href="/zhcn/docs/14.fiverules/">第14章</a>说过：拥有资源的类必须回答五个问题。
+        <code>shape</code> 拥有一个堆对象，所以它面对同样五个，由 <code>clone</code> 与
+        <code>destroy</code> 干活：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>成员</th>
+            <th>契约</th>
+            <th>实现</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>构造函数</td>
+            <td><code>throws</code></td>
+            <td>分配、构造、记下表</td>
+          </tr>
+          <tr>
+            <td>拷贝构造</td>
+            <td><code>throws</code></td>
+            <td>用 <code>clone</code> 复制被持有的对象</td>
+          </tr>
+          <tr>
+            <td>移动构造</td>
+            <td><code>noexcept</code></td>
+            <td>接管指针与表，把源置空</td>
+          </tr>
+          <tr>
+            <td>拷贝赋值</td>
+            <td><code>throws</code></td>
+            <td>拷贝并交换（<a href="/zhcn/docs/14.fiverules/08.copyandswap/">第14.8章</a>）</td>
+          </tr>
+          <tr>
+            <td>移动赋值</td>
+            <td><code>noexcept</code></td>
+            <td>交换（<a href="/zhcn/docs/14.fiverules/06.moveassignment/">第14.6章</a>）</td>
+          </tr>
+          <tr>
+            <td>析构函数</td>
+            <td><code>noexcept</code></td>
+            <td><code>destroy</code> 被持有的对象</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        两个不变式撑起这个类，并且每个成员都保持它们：<code>ptr_</code> 与 <code>vt_</code>
+        要么都为空、要么都有效；表与 <code>ptr_</code> 后面的对象恰好匹配。
+        这就是 <code>swap</code> 只交换这两个成员的原因。
+      </p>
+
+    </section>
+    <section>
+      <h2>7. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;stdfloat&gt;
+#include &lt;numbers&gt;
+#include &lt;string_view&gt;
+#include &lt;utility&gt;
+#include &lt;concepts&gt;
+
+struct rectangle
+{
+	::std::float64_t w{}, h{};
+	[[nodiscard]] ::std::float64_t area() const noexcept { return w * h; }
+	[[nodiscard]] ::std::string_view name() const noexcept { return "rectangle"; }
+	void grow(::std::float64_t d) noexcept { w += d; h += d; }
+};
+
+struct square
+{
+	::std::float64_t side{};
+	[[nodiscard]] ::std::float64_t area() const noexcept { return side * side; }
+	[[nodiscard]] ::std::string_view name() const noexcept { return "square"; }
+	void grow(::std::float64_t d) noexcept { side += d; }
+};
+
+struct circle
+{
+	::std::float64_t r{};
+	[[nodiscard]] ::std::float64_t area() const noexcept { return ::std::numbers::pi * r * r; }
+	[[nodiscard]] ::std::string_view name() const noexcept { return "circle"; }
+	void grow(::std::float64_t d) noexcept { r += d; }
+};
+
+template &lt;typename T&gt;
+concept shape_like = requires(T const c, T t, ::std::float64_t d) {
+	{ c.area() } noexcept -&gt; ::std::same_as&lt;::std::float64_t&gt;;
+	{ c.name() } noexcept -&gt; ::std::convertible_to&lt;::std::string_view&gt;;
+	{ t.grow(d) } noexcept -&gt; ::std::same_as&lt;void&gt;;
+};
+
+template &lt;shape_like S, ::std::size_t N&gt;
+[[nodiscard]] inline ::std::float64_t total_area(S const (&amp;arr)[N]) noexcept
+{
+	::std::float64_t sum{};
+	for (auto const &amp;s : arr)
+	{
+		sum += s.area();
+	}
+	return sum;
+}
+
+class shape
+{
+	struct vtable
+	{
+		::std::float64_t (*area)(void const *) noexcept;
+		::std::string_view (*name)(void const *) noexcept;
+		void (*grow)(void *, ::std::float64_t) noexcept;
+		void *(*clone)(void const *) throws;
+		void (*destroy)(void *) noexcept;
+	};
+
+	using allocator = ::fast_io::native_global_allocator;
+
+	template &lt;typename T&gt;
+	[[nodiscard]] static void *allocate_and_copy(T const &amp;v) throws
+	{
+		auto const res{allocator::allocate_aligned_at_least(alignof(T), sizeof(T))};
+		void *const p{res.ptr};
+		::new (p) T(v);
+		return p;
+	}
+
+	template &lt;typename T&gt;
+	static constexpr vtable table_for{
+		+[](void const *p) noexcept -&gt; ::std::float64_t { return static_cast&lt;T const *&gt;(p)-&gt;area(); },
+		+[](void const *p) noexcept -&gt; ::std::string_view { return static_cast&lt;T const *&gt;(p)-&gt;name(); },
+		+[](void *p, ::std::float64_t d) noexcept { static_cast&lt;T *&gt;(p)-&gt;grow(d); },
+		+[](void const *p) throws -&gt; void * { return allocate_and_copy&lt;T&gt;(*static_cast&lt;T const *&gt;(p)); },
+		+[](void *p) noexcept
+		{
+			static_cast&lt;T *&gt;(p)-&gt;~T();
+			allocator::deallocate_aligned_n(p, alignof(T), sizeof(T));
+		}};
+
+	void *ptr_{};
+	vtable const *vt_{};
+
+public:
+	template &lt;shape_like T&gt;
+	explicit shape(T v) throws : ptr_{allocate_and_copy&lt;T&gt;(v)}, vt_{&amp;table_for&lt;T&gt;}
+	{
+	}
+
+	shape(shape const &amp;other) throws
+		: ptr_{other.ptr_ == nullptr ? nullptr : other.vt_-&gt;clone(other.ptr_)}, vt_{other.vt_}
+	{
+	}
+
+	shape(shape &amp;&amp;other) noexcept : ptr_{other.ptr_}, vt_{other.vt_}
+	{
+		other.ptr_ = nullptr;
+		other.vt_ = nullptr;
+	}
+
+	shape &amp;operator=(shape const &amp;other) throws
+	{
+		shape tmp{other};
+		swap(tmp);
+		return *this;
+	}
+
+	shape &amp;operator=(shape &amp;&amp;other) noexcept
+	{
+		swap(other);
+		return *this;
+	}
+
+	~shape() noexcept
+	{
+		if (ptr_ != nullptr)
+		{
+			vt_-&gt;destroy(ptr_);
+		}
+	}
+
+	void swap(shape &amp;other) noexcept
+	{
+		::std::swap(ptr_, other.ptr_);
+		::std::swap(vt_, other.vt_);
+	}
+
+	[[nodiscard]] ::std::float64_t area() const noexcept { return vt_-&gt;area(ptr_); }
+	[[nodiscard]] ::std::string_view name() const noexcept { return vt_-&gt;name(ptr_); }
+	void grow(::std::float64_t d) noexcept { vt_-&gt;grow(ptr_, d); }
+};
+
+int main()
+{
+	try
+	{
+		shape a{rectangle{3.0, 4.0}};
+		shape b{circle{3.0}};
+		shape e{square{2.0}};
+		::fast_io::io::println(a.name(), " ", a.area());
+		::fast_io::io::println(b.name(), " ", b.area());
+		::fast_io::io::println(e.name(), " ", e.area());
+		a.grow(1.0);
+		::fast_io::io::println(a.name(), " ", a.area());
+		shape c{a};
+		c.grow(1.0);
+		::fast_io::io::println("copy: ", a.area(), " ", c.area());
+		rectangle const rects[2]{rectangle{1.0, 2.0}, rectangle{3.0, 4.0}};
+		::fast_io::io::println("total_area(rects)=", total_area(rects));
+		shape d{::std::move(c)};
+		::fast_io::io::println("moved: ", d.name(), " ", d.area());
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+rectangle 12
+circle 28.274333882308138
+square 4
+rectangle 20
+copy: 20 30
+total_area(rects)=14
+moved: rectangle 30
+</code></pre>
+      <p>
+        把这段运行记录当清单读：一个类里装三种具体类型；拷贝是独立的（<code>20</code> 与
+        <code>30</code>）；移动保住了值；编译期算法仍然能用在普通
+        <code>rectangle</code> 数组上。
+      </p>
+
+    </section>
+    <section>
+      <h2>8. 擦除与继承：诚实的对比</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>带 <code>virtual</code> 的继承</th>
+            <th>类型擦除（本页）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>具体类型必须知道基类</td>
+            <td>是 —— 它们继承自它</td>
+            <td>不 —— 任何满足概念的类型都行</td>
+          </tr>
+          <tr>
+            <td>增加一个操作</td>
+            <td>改基类，全部重编译</td>
+            <td>改表与类；具体类型不动</td>
+          </tr>
+          <tr>
+            <td>增加一个具体类型</td>
+            <td>必须写成派生类</td>
+            <td>在任何地方写都行：<code>shape s{my_new_thing{}};</code></td>
+          </tr>
+          <tr>
+            <td>值语义</td>
+            <td>没有 —— 得靠指针、克隆、小心翼翼的归属管理</td>
+            <td>有 —— 可拷贝、可移动、可析构；能放进
+              <code>::fast_io::vector</code></td>
+          </tr>
+          <tr>
+            <td>侵入性</td>
+            <td>基类拥有接口</td>
+            <td>概念拥有接口；不改任何东西</td>
+          </tr>
+          <tr>
+            <td>每次调用代价</td>
+            <td>一次虚分派</td>
+            <td>一次经表的间接调用</td>
+          </tr>
+          <tr>
+            <td>与库兼容</td>
+            <td>第三方类型不写包装就没法适配</td>
+            <td>加一个表实例化即可适配</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        两种方案的代价相同：一次间接调用，而分支预测器通常处理得很好，因为一直用的是同一张表。
+        变的是“谁必须配合”。这就是为什么值语义类型擦除是<em>值</em>的默认选择 ——
+        形状、颜色、日志器、分配器 —— 而当接口真的是一套被他人扩展的层次结构时，继承才是对的工具。
+      </p>
+
+    </section>
+    <section>
+      <h2>9. 有时你根本不需要擦除</h2>
+
+      <p>
+        在写函数指针表之前，先确认类型真的必须在运行期决定。三个更便宜的答案，按优先级排列：
+      </p>
+      <ul>
+        <li><strong>模板。</strong>一个调用点只处理一个具体类型时，模板更快（可内联、无分配）——
+          就是上面的 <code>total_area</code>。</li>
+        <li><strong>variant。</strong>编译期已知的封闭类型集合可以用
+          <code>::std::variant</code> 加访问者；没有分配、没有表，而且编译器会检查穷尽性。</li>
+        <li><strong>概念加边界处的一次类型切换。</strong>只在做决定的地方擦除一次，
+          它下面的部分全部保持模板。</li>
+      </ul>
+      <p>
+        在边界处擦除，不要在中间擦除。如果程序每一层都被类型擦除，它会付掉全部代价而拿不到任何好处 ——
+        <a href="/zhcn/docs/11.io/17.layers/">第11.17章</a>对 I/O 分层讲过同样的道理。
+      </p>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/15.genericprogramming/09.bloat/" class="prev-button">&larr; 第15.9章 模板膨胀</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/15.genericprogramming/11.printscan/" class="next-button">第15.11章 fast_io 的打印与扫描 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

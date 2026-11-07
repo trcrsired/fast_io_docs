@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第15.4章 非类型模板参数：枚举、结构化类型、变量模板 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第15.4章 非类型模板参数：枚举、结构化类型、变量模板</h1>
+    <p class="lang-switch"><a href="/docs/15.genericprogramming/04.nttp/">English</a></p>
+    <section>
+      <h2>1. 模板实参可以是一个值</h2>
+
+      <p>
+        到这里为止，每个模板实参都是类型。它同样可以是一个值，此时它属于该实例化的类型：
+        <code>array&lt;int, 4&gt;</code> 与 <code>array&lt;int, 8&gt;</code> 是不同类型，
+        <code>sizeof</code> 不同，也不能互相赋值。
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T, ::std::size_t N&gt;
+struct array
+{
+	T elements[N]{};
+
+	[[nodiscard]] constexpr ::std::size_t size() const noexcept { return N; }
+};
+</code></pre>
+      <p>
+        这样的参数叫<strong>非类型模板参数</strong>（NTTP）。<code>N</code> 可以出现在任何需要
+        常量表达式的地方：数组界、<code>static_assert</code>、<code>if constexpr</code>、
+        另一个模板实参。
+      </p>
+      <p>
+        允许的种类这些年一直在增加，下面四种 fast_io 自己都在用：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>种类</th>
+            <th>参数示例</th>
+            <th>fast_io 用它做什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>整数</td>
+            <td><code>::std::size_t N</code></td>
+            <td>缓冲区大小、固定容量</td>
+          </tr>
+          <tr>
+            <td>枚举</td>
+            <td><code>open_mode mode</code></td>
+            <td>编译期已知的标志（<code>::fast_io::open_mode::in</code>）</td>
+          </tr>
+          <tr>
+            <td><code>auto</code></td>
+            <td><code>template &lt;auto v&gt;</code></td>
+            <td>字符字面量：<code>::fast_io::char_literal_v&lt;u8'0', char_type&gt;</code></td>
+          </tr>
+          <tr>
+            <td>结构化类类型</td>
+            <td><code>fixed_name N</code></td>
+            <td>把字符串字面量变成类型</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>2. 枚举作参数：不花代价的 switch</h2>
+
+      <p>
+        模板实参里的枚举量是编译期常量，所以 <code>if constexpr</code> 可以选一个分支、丢弃其余
+        （<a href="/zhcn/docs/15.genericprogramming/08.ifconstexpr/">第15.8章</a>）。
+        结果是：没有跳转表、没有分支、没有参数的 <code>switch</code>。
+      </p>
+      <pre><code class="language-cpp">
+enum class channel : ::std::uint_least8_t
+{
+	red,
+	green,
+	blue
+};
+
+template &lt;channel c&gt;
+[[nodiscard]] inline ::std::string_view channel_name() noexcept
+{
+	if constexpr (c == channel::red)
+	{
+		return "red";
+	}
+	else if constexpr (c == channel::green)
+	{
+		return "green";
+	}
+	else
+	{
+		return "blue";
+	}
+}
+</code></pre>
+      <p>
+        <code>channel_name&lt;channel::green&gt;()</code> 返回 <code>"green"</code>，
+        生成的函数里没有别的东西。老警告照旧：枚举 NTTP 只有在编译期被<em>用到</em>时才有价值。
+        如果值在运行期变化，就直接用 <code>channel</code> 作函数参数 —— 一个枚举量一个实例化是
+        膨胀，不是速度。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. <code>auto</code>：让值自己挑类型</h2>
+
+      <p>
+        <code>template &lt;auto v&gt;</code> 接受任何合法的 NTTP 值，并从实参推导类型。
+        fast_io 就是用它来写字符比较，免得把字符类型写两遍；它也是写“按值参数化的常量”最短的方式：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;auto v&gt;
+inline constexpr auto doubled = v * 2;
+</code></pre>
+      <p>
+        <code>doubled&lt;21&gt;</code> 是 <code>int</code> 的 <code>42</code>，
+        <code>doubled&lt;'A'&gt;</code> 是 <code>char</code>。注意类型是实例化身份的一部分：
+        <code>doubled&lt;21&gt;</code> 与 <code>doubled&lt;21u&gt;</code> 是<em>不同</em>的变量，
+        因为 <code>int</code> 与 <code>unsigned</code> 是不同的 NTTP 类型。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 结构化类类型：把字符串字面量变成类型</h2>
+
+      <p>
+        只要类是<strong>结构化类型</strong>，它就能当模板实参：字面量类型、所有基类与非静态数据
+        成员都是公开的、非 <code>mutable</code>、本身也是结构化的，有 <code>constexpr</code>
+        构造函数，且没有任何 <code>virtual</code>。此时实参按成员逐一比较，两个不同的字符串就是
+        两个不同的实例化。
+      </p>
+      <pre><code class="language-cpp">
+struct fixed_name
+{
+	char chars[8]{};
+	::std::size_t size{};
+
+	template &lt;::std::size_t N&gt;
+	constexpr fixed_name(char const (&amp;s)[N]) noexcept
+	{
+		static_assert(N &lt;= 8, "name too long");
+		for (::std::size_t i{}; i != N; ++i)
+		{
+			chars[i] = s[i];
+			size = i;
+		}
+	}
+
+	[[nodiscard]] constexpr ::std::string_view view() const noexcept { return {chars, size}; }
+};
+
+template &lt;fixed_name N&gt;
+[[nodiscard]] inline ::std::string_view declared_name() noexcept
+{
+	return N.view();
+}
+</code></pre>
+      <p>
+        现在 <code>declared_name&lt;fixed_name{"alpha"}&gt;()</code> 在运行期返回
+        <code>"alpha"</code>，而字符串早已被塞进代码段。能让
+        <code>fixed_name{"alpha"}</code> 这个六字符字面量装进八字符数组的，正是那个模板构造函数；
+        没有它，数组界必须严丝合缝。
+      </p>
+      <p>
+        代价与所有 NTTP 一样：<em>每个不同的字符串都是一个不同的实例化</em>。
+        用它来写程序里固定的常量，绝不要用它处理配置文件里来的字符串。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 变量模板：取决于类型的常量</h2>
+
+      <p>
+        <strong>变量模板</strong>是一个值取决于模板实参的常量。它是 <code>inline constexpr</code>，
+        所以每个翻译单元看到的是同一个对象，也不需要任何 <code>.cpp</code> 去定义它：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+inline constexpr ::std::size_t width = sizeof(T) * 8;
+</code></pre>
+      <p>
+        <code>width&lt;int&gt;</code> 是 <code>32</code>，<code>width&lt;char&gt;</code> 是
+        <code>8</code>。fast_io 里几乎每个常量都是这个形状：
+        <code>::fast_io::io_reserve_type&lt;char, rgb&gt;</code> 就是一个变量模板，它的值是
+        <a href="/zhcn/docs/15.genericprogramming/11.printscan/">第15.11章</a>用来分派的那个标签对象。
+      </p>
+      <p>
+        两个改进值得写。第一，加一个归一化别名，这样调用者传引用或 <code>const</code> 类型都不会
+        改变答案：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+inline constexpr ::std::size_t width_v = width&lt;::std::remove_cvref_t&lt;T&gt;&gt;;
+</code></pre>
+      <p>
+        第二，初值可以是一次函数调用。初值必须是常量表达式，所以那个函数是
+        <code>constexpr</code> 或 <code>consteval</code>
+        （<a href="/zhcn/docs/07.compiletimeprogramming/">第7章</a>），在编译期执行：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+inline constexpr ::std::size_t digits = count_digits&lt;T&gt;();
+</code></pre>
+      <p>
+        <code>width_v&lt;int const &amp;&gt;</code> 是 <code>32</code>，不是别的什么 ——
+        这就是 <code>_v</code> 形式存在的全部意义。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;string_view&gt;
+
+enum class channel : ::std::uint_least8_t
+{
+	red,
+	green,
+	blue
+};
+
+template &lt;channel c&gt;
+[[nodiscard]] inline ::std::string_view channel_name() noexcept
+{
+	if constexpr (c == channel::red)
+	{
+		return "red";
+	}
+	else if constexpr (c == channel::green)
+	{
+		return "green";
+	}
+	else
+	{
+		return "blue";
+	}
+}
+
+struct fixed_name
+{
+	char chars[8]{};
+	::std::size_t size{};
+
+	template &lt;::std::size_t N&gt;
+	constexpr fixed_name(char const (&amp;s)[N]) noexcept
+	{
+		static_assert(N &lt;= 8, "name too long");
+		for (::std::size_t i{}; i != N; ++i)
+		{
+			chars[i] = s[i];
+			size = i;
+		}
+	}
+
+	[[nodiscard]] constexpr ::std::string_view view() const noexcept { return {chars, size}; }
+};
+
+template &lt;fixed_name N&gt;
+[[nodiscard]] inline ::std::string_view declared_name() noexcept
+{
+	return N.view();
+}
+
+template &lt;typename T&gt;
+inline constexpr ::std::size_t width = sizeof(T) * 8;
+
+template &lt;auto v&gt;
+inline constexpr auto doubled = v * 2;
+
+template &lt;typename T&gt;
+inline constexpr ::std::size_t width_v = width&lt;::std::remove_cvref_t&lt;T&gt;&gt;;
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println(channel_name&lt;channel::green&gt;());
+		::fast_io::io::println(declared_name&lt;fixed_name{"alpha"}&gt;());
+		::fast_io::io::println("width&lt;int&gt;=", width&lt;int&gt;, " width&lt;char&gt;=", width&lt;char&gt;);
+		::fast_io::io::println("doubled&lt;21&gt;=", doubled&lt;21&gt;);
+		::fast_io::io::println("width_v&lt;int const &amp;&gt;=", width_v&lt;int const &amp;&gt;);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+green
+alpha
+width&lt;int&gt;=32 width&lt;char&gt;=8
+doubled&lt;21&gt;=42
+width_v&lt;int const &amp;&gt;=32
+</code></pre>
+
+    </section>
+    <section>
+      <h2>7. 经验法则</h2>
+
+      <ul>
+        <li>NTTP 必须是编译期常量；不是常量就用函数参数，不要用模板参数。</li>
+        <li>每个不同的值都是一个不同的实例化。十个 <code>fixed_name</code> 字符串就是模板碰到的一切的十份拷贝。</li>
+        <li>同一套逻辑要服务 <code>char</code>、<code>char8_t</code>、<code>wchar_t</code> 时，
+          优先用 <code>auto</code> NTTP，免得把字符类型写两遍。</li>
+        <li>“每个类型一个常量”的惯用归处是变量模板：不要写带 <code>static constexpr</code> 成员的
+          <code>struct</code>，也不要写 <code>_v</code> 特征的那些样板。</li>
+        <li>调用函数的 <code>inline constexpr</code> 初值会强制那个函数是
+          <code>constexpr</code>；让这类函数保持 <code>noexcept</code>，常量就不会在编译期失败。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/15.genericprogramming/03.concepts/" class="prev-button">&larr; 第15.3章 概念</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/15.genericprogramming/05.deduction/" class="next-button">第15.5章 模板实参推导 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

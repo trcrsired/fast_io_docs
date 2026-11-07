@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch15.10: Type Erasure: shape, Without Inheritance - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch15.10: Type Erasure: <code>shape</code>, Without Inheritance</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/15.genericprogramming/10.typeerasure/">中文（简体）</a></p>
+    <section>
+      <h2>1. The Problem: A Container of Different Things</h2>
+
+      <p>
+        A <code>::fast_io::vector&lt;rectangle&gt;</code> cannot hold a <code>circle</code>.
+        Templates are resolved at compile time and a <code>vector</code>'s element type is
+        fixed at compile time, so &ldquo;a collection of shapes of any kind&rdquo; needs
+        something else.
+      </p>
+      <p>
+        There are exactly two answers in C++:
+      </p>
+      <ul>
+        <li><strong>Inheritance with <code>virtual</code></strong>
+          (<a href="/docs/18.virtual/">Chapter 18</a>): a base class <code>shape</code> with
+          virtual functions, and a <code>vector&lt;::std::unique_ptr&lt;shape&gt;&gt;</code>.
+          It works, and it forces every concrete shape to <em>inherit</em>, which means its
+          author must know about your base class and cannot make it a
+          <code>struct</code> with two numbers in it.</li>
+        <li><strong>Type erasure</strong>, this page: one concrete, non-template class
+          <code>shape</code> that stores any type satisfying a concept, and dispatches through
+          a table of function pointers. No inheritance, no base class, no
+          <code>virtual</code> keyword, no changes to <code>rectangle</code> or
+          <code>circle</code>.</li>
+      </ul>
+      <p>
+        The second is how Adobe's <em>value semantics</em> libraries and Sean Parent's
+        &ldquo;inheritance is the base class of evil&rdquo; talk do it, and it is what this
+        page builds in full.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. What <code>shape</code> Must Do</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Requirement</th>
+            <th>How</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>hold a <code>rectangle</code>, a <code>circle</code> or a
+              <code>square</code></td>
+            <td><code>void *</code> to a heap object of the concrete type</td>
+          </tr>
+          <tr>
+            <td>call <code>area()</code>, <code>name()</code>, <code>grow()</code> on the
+              held object</td>
+            <td>a <code>struct</code> of function pointers, one per operation</td>
+          </tr>
+          <tr>
+            <td>behave like a value: copy, move, destroy</td>
+            <td>two more function pointers: <code>clone</code> and <code>destroy</code></td>
+          </tr>
+          <tr>
+            <td>be usable where the concrete type is known</td>
+            <td>a concept, <code>shape_like</code>, so the same algorithms work both ways</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        That is the entire design. The function-pointer table is a <strong>vtable written by
+        hand</strong>; the difference from <code>virtual</code> is that nothing about the
+        concrete type appears in the type system &mdash; <code>rectangle</code> has no idea
+        <code>shape</code> exists.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. The Concrete Types and the Concept</h2>
+
+      <p>
+        Nothing here is special. Three <code>struct</code>s, each with the same three
+        <code>noexcept</code> members, each written as if <code>shape</code> did not exist:
+      </p>
+      <pre><code class="language-cpp">
+struct rectangle
+{
+	::std::float64_t w{}, h{};
+	[[nodiscard]] ::std::float64_t area() const noexcept { return w * h; }
+	[[nodiscard]] ::std::string_view name() const noexcept { return "rectangle"; }
+	void grow(::std::float64_t d) noexcept { w += d; h += d; }
+};
+
+struct square
+{
+	::std::float64_t side{};
+	[[nodiscard]] ::std::float64_t area() const noexcept { return side * side; }
+	[[nodiscard]] ::std::string_view name() const noexcept { return "square"; }
+	void grow(::std::float64_t d) noexcept { side += d; }
+};
+
+struct circle
+{
+	::std::float64_t r{};
+	[[nodiscard]] ::std::float64_t area() const noexcept { return ::std::numbers::pi * r * r; }
+	[[nodiscard]] ::std::string_view name() const noexcept { return "circle"; }
+	void grow(::std::float64_t d) noexcept { r += d; }
+};
+</code></pre>
+      <p>
+        The concept states what <code>shape</code> needs, including the error contracts: all
+        three operations are <code>noexcept</code>, so the erased versions can be
+        <code>noexcept</code> too
+        (<a href="/docs/15.genericprogramming/03.concepts/">Ch15.3</a>):
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+concept shape_like = requires(T const c, T t, ::std::float64_t d) {
+	{ c.area() } noexcept -&gt; ::std::same_as&lt;::std::float64_t&gt;;
+	{ c.name() } noexcept -&gt; ::std::convertible_to&lt;::std::string_view&gt;;
+	{ t.grow(d) } noexcept -&gt; ::std::same_as&lt;void&gt;;
+};
+</code></pre>
+      <p>
+        The same concept lets the compile-time version of the algorithm exist next to the
+        erased one, with no code shared and no virtual call:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;shape_like S, ::std::size_t N&gt;
+[[nodiscard]] inline ::std::float64_t total_area(S const (&amp;arr)[N]) noexcept
+{
+	::std::float64_t sum{};
+	for (auto const &amp;s : arr)
+	{
+		sum += s.area();
+	}
+	return sum;
+}
+</code></pre>
+
+    </section>
+    <section>
+      <h2>4. The Hand-Written Vtable</h2>
+
+      <p>
+        Five function pointers. The first three are the operations; the last two are what
+        makes <code>shape</code> a value type rather than a borrowed reference:
+      </p>
+      <pre><code class="language-cpp">
+class shape
+{
+	struct vtable
+	{
+		::std::float64_t (*area)(void const *) noexcept;
+		::std::string_view (*name)(void const *) noexcept;
+		void (*grow)(void *, ::std::float64_t) noexcept;
+		void *(*clone)(void const *) throws;
+		void (*destroy)(void *) noexcept;
+	};
+</code></pre>
+      <p>
+        <code>clone</code> is <code>throws</code> because it allocates; the other four are
+        <code>noexcept</code>, which the concept guaranteed. The <code>void *</code> parameter
+        is the price of erasure: the table's functions cannot know the concrete type, so they
+        cast back to it, and that cast is safe because the table and the pointer are always
+        set together.
+      </p>
+      <p>
+        One table is generated per concrete type, by a <code>static constexpr</code> member
+        whose initialiser is a set of capture-less lambdas converted to function pointers (the
+        leading <code>+</code> forces the conversion):
+      </p>
+      <pre><code class="language-cpp">
+	template &lt;typename T&gt;
+	static constexpr vtable table_for{
+		+[](void const *p) noexcept -&gt; ::std::float64_t { return static_cast&lt;T const *&gt;(p)-&gt;area(); },
+		+[](void const *p) noexcept -&gt; ::std::string_view { return static_cast&lt;T const *&gt;(p)-&gt;name(); },
+		+[](void *p, ::std::float64_t d) noexcept { static_cast&lt;T *&gt;(p)-&gt;grow(d); },
+		+[](void const *p) throws -&gt; void * { return allocate_and_copy&lt;T&gt;(*static_cast&lt;T const *&gt;(p)); },
+		+[](void *p) noexcept
+		{
+			static_cast&lt;T *&gt;(p)-&gt;~T();
+			allocator::deallocate_aligned_n(p, alignof(T), sizeof(T));
+		}};
+</code></pre>
+      <p>
+        This is the only template inside <code>shape</code>, and each instantiation is five
+        one-line thunks &mdash; the actual work stays in the concrete type, which is the
+        detemplatization rule of <a href="/docs/15.genericprogramming/09.bloat/">Ch15.9</a>
+        applied to dispatch.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Storage: One Allocation per Shape</h2>
+
+      <p>
+        The erased object lives on the heap, allocated with fast_io's allocator
+        (<code>::fast_io::native_global_allocator</code>) rather than <code>::new</code>, so
+        that allocation failure becomes a herbception with a defined effect and the alignment
+        is explicit:
+      </p>
+      <pre><code class="language-cpp">
+	using allocator = ::fast_io::native_global_allocator;
+
+	template &lt;typename T&gt;
+	[[nodiscard]] static void *allocate_and_copy(T const &amp;v) throws
+	{
+		auto const res{allocator::allocate_aligned_at_least(alignof(T), sizeof(T))};
+		void *const p{res.ptr};
+		::new (p) T(v);
+		return p;
+	}
+</code></pre>
+      <p>
+        <code>allocate_aligned_at_least(alignof(T), sizeof(T))</code> returns
+        <code>{ptr, count}</code> and may throw <code>::std::error</code>;
+        <code>deallocate_aligned_n(p, align, n)</code> is the matching
+        <code>noexcept</code> release, which is why the destructor thunk can be
+        <code>noexcept</code>. Placement <code>new</code> constructs in the raw storage; no
+        other allocation happens.
+      </p>
+      <p>
+        A heap allocation per shape is the honest cost of this design. The alternative &mdash;
+        a union big enough for the largest shape &mdash; saves the allocation and breaks the
+        moment a shape is larger than the union or has an alignment you did not anticipate.
+        Choose the heap until a profiler says otherwise.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. The Rule of Five, Again</h2>
+
+      <p>
+        <a href="/docs/14.fiverules/">Chapter 14</a> said: a class that owns a resource must
+        answer five questions. <code>shape</code> owns a heap object, so it faces the same
+        five, with <code>clone</code> and <code>destroy</code> doing the work:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Contract</th>
+            <th>Implementation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>constructor</td>
+            <td><code>throws</code></td>
+            <td>allocate, construct, take the table</td>
+          </tr>
+          <tr>
+            <td>copy constructor</td>
+            <td><code>throws</code></td>
+            <td><code>clone</code> the held object</td>
+          </tr>
+          <tr>
+            <td>move constructor</td>
+            <td><code>noexcept</code></td>
+            <td>steal both the pointer and the table, null the source</td>
+          </tr>
+          <tr>
+            <td>copy assignment</td>
+            <td><code>throws</code></td>
+            <td>copy and swap (<a href="/docs/14.fiverules/08.copyandswap/">Ch14.8</a>)</td>
+          </tr>
+          <tr>
+            <td>move assignment</td>
+            <td><code>noexcept</code></td>
+            <td>swap (<a href="/docs/14.fiverules/06.moveassignment/">Ch14.6</a>)</td>
+          </tr>
+          <tr>
+            <td>destructor</td>
+            <td><code>noexcept</code></td>
+            <td><code>destroy</code> the held object</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Two invariants hold the class together, and every member preserves them:
+        <code>ptr_</code> and <code>vt_</code> are either both null or both valid, and the
+        table is exactly the one that matches the object behind <code>ptr_</code>. That is why
+        <code>swap</code> swaps both and nothing else.
+      </p>
+
+    </section>
+    <section>
+      <h2>7. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;stdfloat&gt;
+#include &lt;numbers&gt;
+#include &lt;string_view&gt;
+#include &lt;utility&gt;
+#include &lt;concepts&gt;
+
+struct rectangle
+{
+	::std::float64_t w{}, h{};
+	[[nodiscard]] ::std::float64_t area() const noexcept { return w * h; }
+	[[nodiscard]] ::std::string_view name() const noexcept { return "rectangle"; }
+	void grow(::std::float64_t d) noexcept { w += d; h += d; }
+};
+
+struct square
+{
+	::std::float64_t side{};
+	[[nodiscard]] ::std::float64_t area() const noexcept { return side * side; }
+	[[nodiscard]] ::std::string_view name() const noexcept { return "square"; }
+	void grow(::std::float64_t d) noexcept { side += d; }
+};
+
+struct circle
+{
+	::std::float64_t r{};
+	[[nodiscard]] ::std::float64_t area() const noexcept { return ::std::numbers::pi * r * r; }
+	[[nodiscard]] ::std::string_view name() const noexcept { return "circle"; }
+	void grow(::std::float64_t d) noexcept { r += d; }
+};
+
+template &lt;typename T&gt;
+concept shape_like = requires(T const c, T t, ::std::float64_t d) {
+	{ c.area() } noexcept -&gt; ::std::same_as&lt;::std::float64_t&gt;;
+	{ c.name() } noexcept -&gt; ::std::convertible_to&lt;::std::string_view&gt;;
+	{ t.grow(d) } noexcept -&gt; ::std::same_as&lt;void&gt;;
+};
+
+template &lt;shape_like S, ::std::size_t N&gt;
+[[nodiscard]] inline ::std::float64_t total_area(S const (&amp;arr)[N]) noexcept
+{
+	::std::float64_t sum{};
+	for (auto const &amp;s : arr)
+	{
+		sum += s.area();
+	}
+	return sum;
+}
+
+class shape
+{
+	struct vtable
+	{
+		::std::float64_t (*area)(void const *) noexcept;
+		::std::string_view (*name)(void const *) noexcept;
+		void (*grow)(void *, ::std::float64_t) noexcept;
+		void *(*clone)(void const *) throws;
+		void (*destroy)(void *) noexcept;
+	};
+
+	using allocator = ::fast_io::native_global_allocator;
+
+	template &lt;typename T&gt;
+	[[nodiscard]] static void *allocate_and_copy(T const &amp;v) throws
+	{
+		auto const res{allocator::allocate_aligned_at_least(alignof(T), sizeof(T))};
+		void *const p{res.ptr};
+		::new (p) T(v);
+		return p;
+	}
+
+	template &lt;typename T&gt;
+	static constexpr vtable table_for{
+		+[](void const *p) noexcept -&gt; ::std::float64_t { return static_cast&lt;T const *&gt;(p)-&gt;area(); },
+		+[](void const *p) noexcept -&gt; ::std::string_view { return static_cast&lt;T const *&gt;(p)-&gt;name(); },
+		+[](void *p, ::std::float64_t d) noexcept { static_cast&lt;T *&gt;(p)-&gt;grow(d); },
+		+[](void const *p) throws -&gt; void * { return allocate_and_copy&lt;T&gt;(*static_cast&lt;T const *&gt;(p)); },
+		+[](void *p) noexcept
+		{
+			static_cast&lt;T *&gt;(p)-&gt;~T();
+			allocator::deallocate_aligned_n(p, alignof(T), sizeof(T));
+		}};
+
+	void *ptr_{};
+	vtable const *vt_{};
+
+public:
+	template &lt;shape_like T&gt;
+	explicit shape(T v) throws : ptr_{allocate_and_copy&lt;T&gt;(v)}, vt_{&amp;table_for&lt;T&gt;}
+	{
+	}
+
+	shape(shape const &amp;other) throws
+		: ptr_{other.ptr_ == nullptr ? nullptr : other.vt_-&gt;clone(other.ptr_)}, vt_{other.vt_}
+	{
+	}
+
+	shape(shape &amp;&amp;other) noexcept : ptr_{other.ptr_}, vt_{other.vt_}
+	{
+		other.ptr_ = nullptr;
+		other.vt_ = nullptr;
+	}
+
+	shape &amp;operator=(shape const &amp;other) throws
+	{
+		shape tmp{other};
+		swap(tmp);
+		return *this;
+	}
+
+	shape &amp;operator=(shape &amp;&amp;other) noexcept
+	{
+		swap(other);
+		return *this;
+	}
+
+	~shape() noexcept
+	{
+		if (ptr_ != nullptr)
+		{
+			vt_-&gt;destroy(ptr_);
+		}
+	}
+
+	void swap(shape &amp;other) noexcept
+	{
+		::std::swap(ptr_, other.ptr_);
+		::std::swap(vt_, other.vt_);
+	}
+
+	[[nodiscard]] ::std::float64_t area() const noexcept { return vt_-&gt;area(ptr_); }
+	[[nodiscard]] ::std::string_view name() const noexcept { return vt_-&gt;name(ptr_); }
+	void grow(::std::float64_t d) noexcept { vt_-&gt;grow(ptr_, d); }
+};
+
+int main()
+{
+	try
+	{
+		shape a{rectangle{3.0, 4.0}};
+		shape b{circle{3.0}};
+		shape e{square{2.0}};
+		::fast_io::io::println(a.name(), " ", a.area());
+		::fast_io::io::println(b.name(), " ", b.area());
+		::fast_io::io::println(e.name(), " ", e.area());
+		a.grow(1.0);
+		::fast_io::io::println(a.name(), " ", a.area());
+		shape c{a};
+		c.grow(1.0);
+		::fast_io::io::println("copy: ", a.area(), " ", c.area());
+		rectangle const rects[2]{rectangle{1.0, 2.0}, rectangle{3.0, 4.0}};
+		::fast_io::io::println("total_area(rects)=", total_area(rects));
+		shape d{::std::move(c)};
+		::fast_io::io::println("moved: ", d.name(), " ", d.area());
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+rectangle 12
+circle 28.274333882308138
+square 4
+rectangle 20
+copy: 20 30
+total_area(rects)=14
+moved: rectangle 30
+</code></pre>
+      <p>
+        Read the transcript as a checklist: three concrete types in one class, a copy that is
+        independent (<code>20</code> and <code>30</code>), a move that keeps the value, and the
+        compile-time algorithm still usable on a plain array of
+        <code>rectangle</code>.
+      </p>
+
+    </section>
+    <section>
+      <h2>8. Erasure vs Inheritance: the Honest Comparison</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>Inheritance with <code>virtual</code></th>
+            <th>Type erasure (this page)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Concrete types must know the base</td>
+            <td>yes &mdash; they inherit from it</td>
+            <td>no &mdash; any type meeting the concept</td>
+          </tr>
+          <tr>
+            <td>Adding an operation</td>
+            <td>edit the base class, recompile everything</td>
+            <td>edit the table and the class; concrete types untouched</td>
+          </tr>
+          <tr>
+            <td>Adding a concrete type</td>
+            <td>must be written as a derived class</td>
+            <td>write it anywhere; <code>shape s{my_new_thing{}};</code></td>
+          </tr>
+          <tr>
+            <td>Value semantics</td>
+            <td>no &mdash; needs pointers, cloning, careful ownership</td>
+            <td>yes &mdash; copies, moves, destructs; put it in a
+              <code>::fast_io::vector</code></td>
+          </tr>
+          <tr>
+            <td>Intrusiveness</td>
+            <td>the base class owns the interface</td>
+            <td>a concept owns the interface; nothing is edited</td>
+          </tr>
+          <tr>
+            <td>Cost per call</td>
+            <td>one virtual dispatch</td>
+            <td>one indirect call through the table</td>
+          </tr>
+          <tr>
+            <td>Library compatibility</td>
+            <td>third-party types cannot be adapted without a wrapper</td>
+            <td>adapt by adding a table instantiation, or by a zero-cost wrapper</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The cost is the same in both: one indirect call, which the branch predictor usually
+        handles well because the same table keeps being used. What changes is who has to
+        cooperate. That is why value-semantic type erasure is the right default for
+        <em>values</em> &mdash; shapes, colours, loggers, allocators &mdash; and inheritance is
+        the right tool when the interface really is a hierarchy being extended by others.
+      </p>
+
+    </section>
+    <section>
+      <h2>9. When You Do Not Need Erasure at All</h2>
+
+      <p>
+        Before writing a table of function pointers, check that the type really has to be
+        decided at run time. Three cheaper answers, in order of preference:
+      </p>
+      <ul>
+        <li><strong>A template.</strong> If one call site handles one concrete type, a template
+          is faster (inlined, no allocation) &mdash; that is
+          <code>total_area</code> above.</li>
+        <li><strong>A variant.</strong> A closed set of types known at compile time can be a
+          <code>::std::variant</code> and a visitor; no allocation, no table, exhaustive
+          checking by the compiler.</li>
+        <li><strong>A concept plus a type switch at the boundary.</strong> Erase exactly once,
+          where the decision is made, and keep everything below it templated.</li>
+      </ul>
+      <p>
+        Erase at the boundary, not in the middle. A program whose every layer is type-erased
+        has all of the costs and none of the benefits &mdash;
+        <a href="/docs/11.io/17.layers/">Ch11.17</a> makes the same argument for I/O layering.
+      </p>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/15.genericprogramming/09.bloat/" class="prev-button">&larr; Ch15.9: Template Bloat</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/15.genericprogramming/11.printscan/" class="next-button">Ch15.11: fast_io Print and Scan &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

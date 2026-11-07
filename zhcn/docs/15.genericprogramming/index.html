@@ -31,12 +31,13 @@
         <li><strong>类型特征（traits）</strong> —— 关于类型的编译期事实
           （<a href="/zhcn/docs/15.genericprogramming/01.typetraits/">第15.1章</a>）；</li>
         <li><strong>概念（concepts）</strong> —— 编译器在实例化之前就检查的具名要求
-          （<a href="/zhcn/docs/15.genericprogramming/02.concepts/">第15.2章</a>）；</li>
-        <li><strong>模板</strong> —— 被生成出来的东西，以及实例化的一切细节：值作为参数、推导、
-          参数包、展开语句（<a href="/zhcn/docs/15.genericprogramming/03.nttp/">第15.3章</a>至
-          <a href="/zhcn/docs/15.genericprogramming/07.ifconstexpr/">第15.7章</a>）；</li>
+          （<a href="/zhcn/docs/15.genericprogramming/03.concepts/">第15.3章</a>）；</li>
+        <li><strong>模板</strong> —— 怎么定义一个模板，以及实例化的一切细节：值作为参数、推导、
+          参数包、展开语句（<a href="/zhcn/docs/15.genericprogramming/02.definingtemplates/">第15.2章</a>、
+          <a href="/zhcn/docs/15.genericprogramming/04.nttp/">第15.4章</a>至
+          <a href="/zhcn/docs/15.genericprogramming/08.ifconstexpr/">第15.8章</a>）；</li>
         <li><strong>类型擦除</strong> —— 当选择真的必须发生在运行期时该怎么做
-          （<a href="/zhcn/docs/15.genericprogramming/09.typeerasure/">第15.9章</a>）。</li>
+          （<a href="/zhcn/docs/15.genericprogramming/10.typeerasure/">第15.10章</a>）。</li>
       </ul>
       <p>
         本章只有一个敌人：<strong>代码膨胀</strong>。每一个不同的模板实参都会把模板碰到的一切
@@ -63,49 +64,54 @@
             <td><a href="/zhcn/docs/15.genericprogramming/01.typetraits/">第15.1章</a></td>
           </tr>
           <tr>
+            <td>模板定义</td>
+            <td>带形参列表的声明；编译器为每个实参生成一份。</td>
+            <td><a href="/zhcn/docs/15.genericprogramming/02.definingtemplates/">第15.2章</a></td>
+          </tr>
+          <tr>
             <td>概念</td>
             <td>编译器在实例化之前检查的一份具名要求清单。</td>
-            <td><a href="/zhcn/docs/15.genericprogramming/02.concepts/">第15.2章</a></td>
+            <td><a href="/zhcn/docs/15.genericprogramming/03.concepts/">第15.3章</a></td>
           </tr>
           <tr>
             <td>非类型参数</td>
             <td>一个“是值而不是类型”的模板实参。</td>
-            <td><a href="/zhcn/docs/15.genericprogramming/03.nttp/">第15.3章</a></td>
+            <td><a href="/zhcn/docs/15.genericprogramming/04.nttp/">第15.4章</a></td>
           </tr>
           <tr>
             <td>推导</td>
             <td>编译器替你写 <code>&lt;...&gt;</code>。</td>
-            <td><a href="/zhcn/docs/15.genericprogramming/04.deduction/">第15.4章</a></td>
+            <td><a href="/zhcn/docs/15.genericprogramming/05.deduction/">第15.5章</a></td>
           </tr>
           <tr>
             <td>参数包</td>
             <td>零个或多个模板实参，由折叠表达式或 <code>template for</code> 消费。</td>
-            <td><a href="/zhcn/docs/15.genericprogramming/05.variadic/">第15.5章</a></td>
+            <td><a href="/zhcn/docs/15.genericprogramming/06.variadic/">第15.6章</a></td>
           </tr>
           <tr>
             <td><code>template for</code></td>
             <td>编译器在编译期展开的循环，每个元素一次迭代。</td>
-            <td><a href="/zhcn/docs/15.genericprogramming/06.templatefor/">第15.6章</a></td>
+            <td><a href="/zhcn/docs/15.genericprogramming/07.templatefor/">第15.7章</a></td>
           </tr>
           <tr>
             <td><code>if constexpr</code></td>
             <td>一个把未选中分支丢弃掉、而不编译它的 <code>if</code>。</td>
-            <td><a href="/zhcn/docs/15.genericprogramming/07.ifconstexpr/">第15.7章</a></td>
+            <td><a href="/zhcn/docs/15.genericprogramming/08.ifconstexpr/">第15.8章</a></td>
           </tr>
           <tr>
             <td>去模板化</td>
             <td>把不碰模板实参的代码移出模板。</td>
-            <td><a href="/zhcn/docs/15.genericprogramming/08.bloat/">第15.8章</a></td>
+            <td><a href="/zhcn/docs/15.genericprogramming/09.bloat/">第15.9章</a></td>
           </tr>
           <tr>
             <td>类型擦除</td>
             <td>一个非模板类型装下许多类型的值，而且不用继承。</td>
-            <td><a href="/zhcn/docs/15.genericprogramming/09.typeerasure/">第15.9章</a></td>
+            <td><a href="/zhcn/docs/15.genericprogramming/10.typeerasure/">第15.10章</a></td>
           </tr>
           <tr>
             <td><code>print</code>/<code>scan</code> 支持</td>
             <td>一个标签变量加一个概念：fast_io 的泛型打印如何找到你的类型。</td>
-            <td><a href="/zhcn/docs/15.genericprogramming/10.printscan/">第15.10章</a></td>
+            <td><a href="/zhcn/docs/15.genericprogramming/11.printscan/">第15.11章</a></td>
           </tr>
         </tbody>
       </table>
@@ -143,7 +149,7 @@ struct rgb
           （<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）。
           对模板来说，<code>noexcept</code> 是对<em>所有</em>实例化的承诺，所以只有任何实例化都不会失败时才写。
           当契约取决于实参时，写成条件形式 <code>throws(!noexcept(...))</code>
-          （<a href="/zhcn/docs/15.genericprogramming/07.ifconstexpr/">第15.7章</a>）。
+          （<a href="/zhcn/docs/15.genericprogramming/08.ifconstexpr/">第15.8章</a>）。
         </li>
         <li>
           失败用赫布异常：<code>throw throws ...</code> 与
@@ -163,7 +169,7 @@ struct rgb
         </li>
         <li>
           比较器一律用具名函数对象（<code>::std::ranges::greater</code>），不用 lambda；
-          除非那一节谈的正是 lambda（<a href="/zhcn/docs/15.genericprogramming/08.bloat/">第15.8章</a>）。
+          除非那一节谈的正是 lambda（<a href="/zhcn/docs/15.genericprogramming/09.bloat/">第15.9章</a>）。
         </li>
       </ul>
 
@@ -175,9 +181,9 @@ struct rgb
         <li>重载（<a href="/zhcn/docs/06.function/06.overload/">第6.6章</a>）—— 模板就是“让编译器去写那几份拷贝”的重载。</li>
         <li><code>constexpr</code> 与 <code>consteval</code>
           （<a href="/zhcn/docs/07.compiletimeprogramming/">第7章</a>）—— 模板实参通常必须是常量表达式。</li>
-        <li>lambda（<a href="/zhcn/docs/06.function/13.lambda/">第6.13章</a>）—— 每个 lambda 都是一个独立类型，这正是第15.8章存在的理由。</li>
-        <li>五法则（<a href="/zhcn/docs/14.fiverules/">第14章</a>）—— 第15.1章的特征就是那一章隐式用到的特征，第15.9章还要再用一次拷贝、移动、析构。</li>
-        <li><code>::std::vector</code> 的接口（<a href="/zhcn/docs/04.dsal/03.vector/">第4.3章</a>）—— 第15.8章要拆开 fast_io 的
+        <li>lambda（<a href="/zhcn/docs/06.function/13.lambda/">第6.13章</a>）—— 每个 lambda 都是一个独立类型，这正是第15.9章存在的理由。</li>
+        <li>五法则（<a href="/zhcn/docs/14.fiverules/">第14章</a>）—— 第15.1章的特征就是那一章隐式用到的特征，第15.10章还要再用一次拷贝、移动、析构。</li>
+        <li><code>::std::vector</code> 的接口（<a href="/zhcn/docs/04.dsal/03.vector/">第4.3章</a>）—— 第15.9章要拆开 fast_io 的
           <code>vector</code>。</li>
       </ul>
 
@@ -187,15 +193,16 @@ struct rgb
 
       <ul>
         <li><a href="/zhcn/docs/15.genericprogramming/01.typetraits/">第15.1章 类型特征：编译器知道哪些关于类型的事</a></li>
-        <li><a href="/zhcn/docs/15.genericprogramming/02.concepts/">第15.2章 概念：编译器替你检查的要求</a></li>
-        <li><a href="/zhcn/docs/15.genericprogramming/03.nttp/">第15.3章 非类型模板参数：枚举、结构化类型、变量模板</a></li>
-        <li><a href="/zhcn/docs/15.genericprogramming/04.deduction/">第15.4章 模板实参推导与 CTAD</a></li>
-        <li><a href="/zhcn/docs/15.genericprogramming/05.variadic/">第15.5章 变参模板、折叠表达式、完美转发</a></li>
-        <li><a href="/zhcn/docs/15.genericprogramming/06.templatefor/">第15.6章 <code>template for</code>：展开语句与模板下标</a></li>
-        <li><a href="/zhcn/docs/15.genericprogramming/07.ifconstexpr/">第15.7章 <code>if constexpr</code> 与条件错误契约</a></li>
-        <li><a href="/zhcn/docs/15.genericprogramming/08.bloat/">第15.8章 模板膨胀、lambda，以及 fast_io 如何对 <code>vector</code> 去模板化</a></li>
-        <li><a href="/zhcn/docs/15.genericprogramming/09.typeerasure/">第15.9章 类型擦除：不用继承的 <code>shape</code></a></li>
-        <li><a href="/zhcn/docs/15.genericprogramming/10.printscan/">第15.10章 fast_io 如何找到你的打印与扫描代码</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/02.definingtemplates/">第15.2章 如何定义模板：函数、类、成员</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/03.concepts/">第15.3章 概念：编译器替你检查的要求</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/04.nttp/">第15.4章 非类型模板参数：枚举、结构化类型、变量模板</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/05.deduction/">第15.5章 模板实参推导与 CTAD</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/06.variadic/">第15.6章 变参模板、折叠表达式、完美转发</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/07.templatefor/">第15.7章 <code>template for</code>：展开语句与模板下标</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/08.ifconstexpr/">第15.8章 <code>if constexpr</code> 与条件错误契约</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/09.bloat/">第15.9章 模板膨胀、lambda，以及 fast_io 如何对 <code>vector</code> 去模板化</a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/10.typeerasure/">第15.10章 类型擦除：不用继承的 <code>shape</code></a></li>
+        <li><a href="/zhcn/docs/15.genericprogramming/11.printscan/">第15.11章 fast_io 如何找到你的打印与扫描代码</a></li>
       </ul>
 
     </section>

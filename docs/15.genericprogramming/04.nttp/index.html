@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch15.4: Non-Type Template Parameters: Enums, Structural Types, Variable Templates - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch15.4: Non-Type Template Parameters: Enums, Structural Types, Variable Templates</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/15.genericprogramming/04.nttp/">中文（简体）</a></p>
+    <section>
+      <h2>1. A Template Argument Can Be a Value</h2>
+
+      <p>
+        Until now every template argument was a type. It can just as well be a value, and
+        then it belongs to the type of the instantiation: <code>array&lt;int, 4&gt;</code>
+        and <code>array&lt;int, 8&gt;</code> are different types, with different
+        <code>sizeof</code>, and neither can be assigned to the other.
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T, ::std::size_t N&gt;
+struct array
+{
+	T elements[N]{};
+
+	[[nodiscard]] constexpr ::std::size_t size() const noexcept { return N; }
+};
+</code></pre>
+      <p>
+        Such a parameter is a <strong>non-type template parameter</strong> (NTTP). <code>N</code>
+        is usable anywhere a constant expression is: as an array bound, in
+        <code>static_assert</code>, in <code>if constexpr</code>, in another template
+        argument.
+      </p>
+      <p>
+        The allowed kinds have grown over the years, and all four of the ones below are used
+        by fast_io itself:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Kind</th>
+            <th>Example parameter</th>
+            <th>Used by fast_io for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>integer</td>
+            <td><code>::std::size_t N</code></td>
+            <td>buffer sizes, fixed capacities</td>
+          </tr>
+          <tr>
+            <td>enum</td>
+            <td><code>open_mode mode</code></td>
+            <td>flags known at compile time (<code>::fast_io::open_mode::in</code>)</td>
+          </tr>
+          <tr>
+            <td><code>auto</code></td>
+            <td><code>template &lt;auto v&gt;</code></td>
+            <td>character literals: <code>::fast_io::char_literal_v&lt;u8'0', char_type&gt;</code></td>
+          </tr>
+          <tr>
+            <td>structural class</td>
+            <td><code>fixed_name N</code></td>
+            <td>turning a string literal into a type</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>2. Enums as Parameters: the Switch That Costs Nothing</h2>
+
+      <p>
+        An enumerator in a template argument is a compile-time constant, so
+        <code>if constexpr</code> can select a branch and discard the others
+        (<a href="/docs/15.genericprogramming/08.ifconstexpr/">Ch15.8</a>). The result is a
+        <code>switch</code> with no jump table, no branch, no argument:
+      </p>
+      <pre><code class="language-cpp">
+enum class channel : ::std::uint_least8_t
+{
+	red,
+	green,
+	blue
+};
+
+template &lt;channel c&gt;
+[[nodiscard]] inline ::std::string_view channel_name() noexcept
+{
+	if constexpr (c == channel::red)
+	{
+		return "red";
+	}
+	else if constexpr (c == channel::green)
+	{
+		return "green";
+	}
+	else
+	{
+		return "blue";
+	}
+}
+</code></pre>
+      <p>
+        <code>channel_name&lt;channel::green&gt;()</code> returns
+        <code>"green"</code> and the generated function contains nothing else. The usual
+        warning applies: an enum NTTP must be <em>used</em> at compile time to be worth
+        anything. If the runtime value varies, take <code>channel</code> as a function
+        parameter instead &mdash; a template instantiation per enumerator is bloat, not
+        speed.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. <code>auto</code>: Let the Value Pick the Type</h2>
+
+      <p>
+        <code>template &lt;auto v&gt;</code> accepts any NTTP-eligible value and deduces its
+        type from the argument. This is how fast_io writes character comparisons without
+        repeating the character type, and it is the shortest way to write a value-parameterised
+        constant:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;auto v&gt;
+inline constexpr auto doubled = v * 2;
+</code></pre>
+      <p>
+        <code>doubled&lt;21&gt;</code> is the <code>int</code> <code>42</code>, and
+        <code>doubled&lt;'A'&gt;</code> is a <code>char</code>. Note that the type is part of
+        the instantiation's identity: <code>doubled&lt;21&gt;</code> and
+        <code>doubled&lt;21u&gt;</code> are <em>different</em> variables, because
+        <code>int</code> and <code>unsigned</code> are different NTTP types.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Structural Class Types: a String Literal As a Type</h2>
+
+      <p>
+        A class can be a template argument if it is a <strong>structural type</strong>: a
+        literal type whose every base and non-static data member is public, non-mutable, and
+        itself structural, with a <code>constexpr</code> constructor and no
+        <code>virtual</code> anything. Then the argument is compared member by member, and
+        two calls with different strings are different instantiations.
+      </p>
+      <pre><code class="language-cpp">
+struct fixed_name
+{
+	char chars[8]{};
+	::std::size_t size{};
+
+	template &lt;::std::size_t N&gt;
+	constexpr fixed_name(char const (&amp;s)[N]) noexcept
+	{
+		static_assert(N &lt;= 8, "name too long");
+		for (::std::size_t i{}; i != N; ++i)
+		{
+			chars[i] = s[i];
+			size = i;
+		}
+	}
+
+	[[nodiscard]] constexpr ::std::string_view view() const noexcept { return {chars, size}; }
+};
+
+template &lt;fixed_name N&gt;
+[[nodiscard]] inline ::std::string_view declared_name() noexcept
+{
+	return N.view();
+}
+</code></pre>
+      <p>
+        Now <code>declared_name&lt;fixed_name{"alpha"}&gt;()</code> returns
+        <code>"alpha"</code> at run time, with the string already baked into the code
+        section. The template-taking constructor is what makes
+        <code>fixed_name{"alpha"}</code> work with a six-character literal in an
+        eight-character array; without it, the array bound would have to match exactly.
+      </p>
+      <p>
+        The catch is the same as with every NTTP: <em>every distinct string is a distinct
+        instantiation</em>. Use this for constants that are fixed by the program, never for
+        strings that arrive from a config file.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Variable Templates: a Constant That Depends on a Type</h2>
+
+      <p>
+        A <strong>variable template</strong> is a constant whose value is a function of its
+        template arguments. It is <code>inline constexpr</code>, so every translation unit
+        sees the same object and no <code>.cpp</code> file has to define it:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+inline constexpr ::std::size_t width = sizeof(T) * 8;
+</code></pre>
+      <p>
+        <code>width&lt;int&gt;</code> is <code>32</code>, <code>width&lt;char&gt;</code> is
+        <code>8</code>. This is the shape of almost every constant in fast_io:
+        <code>::fast_io::io_reserve_type&lt;char, rgb&gt;</code> is a variable template whose
+        value is the tag object that <a href="/docs/15.genericprogramming/11.printscan/">Ch15.11</a>
+        dispatches on.
+      </p>
+      <p>
+        Two refinements earn their keep. First, a normalising alias, so callers may pass a
+        reference or a <code>const</code> type without changing the answer:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+inline constexpr ::std::size_t width_v = width&lt;::std::remove_cvref_t&lt;T&gt;&gt;;
+</code></pre>
+      <p>
+        Second, an initialiser that is a function call. The initialiser is a constant
+        expression, so the call is <code>constexpr</code> or <code>consteval</code>
+        (<a href="/docs/07.compiletimeprogramming/">Chapter 7</a>) and runs at compile time:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+inline constexpr ::std::size_t digits = count_digits&lt;T&gt;();
+</code></pre>
+      <p>
+        <code>width_v&lt;int const &amp;&gt;</code> is <code>32</code>, not something else
+        &mdash; that is the whole point of the <code>_v</code> form.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;string_view&gt;
+
+enum class channel : ::std::uint_least8_t
+{
+	red,
+	green,
+	blue
+};
+
+template &lt;channel c&gt;
+[[nodiscard]] inline ::std::string_view channel_name() noexcept
+{
+	if constexpr (c == channel::red)
+	{
+		return "red";
+	}
+	else if constexpr (c == channel::green)
+	{
+		return "green";
+	}
+	else
+	{
+		return "blue";
+	}
+}
+
+struct fixed_name
+{
+	char chars[8]{};
+	::std::size_t size{};
+
+	template &lt;::std::size_t N&gt;
+	constexpr fixed_name(char const (&amp;s)[N]) noexcept
+	{
+		static_assert(N &lt;= 8, "name too long");
+		for (::std::size_t i{}; i != N; ++i)
+		{
+			chars[i] = s[i];
+			size = i;
+		}
+	}
+
+	[[nodiscard]] constexpr ::std::string_view view() const noexcept { return {chars, size}; }
+};
+
+template &lt;fixed_name N&gt;
+[[nodiscard]] inline ::std::string_view declared_name() noexcept
+{
+	return N.view();
+}
+
+template &lt;typename T&gt;
+inline constexpr ::std::size_t width = sizeof(T) * 8;
+
+template &lt;auto v&gt;
+inline constexpr auto doubled = v * 2;
+
+template &lt;typename T&gt;
+inline constexpr ::std::size_t width_v = width&lt;::std::remove_cvref_t&lt;T&gt;&gt;;
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println(channel_name&lt;channel::green&gt;());
+		::fast_io::io::println(declared_name&lt;fixed_name{"alpha"}&gt;());
+		::fast_io::io::println("width&lt;int&gt;=", width&lt;int&gt;, " width&lt;char&gt;=", width&lt;char&gt;);
+		::fast_io::io::println("doubled&lt;21&gt;=", doubled&lt;21&gt;);
+		::fast_io::io::println("width_v&lt;int const &amp;&gt;=", width_v&lt;int const &amp;&gt;);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+green
+alpha
+width&lt;int&gt;=32 width&lt;char&gt;=8
+doubled&lt;21&gt;=42
+width_v&lt;int const &amp;&gt;=32
+</code></pre>
+
+    </section>
+    <section>
+      <h2>7. Rules of Thumb</h2>
+
+      <ul>
+        <li>An NTTP must be a compile-time constant; if the value is not, it is a function
+          parameter, not a template parameter.</li>
+        <li>Every distinct value is a distinct instantiation. Ten <code>fixed_name</code>
+          strings are ten copies of everything the template touches.</li>
+        <li>Prefer <code>auto</code> NTTPs when the same logic is used for <code>char</code>,
+          <code>char8_t</code> and <code>wchar_t</code>; it saves writing the character type
+          twice.</li>
+        <li>Variable templates are the idiomatic home for per-type constants: no
+          <code>struct</code> with a <code>static constexpr</code> member, no
+          <code>_v</code> trait boilerplate.</li>
+        <li>An <code>inline constexpr</code> initialiser that calls a function forces that
+          function to be <code>constexpr</code>; keep such functions <code>noexcept</code> so
+          the constant cannot fail at compile time.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/15.genericprogramming/03.concepts/" class="prev-button">&larr; Ch15.3: Concepts</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/15.genericprogramming/05.deduction/" class="next-button">Ch15.5: Template Argument Deduction &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

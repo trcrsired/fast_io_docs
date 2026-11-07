@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch15.5: Template Argument Deduction and CTAD - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch15.5: Template Argument Deduction and CTAD</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/15.genericprogramming/05.deduction/">中文（简体）</a></p>
+    <section>
+      <h2>1. Who Writes the <code>&lt;...&gt;</code></h2>
+
+      <p>
+        Nobody writes <code>::fast_io::io::println&lt;int&gt;(42)</code>. The
+        <code>&lt;int&gt;</code> is deduced from <code>42</code>, and the same machinery
+        decides <code>vector</code>'s element type
+        (<a href="/docs/04.dsal/03.vector/">Ch4.3</a>) and <code>pair</code>'s two types.
+        Deduction is not a convenience; it is what makes templates usable.
+      </p>
+      <p>
+        There are two questions to keep apart:
+      </p>
+      <ul>
+        <li><strong>Function templates:</strong> the arguments decide the template
+          parameters, and the parameters decide the parameter types.</li>
+        <li><strong>Class templates:</strong> there is nothing to deduce from until C++17
+          invented <strong>CTAD</strong> (class template argument deduction), which projects
+          constructor arguments onto the class template's parameters.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>2. Deduction from a Function Call</h2>
+
+      <p>
+        For each parameter of the form <code>T</code>, <code>T&amp;</code> or
+        <code>T const&amp;</code>, the argument's type is taken apart and matched against the
+        pattern. Two rules do most of the work:
+      </p>
+      <ul>
+        <li><strong>Decay for by-value parameters.</strong> <code>T</code> takes arrays and
+          functions as pointers, drops <code>const</code>, and drops references. So
+          <code>max("abc", "abd")</code> with <code>template &lt;typename T&gt; T max(T, T)</code>
+          tries <code>char const *</code>, not a string.</li>
+        <li><strong>No decay for reference parameters.</strong> <code>T const&amp;</code>
+          keeps the array: <code>T</code> becomes <code>char[N]</code>.</li>
+      </ul>
+      <p>
+        The second rule is how a function learns an array's length, which by-value parameters
+        can never do:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T, ::std::size_t N&gt;
+[[nodiscard]] inline constexpr ::std::size_t array_size(T const (&amp;)[N]) noexcept
+{
+	return N;
+}
+</code></pre>
+
+    </section>
+    <section>
+      <h2>3. Forwarding References: One Parameter, Two Meanings</h2>
+
+      <p>
+        <code>T&amp;&amp;</code> where <code>T</code> is deduced is not an rvalue reference;
+        it is a <strong>forwarding reference</strong>. Given an lvalue argument,
+        <code>T</code> deduces to <code>U&amp;</code> and the parameter collapses to
+        <code>U&amp;</code>; given an rvalue, <code>T</code> is <code>U</code> and the
+        parameter is <code>U&amp;&amp;</code>. The reference collapsing rule
+        (<code>&amp; &amp;&amp;</code> &rarr; <code>&amp;</code>) does the work.
+      </p>
+      <p>
+        That makes <code>::std::is_lvalue_reference_v&lt;T&gt;</code> a compile-time answer
+        to &ldquo;was I handed a name or a temporary&rdquo;, which is exactly what
+        <code>::std::forward</code> needs, and exactly what
+        <code>::fast_io::parameter&lt;T&amp;&gt;</code> builds on in
+        <a href="/docs/15.genericprogramming/11.printscan/">Ch15.11</a>:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+[[nodiscard]] inline constexpr ::std::string_view category(T &amp;&amp;) noexcept
+{
+	if constexpr (::std::is_lvalue_reference_v&lt;T&gt;)
+	{
+		return "lvalue";
+	}
+	else
+	{
+		return "rvalue";
+	}
+}
+</code></pre>
+      <p>
+        Watch the traps: <code>T&amp;&amp;</code> is a forwarding reference only when
+        <code>T</code> is deduced by that very function call. In
+        <code>template &lt;typename T&gt; void f(::std::vector&lt;T&gt; &amp;&amp;)</code>
+        the parameter is an ordinary rvalue reference, deducing from
+        <code>vector&lt;T&gt;&amp;&amp;</code> — a completely different set of rules.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. When Deduction Cannot Work</h2>
+
+      <p>
+        Deduction only sees the argument types. If a parameter type does not contain a
+        template parameter in a deducible position, nothing can be recovered:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+[[nodiscard]] inline T from_string(::std::string_view s) throws;   // T is not deducible
+
+// callers must say it: from_string&lt;int&gt;("42")
+</code></pre>
+      <p>
+        fast_io's <code>::fast_io::to&lt;T&gt;(...)</code> is exactly this shape: the target
+        type is an explicit template argument because the input text cannot imply it. That is
+        why <a href="/docs/02.basics/13.casting/">Ch2.13</a> writes
+        <code>::fast_io::to&lt;::std::uint_least64_t&gt;("12")</code> and never
+        <code>::fast_io::to("12")</code>.
+      </p>
+      <p>
+        The other escape is a default template argument, which makes the explicit form
+        optional rather than required:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T = ::std::string_view&gt;
+[[nodiscard]] inline T parse(::std::string_view s) throws;
+</code></pre>
+
+    </section>
+    <section>
+      <h2>5. CTAD and Deduction Guides</h2>
+
+      <p>
+        For a class template, the compiler looks at the constructor arguments and at every
+        <strong>deduction guide</strong> in scope. Implicit guides are generated from the
+        constructors; an explicit guide is a function declaration with no body whose return
+        type names the specialisation:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+struct pair_like
+{
+	T first{}, second{};
+
+	pair_like(T a, T b) noexcept : first{a}, second{b} {}
+};
+
+template &lt;typename A, typename B&gt;
+pair_like(A, B) -&gt; pair_like&lt;::std::common_type_t&lt;A, B&gt;&gt;;
+</code></pre>
+      <p>
+        Now <code>pair_like p{1, 2.5}</code> deduces <code>pair_like&lt;double&gt;</code>.
+        The implicit guide from the constructor would have failed &mdash; it demands one
+        <code>T</code> from two different types &mdash; and the explicit guide resolves the
+        conflict with <code>::std::common_type_t</code>, which is the intent: &ldquo;the
+        wider of the two argument types&rdquo;.
+      </p>
+      <p>
+        One detail this compiler makes visible: <code>::std::float64_t</code> is not required
+        to be <code>double</code>, and here it is not (same size, different type). So
+        <code>decltype(p)</code> is <code>pair_like&lt;double&gt;</code>, not
+        <code>pair_like&lt;::std::float64_t&gt;</code>. That is not a defect: the guide names
+        <code>common_type_t</code>, and the standard's answer for <code>int</code> and
+        <code>double</code> is <code>double</code>.
+      </p>
+      <p>
+        fast_io's containers ship guides of their own so that the allocator never has to be
+        written (<a href="/docs/15.genericprogramming/09.bloat/">Ch15.9</a> shows the real ones):
+        <code>vector{1, 2, 3}</code> deduces <code>vector&lt;int&gt;</code> with the default
+        allocator, and <code>vector{::std::from_range, r}</code> deduces the element type
+        from the range.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;string_view&gt;
+#include &lt;type_traits&gt;
+
+template &lt;typename T&gt;
+[[nodiscard]] inline constexpr ::std::string_view category(T &amp;&amp;) noexcept
+{
+	if constexpr (::std::is_lvalue_reference_v&lt;T&gt;)
+	{
+		return "lvalue";
+	}
+	else
+	{
+		return "rvalue";
+	}
+}
+
+template &lt;typename T, ::std::size_t N&gt;
+[[nodiscard]] inline constexpr ::std::size_t array_size(T const (&amp;)[N]) noexcept
+{
+	return N;
+}
+
+template &lt;typename T&gt;
+struct pair_like
+{
+	T first{}, second{};
+
+	pair_like(T a, T b) noexcept : first{a}, second{b} {}
+};
+
+template &lt;typename A, typename B&gt;
+pair_like(A, B) -&gt; pair_like&lt;::std::common_type_t&lt;A, B&gt;&gt;;
+
+int main()
+{
+	try
+	{
+		int x{1};
+		::fast_io::io::println(category(x), " ", category(2));
+
+		int const arr[5]{};
+		::fast_io::io::println("array_size=", array_size(arr));
+
+		pair_like p{1, 2.5};
+		static_assert(::std::same_as&lt;decltype(p), pair_like&lt;double&gt;&gt;);
+		::fast_io::io::println("first=", p.first, " second=", p.second);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+lvalue rvalue
+array_size=5
+first=1 second=2.5
+</code></pre>
+
+    </section>
+    <section>
+      <h2>7. Rules of Thumb</h2>
+
+      <ul>
+        <li>Prefer <code>T const&amp;</code> for parameters you only read: it keeps arrays
+          intact, avoids copies, and deduces exactly the argument's type.</li>
+        <li>Use <code>T&amp;&amp;</code> only with <code>::std::forward</code>, and only when
+          the function passes the argument on. A forwarding reference that is copied is a
+          bug waiting for a move-only type.</li>
+        <li>Never deduce a type that can only be known by the caller &mdash;
+          <code>to&lt;T&gt;</code> takes <code>T</code> explicitly, and that is correct.</li>
+        <li>Write a deduction guide as soon as the implicit one would be wrong or ambiguous;
+          it is a two-line declaration and it documents the intent.</li>
+        <li>CTAD does not reduce instantiations. <code>vector{i, j, k}</code> and
+          <code>vector{a, b, c}</code> are the same type, but
+          <code>vector{1, 2.5}</code> would not be &mdash; deduction picks one element type,
+          and the mixed call is ill-formed.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/15.genericprogramming/04.nttp/" class="prev-button">&larr; Ch15.4: Non-Type Template Parameters</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/15.genericprogramming/06.variadic/" class="next-button">Ch15.6: Variadic Templates &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

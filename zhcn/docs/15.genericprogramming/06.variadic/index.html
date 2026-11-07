@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第15.6章 变参模板、折叠表达式、完美转发 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第15.6章 变参模板、折叠表达式、完美转发</h1>
+    <p class="lang-switch"><a href="/docs/15.genericprogramming/06.variadic/">English</a></p>
+    <section>
+      <h2>1. 同一个东西的零个或多个</h2>
+
+      <p>
+        <code>::fast_io::io::println(1, "two", 3.0, 'x')</code> 接四个实参、四种类型，却是同一个
+        函数。这是一个<strong>参数包</strong>：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename... Ts&gt;
+inline void println(Ts const &amp;...args) throws;
+</code></pre>
+      <ul>
+        <li><code>typename... Ts</code> 声明一个<strong>类型包</strong>：零个或多个类型。</li>
+        <li><code>Ts const &amp;...args</code> 声明一个<strong>函数形参包</strong>：零个或多个形参，
+          每个 <code>Ts</code> 一个。</li>
+        <li><code>sizeof...(Ts)</code> 就是个数，是编译期常量。</li>
+        <li><code>args...</code> 是<strong>包展开</strong>：把省略号前面的模式按元素重复。</li>
+      </ul>
+      <p>
+        C++17 之前，变参模板只能靠递归消费 —— 每个元素一层实例化，外加一个终止的基例。
+        折叠表达式消灭了递归，也消灭了绝大部分实例化。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 折叠表达式</h2>
+
+      <p>
+        折叠把二元运算符施加到整个包上。四种形状：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>形状</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>(args + ...)</code></td>
+            <td>一元右折叠：<code>a + (b + (c + d))</code></td>
+          </tr>
+          <tr>
+            <td><code>(... + args)</code></td>
+            <td>一元左折叠：<code>((a + b) + c) + d</code></td>
+          </tr>
+          <tr>
+            <td><code>(args + ... + 0)</code></td>
+            <td>二元右折叠，带<strong>初值</strong>：空包给出 <code>0</code></td>
+          </tr>
+          <tr>
+            <td><code>(0 + ... + args)</code></td>
+            <td>二元左折叠，带初值</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        初值很要紧：对空包的一元折叠只有 <code>&amp;&amp;</code>、<code>||</code>、<code>,</code>
+        合法。写成 <code>(args + ...)</code> 的 <code>sum()</code> 编译不过；
+        <code>(args + ... + 0)</code> 返回 <code>0</code>，而且类型也稳定（是
+        <code>int</code>，不是编译错误）：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename... Ts&gt;
+[[nodiscard]] inline auto sum(Ts... args) noexcept
+{
+	return (args + ... + 0);
+}
+</code></pre>
+      <p>
+        折叠也适用于你自己写的运算符，以及概念。下面的 <code>&amp;&amp;</code> 折叠就是
+        “这些类型是不是全为整型”的写法，不需要递归特征：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename... Ts&gt;
+concept all_integral = (::std::integral&lt;Ts&gt; &amp;&amp; ...);
+</code></pre>
+
+    </section>
+    <section>
+      <h2>3. 活下来的递归：用 <code>if constexpr</code> 写基例</h2>
+
+      <p>
+        有些包折叠不了，因为运算不满足结合律，或者需要提前停下。<code>max_of</code>
+        是标准例子：答案取决于每个元素与“其余部分最大值”的比较。
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename first, typename... rest&gt;
+[[nodiscard]] inline constexpr auto max_of(first head, rest... tail) noexcept
+{
+	if constexpr (sizeof...(tail) == 0)
+	{
+		return head;
+	}
+	else
+	{
+		auto const rest_max{max_of(tail...)};
+		return head &lt; rest_max ? rest_max : head;
+	}
+}
+</code></pre>
+      <p>
+        让递归终止的是 <code>if constexpr</code>：包为空时 <code>else</code> 分支被丢弃，
+        因此永远不会实例化一个零实参的 <code>max_of()</code>。普通 <code>if</code>
+        根本编译不过 —— 两个分支都必须合法
+        （<a href="/zhcn/docs/15.genericprogramming/08.ifconstexpr/">第15.8章</a>）。
+      </p>
+      <p>
+        注意 <code>noexcept</code>：比较数字不会失败，而且这个承诺对所有实例化都成立。
+        若某个元素的 <code>operator&lt;</code> 可能抛，整个函数就必须是 <code>throws</code>。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 完美转发：不要丢掉值类别</h2>
+
+      <p>
+        一个把实参<em>继续往下传</em>的变参函数，必须为每个实参保住两样东西：类型与值类别。
+        用 <code>Ts const&amp;</code> 接会丢掉后者 —— 一切都变成左值并产生拷贝。
+        解法是 <code>Args&amp;&amp;</code> 加 <code>::std::forward</code>：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T, typename... Args&gt;
+[[nodiscard]] inline T *create(Args &amp;&amp;...args) throws
+{
+	auto const res{::fast_io::native_global_allocator::allocate_aligned_at_least(alignof(T), sizeof(T))};
+	return ::new (static_cast&lt;void *&gt;(res.ptr)) T(::std::forward&lt;Args&gt;(args)...);
+}
+</code></pre>
+      <ul>
+        <li><code>Args&amp;&amp;</code> 逐元素都是转发引用
+          （<a href="/zhcn/docs/15.genericprogramming/05.deduction/">第15.5章</a>）：
+          左值推出 <code>U&amp;</code>，右值推出 <code>U</code>。</li>
+        <li><code>::std::forward&lt;Args&gt;(args)</code> 从推出的类型恢复值类别，
+          于是左值仍以左值传下去，右值仍以右值传下去。</li>
+        <li><code>std::forward&lt;Args&gt;(args)...</code> 里 <code>args</code> 后面的
+          <code>...</code> 展开整个模式，每个实参保住自己的类型。</li>
+      </ul>
+      <p>
+        这不是理论差别。一个统计自己拷贝与移动次数的类型各用一行就能证明 ——
+        传左值：一次拷贝、零次移动；传右值：零次拷贝、一次移动：
+      </p>
+      <pre><code class="language-cpp">
+struct probe
+{
+	::std::size_t copies{};
+	::std::size_t moves{};
+
+	probe() noexcept = default;
+	probe(probe const &amp;other) noexcept : copies{other.copies + 1}, moves{other.moves} {}
+	probe(probe &amp;&amp;other) noexcept : copies{other.copies}, moves{other.moves + 1} {}
+};
+</code></pre>
+      <p>
+        把 <code>::std::forward</code> 换成朴素的 <code>args...</code>，右值那一格就变成第二次拷贝
+        —— 这就是“为什么我那个只能移动的类型移不动”这个 bug。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 把包展开到一次调用上</h2>
+
+      <p>
+        包最常见的用途不是算术，而是转交给别的东西：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename... Ts&gt;
+inline void print_each(Ts const &amp;...args) throws
+{
+	(::fast_io::io::println(args), ...);
+}
+</code></pre>
+      <p>
+        这是对逗号运算符的折叠，模式里出现了 <code>args</code>，于是展开成每个元素一次
+        <code>println</code>，顺序保持。逗号是能对空包合法折叠的三个运算符之一，所以
+        <code>print_each()</code> 能编译并且什么都不做 —— 这正是你要的。
+      </p>
+      <p>
+        这里的 <code>println</code> 是 <code>throws</code> 那个，所以
+        <code>print_each</code> 也是 <code>throws</code>：错误契约会沿调用链传染，
+        用 <code>noexcept</code> 假装不是，只会在管道断掉时调用
+        <code>::std::terminate</code>（<a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>）。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;string_view&gt;
+#include &lt;type_traits&gt;
+#include &lt;utility&gt;
+
+using namespace ::std::string_view_literals;
+
+template &lt;typename... Ts&gt;
+[[nodiscard]] inline auto sum(Ts... args) noexcept
+{
+	return (args + ... + 0);
+}
+
+template &lt;typename... Ts&gt;
+[[nodiscard]] inline constexpr ::std::size_t count_of(Ts...) noexcept
+{
+	return sizeof...(Ts);
+}
+
+template &lt;typename first, typename... rest&gt;
+[[nodiscard]] inline constexpr auto max_of(first head, rest... tail) noexcept
+{
+	if constexpr (sizeof...(tail) == 0)
+	{
+		return head;
+	}
+	else
+	{
+		auto const rest_max{max_of(tail...)};
+		return head &lt; rest_max ? rest_max : head;
+	}
+}
+
+template &lt;typename... Ts&gt;
+concept all_integral = (::std::integral&lt;Ts&gt; &amp;&amp; ...);
+
+template &lt;typename... Ts&gt;
+inline void print_each(Ts const &amp;...args) throws
+{
+	(::fast_io::io::println(args), ...);
+}
+
+struct probe
+{
+	::std::size_t copies{};
+	::std::size_t moves{};
+
+	probe() noexcept = default;
+	probe(probe const &amp;other) noexcept : copies{other.copies + 1}, moves{other.moves} {}
+	probe(probe &amp;&amp;other) noexcept : copies{other.copies}, moves{other.moves + 1} {}
+};
+
+template &lt;typename T, typename... Args&gt;
+[[nodiscard]] inline T *create(Args &amp;&amp;...args) throws
+{
+	auto const res{::fast_io::native_global_allocator::allocate_aligned_at_least(alignof(T), sizeof(T))};
+	return ::new (static_cast&lt;void *&gt;(res.ptr)) T(::std::forward&lt;Args&gt;(args)...);
+}
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println(sum(1, 2, 3, 4));
+		::fast_io::io::println(count_of(1, 2.5, "three"sv));
+		::fast_io::io::println(max_of(1, 4, 2));
+		::fast_io::io::println("all_integral of int,char=", all_integral&lt;int, char&gt;);
+
+		probe p{};
+		probe *a{create&lt;probe&gt;(p)};
+		probe *b{create&lt;probe&gt;(probe{})};
+		::fast_io::io::println("lvalue: copies=", a-&gt;copies, " moves=", a-&gt;moves);
+		::fast_io::io::println("rvalue: copies=", b-&gt;copies, " moves=", b-&gt;moves);
+
+		print_each(1, "two"sv, 3);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+10
+3
+4
+all_integral of int,char=1
+lvalue: copies=1 moves=0
+rvalue: copies=0 moves=1
+1
+two
+3
+</code></pre>
+
+    </section>
+    <section>
+      <h2>7. 经验法则</h2>
+
+      <ul>
+        <li>先想折叠，再想递归变参模板。每一层递归都是一次实例化。</li>
+        <li>空包有意义时，永远把初值写上（<code>(args + ... + 0)</code>）。</li>
+        <li>把包往下传时是转发，不是拷贝：<code>Args&amp;&amp;...</code> 配
+          <code>::std::forward&lt;Args&gt;(args)...</code>。</li>
+        <li>只包装一次调用的变参函数应当 <code>inline</code> 且只有一行；再长的内容属于非模板的辅助函数
+          （<a href="/zhcn/docs/15.genericprogramming/09.bloat/">第15.9章</a>）。</li>
+        <li>不要把 <code>char</code> 或小整数包折叠在 <code>+</code>、<code>*</code> 上而不想清楚整型提升：
+          累积发生在 <code>int</code> 里。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/15.genericprogramming/05.deduction/" class="prev-button">&larr; 第15.5章 模板实参推导</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/15.genericprogramming/07.templatefor/" class="next-button">第15.7章 <code>template for</code> &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

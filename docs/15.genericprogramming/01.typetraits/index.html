@@ -55,7 +55,7 @@
       <p>
         The chapter's subject starts here because a template cannot decide anything until it
         knows what the type allows. Traits and concepts are the two ways of asking, and
-        <a href="/docs/15.genericprogramming/02.concepts/">Ch15.2</a> needs this page's
+        <a href="/docs/15.genericprogramming/03.concepts/">Ch15.3</a> needs this page's
         vocabulary to talk about requirements.
       </p>
 
@@ -145,7 +145,7 @@ using widened_t = ::std::conditional_t&lt;(sizeof(T) &lt; 4), ::std::int_least32
           references, it is an error.</li>
         <li><code>::std::decay_t&lt;T&gt;</code> does the same plus array-to-pointer and
           function-to-pointer. Use it when mimicking by-value parameter passing
-          (<a href="/docs/15.genericprogramming/04.deduction/">Ch15.4</a>); use
+          (<a href="/docs/15.genericprogramming/05.deduction/">Ch15.5</a>); use
           <code>remove_cvref_t</code> everywhere else, because <code>decay_t</code> throws
           away information you usually want.</li>
         <li><code>::std::conditional_t&lt;cond, A, B&gt;</code> is <code>if</code> for types.</li>
@@ -159,7 +159,7 @@ using widened_t = ::std::conditional_t&lt;(sizeof(T) &lt; 4), ::std::int_least32
         <code>::std::conditional</code> is <em>lazy</em> about the condition, not about its
         arguments. If <code>A</code> is an invalid type, <code>conditional_t</code> still has
         to name it. When both branches cannot be named, use <code>if constexpr</code> inside a
-        function instead (<a href="/docs/15.genericprogramming/07.ifconstexpr/">Ch15.7</a>).
+        function instead (<a href="/docs/15.genericprogramming/08.ifconstexpr/">Ch15.8</a>).
       </p>
 
     </section>
@@ -206,29 +206,7 @@ struct loud
 
     </section>
     <section>
-      <h2>5. <code>enable_if</code>: Recognise It, Do Not Write It</h2>
-
-      <p>
-        Before concepts, a template had to be switched off by making deduction fail, which
-        produced this:
-      </p>
-      <pre><code class="language-cpp">
-// pre-C++20, do not write this any more
-template &lt;typename T, typename = ::std::enable_if_t&lt;::std::is_integral_v&lt;T&gt;&gt;&gt;
-inline void only_integers(T) noexcept;
-</code></pre>
-      <p>
-        It works, and it is unreadable: the constraint hides inside a defaulted template
-        argument, the error message names <code>enable_if</code> instead of the requirement,
-        and two such overloads do not order themselves by how constrained they are. You will
-        meet it in code written before 2020 and in code that has to compile with C++17. Read
-        it as &ldquo;requires&rdquo; and move on; write <code>requires</code> instead
-        (<a href="/docs/15.genericprogramming/02.concepts/">Ch15.2</a>).
-      </p>
-
-    </section>
-    <section>
-      <h2>6. The Whole Program</h2>
+      <h2>5. The Whole Program</h2>
 
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -295,7 +273,7 @@ common_type_t&lt;int,float64_t&gt; is float64_t: 1
 
     </section>
     <section>
-      <h2>7. Rules of Thumb</h2>
+      <h2>6. Rules of Thumb</h2>
 
       <ul>
         <li>Traits answer questions; concepts name the answers; <code>if constexpr</code> acts
@@ -306,8 +284,6 @@ common_type_t&lt;int,float64_t&gt; is float64_t: 1
           forms are for reading old code.</li>
         <li>Never test a trait that the algorithm does not use: it rejects types for no
           reason and it costs compile time.</li>
-        <li>Write <code>requires</code>, not <code>enable_if_t</code>. If you must target
-          C++17, isolate every <code>enable_if</code> in one header with a comment saying so.</li>
       </ul>
 
     </section>
@@ -315,7 +291,7 @@ common_type_t&lt;int,float64_t&gt; is float64_t: 1
     <div class="page-navigation">
       <a href="/docs/15.genericprogramming/" class="prev-button">&larr; Ch15: Generic Programming</a>
       <a href="/" class="main-button">&uarr; Main Page</a>
-      <a href="/docs/15.genericprogramming/02.concepts/" class="next-button">Ch15.2: Concepts &rarr;</a>
+      <a href="/docs/15.genericprogramming/02.definingtemplates/" class="next-button">Ch15.2: Defining Templates &rarr;</a>
     </div>
   </main>
 </body>

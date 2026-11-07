@@ -52,7 +52,7 @@
       </p>
       <p>
         本章的主题从这里开始，因为模板在知道类型允许什么之前，什么都决定不了。问的方式有两种：
-        类型特征与概念；<a href="/zhcn/docs/15.genericprogramming/02.concepts/">第15.2章</a>
+        类型特征与概念；<a href="/zhcn/docs/15.genericprogramming/03.concepts/">第15.3章</a>
         需要本页的词汇才能谈“要求”。
       </p>
 
@@ -138,7 +138,7 @@ using widened_t = ::std::conditional_t&lt;(sizeof(T) &lt; 4), ::std::int_least32
           <code>int</code>。模板要存类型时几乎总该用它，因为
           <code>vector&lt;T const &amp;&gt;</code> 不是“引用的容器”，而是一个错误。</li>
         <li><code>::std::decay_t&lt;T&gt;</code> 在它之上再加数组退化成指针、函数退化成指针。
-          模拟按值传参时用它（<a href="/zhcn/docs/15.genericprogramming/04.deduction/">第15.4章</a>）；
+          模拟按值传参时用它（<a href="/zhcn/docs/15.genericprogramming/05.deduction/">第15.5章</a>）；
           其他场合一律用 <code>remove_cvref_t</code>，因为 <code>decay_t</code> 会扔掉你通常需要的信息。</li>
         <li><code>::std::conditional_t&lt;cond, A, B&gt;</code> 是类型层面的 <code>if</code>。</li>
         <li><code>::std::common_type_t&lt;A, B&gt;</code> 是两者都能转换到的那个类型，也正是二元运算该返回的类型。</li>
@@ -149,7 +149,7 @@ using widened_t = ::std::conditional_t&lt;(sizeof(T) &lt; 4), ::std::int_least32
         一个能省下大量时间的警告：<code>::std::conditional</code> 的 <code>_t</code> 形式对“条件”
         是惰性的，对两个实参却<b>不</b>惰性。若 <code>A</code> 是一个非法类型，
         <code>conditional_t</code> 照样得把它写出来。当两个分支都无法命名时，改用函数里的
-        <code>if constexpr</code>（<a href="/zhcn/docs/15.genericprogramming/07.ifconstexpr/">第15.7章</a>）。
+        <code>if constexpr</code>（<a href="/zhcn/docs/15.genericprogramming/08.ifconstexpr/">第15.8章</a>）。
       </p>
 
     </section>
@@ -193,27 +193,7 @@ struct loud
 
     </section>
     <section>
-      <h2>5. <code>enable_if</code>：认得它，别写它</h2>
-
-      <p>
-        在概念之前，要让一个模板“关掉”，只能让推导失败，于是写成了这样：
-      </p>
-      <pre><code class="language-cpp">
-// pre-C++20, do not write this any more
-template &lt;typename T, typename = ::std::enable_if_t&lt;::std::is_integral_v&lt;T&gt;&gt;&gt;
-inline void only_integers(T) noexcept;
-</code></pre>
-      <p>
-        它能用，但不可读：约束藏在带默认值的模板实参里，报错信息指向
-        <code>enable_if</code> 而不是“要求什么”，而且两个这样的重载不会按“谁约束更强”排序。
-        你会在 2020 年前的代码里、以及必须兼容 C++17 的代码里见到它。把它读成
-        “requires” 然后跳过；要写就写 <code>requires</code>
-        （<a href="/zhcn/docs/15.genericprogramming/02.concepts/">第15.2章</a>）。
-      </p>
-
-    </section>
-    <section>
-      <h2>6. 完整程序</h2>
+      <h2>5. 完整程序</h2>
 
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
@@ -280,7 +260,7 @@ common_type_t&lt;int,float64_t&gt; is float64_t: 1
 
     </section>
     <section>
-      <h2>7. 经验法则</h2>
+      <h2>6. 经验法则</h2>
 
       <ul>
         <li>类型特征回答问题；概念给答案起名；<code>if constexpr</code> 依据答案行事。三者不要混。</li>
@@ -288,8 +268,6 @@ common_type_t&lt;int,float64_t&gt; is float64_t: 1
         <li>优先用 <code>_v</code>/<code>_t</code> 形式；<code>::value</code>/<code>::type</code>
           形式是给读老代码用的。</li>
         <li>绝不测试算法用不到的特征：那只会毫无理由地拒绝类型，还多花编译时间。</li>
-        <li>写 <code>requires</code>，不写 <code>enable_if_t</code>。真要兼容 C++17，就把所有
-          <code>enable_if</code> 收进一个头文件，并加注释说明原因。</li>
       </ul>
 
     </section>
@@ -297,7 +275,7 @@ common_type_t&lt;int,float64_t&gt; is float64_t: 1
     <div class="page-navigation">
       <a href="/zhcn/docs/15.genericprogramming/" class="prev-button">&larr; 第15章 泛型编程</a>
       <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/15.genericprogramming/02.concepts/" class="next-button">第15.2章 概念 &rarr;</a>
+      <a href="/zhcn/docs/15.genericprogramming/02.definingtemplates/" class="next-button">第15.2章 如何定义模板 &rarr;</a>
     </div>
   </main>
 </body>

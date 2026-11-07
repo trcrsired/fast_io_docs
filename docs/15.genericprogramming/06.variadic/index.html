@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch15.6: Variadic Templates and Fold Expressions - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch15.6: Variadic Templates and Fold Expressions</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/15.genericprogramming/06.variadic/">中文（简体）</a></p>
+    <section>
+      <h2>1. Zero or More of the Same Thing</h2>
+
+      <p>
+        <code>::fast_io::io::println(1, "two", 3.0, 'x')</code> takes four arguments of four
+        types and is one function. That is a <strong>parameter pack</strong>:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename... Ts&gt;
+inline void println(Ts const &amp;...args) throws;
+</code></pre>
+      <ul>
+        <li><code>typename... Ts</code> declares a <strong>type pack</strong>: zero or more
+          types.</li>
+        <li><code>Ts const &amp;...args</code> declares a <strong>function parameter pack</strong>:
+          zero or more parameters, one per <code>Ts</code>.</li>
+        <li><code>sizeof...(Ts)</code> is the count, as a compile-time constant.</li>
+        <li><code>args...</code> is a <strong>pack expansion</strong>: it repeats the pattern
+          before the ellipsis once per element.</li>
+      </ul>
+      <p>
+        Before C++17 a variadic template had to be consumed by recursion &mdash; one
+        instantiation per element, and a base case to stop. Fold expressions removed the
+        recursion, and with it most of the instantiations.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. Fold Expressions</h2>
+
+      <p>
+        A fold applies a binary operator across the whole pack. There are four shapes:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Shape</th>
+            <th>Means</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>(args + ...)</code></td>
+            <td>unary right: <code>a + (b + (c + d))</code></td>
+          </tr>
+          <tr>
+            <td><code>(... + args)</code></td>
+            <td>unary left: <code>((a + b) + c) + d</code></td>
+          </tr>
+          <tr>
+            <td><code>(args + ... + 0)</code></td>
+            <td>binary right, with an <strong>init</strong>: empty pack gives <code>0</code></td>
+          </tr>
+          <tr>
+            <td><code>(0 + ... + args)</code></td>
+            <td>binary left, with an init</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The init matters: a unary fold over an empty pack is only legal for <code>&amp;&amp;</code>,
+        <code>||</code> and <code>,</code>. <code>sum()</code> with a unary
+        <code>(args + ...)</code> does not compile; <code>(args + ... + 0)</code> returns
+        <code>0</code>, which is also the type-stable answer (an <code>int</code>, not a
+        compiler error):
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename... Ts&gt;
+[[nodiscard]] inline auto sum(Ts... args) noexcept
+{
+	return (args + ... + 0);
+}
+</code></pre>
+      <p>
+        A fold also works over an operator you write yourself, and over a concept. The
+        <code>&amp;&amp;</code> fold below is how you ask &ldquo;are all of these types
+        integral&rdquo; without a recursive trait:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename... Ts&gt;
+concept all_integral = (::std::integral&lt;Ts&gt; &amp;&amp; ...);
+</code></pre>
+
+    </section>
+    <section>
+      <h2>3. Recursion That Survives: a Base Case with <code>if constexpr</code></h2>
+
+      <p>
+        Some packs cannot be folded, because the operation is not associative or because it
+        has to stop early. <code>max_of</code> is the standard example: the answer depends on
+        comparing every element with the maximum of the rest.
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename first, typename... rest&gt;
+[[nodiscard]] inline constexpr auto max_of(first head, rest... tail) noexcept
+{
+	if constexpr (sizeof...(tail) == 0)
+	{
+		return head;
+	}
+	else
+	{
+		auto const rest_max{max_of(tail...)};
+		return head &lt; rest_max ? rest_max : head;
+	}
+}
+</code></pre>
+      <p>
+        <code>if constexpr</code> is what makes the recursion terminate: the
+        <code>else</code> branch is discarded when the pack is empty, so no call to
+        <code>max_of()</code> with zero arguments is ever instantiated. An ordinary
+        <code>if</code> would not compile at all &mdash; both branches must be valid
+        (<a href="/docs/15.genericprogramming/08.ifconstexpr/">Ch15.8</a>).
+      </p>
+      <p>
+        Note the <code>noexcept</code>: comparing numbers cannot fail, and the promise holds
+        for every instantiation. If one element's <code>operator&lt;</code> could throw, the
+        whole function would have to be <code>throws</code>.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Perfect Forwarding: Do Not Lose the Value Category</h2>
+
+      <p>
+        A variadic function that <em>passes arguments on</em> must preserve two things per
+        argument: its type and its value category. Taking them by
+        <code>Ts const&amp;</code> loses the second one &mdash; everything arrives as an
+        lvalue and is copied. The fix is <code>Args&amp;&amp;</code> plus
+        <code>::std::forward</code>:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T, typename... Args&gt;
+[[nodiscard]] inline T *create(Args &amp;&amp;...args) throws
+{
+	auto const res{::fast_io::native_global_allocator::allocate_aligned_at_least(alignof(T), sizeof(T))};
+	return ::new (static_cast&lt;void *&gt;(res.ptr)) T(::std::forward&lt;Args&gt;(args)...);
+}
+</code></pre>
+      <ul>
+        <li><code>Args&amp;&amp;</code> is a forwarding reference per element
+          (<a href="/docs/15.genericprogramming/05.deduction/">Ch15.5</a>): an lvalue deduces
+          <code>U&amp;</code>, an rvalue deduces <code>U</code>.</li>
+        <li><code>::std::forward&lt;Args&gt;(args)</code> restores the value category from
+          the deduced type, so an lvalue is passed as an lvalue and an rvalue as an
+          rvalue.</li>
+        <li>The <code>...</code> after <code>args</code> inside
+          <code>std::forward&lt;Args&gt;(args)...</code> expands the whole pattern, so each
+          argument keeps its own type.</li>
+      </ul>
+      <p>
+        That is not a theoretical difference. A type that counts its own copies and moves
+        proves it in one line each &mdash; lvalue in: one copy, no move; rvalue in: no copy,
+        one move:
+      </p>
+      <pre><code class="language-cpp">
+struct probe
+{
+	::std::size_t copies{};
+	::std::size_t moves{};
+
+	probe() noexcept = default;
+	probe(probe const &amp;other) noexcept : copies{other.copies + 1}, moves{other.moves} {}
+	probe(probe &amp;&amp;other) noexcept : copies{other.copies}, moves{other.moves + 1} {}
+};
+</code></pre>
+      <p>
+        Replace <code>::std::forward</code> with a plain <code>args...</code> and the rvalue
+        case becomes a second copy &mdash; the bug that shows up as &ldquo;why is my
+        move-only type not movable&rdquo;.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Expanding the Pack onto a Call</h2>
+
+      <p>
+        The commonest use of a pack is not arithmetic, it is forwarding into something else:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename... Ts&gt;
+inline void print_each(Ts const &amp;...args) throws
+{
+	(::fast_io::io::println(args), ...);
+}
+</code></pre>
+      <p>
+        The fold is over the comma operator with a pattern that mentions <code>args</code>,
+        so it expands to one <code>println</code> per element, in order. Comma is one of the
+        three operators that fold legally over an empty pack, so
+        <code>print_each()</code> compiles and does nothing &mdash; which is what you want.
+      </p>
+      <p>
+        <code>println</code> here is the <code>throws</code> one, so
+        <code>print_each</code> is <code>throws</code> too: an error contract is contagious
+        up the call chain, and pretending otherwise with <code>noexcept</code> would call
+        <code>::std::terminate</code> on a broken pipe
+        (<a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>).
+      </p>
+
+    </section>
+    <section>
+      <h2>6. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;string_view&gt;
+#include &lt;type_traits&gt;
+#include &lt;utility&gt;
+
+using namespace ::std::string_view_literals;
+
+template &lt;typename... Ts&gt;
+[[nodiscard]] inline auto sum(Ts... args) noexcept
+{
+	return (args + ... + 0);
+}
+
+template &lt;typename... Ts&gt;
+[[nodiscard]] inline constexpr ::std::size_t count_of(Ts...) noexcept
+{
+	return sizeof...(Ts);
+}
+
+template &lt;typename first, typename... rest&gt;
+[[nodiscard]] inline constexpr auto max_of(first head, rest... tail) noexcept
+{
+	if constexpr (sizeof...(tail) == 0)
+	{
+		return head;
+	}
+	else
+	{
+		auto const rest_max{max_of(tail...)};
+		return head &lt; rest_max ? rest_max : head;
+	}
+}
+
+template &lt;typename... Ts&gt;
+concept all_integral = (::std::integral&lt;Ts&gt; &amp;&amp; ...);
+
+template &lt;typename... Ts&gt;
+inline void print_each(Ts const &amp;...args) throws
+{
+	(::fast_io::io::println(args), ...);
+}
+
+struct probe
+{
+	::std::size_t copies{};
+	::std::size_t moves{};
+
+	probe() noexcept = default;
+	probe(probe const &amp;other) noexcept : copies{other.copies + 1}, moves{other.moves} {}
+	probe(probe &amp;&amp;other) noexcept : copies{other.copies}, moves{other.moves + 1} {}
+};
+
+template &lt;typename T, typename... Args&gt;
+[[nodiscard]] inline T *create(Args &amp;&amp;...args) throws
+{
+	auto const res{::fast_io::native_global_allocator::allocate_aligned_at_least(alignof(T), sizeof(T))};
+	return ::new (static_cast&lt;void *&gt;(res.ptr)) T(::std::forward&lt;Args&gt;(args)...);
+}
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println(sum(1, 2, 3, 4));
+		::fast_io::io::println(count_of(1, 2.5, "three"sv));
+		::fast_io::io::println(max_of(1, 4, 2));
+		::fast_io::io::println("all_integral of int,char=", all_integral&lt;int, char&gt;);
+
+		probe p{};
+		probe *a{create&lt;probe&gt;(p)};
+		probe *b{create&lt;probe&gt;(probe{})};
+		::fast_io::io::println("lvalue: copies=", a-&gt;copies, " moves=", a-&gt;moves);
+		::fast_io::io::println("rvalue: copies=", b-&gt;copies, " moves=", b-&gt;moves);
+
+		print_each(1, "two"sv, 3);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+10
+3
+4
+all_integral of int,char=1
+lvalue: copies=1 moves=0
+rvalue: copies=0 moves=1
+1
+two
+3
+</code></pre>
+
+    </section>
+    <section>
+      <h2>7. Rules of Thumb</h2>
+
+      <ul>
+        <li>Reach for a fold before a recursive variadic template. Each recursion level is
+          another instantiation.</li>
+        <li>Always write the init (<code>(args + ... + 0)</code>) when the empty pack has to
+          mean something.</li>
+        <li>Forward, never copy, when passing a pack on: <code>Args&amp;&amp;...</code> and
+          <code>::std::forward&lt;Args&gt;(args)...</code>.</li>
+        <li>A variadic function that only wraps another call should be
+          <code>inline</code> and one line long; everything longer belongs in a
+          non-template helper (<a href="/docs/15.genericprogramming/09.bloat/">Ch15.9</a>).</li>
+        <li>Do not fold over <code>+</code> or <code>*</code> a pack of
+          <code>char</code>s or small integers without thinking about promotion: the fold
+          accumulates in <code>int</code>.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/15.genericprogramming/05.deduction/" class="prev-button">&larr; Ch15.5: Template Argument Deduction</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/15.genericprogramming/07.templatefor/" class="next-button">Ch15.7: <code>template for</code> &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

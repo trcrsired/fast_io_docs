@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch15.2: Defining Templates: Functions, Classes, Members - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch15.2: Defining Templates: Functions, Classes, Members</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/15.genericprogramming/02.definingtemplates/">中文（简体）</a></p>
+    <section>
+      <h2>1. The Syntax, Once and Properly</h2>
+
+      <p>
+        Every page of this chapter writes <code>template &lt;...&gt;</code> in front of
+        something. This page is about that something: what a template definition looks like,
+        where each part has to live, and the four shapes you will actually write.
+      </p>
+      <p>
+        A template definition is a declaration with a <strong>template parameter list</strong>
+        in front of it, and a body that may use those parameters:
+      </p>
+      <pre><code class="language-text">
+template &lt;template-parameter-list&gt;
+declaration-or-definition
+</code></pre>
+      <p>
+        The list may contain type parameters (<code>typename T</code>), value parameters
+        (<code>::std::size_t N</code>) and template parameters
+        (<code>template &lt;typename...&gt; typename container</code>). Nothing else about the
+        enclosing scope changes: a template can be at namespace scope, in a class, or in
+        another template.
+      </p>
+      <p>
+        <code>class T</code> and <code>typename T</code> mean exactly the same thing in a type
+        parameter; <code>typename</code> is the spelling to use, because
+        <code>class</code> suggests a class and <code>T</code> may well be <code>int</code>.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. Shape One: a Function Template</h2>
+
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+[[nodiscard]] inline T max_of_two(T a, T b) noexcept
+{
+	return a &lt; b ? b : a;
+}
+</code></pre>
+      <p>
+        Three details that are not obvious:
+      </p>
+      <ul>
+        <li><strong>The definition must be visible where it is instantiated.</strong> That is
+          why templates live in headers, and why this book never puts a template definition in
+          a <code>.cpp</code> file. The compiler generates the body at the call site, so it
+          needs the body, not just its signature
+          (<a href="/docs/06.function/07.translationunits/">Ch6.7</a>).</li>
+        <li><strong>It is a declaration, so it must not be <code>static</code>.</strong>
+          <code>static</code> means internal linkage, and a template with internal linkage in a
+          header gives every translation unit its own copy of every instantiation. The
+          <code>inline</code> keyword is implicit for function templates instantiated in
+          several translation units; writing it hurts nothing and documents intent.</li>
+        <li><strong>The error contract belongs to the template.</strong> Here
+          <code>noexcept</code> claims that <em>every</em> instantiation cannot fail, which is
+          true for <code>int</code> and for anything whose <code>&lt;</code> cannot throw. If
+          that is not true for all of them, the function is
+          <code>throws</code> &mdash; or, when it depends on the type,
+          <code>throws(condition)</code>
+          (<a href="/docs/15.genericprogramming/08.ifconstexpr/">Ch15.8</a>).</li>
+      </ul>
+      <p>
+        <code>max_of_two(3, 7)</code> and <code>max_of_two(2.5, 1.5)</code> instantiate
+        <code>max_of_two&lt;int&gt;</code> and <code>max_of_two&lt;double&gt;</code>, and the
+        call syntax never mentions the parameter. That is deduction
+        (<a href="/docs/15.genericprogramming/05.deduction/">Ch15.5</a>), and it is the reason
+        templates are usable at all.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. Shape Two: a Class Template, and Its Members</h2>
+
+      <p>
+        A class template's members are ordinary members. A member defined inside the class is
+        implicitly a template too, and may use <code>T</code> directly. A member defined
+        <em>outside</em> the class needs the full template header twice: once before the
+        definition, and once in the qualified name, where the class must be written as
+        <code>box&lt;T&gt;</code>. This is the part people get wrong:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+class box
+{
+	T value_{};
+
+public:
+	explicit box(T v) noexcept : value_{v} {}
+
+	[[nodiscard]] T const &amp;get() const noexcept { return value_; }
+
+	[[nodiscard]] T doubled() const noexcept;
+};
+
+template &lt;typename T&gt;
+[[nodiscard]] inline T box&lt;T&gt;::doubled() const noexcept
+{
+	return value_ + value_;
+}
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>Element</th>
+            <th>Where</th>
+            <th>Written as</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>member defined inside</td>
+            <td>in the class body</td>
+            <td>plain member, uses <code>T</code> freely</td>
+          </tr>
+          <tr>
+            <td>member defined outside</td>
+            <td>after the class</td>
+            <td><code>template &lt;typename T&gt; T box&lt;T&gt;::doubled()</code></td>
+          </tr>
+          <tr>
+            <td>static data member</td>
+            <td>after the class</td>
+            <td><code>template &lt;typename T&gt; ::std::size_t counted&lt;T&gt;::live{};</code></td>
+          </tr>
+          <tr>
+            <td>constructor / destructor</td>
+            <td>either</td>
+            <td>same rules as any member</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Note what is missing from the static member definition: no <code>static</code> keyword
+        (it is in the class) and no second <code>template &lt;&gt;</code>. Each instantiation
+        <code>counted&lt;int&gt;</code> gets its own <code>live</code>, and
+        <code>counted&lt;double&gt;</code> gets a different one. That is not a global; it is a
+        global per instantiation, which is exactly what a template means.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Shape Three: Default Arguments and Alias Templates</h2>
+
+      <p>
+        Template parameters may have defaults, and a later parameter may use an earlier one.
+        fast_io's containers rely on this to keep the allocator out of the way:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T, typename tag = void&gt;
+struct wrapper
+{
+	T value{};
+};
+
+template &lt;typename T, typename Alloc = ::fast_io::native_global_allocator&gt;
+using vector = ::fast_io::containers::vector&lt;T, Alloc&gt;;
+</code></pre>
+      <p>
+        An <strong>alias template</strong> (<code>using vector = ...</code>) is a template that
+        produces a type name and nothing else: it has no separate identity, cannot be
+        specialised, and cannot be deduced from a call. Use it to give a shorter or more
+        specific name to a template you do not own; use a class template when you need members,
+        specialisation or deduction.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Shape Four: a Template-Template Parameter</h2>
+
+      <p>
+        A template parameter can itself be a template. It is how a function says
+        &ldquo;any container of <code>T</code>&rdquo; without naming the container:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;template &lt;typename...&gt; typename container, typename T&gt;
+[[nodiscard]] inline ::std::size_t slots() noexcept
+{
+	return sizeof(container&lt;T&gt;);
+}
+</code></pre>
+      <p>
+        <code>container</code> is a template, not a type, so it is used as
+        <code>container&lt;T&gt;</code>. The parameter is declared with
+        <code>typename...</code> so that it accepts containers with extra defaulted parameters
+        &mdash; <code>::fast_io::vector</code> takes an allocator, and still fits.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. Where the Instantiation Happens, and How to Steer It</h2>
+
+      <p>
+        A template is instantiated implicitly, on demand: the first use with
+        <code>box&lt;::std::int_least32_t&gt;</code> compiles the whole thing in that
+        translation unit. If twenty translation units use it, twenty copies of the machine code
+        exist and the linker keeps one. For a heavy template that is a lot of duplicated
+        compilation.
+      </p>
+      <p>
+        Two statements move that work to one place:
+      </p>
+      <pre><code class="language-cpp">
+extern template class box&lt;::std::int_least32_t&gt;;   // in the header: do not instantiate here
+template class box&lt;::std::int_least32_t&gt;;          // in one .cpp: instantiate it here
+</code></pre>
+      <p>
+        <code>extern template</code> is a promise that someone else instantiates it; a
+        <code>.cpp</code> containing the plain form is that someone. This is the same fight as
+        <a href="/docs/15.genericprogramming/09.bloat/">Ch15.9</a>, one level up: there the
+        problem was one instantiation per type, here it is one instantiation per translation
+        unit.
+      </p>
+
+    </section>
+    <section>
+      <h2>7. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+// ---- a function template
+template &lt;typename T&gt;
+[[nodiscard]] inline T max_of_two(T a, T b) noexcept
+{
+	return a &lt; b ? b : a;
+}
+
+// ---- a class template: one member declared here, defined outside
+template &lt;typename T&gt;
+class box
+{
+	T value_{};
+
+public:
+	explicit box(T v) noexcept : value_{v} {}
+
+	[[nodiscard]] T const &amp;get() const noexcept { return value_; }
+
+	[[nodiscard]] T doubled() const noexcept;
+};
+
+template &lt;typename T&gt;
+[[nodiscard]] inline T box&lt;T&gt;::doubled() const noexcept
+{
+	return value_ + value_;
+}
+
+// ---- a static data member of a class template
+template &lt;typename T&gt;
+class counted
+{
+public:
+	static ::std::size_t live;
+
+	counted() noexcept { ++live; }
+	~counted() noexcept { --live; }
+};
+
+template &lt;typename T&gt;
+::std::size_t counted&lt;T&gt;::live{};
+
+// ---- a default template argument
+template &lt;typename T, typename tag = void&gt;
+struct wrapper
+{
+	T value{};
+};
+
+// ---- a template-template parameter
+template &lt;template &lt;typename...&gt; typename container, typename T&gt;
+[[nodiscard]] inline ::std::size_t slots() noexcept
+{
+	return sizeof(container&lt;T&gt;);
+}
+
+// ---- explicit instantiation: emit this one here, once
+template class box&lt;::std::int_least32_t&gt;;
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println(max_of_two(3, 7));
+		::fast_io::io::println(max_of_two(2.5, 1.5));
+
+		box&lt;::std::int_least32_t&gt; b{21};
+		::fast_io::io::println("box: ", b.get(), " doubled ", b.doubled());
+
+		{
+			counted&lt;int&gt; c1{};
+			counted&lt;int&gt; c2{};
+			counted&lt;double&gt; c3{};
+			::fast_io::io::println("live int=", counted&lt;int&gt;::live, " live double=", counted&lt;double&gt;::live);
+		}
+		::fast_io::io::println("after scope int=", counted&lt;int&gt;::live);
+
+		wrapper&lt;int&gt; w{};
+		static_assert(::std::same_as&lt;decltype(w), wrapper&lt;int, void&gt;&gt;);
+		::fast_io::io::println("wrapper&lt;::fast_io::vector, int&gt; size=", slots&lt;::fast_io::vector, int&gt;());
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+7
+2.5
+box: 21 doubled 42
+live int=2 live double=1
+after scope int=0
+wrapper&lt;::fast_io::vector, int&gt; size=24
+</code></pre>
+      <p>
+        Read the middle two lines together: two <code>counted&lt;int&gt;</code> objects and one
+        <code>counted&lt;double&gt;</code> are alive, and each instantiation counts separately.
+        The last line is the size of
+        <code>::fast_io::vector&lt;int&gt;</code> &mdash; three pointers on this machine
+        &mdash; obtained without ever naming the container.
+      </p>
+
+    </section>
+    <section>
+      <h2>8. Rules of Thumb</h2>
+
+      <ul>
+        <li>A template definition goes in a header, next to the declaration. Splitting them
+          breaks instantiation.</li>
+        <li>Never mark a template <code>static</code>; that gives each translation unit its own
+          copy.</li>
+        <li>Write the template header on the out-of-class definition <em>and</em> qualify the
+          class as <code>T&lt;U&gt;</code>; forgetting either is the classic error.</li>
+        <li>A static data member of a class template is defined once per instantiation, without
+          <code>static</code>, in a header.</li>
+        <li>Use <code>using</code> for a template that only renames another; use a class
+          template when you need members or specialisation.</li>
+        <li>Reach for <code>extern template</code> only after measuring: it moves compile work,
+          it does not remove it.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/15.genericprogramming/01.typetraits/" class="prev-button">&larr; Ch15.1: Type Traits</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/15.genericprogramming/03.concepts/" class="next-button">Ch15.3: Concepts &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

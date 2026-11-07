@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第15.3章 概念：编译器替你检查的要求 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第15.3章 概念：编译器替你检查的要求</h1>
+    <p class="lang-switch"><a href="/docs/15.genericprogramming/03.concepts/">English</a></p>
+    <section>
+      <h2>1. 没有概念的函数模板要你付出什么</h2>
+
+      <p>
+        裸的函数模板什么都接受。编译器在有人调用它之前根本不看函数体，之后才把实参替换进去，
+        然后报出任何出错的地方 —— 通常深在好几层、在你没写过的头文件里。
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view show(T const &amp;t) noexcept
+{
+	return t.name();
+}
+</code></pre>
+      <p>
+        <code>show(42)</code> 不会告诉你“42 没有 <code>name()</code>”。它说的是
+        <code>show&lt;int&gt;</code> 的实例化失败了，并指向函数体，附一句
+        <code>int</code> 没有成员 <code>name</code>。若嵌套三层模板，这条信息会变成一整页
+        “in instantiation of”。
+      </p>
+      <p>
+        <strong>概念</strong>的解法是：把要求写在前面，让调用者读得到，让编译器在实例化任何
+        东西之前就检查它。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 概念就是一个具名的 <code>requires</code> 表达式</h2>
+
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+concept named = requires(T const t) {
+	{ t.name() } -&gt; ::std::convertible_to&lt;::std::string_view&gt;;
+};
+
+template &lt;named T&gt;
+[[nodiscard]] inline ::std::string_view show(T const &amp;t) noexcept
+{
+	return t.name();
+}
+</code></pre>
+      <p>
+        把 <code>named</code> 读作“关于类型的谓词”。
+        <code>named&lt;widget&gt;</code> 是 <code>true</code> 或 <code>false</code>；
+        <code>named&lt;int&gt;</code> 是 <code>false</code>，而且这个判断不编译函数体。
+      </p>
+      <p>
+        <code>requires(T const t) { ... }</code> 这种写法叫<strong>要求列表</strong>。
+        每一项有四种形状：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>要求</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>t.name()</code></td>
+            <td>这个表达式是良构的</td>
+          </tr>
+          <tr>
+            <td><code>{ t.name() } -&gt; X</code></td>
+            <td>良构，且结果类型满足概念 <code>X</code></td>
+          </tr>
+          <tr>
+            <td><code>{ t.name() } noexcept</code></td>
+            <td>良构，且不会抛 —— 在本书里这是一条真实要求</td>
+          </tr>
+          <tr>
+            <td><code>typename T::value_type</code></td>
+            <td>这个类型存在</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        花括号里的一切都是<em>不求值</em>的：不调用、不运行，失败也不是错误，只让概念变成
+        <code>false</code>。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 约束一个比较器</h2>
+
+      <p>
+        本书要求每个比较器都是 <code>noexcept</code>
+        （<a href="/zhcn/docs/08.algorithm/01.ranges/">第8.1章</a>）。概念可以一字不差地写下这一点，
+        于是忘记 <code>noexcept</code> 的比较器会在调用点被拒绝，而不是悄悄变慢、或者更糟 ——
+        从比较里抛出：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename F&gt;
+concept comparator = requires(F f, int a, int b) {
+	{ f(a, b) } noexcept -&gt; ::std::convertible_to&lt;bool&gt;;
+};
+
+template &lt;comparator F&gt;
+inline void my_sort(int *first, ::std::size_t n, F cmp) noexcept
+{
+	for (::std::size_t i{1}; i &lt; n; ++i)
+	{
+		for (::std::size_t j{i}; j != 0 &amp;&amp; cmp(first[j], first[j - 1]); --j)
+		{
+			auto const t{first[j]};
+			first[j] = first[j - 1];
+			first[j - 1] = t;
+		}
+	}
+}
+</code></pre>
+      <p>
+        <code>my_sort(data, 3, ::std::ranges::greater{})</code> 能编译：
+        <code>::std::ranges::greater</code> 的调用运算符是 <code>noexcept</code>。
+        一个没写 <code>noexcept</code> 的 lambda 编译不过，而这个编译器会明确告诉你原因：
+      </p>
+      <pre><code class="language-cpp">
+error: no matching function for call to ‘my_sort(int [3], int, main()::&lt;lambda(int, int)&gt;)’
+  • candidate 1: ‘template&lt;class F&gt;  requires  comparator&lt;F&gt; void my_sort(int*, std::size_t, F)’
+    • constraints not satisfied
+        { f(a, b) } noexcept -&gt; ::std::convertible_to&lt;bool&gt;;
+      • ‘f.main()::&lt;lambda(int, int)&gt;(a, b)’ is not ‘noexcept’
+</code></pre>
+      <p>
+        六行就是全部收益：要求写在一处、调用者找得到，错误信息点出要求而不是函数体。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 用类型特征也能约束</h2>
+
+      <p>
+        两类要求可以自由组合。一个概念既能要求某个成员函数（语法），也能要求类型的某个性质（语义）：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+concept byte_like = ::std::integral&lt;T&gt; &amp;&amp; (sizeof(T) == 1);
+</code></pre>
+      <p>
+        <code>::std::integral&lt;T&gt;</code> 是建立在 <code>::std::is_integral_v</code>
+        上的库概念；<code>(sizeof(T) == 1)</code> 是普通的常量表达式。两者都必须成立。
+      </p>
+      <p>
+        语法那一半优先用现成的。<code>::std::integral</code> 是对标准库自己持有的类型的承诺；
+        <code>requires { t.size() }</code> 是对调用者传入的任何类型的承诺，即使标准库日后又加了
+        一个重载，它仍然成立。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 包含关系：约束更紧的那个胜出</h2>
+
+      <p>
+        两个重载都可行，其中一个要求了另一个的一切、并且还多一点，这时选约束更强的那个。
+        这不是什么平局规则的花招，而是因为两个概念是彼此的<em>子集</em>。
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+concept integral_like = ::std::integral&lt;T&gt;;
+
+template &lt;typename T&gt;
+concept byte_like = integral_like&lt;T&gt; &amp;&amp; (sizeof(T) == 1);
+
+template &lt;integral_like T&gt;
+[[nodiscard]] inline ::std::string_view kind(T) noexcept
+{
+	return "integral";
+}
+
+template &lt;byte_like T&gt;
+[[nodiscard]] inline ::std::string_view kind(T) noexcept
+{
+	return "byte";
+}
+</code></pre>
+      <p>
+        <code>kind(static_cast&lt;char&gt;(1))</code> 打印 <code>byte</code>，因为
+        <code>byte_like</code> 是用 <code>integral_like</code> 写出来的，因此已知更严格。
+        注意方向：只有当更强概念的<em>定义里按名字包含</em>更弱概念时，包含关系才成立。
+        两个恰好有交集但互不相关概念会形成歧义，调用直接编译不过。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 概念在哪里被检查</h2>
+
+      <p>
+        概念出现在四个地方，全部在编译期：
+      </p>
+      <ul>
+        <li><strong>作为类型约束：</strong> <code>template &lt;named T&gt;</code>。</li>
+        <li><strong>作为后置子句：</strong>
+          <code>template &lt;typename T&gt; requires named&lt;T&gt;</code>。意思相同，写法不同；
+          约束很长时用子句。</li>
+        <li><strong>作为一个变量：</strong> <code>named&lt;T&gt;</code> 是 <code>bool</code>，
+          可以用 <code>static_assert</code> 检查，也可以放进
+          <code>if constexpr</code>（<a href="/zhcn/docs/15.genericprogramming/08.ifconstexpr/">第15.8章</a>）。</li>
+        <li><strong>作为临时 <code>requires</code>：</strong>
+          <code>requires { t.size(); }</code> 直接写在函数体里，不起名字。</li>
+      </ul>
+      <p>
+        下面整个程序打印四个答案，而且不实例化任何你没要求它实例化的东西：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;concepts&gt;
+#include &lt;string_view&gt;
+
+struct widget
+{
+	[[nodiscard]] ::std::string_view name() const noexcept { return "widget"; }
+};
+
+template &lt;typename T&gt;
+concept named = requires(T const t) {
+	{ t.name() } -&gt; ::std::convertible_to&lt;::std::string_view&gt;;
+};
+
+template &lt;typename T&gt;
+concept byte_like = ::std::integral&lt;T&gt; &amp;&amp; (sizeof(T) == 1);
+
+template &lt;named T&gt;
+[[nodiscard]] inline ::std::string_view show(T const &amp;t) noexcept
+{
+	return t.name();
+}
+
+template &lt;byte_like T&gt;
+[[nodiscard]] inline ::std::string_view kind(T) noexcept
+{
+	return "byte";
+}
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println(show(widget{}));
+		::fast_io::io::println(kind(static_cast&lt;char&gt;(1)));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+widget
+byte
+</code></pre>
+
+    </section>
+    <section>
+      <h2>7. 概念做不到的事</h2>
+
+      <p>
+        概念是编译期谓词。它不能决定运行期的任何事，不能让一个变量这一轮装 <code>widget</code>、
+        下一轮装 <code>gadget</code>，也不会出现在二进制里。
+      </p>
+      <p>
+        人们退而求其次的两个办法是带 <code>virtual</code> 的继承
+        （<a href="/zhcn/docs/18.virtual/">第18章</a>）与类型擦除
+        （<a href="/zhcn/docs/15.genericprogramming/10.typeerasure/">第15.10章</a>）。
+        本章用后者，因为它除了必须动态的那一次调用之外，把一切都保持静态绑定。
+      </p>
+
+    </section>
+    <section>
+      <h2>8. 经验法则</h2>
+
+      <ul>
+        <li>概念用两次就起名字；只用一次就写内联 <code>requires</code>。</li>
+        <li>用其他概念来约束，这样包含关系才看得见。</li>
+        <li>算法依赖 <code>noexcept</code> 时，就把 <code>noexcept</code> 写进概念；本书的比较器与
+          分配器总是如此。</li>
+        <li>不要约束用不到的东西。一个要求五个成员、只用两个的概念，只会毫无理由地拒绝类型。</li>
+        <li>记住概念并不减少膨胀：它只是更早地拒绝错误实参。膨胀是
+          <a href="/zhcn/docs/15.genericprogramming/09.bloat/">第15.9章</a>的事。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/15.genericprogramming/02.definingtemplates/" class="prev-button">&larr; 第15.2章 如何定义模板</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/15.genericprogramming/04.nttp/" class="next-button">第15.4章 非类型模板参数 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

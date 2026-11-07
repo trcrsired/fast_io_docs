@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第15.2章 如何定义模板：函数、类、成员 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第15.2章 如何定义模板：函数、类、成员</h1>
+    <p class="lang-switch"><a href="/docs/15.genericprogramming/02.definingtemplates/">English</a></p>
+    <section>
+      <h2>1. 把语法讲一次，讲清楚</h2>
+
+      <p>
+        本章每一页都在某个东西前面写 <code>template &lt;...&gt;</code>。本页讲的正是那个“东西”：
+        模板定义长什么样，每个部分必须放在哪里，以及你真正会写的四种形状。
+      </p>
+      <p>
+        模板定义 = 一个前面带<strong>模板形参列表</strong>的声明，而它的函数体/成员可以使用那些形参：
+      </p>
+      <pre><code class="language-text">
+template &lt;template-parameter-list&gt;
+declaration-or-definition
+</code></pre>
+      <p>
+        列表里可以有类型形参（<code>typename T</code>）、值形参（<code>::std::size_t N</code>）
+        以及模板形参（<code>template &lt;typename...&gt; typename container</code>）。
+        外部作用域的其他规则都不变：模板可以在命名空间作用域、类里，或者在另一个模板里。
+      </p>
+      <p>
+        <code>class T</code> 与 <code>typename T</code> 在类型形参里含义完全相同；
+        该用 <code>typename</code>，因为 <code>class</code> 暗示那是个类，而 <code>T</code>
+        完全可能是 <code>int</code>。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 形状一：函数模板</h2>
+
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+[[nodiscard]] inline T max_of_two(T a, T b) noexcept
+{
+	return a &lt; b ? b : a;
+}
+</code></pre>
+      <p>
+        三个不那么显然的细节：
+      </p>
+      <ul>
+        <li><strong>定义必须对实例化它的地方可见。</strong>这就是模板住在头文件里的原因，
+          也是本书从不把模板定义放进 <code>.cpp</code> 的原因。编译器在调用点生成函数体，
+          所以它需要函数体，而不只是签名
+          （<a href="/zhcn/docs/06.function/07.translationunits/">第6.7章</a>）。</li>
+        <li><strong>它是声明，所以不能是 <code>static</code>。</strong><code>static</code>
+          意味着内部链接，头文件里一个内部链接的模板会让每个翻译单元都各有一份所有实例化。
+          对在多个翻译单元实例化的函数模板来说，<code>inline</code> 是隐含的；写出来没有坏处，
+          还能表明意图。</li>
+        <li><strong>错误契约属于模板本身。</strong>这里的 <code>noexcept</code> 声称<em>每个</em>
+          实例化都不会失败，对 <code>int</code> 以及任何 <code>&lt;</code> 不会抛的类型都成立。
+          如果并非对所有实例化都成立，这个函数就是 <code>throws</code>；若取决于类型，
+          就写成 <code>throws(condition)</code>
+          （<a href="/zhcn/docs/15.genericprogramming/08.ifconstexpr/">第15.8章</a>）。</li>
+      </ul>
+      <p>
+        <code>max_of_two(3, 7)</code> 与 <code>max_of_two(2.5, 1.5)</code> 分别实例化
+        <code>max_of_two&lt;int&gt;</code> 与 <code>max_of_two&lt;double&gt;</code>，
+        而调用语法里从没出现过形参。那就是推导
+        （<a href="/zhcn/docs/15.genericprogramming/05.deduction/">第15.5章</a>），
+        也是模板能被人用起来的原因。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 形状二：类模板及其成员</h2>
+
+      <p>
+        类模板的成员就是普通成员。在类内定义的成员隐式也是一个模板，可以直接用
+        <code>T</code>。在类<em>外</em>定义的成员要把模板头写两遍：一遍在定义前面，
+        一遍在限定名里 —— 那里类必须写成 <code>box&lt;T&gt;</code>。这是人们最容易写错的地方：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+class box
+{
+	T value_{};
+
+public:
+	explicit box(T v) noexcept : value_{v} {}
+
+	[[nodiscard]] T const &amp;get() const noexcept { return value_; }
+
+	[[nodiscard]] T doubled() const noexcept;
+};
+
+template &lt;typename T&gt;
+[[nodiscard]] inline T box&lt;T&gt;::doubled() const noexcept
+{
+	return value_ + value_;
+}
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>成员</th>
+            <th>写在哪</th>
+            <th>写法</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>类内定义的成员</td>
+            <td>类体内</td>
+            <td>普通成员，可随意使用 <code>T</code></td>
+          </tr>
+          <tr>
+            <td>类外定义的成员</td>
+            <td>类之后</td>
+            <td><code>template &lt;typename T&gt; T box&lt;T&gt;::doubled()</code></td>
+          </tr>
+          <tr>
+            <td>静态数据成员</td>
+            <td>类之后</td>
+            <td><code>template &lt;typename T&gt; ::std::size_t counted&lt;T&gt;::live{};</code></td>
+          </tr>
+          <tr>
+            <td>构造/析构函数</td>
+            <td>两者皆可</td>
+            <td>规则与任何成员相同</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        注意静态成员定义里<em>缺</em>了什么：没有 <code>static</code> 关键字（它在类里），
+        也没有第二个 <code>template &lt;&gt;</code>。每个实例化
+        <code>counted&lt;int&gt;</code> 有自己的 <code>live</code>，
+        <code>counted&lt;double&gt;</code> 有另一个。那不是全局变量，而是“每个实例化一个”的全局 ——
+        这正是模板的含义。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 形状三：默认实参与别名模板</h2>
+
+      <p>
+        模板形参可以有默认值，后面的形参可以使用前面的。fast_io 的容器靠这一点把分配器藏起来：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T, typename tag = void&gt;
+struct wrapper
+{
+	T value{};
+};
+
+template &lt;typename T, typename Alloc = ::fast_io::native_global_allocator&gt;
+using vector = ::fast_io::containers::vector&lt;T, Alloc&gt;;
+</code></pre>
+      <p>
+        <strong>别名模板</strong>（<code>using vector = ...</code>）是一个只产生类型名的模板：
+        它没有独立身份，不能特化，也不能从调用里推导。给你不拥有的模板起一个更短或更具体的名字时用它；
+        需要成员、特化或推导时就用类模板。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 形状四：模板模板形参</h2>
+
+      <p>
+        模板形参本身也可以是一个模板。函数因此能说“任何装 <code>T</code> 的容器”，
+        而不点名是哪个容器：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;template &lt;typename...&gt; typename container, typename T&gt;
+[[nodiscard]] inline ::std::size_t slots() noexcept
+{
+	return sizeof(container&lt;T&gt;);
+}
+</code></pre>
+      <p>
+        <code>container</code> 是一个模板而不是类型，所以写成
+        <code>container&lt;T&gt;</code>。形参用 <code>typename...</code> 声明，
+        是为了接受带额外默认形参的容器 —— <code>::fast_io::vector</code> 还带一个分配器，
+        依然适配。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 实例化发生在哪里，以及如何引导它</h2>
+
+      <p>
+        模板是隐式实例化的、按需发生的：第一次使用
+        <code>box&lt;::std::int_least32_t&gt;</code> 就在那个翻译单元里把整个东西编译出来。
+        若二十个翻译单元都用它，就会存在二十份机器码，链接器留下其中一份。
+        对一个很重的模板来说，这是大量重复编译。
+      </p>
+      <p>
+        两条语句把这份工作挪到一个地方：
+      </p>
+      <pre><code class="language-cpp">
+extern template class box&lt;::std::int_least32_t&gt;;   // in the header: do not instantiate here
+template class box&lt;::std::int_least32_t&gt;;          // in one .cpp: instantiate it here
+</code></pre>
+      <p>
+        <code>extern template</code> 是“别人会实例化它”的承诺；那个写着普通形式的
+        <code>.cpp</code> 就是那个“别人”。这与
+        <a href="/zhcn/docs/15.genericprogramming/09.bloat/">第15.9章</a>是同一场战斗，只是高了一层：
+        那边的问题是“每种类型一次实例化”，这里是“每个翻译单元一次实例化”。
+      </p>
+
+    </section>
+    <section>
+      <h2>7. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+// ---- a function template
+template &lt;typename T&gt;
+[[nodiscard]] inline T max_of_two(T a, T b) noexcept
+{
+	return a &lt; b ? b : a;
+}
+
+// ---- a class template: one member declared here, defined outside
+template &lt;typename T&gt;
+class box
+{
+	T value_{};
+
+public:
+	explicit box(T v) noexcept : value_{v} {}
+
+	[[nodiscard]] T const &amp;get() const noexcept { return value_; }
+
+	[[nodiscard]] T doubled() const noexcept;
+};
+
+template &lt;typename T&gt;
+[[nodiscard]] inline T box&lt;T&gt;::doubled() const noexcept
+{
+	return value_ + value_;
+}
+
+// ---- a static data member of a class template
+template &lt;typename T&gt;
+class counted
+{
+public:
+	static ::std::size_t live;
+
+	counted() noexcept { ++live; }
+	~counted() noexcept { --live; }
+};
+
+template &lt;typename T&gt;
+::std::size_t counted&lt;T&gt;::live{};
+
+// ---- a default template argument
+template &lt;typename T, typename tag = void&gt;
+struct wrapper
+{
+	T value{};
+};
+
+// ---- a template-template parameter
+template &lt;template &lt;typename...&gt; typename container, typename T&gt;
+[[nodiscard]] inline ::std::size_t slots() noexcept
+{
+	return sizeof(container&lt;T&gt;);
+}
+
+// ---- explicit instantiation: emit this one here, once
+template class box&lt;::std::int_least32_t&gt;;
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println(max_of_two(3, 7));
+		::fast_io::io::println(max_of_two(2.5, 1.5));
+
+		box&lt;::std::int_least32_t&gt; b{21};
+		::fast_io::io::println("box: ", b.get(), " doubled ", b.doubled());
+
+		{
+			counted&lt;int&gt; c1{};
+			counted&lt;int&gt; c2{};
+			counted&lt;double&gt; c3{};
+			::fast_io::io::println("live int=", counted&lt;int&gt;::live, " live double=", counted&lt;double&gt;::live);
+		}
+		::fast_io::io::println("after scope int=", counted&lt;int&gt;::live);
+
+		wrapper&lt;int&gt; w{};
+		static_assert(::std::same_as&lt;decltype(w), wrapper&lt;int, void&gt;&gt;);
+		::fast_io::io::println("wrapper&lt;::fast_io::vector, int&gt; size=", slots&lt;::fast_io::vector, int&gt;());
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+7
+2.5
+box: 21 doubled 42
+live int=2 live double=1
+after scope int=0
+wrapper&lt;::fast_io::vector, int&gt; size=24
+</code></pre>
+      <p>
+        把中间两行放在一起读：两个 <code>counted&lt;int&gt;</code> 与一个
+        <code>counted&lt;double&gt;</code> 活着，每个实例化各算各的。最后一行是
+        <code>::fast_io::vector&lt;int&gt;</code> 的大小 —— 在这台机器上是三个指针 ——
+        而整个过程里从没点名过那个容器。
+      </p>
+
+    </section>
+    <section>
+      <h2>8. 经验法则</h2>
+
+      <ul>
+        <li>模板定义放在头文件里、紧挨着声明。把它们分开就等于破坏实例化。</li>
+        <li>绝不给模板加 <code>static</code>；那会让每个翻译单元各有一份。</li>
+        <li>类外定义要写模板头，<em>并且</em>把类限定成 <code>T&lt;U&gt;</code>；
+          漏掉任何一个都是经典错误。</li>
+        <li>类模板的静态数据成员按实例化各定义一次，不带 <code>static</code>，写在头文件里。</li>
+        <li>只是给别的模板改名就用 <code>using</code>；需要成员或特化就用类模板。</li>
+        <li>先测量再动用 <code>extern template</code>：它挪动编译工作，并不消除它。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/15.genericprogramming/01.typetraits/" class="prev-button">&larr; 第15.1章 类型特征</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/15.genericprogramming/03.concepts/" class="next-button">第15.3章 概念 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第15.9章 模板膨胀、lambda，以及 fast_io 如何对 vector 去模板化 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第15.9章 模板膨胀、lambda，以及 fast_io 如何对 <code>vector</code> 去模板化</h1>
+    <p class="lang-switch"><a href="/docs/15.genericprogramming/09.bloat/">English</a></p>
+    <section>
+      <h2>1. 膨胀到底是什么</h2>
+
+      <p>
+        模板是一台生产代码的机器。每个不同的实参都会把<em>模板里的一切</em>完整复制一份 ——
+        不只是用到实参的那部分。如果四十行的函数只有一行用到 <code>T</code>，另外三十行从没提到它，
+        那么那三十行会为每个 <code>T</code> 重新编译一遍。
+      </p>
+      <p>
+        账单有三种货币：二进制体积、指令缓存压力、编译时间。而且很容易在毫无察觉的情况下付账，
+        因为单看某个实例化都还算合理。
+      </p>
+      <p>
+        有两条路，而且不是二选一 —— 写得好的库两条都用：
+      </p>
+      <ul>
+        <li><strong>别按类型实例化。</strong>你传给模板的每个 lambda 都是一个新类型，所以每个 lambda
+          都是一次新实例化（§2、§3）。</li>
+        <li><strong>去模板化。</strong>把不依赖实参的部分移出模板，让它只编译一次
+          （§4&ndash;§6）。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>2. 数一数实例化</h2>
+
+      <p>
+        膨胀是可测量的，而测量只需一条命令。写出那个显然的模板，用两种元素类型，然后数符号：
+      </p>
+      <pre><code class="language-cpp">
+namespace naive
+{
+template &lt;typename T&gt;
+[[nodiscard]] inline T *grow(T *old, ::std::size_t oldn, ::std::size_t newn) throws
+{
+	auto const res{::fast_io::native_global_allocator::allocate_aligned_at_least(alignof(T), newn * sizeof(T))};
+	auto *const p{static_cast&lt;T *&gt;(res.ptr)};
+	for (::std::size_t i{}; i != oldn; ++i)
+	{
+		::new (p + i) T(::std::move(old[i]));
+	}
+	::fast_io::native_global_allocator::deallocate_aligned_n(old, alignof(T), oldn * sizeof(T));
+	return p;
+}
+} // namespace naive
+</code></pre>
+      <pre><code class="language-text">
+$ nm -C prog | grep -c 'naive::grow&lt;'
+2
+</code></pre>
+      <p>
+        两种元素类型，两个函数。那个函数体里真正与类型有关的只有
+        <code>sizeof(T)</code>、<code>alignof(T)</code> 和移动构造 —— 而包住它们的循环被原样复制了一份。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 每个 lambda 都是新类型</h2>
+
+      <p>
+        现代 C++ 里最昂贵的实例化来源是 lambda，因为 lambda 的类型不是“一个函数”，
+        而是编译器在源码那一点发明出来的独一无二的类。两个函数体一模一样的 lambda 是两个不同类型，
+        所以接收比较器的模板会被实例化两次：
+      </p>
+      <pre><code class="language-cpp">
+int data[4]{3, 1, 4, 2};
+my_sort(data, 4, [](int x, int y) noexcept { return x &lt; y; });
+my_sort(data, 4, [](int x, int y) noexcept { return x &gt; y; });
+my_sort(data, 4, ::std::ranges::greater{});
+</code></pre>
+      <pre><code class="language-text">
+$ nm -C prog | grep 'my_sort&lt;' | sed 's/.*\(my_sort&lt;\)/\1/' | sort | uniq -c
+   1 my_sort&lt;main::{lambda(int, int)#1}&gt;(int*, unsigned long, main::{lambda(int, int)#1})
+   1 my_sort&lt;main::{lambda(int, int)#2}&gt;(int*, unsigned long, main::{lambda(int, int)#2})
+   1 my_sort&lt;std::ranges::greater&gt;(int*, unsigned long, std::ranges::greater)
+</code></pre>
+      <p>
+        三次调用，三份排序的实例化。反解器显示出眼睛看不出的差别：<code>#1</code> 与 <code>#2</code>。
+      </p>
+      <p>
+        由此得到的规则不是“永不用 lambda”，而是：<strong>算法是模板、而比较器不是重点时，
+        用具名函数对象</strong>。<code>::std::ranges::greater</code>、
+        <code>::std::ranges::less</code>、<code>::std::plus&lt;&gt;</code>、
+        <code>::std::identity</code> 之类都是普通类型，所以每个传
+        <code>::std::ranges::greater</code> 的调用点共用一份实例化。这就是本书所有比较器都具名的原因
+        （<a href="/zhcn/docs/08.algorithm/01.ranges/">第8.1章</a>）。
+      </p>
+      <p>
+        lambda 真的是重点时 —— 某处一次性的谓词 —— 就写 lambda。一次实例化不叫膨胀；
+        一千个调用点各写一份才叫。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 去模板化：那条规则</h2>
+
+      <p>
+        fast_io 自己的贡献者指南用三行写下了这条规则：
+      </p>
+      <blockquote>
+        <p>
+          模板参数必须为它自己付账。模板里不碰模板参数的代码会按实例化生成 ——
+          N 个模板实参就是 N 份一模一样的机器码。
+        </p>
+      </blockquote>
+      <p>
+        应用它，就是对模板函数体里的每一行问：<em>这一行需要那个类型，还是只需要它的大小？</em>
+        一段扩容循环需要 <code>sizeof(T)</code>、<code>alignof(T)</code> 和一个元素的移动，
+        它并不需要 <code>T</code>。所以这段循环可以用字节写一次：
+      </p>
+      <pre><code class="language-cpp">
+namespace erased
+{
+struct model
+{
+	::std::byte *begin_ptr{};
+	::std::byte *curr_ptr{};
+	::std::byte *end_ptr{};
+};
+
+namespace detemplate
+{
+template &lt;typename allocator&gt;
+inline void *grow_to_byte_size(model &amp;m, ::std::size_t newbytes, ::std::size_t size, ::std::size_t align) throws
+{
+	auto const oldbytes{static_cast&lt;::std::size_t&gt;(m.curr_ptr - m.begin_ptr)};
+	auto const res{allocator::allocate_aligned_at_least(align, newbytes)};
+	auto *const p{static_cast&lt;::std::byte *&gt;(res.ptr)};
+	(void)::fast_io::freestanding::nonoverlapped_bytes_copy(m.begin_ptr, m.curr_ptr, p);
+	allocator::deallocate_aligned_n(m.begin_ptr, align, oldbytes);
+	m.end_ptr = p + (res.count / size * size);
+	m.curr_ptr = m.begin_ptr = p;
+	return p;
+}
+} // namespace detemplate
+</code></pre>
+      <p>
+        三个细节让它成立，也正是这套技术的全部：
+      </p>
+      <ul>
+        <li><strong>模型结构体里没有元素类型。</strong><code>model</code> 是三个
+          <code>::std::byte *</code>；布局里没有 <code>T</code>，所以一个函数就能按引用接收它。</li>
+        <li><strong>大小与对齐变成了数字。</strong>它们是普通的 <code>::std::size_t</code> 形参，
+          在运行期传入（并在调用点被优化器折掉）。</li>
+        <li><strong>模板参数是分配器，不是元素类型。</strong>分配策略才是这段循环真正依赖的东西，
+          而分配器总共没几个。</li>
+      </ul>
+      <p>
+        元素类型仍然要构造与销毁元素，所以那部分仍然是模板 —— 但它现在只是一层薄包装：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+class buffer
+{
+	using allocator = ::fast_io::native_global_allocator;
+	model m_{};
+
+public:
+	void reserve_bytes(::std::size_t n) throws
+	{
+		detemplate::grow_to_byte_size&lt;allocator&gt;(m_, n * sizeof(T), sizeof(T), alignof(T));
+	}
+};
+</code></pre>
+      <pre><code class="language-text">
+$ nm -C prog | grep -c 'grow_to_byte_size&lt;'
+1
+</code></pre>
+      <p>
+        一个函数，不管有多少元素类型。本页的两个程序做的是同一件事：第一个产生两份循环，
+        第二个只产生一份。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 真家伙：fast_io 的 <code>vector</code></h2>
+
+      <p>
+        <code>::fast_io::vector</code> 就是这么造的。数据布局里没有元素类型
+        （<code>include/fast_io_dsal/impl/vector.h</code>）：
+      </p>
+      <pre><code class="language-cpp">
+struct
+#if __has_cpp_attribute(__gnu__::__may_alias__)
+	[[__gnu__::__may_alias__]]
+#endif
+	vector_model
+{
+	::std::byte *begin_ptr;
+	::std::byte *curr_ptr;
+	::std::byte *end_ptr;
+};
+
+template &lt;typename allochandle&gt;
+struct
+#if __has_cpp_attribute(__gnu__::__may_alias__)
+	[[__gnu__::__may_alias__]]
+#endif
+	vector_alloc_handle_model
+{
+	::std::byte *begin_ptr;
+	::std::byte *curr_ptr;
+	::std::byte *end_ptr;
+#if __has_cpp_attribute(msvc::no_unique_address)
+	[[msvc::no_unique_address]]
+#else
+	[[no_unique_address]]
+#endif
+	allochandle alloc;
+};
+</code></pre>
+      <p>
+        扩容算法住在 <code>::fast_io::containers::details::vector::detemplate</code> 里，
+        只按分配器参数化。下面是最内层；注意 <code>::std::byte *</code> 指针、运行期的
+        <code>size</code> 与 <code>alignment</code>，以及来自
+        <a href="/zhcn/docs/15.genericprogramming/08.ifconstexpr/">第15.8章</a>的条件错误契约。
+        会就地重新分配的 <code>#if 0</code> 块在此省略，其余与头文件中一致：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename allocator&gt;
+inline void *grow_to_byte_size_iter_impl(vector_model &amp;imp, void *iter, ::std::size_t newcap, ::std::size_t gap, ::std::size_t size, ::std::size_t alignment)
+	FAST_IO_HERBCEPTIONS_THROWS_IF(allocator::throws_on_allocation_failure)
+{
+	::std::byte *old_begin_ptr{imp.begin_ptr};
+	::std::byte *old_curr_ptr{imp.curr_ptr};
+	::std::size_t const old_size{static_cast&lt;::std::size_t&gt;(old_curr_ptr - old_begin_ptr)};
+	::std::size_t const old_capacity{static_cast&lt;::std::size_t&gt;(imp.end_ptr - old_begin_ptr)};
+
+	auto const newres{allocator::allocate_aligned_at_least(alignment, newcap)};
+	auto *const begin_ptr{static_cast&lt;::std::byte *&gt;(newres.ptr)};
+	auto *const newiter{::fast_io::freestanding::nonoverlapped_bytes_copy(old_begin_ptr, static_cast&lt;::std::byte const *&gt;(iter), begin_ptr)};
+	static_cast&lt;void&gt;(::fast_io::freestanding::nonoverlapped_bytes_copy(static_cast&lt;::std::byte const *&gt;(iter), old_curr_ptr, newiter + gap));
+	allocator::deallocate_aligned_n(old_begin_ptr, alignment, old_capacity);
+
+	imp.begin_ptr = begin_ptr;
+	imp.curr_ptr = begin_ptr + old_size;
+	imp.end_ptr = begin_ptr + (newres.count / size * size);
+	return newiter;
+}
+</code></pre>
+      <p>
+        它上面是一层五行包装，按 <code>size</code> 与 <code>alignment</code> 参数化 ——
+        但只是为了决定对齐策略，从不用来干活：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename allocator, ::std::size_t size, ::std::size_t alignment&gt;
+inline constexpr void *grow_to_size_iter_impl(vector_model &amp;imp, void *iter, ::std::size_t newcap)
+	FAST_IO_HERBCEPTIONS_THROWS_IF(allocator::throws_on_allocation_failure || allocator::throws_on_violations)
+{
+	if constexpr (alignment &lt; allocator::default_alignment)
+	{
+		return ::fast_io::containers::details::vector::grow_to_size_iter_impl&lt;allocator, size, allocator::default_alignment&gt;(imp, iter, newcap);
+	}
+	else
+	{
+		return ::fast_io::containers::details::vector::detemplate::grow_to_size_iter_impl&lt;allocator&gt;(imp, iter, newcap, size, alignment);
+	}
+}
+</code></pre>
+      <p>
+        而用户可见的类是知道 <code>T</code> 的那层薄模板 —— 元素构造、析构，以及容量用尽时调用
+        去模板化的扩容：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T, typename Alloc = ::fast_io::native_global_allocator&gt;
+using vector = ::fast_io::containers::vector&lt;T, Alloc&gt;;
+
+// CTAD guides, so the allocator is never written at a call site
+template &lt;::std::input_iterator InputIt&gt;
+vector(InputIt, InputIt) -&gt; vector&lt;typename ::std::iterator_traits&lt;InputIt&gt;::value_type, ::fast_io::native_global_allocator&gt;
+</code></pre>
+      <p>
+        同样的形状在 <code>deque</code>、<code>sized_vector</code>、<code>string</code>、
+        <code>list</code> 里反复出现：一个与元素无关的模型结构体、一个按分配器参数化的
+        <code>detemplate</code> 算法命名空间、一个薄模板外壳。这就是为什么你增加元素类型时，
+        fast_io 的编译时间与代码体积保持平坦 —— 增加
+        <code>vector&lt;my_struct&gt;</code> 的代价是 <code>my_struct</code> 的构造函数调用，
+        而不是再来一份缓冲区机械。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 什么时候不要去模板化</h2>
+
+      <ul>
+        <li><strong>类型是速度来源时。</strong>按字节写成的去模板化循环无法内联
+          <code>T</code> 的移动构造。对平凡类型，优化器能补回来；对那些真的要干活的移动构造，
+          模板版本更快。fast_io 因此把 <code>uninitialized_move</code> 留在模板里，
+          只把“分配 + 拷原始字节”那部分去模板化。</li>
+        <li><strong>只有一个实例化时。</strong>只用于一种类型的模板不叫膨胀，它就是一个函数。</li>
+        <li><strong>抽取让代码更难读时。</strong>三个 <code>void *</code> 参数加两个运行期大小，
+          对一个十行、只用两次的函数来说，比重复一份更糟。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>7. 经验法则</h2>
+
+      <ul>
+        <li>重构之前先测量：<code>nm -C binary | grep -c 'name&lt;'</code> 就是你需要的全部工具链。</li>
+        <li>给模板传具名函数对象（<code>::std::ranges::greater</code>）；lambda 留给一次性场合。</li>
+        <li>在真正用到类型的那一点把模板切开：它之前与之后的一切都属于一个非模板函数。</li>
+        <li>凡是代码不构造、不析构、不对元素调用任何东西的地方，都把“类型”换成
+          <code>sizeof</code>、<code>alignof</code>、<code>::std::byte *</code> 和 <code>void *</code>。</li>
+        <li>按“很少变的东西”（分配器）去参数化，不要按“经常变的东西”（元素类型）去参数化。</li>
+        <li>膨胀会叠加：一个模板算法调用一个模板辅助函数、再调用一个模板日志函数，
+          就是每个调用点一棵实例化树。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/15.genericprogramming/08.ifconstexpr/" class="prev-button">&larr; 第15.8章 <code>if constexpr</code></a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/15.genericprogramming/10.typeerasure/" class="next-button">第15.10章 类型擦除 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
