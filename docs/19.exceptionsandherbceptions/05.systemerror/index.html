@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch19.5: &lt;system_error&gt; - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch19.5: <code>&lt;system_error&gt;</code></h1>
+    <p class="lang-switch"><a href="/zhcn/docs/19.exceptionsandherbceptions/05.systemerror/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Header That Was Supposed to Fix Error Codes</h2>
+      <p>
+        <code>&lt;system_error&gt;</code> was added to give C++ a portable way to carry an error
+        code from the operating system. It defines four things:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>What it is</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::std::errc</code></td>
+            <td>An <code>enum class</code> of POSIX error values:
+              <code>invalid_argument</code>, <code>no_space_on_device</code>,
+              <code>not_enough_memory</code>, and so on. This part is good, and it survived</td>
+          </tr>
+          <tr>
+            <td><code>::std::error_code</code></td>
+            <td>A value plus a pointer to an <code>error_category</code> that says what the value
+              means</td>
+          </tr>
+          <tr>
+            <td><code>::std::error_condition</code></td>
+            <td>The same shape, for "some error of this kind" rather than one specific error</td>
+          </tr>
+          <tr>
+            <td><code>::std::error_category</code></td>
+            <td>The thing that gives codes their meaning: an abstract class you derive from and
+              register as a singleton</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        If that design sounds familiar, it should: it is the direct ancestor of the herbception
+        error domain. The difference is how the meaning is carried &mdash; and the difference is
+        the whole story of this page.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Using It</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;system_error&gt;
+
+int main()
+{
+	try
+	{
+		throw ::std::system_error(::std::make_error_code(::std::errc::no_space_on_device));
+	}
+	catch (::std::system_error const &amp;e)
+	{
+		::fast_io::io::print("what       ", ::fast_io::mnp::os_c_str(e.what()), "\n"
+			"code value ", e.code().value(), "\n"
+			"category   ", ::fast_io::mnp::os_c_str(e.code().category().name()), "\n"
+			"message    ", ::fast_io::mnp::os_c_str(e.code().message().c_str()), "\n"
+			"generic?   ", ::fast_io::mnp::boolalpha(e.code() == ::std::errc::no_space_on_device), "\n");
+	}
+}
+
+</code></pre>
+      <pre><code class="language-text">
+what       No space left on device
+code value 28
+category   generic
+message    No space left on device
+generic?   true
+</code></pre>
+      <p>
+        Note the <code>.c_str()</code> on line four of the program: <code>message()</code> returns a
+        <code>::std::string</code> <em>by value</em>. Every call to it allocates a fresh string,
+        formats the message into it, and hands it back &mdash; on the error path, which is the one
+        path where you are already short of resources. The same call in the herbception world is
+        <code>::fast_io::mnp::message(e)</code>, which writes scatters straight into the output
+        buffer and allocates nothing
+        (<a href="/docs/19.exceptionsandherbceptions/01.customdomains/">Ch19.1</a>).
+      </p>
+      <p>
+        <code>::std::system_error</code> itself is a legacy exception: it derives from
+        <code>::std::runtime_error</code>, so it carries a <code>what()</code> string, and it also
+        stores an <code>error_code</code>. In <code>libstdc++</code> its constructor literally
+        calls <code>runtime_error(__ec.message())</code> &mdash; one allocation for the message
+        string inside the category, and another for the copy inside the exception object, before
+        the throw has even started.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Category Is an Object With a Vtable</h2>
+      <p>
+        Here is the interface, from <code>libstdc++</code>'s <code>&lt;system_error&gt;</code>.
+        Read it as a list of obligations that every library which wants its own error codes has to
+        discharge:
+      </p>
+      <pre><code class="language-cpp">
+  class error_category
+  {
+  public:
+    constexpr error_category() noexcept = default;
+
+    virtual ~error_category();
+
+    error_category(const error_category&amp;) = delete;
+    error_category&amp; operator=(const error_category&amp;) = delete;
+
+    /// A string that identifies the error category.
+    virtual const char*
+    name() const noexcept = 0;
+
+    // We need two different virtual functions here, one returning a
+    // COW string and one returning an SSO string. Their positions in the
+    // vtable must be consistent for dynamic dispatch to work, but which one
+    // the name "message()" finds depends on which ABI the caller is using.
+  private:
+    _GLIBCXX_DEFAULT_ABI_TAG
+    virtual __cow_string
+    _M_message(int) const;
+
+  public:
+    /// A description of the error condition corresponding to the number.
+    _GLIBCXX_DEFAULT_ABI_TAG
+    virtual string
+    message(int) const = 0;
+
+  public:
+    /// Return an error_condition corresponding to `i` in this category.
+    virtual error_condition
+    default_error_condition(int __i) const noexcept;
+
+    /// Test whether `cond` is equivalent to `i` for this category.
+    virtual bool
+    equivalent(int __i, const error_condition&amp; __cond) const noexcept;
+
+    /// Test whether `code` is equivalent to `i` for this category.
+    virtual bool
+    equivalent(const error_code&amp; __code, int __i) const noexcept;
+
+    /// An error_category only compares equal to itself.
+    [[__nodiscard__]]
+    bool
+    operator==(const error_category&amp; __other) const noexcept
+    { return this == &amp;__other; }
+
+</code></pre>
+      <p>
+        Four things in that declaration decided the fate of the design:
+      </p>
+      <ul>
+        <li>
+          <strong>It is a class with virtual functions.</strong> A category is an object, with a
+          vtable, a destructor and a type &mdash; so categories are singletons behind pointers, and
+          <code>operator==</code> compares <code>this == &amp;__other</code>. Two libraries that
+          define a category with the same name have two different categories, and their codes never
+          compare equal.
+        </li>
+        <li>
+          <strong><code>message()</code> returns <code>::std::string</code>.</strong> Producing the
+          text of an error allocates. There is no way to ask for it in another encoding, or to
+          write it into a buffer you already have.
+        </li>
+        <li>
+          <strong>There are two levels: <code>error_code</code> and
+          <code>error_condition</code>.</strong> The difference between "this specific failure" and
+          "a failure of this kind" is real, but the rules for comparing one to the other are
+          <code>default_error_condition</code> plus two <code>equivalent</code> overloads, and
+          almost nobody can state them from memory. Code that gets them wrong compiles.
+        </li>
+        <li>
+          <strong>The comment in the middle of the declaration is an ABI scar.</strong>
+          <code>_M_message</code> returning <code>__cow_string</code> next to
+          <code>message</code> returning <code>string</code> exists because changing the return
+          type of a virtual function changes the vtable, and the standard library could not break
+          the old ABI. An error-handling facility whose own interface is layered around a
+          five-year-old ABI mistake is not a facility that can be fixed.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>4. Why It Failed in Practice</h2>
+      <p>
+        Every library that wanted error codes defined its own category, and the result is exactly
+        the fragmentation the feature was supposed to end: an <code>error_code</code> from a
+        networking library, a filesystem library and a database library are three incomparable
+        values with three message tables and three singletons. A function that returns
+        <code>::std::error_code</code> tells its caller nothing about which category it will be
+        in, so the caller cannot even print it without knowing the library, and comparing it to
+        <code>::std::errc::no_space_on_device</code> works only if that particular library
+        remembered to route through the generic category.
+      </p>
+      <p>
+        The herbception domain keeps the one good idea and deletes the mechanism that made
+        fragmentation easy. The differences that matter:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th><code>&lt;system_error&gt;</code></th>
+            <th>Herbception domain</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>A category is a class with virtual functions and a vtable</td>
+            <td>A domain is a <code>constexpr</code> struct of five function pointers &mdash;
+              <code>::std::error_domain_singleton</code>. No object, no vtable, no destructor</td>
+          </tr>
+          <tr>
+            <td><code>message()</code> returns <code>::std::string</code></td>
+            <td><code>do_query_information</code> writes <code>{pointer, length}</code> scatters
+              into the caller's buffer, in the caller's encoding, with no allocation</td>
+          </tr>
+          <tr>
+            <td>Meaning is compared through <code>default_error_condition</code> and two
+              <code>equivalent</code> overloads nobody remembers</td>
+            <td>One mandatory hook: <code>do_to_errc</code>. Every domain must answer "which
+              <code>::std::errc</code> is this?", and that answer is what everybody compares</td>
+          </tr>
+          <tr>
+            <td>An error is an object: <code>error_code</code> plus a message string plus, in
+              <code>system_error</code>, a whole exception hierarchy</td>
+            <td>An error is two words: <code>{domain pointer, code}</code>. It fits in
+              <code>sizeof(::std::error) == 2 * sizeof(void *)</code>, and it flows through the
+              return registers</td>
+          </tr>
+          <tr>
+            <td>Carrying an error to the caller requires a legacy <code>throw</code></td>
+            <td>Carrying an error is the return path itself; nothing is allocated and no stack is
+              walked</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>::std::errc</code> is the part that survived, unchanged, and became the POSIX error
+        domain. When you see <code>::std::errc::not_enough_memory</code> in fast_io or in this book,
+        it is that same enum: the values were always right; the machinery around them was not.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. How to Read It in Someone Else's Code</h2>
+      <ul>
+        <li>
+          <code>std::error_code</code> in an interface means the author wanted to report a failure
+          without an exception, in a world that had no better way. What they wanted was
+          <code>::std::error</code>.
+        </li>
+        <li>
+          A custom <code>std::error_category</code> is a domain with a vtable. Read its
+          <code>message()</code> table to learn the codes, then convert at the boundary
+          (<a href="/docs/19.exceptionsandherbceptions/06.interop/">Ch19.6</a>).
+        </li>
+        <li>
+          <code>std::system_error</code> is a legacy exception. It will unwind your stack, allocate
+          twice, and arrive at a handler that cannot get the code out without
+          <code>.code()</code> &mdash; which is why it is the failure type of
+          <code>&lt;filesystem&gt;</code>, and why that library is difficult to use on any target
+          without an unwinder.
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/19.exceptionsandherbceptions/04.stdexcept/" class="prev-button">&larr; Ch19.4: &lt;stdexcept&gt;</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/19.exceptionsandherbceptions/06.interop/" class="next-button">Ch19.6: Crossing the Boundary &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

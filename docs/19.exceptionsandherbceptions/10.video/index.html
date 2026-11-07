@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch19.10: De-fragmenting C++ - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch19.10: De-fragmenting C++</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/19.exceptionsandherbceptions/10.video/">中文（简体）</a></p>
+
+    <section>
+      <h2>Watch This Before You Write Another <code>throw</code></h2>
+      <p>
+        This chapter argued that legacy exceptions are a problem of the <em>mechanism</em>, not of
+        the people using it. That argument is not new: Herb Sutter made it in 2019, in a talk that
+        is the origin of everything this chapter taught. The talk is
+        <em>De-fragmenting C++: Making Exceptions and RTTI More Affordable and Usable</em>, and it
+        is worth the hour for two reasons: it shows the same measurements from the other side
+        (binary size, the cost of a throw), and it presents the design that became the
+        <code>throws</code> channel you have been using since
+        <a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>The Talk</h2>
+      <div class="video">
+        <iframe width="560" height="315" src="https://www.youtube.com/embed/ARYP83yNAWk?si=8ITHPZ0GKjkEA8In" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+      </div>
+      <p>
+        What to listen for, in the order the talk raises it:
+      </p>
+      <ul>
+        <li>
+          <strong>The two failure models and why they cannot coexist.</strong> If half of a
+          program reports errors with return values and half with <code>throw</code>, the half that
+          uses return values is not safe, because it still calls code that may unwind.
+        </li>
+        <li>
+          <strong>The size numbers.</strong> Every function that might need to unwind carries
+          frame tables; the talk counts what that costs in a real binary, which is the same
+          mechanism <a href="/docs/19.exceptionsandherbceptions/07.banflags/">Ch19.7</a> measured as
+          <code>.eh_frame</code> and <code>.gcc_except_table</code>.
+        </li>
+        <li>
+          <strong>The latency numbers.</strong> A throw is a stack walk, so its cost depends on how
+          deep the stack is and how many shared objects are loaded &mdash;
+          <a href="/docs/19.exceptionsandherbceptions/08.issues/">Ch19.8</a> measured about a
+          microsecond against one nanosecond for the same error.
+        </li>
+        <li>
+          <strong>Two words and a flag.</strong> The proposal at the end of the talk is exactly the
+          <code>::std::error</code> you have been catching: a domain pointer, a code, and a failure
+          bit on the return path, so the failure path is the success path plus a branch.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>After the Video</h2>
+      <p>
+        Come back to this chapter with the questions the talk leaves open, because the pages
+        answer them concretely:
+      </p>
+      <ul>
+        <li>
+          <a href="/docs/19.exceptionsandherbceptions/01.customdomains/">Ch19.1</a> &mdash; the
+          domain table: who writes it, what the five hooks are, and why
+          <code>do_to_errc</code> is mandatory so that every error is comparable.
+        </li>
+        <li>
+          <a href="/docs/19.exceptionsandherbceptions/02.crash/">Ch19.2</a> &mdash; what happens to
+          the cases the proposal leaves as "uncatchable": allocation failure, size overflow,
+          broken invariants.
+        </li>
+        <li>
+          <a href="/docs/19.exceptionsandherbceptions/06.interop/">Ch19.6</a> &mdash; the boundary
+          with the old mechanism, in both directions.
+        </li>
+        <li>
+          <a href="/docs/19.exceptionsandherbceptions/09.allocatorflags/">Ch19.9</a> &mdash; how the
+          policy of a container decides whether a failure is reported or terminates.
+        </li>
+      </ul>
+      <p>
+        The rest of this book uses the mechanism the talk proposed, everywhere, without exception.
+        <a href="/docs/20.freestanding/">Chapter 20</a> is the payoff: it is the reason the mechanism
+        matters, because it is the chapter about running on targets where nothing else works.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/19.exceptionsandherbceptions/09.allocatorflags/" class="prev-button">&larr; Ch19.9: fast_io's Allocator Flags</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/20.freestanding/" class="next-button">Ch20: Freestanding &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

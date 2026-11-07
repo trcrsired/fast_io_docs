@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第19.4章：&lt;stdexcept&gt; - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第19.4章：<code>&lt;stdexcept&gt;</code></h1>
+    <p class="lang-switch"><a href="/docs/19.exceptionsandherbceptions/04.stdexcept/">English</a></p>
+
+    <section>
+      <h2>1. 人人都包含的那个头文件</h2>
+      <p>
+        <code>&lt;stdexcept&gt;</code> 是随遗留异常一起提供的那套类库，也是每个 C++ 代码库都会随手包含的那个头文件。它的全部内容就是 <code>::std::exception</code> 下面这棵两分支的树：
+      </p>
+      <pre><code class="language-text">
+std::exception                     what()  ->  char const *
+├── std::logic_error                 "violated a precondition the caller could have checked"
+│   ├── std::invalid_argument
+│   ├── std::domain_error
+│   ├── std::length_error
+│   └── std::out_of_range
+└── std::runtime_error               "only detectable while running"
+    ├── std::range_error
+    ├── std::overflow_error
+    ├── std::underflow_error
+    └── std::system_error            (&lt;system_error&gt;, Ch19.5)
+</code></pre>
+      <p>
+        还有四个类住在别的头文件里，由运行时自己抛出：<code>&lt;new&gt;</code> 里的 <code>::std::bad_alloc</code> 和 <code>::std::bad_array_new_length</code>，<code>&lt;typeinfo&gt;</code> 里的 <code>::std::bad_cast</code> 和 <code>::std::bad_typeid</code>。它们中的每一个都存一段消息字符串，并通过 <code>virtual what()</code> 返回它。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 这个划分意味着什么，以及为什么它什么也没携带</h2>
+      <p>
+        标准的本意是：<code>logic_error</code> 用于调用者的 bug，也就是调用之前本可以检查的前提条件；<code>runtime_error</code> 用于只有运行中的程序才能发现的事情。这听起来像是信息，也是教程愿意花一页讲它的原因。
+      </p>
+      <p>
+        它什么也没携带。没有编译器检查它，没有捕获点能对它有反应，而这个区分在调用点是不可见的，因为函数的签名根本不提这个类型。<code>catch (::std::exception const &amp;)</code> 里的调用者无法分辨自己是违反了前提条件还是磁盘满了，而事后这也不重要：恢复路径同样都是"放弃这次操作"。真正携带信息的是<em>错误码</em>，也就是赫布异常放进那两个字里的东西（<a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>）。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>类</th>
+            <th>标准的本意</th>
+            <th>程序拿它能做什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>invalid_argument</code></td>
+            <td>某个参数是错的</td>
+            <td>什么也做不了；它在调用之后才到</td>
+          </tr>
+          <tr>
+            <td><code>out_of_range</code></td>
+            <td>下标或键超出了定义域</td>
+            <td>什么也做不了；它描述的那个检查本该由你自己做</td>
+          </tr>
+          <tr>
+            <td><code>length_error</code></td>
+            <td>容器装不下那么多元素</td>
+            <td>打印一条没人看的消息</td>
+          </tr>
+          <tr>
+            <td><code>overflow_error</code> / <code>underflow_error</code></td>
+            <td>算术越界</td>
+            <td>什么也做不了</td>
+          </tr>
+          <tr>
+            <td><code>bad_alloc</code></td>
+            <td>内存用完了</td>
+            <td>
+              几乎永远没有正确的做法 —— <a href="/zhcn/docs/19.exceptionsandherbceptions/02.crash/">第19.2章</a> 论证它应当终止进程
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>3. 怎么构造一个，以及它存了什么</h2>
+      <p>
+        构造函数有两个：<code>(char const *)</code> 和 <code>(::std::string const &amp;)</code>。消息存在对象内部，这意味着带长消息的 <code>runtime_error</code> 构造函数会<strong>分配内存</strong> —— 在失败路径上，在异常还没被抛出之前。
+      </p>
+      <p>
+        <code>what()</code> 返回 <code>char const *</code>，而在本书里那不能当作文本打印（<a href="/zhcn/docs/05.pointerscarray/08.cstylestring/">第5.8章</a>）：你必须说明这个指针意味着什么，所以这里每个例子都写 <code>::fast_io::mnp::os_c_str(e.what())</code>。C 字符串是一种约定，不是一个类型。
+      </p>
+      <p>
+        要给遗留异常加上你自己的东西，你必须从这些类之一派生，并把消息往上传给基类。没有别的办法：基类拥有唯一的出口通道。下面是一个带行号和列号的解析错误，被当作基类捕获，旁边是标准库自己的 <code>length_error</code>，来自一个容器：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;stdexcept&gt;
+#include &lt;string&gt;
+#include &lt;vector&gt;
+
+/* the only way to add data to a legacy exception: derive and pass a message up */
+struct parse_error : ::std::runtime_error
+{
+	::std::size_t line;
+	::std::size_t column;
+	parse_error(::std::size_t l, ::std::size_t c)
+		: ::std::runtime_error("invalid token"), line(l), column(c)
+	{}
+};
+
+int main()
+{
+	try
+	{
+		throw parse_error(12, 34);
+	}
+	catch (::std::exception const &amp;e)
+	{
+		::fast_io::io::print("as exception ", ::fast_io::mnp::os_c_str(e.what()), "\n");
+	}
+	try
+	{
+		::std::vector&lt;int&gt; v;
+		v.resize(static_cast&lt;::std::size_t&gt;(1) &lt;&lt; 63);
+	}
+	catch (::std::exception const &amp;e)
+	{
+		::fast_io::io::print("as length     ", ::fast_io::mnp::os_c_str(e.what()), "\n");
+	}
+}
+
+</code></pre>
+      <pre><code class="language-text">
+as exception invalid token
+as length     vector::_M_default_append
+</code></pre>
+      <p>
+        关于这段输出有两点。第一，<code>parse_error</code> 自己的数据 —— <code>line</code> 和 <code>column</code> —— 在捕获点<strong>已经没了</strong>：处理块是写给 <code>::std::exception</code> 的，所以它能碰到的只有 <code>what()</code>。那些额外数据存在过、被付出过代价，而在不用 RTTI 和 <code>dynamic_cast</code> 的情况下取不回来（<a href="/zhcn/docs/18.virtual/05.rtti/">第18.5章</a>）。
+      </p>
+      <p>
+        第二，标准库的消息是 <code>vector::_M_default_append</code> —— 一个私有成员函数的名字，而不是一句关于用户问题的话。这就是 <code>what()</code> 在实践中的样子：一段英文的实现细节字符串，没有程序能解析它，没有用户能对它做出反应。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 这个头文件招来的 bug：按值捕获</h2>
+      <p>
+        <code>catch (T e)</code> 对每个 <code>T</code> 都合法，而对多态的 <code>T</code>，它只拷贝异常对象的 <code>T</code> 那部分。对象剩下的部分连同 vtable 一起被切掉，所以你通过基类调用的 <code>what()</code> 就是基类的：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;stdexcept&gt;
+
+int main()
+{
+	try
+	{
+		throw ::std::out_of_range("index 7 is past the end");
+	}
+	catch (::std::exception e)
+	{
+		::fast_io::io::print("what ", ::fast_io::mnp::os_c_str(e.what()), "\n");
+	}
+}
+
+</code></pre>
+      <pre><code class="language-text">
+slice.cc: In function 'int main()':
+slice.cc:10:33: warning: catching polymorphic type 'class std::exception' by value [-Wcatch-value=]
+   10 |         catch (::std::exception e)
+      |                                 ^
+what std::exception
+</code></pre>
+      <p>
+        程序抛出的是 <code>out_of_range("index 7 is past the end")</code>，打印出来的却是 <code>std::exception</code>。消息不是丢了，而是被<em>切掉</em>了：处理块拥有的是 <code>::std::exception</code> 子对象，它的 <code>what()</code> 就照实这么说。如果你要求警告（<code>-Wcatch-value</code>），编译器会告诉你，而每份遗留风格指南里都有一条关于"按 <code>const&amp;</code> 捕获"的规定，原因正在于此。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 用什么替代它</h2>
+      <p>
+        赫布异常的世界里没有任何东西对应 <code>&lt;stdexcept&gt;</code>，也不需要。错误就是错误域里的一个错误码（<a href="/zhcn/docs/19.exceptionsandherbceptions/01.customdomains/">第19.1章</a>）：错误码说明发生了什么，错误域说明这个码是什么意思，而 <code>to_errc()</code> 给每个调用者一门共同语言。没有消息字符串要分配，没有基类要派生，没有可被切片的 <code>virtual what()</code>，也没有会写错的处理块顺序。
+      </p>
+      <p>
+        当某个遗留库还是把这样的异常扔到你面前时，它会以一个带错误域和消息的 <code>::std::error</code> 抵达（<a href="/zhcn/docs/19.exceptionsandherbceptions/06.interop/">第19.6章</a>），这正是互通层存在的全部理由。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/19.exceptionsandherbceptions/03.legacyexceptions/" class="prev-button">&larr; 第19.3章：C++ 遗留异常</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/19.exceptionsandherbceptions/05.systemerror/" class="next-button">第19.5章：&lt;system_error&gt; &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch19.8: The Issues With Legacy C++ Exceptions - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch19.8: The Issues With Legacy C++ Exceptions</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/19.exceptionsandherbceptions/08.issues/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The List</h2>
+      <p>
+        <a href="/docs/19.exceptionsandherbceptions/03.legacyexceptions/">Ch19.3</a> taught the
+        mechanism and <a href="/docs/19.exceptionsandherbceptions/04.stdexcept/">Ch19.4</a> and
+        <a href="/docs/19.exceptionsandherbceptions/05.systemerror/">Ch19.5</a> taught the two
+        libraries that come with it. This page is the bill. Five properties make legacy exceptions
+        unusable as a general error-reporting mechanism, and only the first one is about speed:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Issue</th>
+            <th>Consequence</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1. The failure path allocates and walks memory</td>
+            <td>Unbounded latency, a second failure mode, and no constant cost you can budget for</td>
+          </tr>
+          <tr>
+            <td>2. It needs a runtime the target may not have</td>
+            <td>Does not exist on freestanding, embedded, kernels, WebAssembly, or any
+              <code>-fno-exceptions</code> build</td>
+          </tr>
+          <tr>
+            <td>3. The error is not part of the type</td>
+            <td>No caller can see what a function may fail with; the contract is invisible
+              (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>)</td>
+          </tr>
+          <tr>
+            <td>4. It is unsound when combined with the rest of the language</td>
+            <td>A throw during unwinding, from a destructor, or out of <code>noexcept</code> calls
+              <code>::std::terminate</code></td>
+          </tr>
+          <tr>
+            <td>5. Two ABIs, no bridge</td>
+            <td>An exception cannot cross an Itanium &harr; MSVC boundary; tables, personality
+              routines and object layouts all differ</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. Issue 1: What One Throw Costs, Measured</h2>
+      <p>
+        A legacy throw is not a jump. It allocates the exception object with
+        <code>__cxa_allocate_exception</code> &mdash; a heap allocation, on the failure path, in
+        every implementation &mdash; then calls <code>__cxa_throw</code>, which starts a two-phase
+        walk of the stack that consults the personality routine for every frame, matches handlers
+        through the run-time type information, destroys everything it walked past, and only then
+        runs the handler.
+      </p>
+      <p>
+        The program below throws the same error two hundred thousand times: half as a legacy
+        <code>::std::runtime_error</code>, half as a herbception. Both loops are fed from the same
+        array so that nothing can be folded away, and both record how many errors reached the
+        handler.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;stdexcept&gt;
+
+namespace
+{
+constexpr ::std::size_t round_count{200000};
+constexpr ::std::size_t small_mask{3};
+
+inline ::std::int_least64_t to_ns(::fast_io::posix_timespec64 d) noexcept
+{
+	return static_cast&lt;::std::int_least64_t&gt;(d.tv_sec) * 1000000000 + static_cast&lt;::std::int_least64_t&gt;(d.tv_nsec);
+}
+
+/* the values live in memory the optimizer cannot reason about */
+::std::size_t count_legacy(::std::uint_least32_t const *values) throws
+{
+	::std::size_t caught{};
+	for (::std::size_t i{}; i != round_count; ++i)
+	{
+		try
+		{
+			if (values[i] == 0)
+			{
+				throw ::std::runtime_error("riser");
+			}
+		}
+		catch (::std::exception const &amp;)
+		{
+			++caught;
+		}
+	}
+	return caught;
+}
+
+::std::size_t count_herbception(::std::uint_least32_t const *values) throws
+{
+	::std::size_t caught{};
+	for (::std::size_t i{}; i != round_count; ++i)
+	{
+		try
+		{
+			if (values[i] == 0)
+			{
+				throw throws ::std::errc::invalid_argument;
+			}
+		}
+		catch throws (::std::error e)
+		{
+			++caught;
+		}
+	}
+	return caught;
+}
+} // namespace
+
+int main()
+{
+	auto *buffer{static_cast&lt;::std::uint_least32_t *&gt;(::std::malloc(round_count * sizeof(::std::uint_least32_t)))};
+	if (buffer == nullptr)
+	{
+		::std::abort();
+	}
+	for (::std::size_t i{}; i != round_count; ++i)
+	{
+		buffer[i] = static_cast&lt;::std::uint_least32_t&gt;((i * 2654435761u) &gt;&gt; 7) &amp; small_mask;
+	}
+	::std::size_t legacy_caught{};
+	::std::size_t herbception_caught{};
+	::std::int_least64_t legacy_ns{};
+	::std::int_least64_t herbception_ns{};
+	try
+	{
+		auto const start{::fast_io::posix_clock_gettime(::fast_io::posix_clock_id::monotonic_raw)};
+		legacy_caught = count_legacy(buffer);
+		legacy_ns = to_ns(::fast_io::posix_clock_gettime(::fast_io::posix_clock_id::monotonic_raw) - start);
+
+		auto const start2{::fast_io::posix_clock_gettime(::fast_io::posix_clock_id::monotonic_raw)};
+		herbception_caught = count_herbception(buffer);
+		herbception_ns = to_ns(::fast_io::posix_clock_gettime(::fast_io::posix_clock_id::monotonic_raw) - start2);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error ", e, "\n");
+		return 1;
+	}
+	::std::free(buffer);
+	::fast_io::io::print("caught        ", legacy_caught, " ", herbception_caught, " throws out of ", round_count, "\n"
+		"total ns      ", legacy_ns, " ", herbception_ns, "\n"
+		"ps per throw  ", legacy_ns * 1000 / static_cast&lt;::std::int_least64_t&gt;(legacy_caught), " ",
+		herbception_ns * 1000 / static_cast&lt;::std::int_least64_t&gt;(herbception_caught), "\n");
+}
+
+</code></pre>
+      <pre><code class="language-text">
+caught        49999 49999 throws out of 200000
+total ns      46726099 44253
+ps per throw  934540 885
+</code></pre>
+      <p>
+        Roughly one microsecond against one nanosecond. The interesting number is not the ratio;
+        it is that the legacy failure path <em>allocates</em> and <em>walks memory</em>, which
+        means it has a second way to fail (out of memory while reporting an error), a second way to
+        be slow (cache misses on the frame tables), and no constant bound at all. The herbception
+        path is two registers and a conditional jump, which is why the compiler can delete it
+        entirely when nothing uses the result.
+      </p>
+      <p>
+        There is a version of this measurement that matters more than the average: the
+        <em>worst case</em>. A legacy throw walks every frame between the throw and the handler,
+        consults tables that must be registered with the loader, and can trigger a linear scan of
+        loaded objects on some platforms. In a program with deep stacks and many shared libraries
+        the same throw can cost orders of magnitude more than the nanosecond-per-frame average,
+        which is why legacy exceptions are unsuitable for anything with a latency requirement.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Issue 2: What It Requires From the Environment</h2>
+      <p>
+        Compile a legacy-throwing function to an object file and ask what it still needs:
+      </p>
+      <pre><code class="language-text">
+__cxa_allocate_exception
+__cxa_throw
+__cxa_begin_catch
+__cxa_end_catch
+__gxx_personality_v0
+_Unwind_Resume
+
+</code></pre>
+      <p>
+        Four of those are the exception machinery itself: allocate, throw, begin/end catch, and the
+        itanium personality routine <code>__gxx_personality_v0</code> &mdash; the function the
+        unwinder calls to decide whether a frame catches anything (plus
+        <code>_Unwind_Resume</code> from the platform unwinder). For those calls to work, a binary
+        also needs:
+      </p>
+      <ul>
+        <li>an unwinder: a stack walker that understands the target's frame layout;</li>
+        <li>frame tables (<code>.eh_frame</code>) and a language exception table
+          (<code>.gcc_except_table</code>) for every function on the path, registered with the
+          loader so the walker can find them;</li>
+        <li>a personality routine per ABI, and a runtime that owns the exception object's
+          lifetime;</li>
+        <li>RTTI: the type information needed to match a handler.</li>
+      </ul>
+      <p>
+        That is a stack of platform-owned components, and each one can be missing:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Environment</th>
+            <th>Why legacy exceptions are not available</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Freestanding, kernels, bootloaders, embedded</td>
+            <td>No unwinder, no loader to register tables with, no <code>__cxa_*</code> runtime. The
+              tables are size you cannot pay, and the failure path would allocate</td>
+          </tr>
+          <tr>
+            <td>WebAssembly / WASI</td>
+            <td>Unwinding is not part of the base target: the exception proposal and the JS-hosted
+              variants all add engine surface, and toolchains ship <code>-fno-exceptions</code> by
+              default</td>
+          </tr>
+          <tr>
+            <td>Any build with <code>-fno-exceptions</code></td>
+            <td>The compiler refuses the keywords outright. Many toolchains, game consoles, mobile
+              SDKs and C++ standard library builds are configured this way</td>
+          </tr>
+          <tr>
+            <td>Across a GNU &harr; MSVC boundary</td>
+            <td>Itanium and Microsoft exception ABIs are different: different tables, different
+              personality routines, different object layout. An exception cannot cross, and the
+              catch site does not exist for it</td>
+          </tr>
+          <tr>
+            <td>Inside a <code>noexcept</code> function</td>
+            <td>An exception escaping it calls <code>::std::terminate</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        So the honest statement is not "legacy exceptions are slow". It is:
+        <strong>on most targets you will ship to, they do not exist at all</strong>, and where they
+        do exist they are a heap allocation and a stack walk on the failure path. A library that
+        reports failures with <code>throw</code> is a library that cannot be used in a kernel, in a
+        Wasm module, on a board, or in any project compiled with <code>-fno-exceptions</code>. That
+        is most projects.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Issue 3: The Contract Is Invisible</h2>
+      <p>
+        A legacy exception is not in the function's type. This is the issue that costs the most in
+        daily work, and it is the one that has nothing to do with performance:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Signature</th>
+            <th>What the caller learns</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>int parse(char const *text);</code></td>
+            <td>Nothing</td>
+          </tr>
+          <tr>
+            <td><code>int parse(char const *text) noexcept(false);</code></td>
+            <td>"It may throw something" &mdash; and that is all the language lets it say</td>
+          </tr>
+          <tr>
+            <td><code>int parse(::std::string_view text) throws;</code></td>
+            <td>The only failures that can arrive are <code>::std::error</code> values, and the
+              compiler enforces that every call site handles them</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Every function in a legacy codebase has that second signature whether it is written or not,
+        so the failure surface of a program is discovered by reading implementations or by running
+        it. Compare the herbception signature, where the compiler refuses to let a
+        <code>throws</code> call go unhandled
+        (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>): the set of functions that can
+        fail, and where the failure is handled, is checked mechanically.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Issue 4: Unsoundness Around Unwinding</h2>
+      <p>
+        Three situations have no correct behaviour, and the runtime resolves all three by killing
+        the process:
+      </p>
+      <ul>
+        <li>
+          <strong>A destructor throws while another exception is unwinding.</strong> There are now
+          two exceptions in flight and the runtime cannot choose one, so it calls
+          <code>::std::terminate</code>. Every legacy codebase contains destructors that "cannot
+          fail" because the alternative is undefined termination.
+        </li>
+        <li>
+          <strong>A throw escapes a <code>noexcept</code> function.</strong> Move constructors are
+          <code>noexcept</code> for a reason, and a legacy move that throws turns a container
+          resize into a dead process.
+        </li>
+        <li>
+          <strong>An exception is thrown where no handler exists in the whole program.</strong>
+          <code>::std::terminate</code> again, after an unwinding pass that destroyed objects on
+          the way to nothing.
+        </li>
+      </ul>
+      <p>
+        None of this is a bug in an implementation; it is the mechanism. <code>std::terminate</code>
+        exists precisely because a legacy exception can arrive at a place where the language cannot
+        proceed &mdash; which
+        <a href="/docs/19.exceptionsandherbceptions/02.crash/">Ch19.2</a> reframes as a plain
+        fact: some situations end the process, and it is better to end it deliberately.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Issue 5: Two ABIs</h2>
+      <p>
+        The Itanium C++ ABI (GCC, Clang, everything on Linux, macOS, and the BSDs) and the Microsoft
+        ABI use different exception tables, different personality routines, different object
+        layouts for the thrown object, and different unwinder entry points. A legacy exception
+        thrown in a GNU-compiled DLL cannot be caught by MSVC-compiled code, and vice versa: the
+        catch site would have to know which runtime to ask, and the object layouts do not agree.
+      </p>
+      <p>
+        This is the reason the herbception runtime carries
+        <code>::std::legacy_exception_abi</code> with <code>itanium</code>,
+        <code>microsoft</code> and <code>platform</code> values
+        (<a href="/docs/19.exceptionsandherbceptions/06.interop/">Ch19.6</a>), and the reason a
+        two-word <code>::std::error</code> is the only thing that can cross such a boundary: two
+        words of C ABI are the same in both worlds, a C++ exception object is not.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. The Verdict</h2>
+      <p>
+        The mechanisms in this book exist because of these five issues, in that order:
+      </p>
+      <ul>
+        <li>
+          <strong>Errors are two words on the return path</strong>, so the failure path is the
+          success path's cost plus a branch &mdash; no allocation, no walk, no table
+          (<a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>).
+        </li>
+        <li>
+          <strong>Every function states its contract</strong>, and the compiler enforces handling
+          (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>).
+        </li>
+        <li>
+          <strong>Corruption ends the process</strong> and is not reported as an error
+          (<a href="/docs/19.exceptionsandherbceptions/02.crash/">Ch19.2</a>).
+        </li>
+        <li>
+          <strong>The mechanism works freestanding</strong>, which is
+          <a href="/docs/20.freestanding/">Ch20</a>'s subject.
+        </li>
+        <li>
+          <strong>The build removes the old mechanism entirely</strong>, so it cannot come back
+          (<a href="/docs/19.exceptionsandherbceptions/07.banflags/">Ch19.7</a>).
+        </li>
+      </ul>
+      <p>
+        You still have to read legacy code, and when a library forces a legacy exception into your
+        program there is one supported way to meet it
+        (<a href="/docs/19.exceptionsandherbceptions/06.interop/">Ch19.6</a>). But you never write
+        one, and you never design an interface around one again.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/19.exceptionsandherbceptions/07.banflags/" class="prev-button">&larr; Ch19.7: Ban Legacy Exceptions With Your Build Flags</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/19.exceptionsandherbceptions/09.allocatorflags/" class="next-button">Ch19.9: fast_io's Allocator Flags &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

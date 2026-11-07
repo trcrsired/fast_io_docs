@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch19.3: C++ Legacy Exceptions - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch19.3: C++ Legacy Exceptions</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/19.exceptionsandherbceptions/03.legacyexceptions/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. What the Feature Is</h2>
+      <p>
+        The C++ exception mechanism is the one this book refers to as
+        <strong>legacy exceptions</strong>. It has three keywords, one library class to derive
+        from, and one compiler flag, <code>-fexceptions</code>, which is on by default. It is
+        taught here because <strong>you will read it</strong>: it is in the standard library, in
+        every older codebase, and in every C++ interview. That it is not what you should write is
+        <a href="/docs/19.exceptionsandherbceptions/08.issues/">Ch19.8</a>'s subject.
+      </p>
+      <pre><code class="language-cpp">
+throw some_value;                                    // report a failure
+try { ... } catch (::std::exception const &amp;e) { }  // handle the ones you know
+try { ... } catch (...) { }                          // handle anything that is left
+throw;                                               // re-raise the current exception
+</code></pre>
+      <p>
+        Those four lines plus <code>-fexceptions</code> are the entire surface. Everything else is
+        detail about what the runtime does when the keyword runs.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. The Rules, Precisely</h2>
+      <p>
+        Because herbceptions are two words on the return path
+        (<a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>), it is easy to assume that
+        <code>throw</code> is the same shape. It is not, and the differences are what you have to
+        know to read legacy code without misreading it:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Rule</th>
+            <th>What it means</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Any copyable type may be thrown</td>
+            <td><code>throw 42;</code> is legal. Do not do it: an <code>int</code> carries no
+              message and no type for a handler to match on</td>
+          </tr>
+          <tr>
+            <td>The object is <em>copied</em> into runtime-owned storage</td>
+            <td><code>throw local_variable;</code> throws a copy, and the copy lives until the last
+              handler for it exits. Throwing a copy also means your type must be copyable, and that
+              copying happens at the worst possible moment</td>
+          </tr>
+          <tr>
+            <td>Throw an object, catch by <code>const&amp;</code></td>
+            <td><code>catch (T const &amp;e)</code> binds the runtime copy without another copy.
+              <code>catch (T e)</code> copies it, and for a polymorphic <code>T</code> it
+              <em>slices</em> the object &mdash; see
+              <a href="/docs/19.exceptionsandherbceptions/04.stdexcept/">Ch19.4</a></td>
+          </tr>
+          <tr>
+            <td>Handlers are tried in order, first match wins</td>
+            <td>So <code>catch (::std::exception const &amp;e)</code> must come after
+              <code>catch (::std::invalid_argument const &amp;e)</code>, or it swallows it</td>
+          </tr>
+          <tr>
+            <td>Matching uses the base classes too</td>
+            <td>A <code>throw ::std::invalid_argument</code> is caught by a handler for
+              <code>::std::logic_error</code> or <code>::std::exception</code>, because those are
+              its bases</td>
+          </tr>
+          <tr>
+            <td>Frames are destroyed on the way out</td>
+            <td>Automatic objects between the <code>throw</code> and the handler are destroyed, in
+              reverse order of construction, and the process of getting there is the
+              <em>unwinding</em></td>
+          </tr>
+          <tr>
+            <td>A throw from a destructor during unwinding terminates</td>
+            <td>The runtime has two exceptions in flight and no way to choose. This is why
+              destructors are <code>noexcept</code> in this book
+              (<a href="/docs/14.fiverules/">Ch14</a>)</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>3. A Program That Uses All of It</h2>
+      <p>
+        Two things are worth watching in a real run: the order the destructors run in, and the fact
+        that a handler for a base class accepts a derived exception. A destructor cannot print
+        &mdash; it is <code>noexcept</code> &mdash; so this program records into a buffer and prints
+        the buffer from <code>main</code>:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;stdexcept&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+namespace
+{
+char log_buffer[256]{};
+::std::size_t log_length{};
+
+void record(char const *data, ::std::size_t size) noexcept
+{
+	for (::std::size_t i{}; i != size &amp;&amp; log_length != sizeof(log_buffer); ++i)
+	{
+		log_buffer[log_length] = data[i];
+		++log_length;
+	}
+}
+
+struct tracer
+{
+	::fast_io::string_view name;
+	explicit tracer(::fast_io::string_view n) noexcept
+		: name(n)
+	{}
+	tracer(tracer const &amp;) = delete;
+	tracer &amp;operator=(tracer const &amp;) = delete;
+	~tracer()
+	{
+		record(name.data(), name.size());
+		record(";", 1);
+	}
+};
+
+int parse(char const *text) noexcept(false)
+{
+	tracer const outer{"outer"};
+	tracer const inner{"inner"};
+	throw ::std::invalid_argument(text);
+}
+
+} // namespace
+
+int main()
+{
+	try
+	{
+		parse("7 is not a number");
+	}
+	catch (::std::logic_error const &amp;e)
+	{
+		::fast_io::io::print("logic_error ", ::fast_io::mnp::os_c_str(e.what()), "\n");
+	}
+	catch (::std::exception const &amp;e)
+	{
+		::fast_io::io::print("exception   ", ::fast_io::mnp::os_c_str(e.what()), "\n");
+	}
+	::fast_io::io::print("destructors ", ::fast_io::mnp::os_c_str(log_buffer, log_length), "\n");
+}
+
+</code></pre>
+      <pre><code class="language-text">
+logic_error 7 is not a number
+destructors inner;outer;
+</code></pre>
+      <p>
+        <code>inner;outer;</code> is the unwinding: the two <code>tracer</code> objects in
+        <code>parse</code> were destroyed in reverse order of construction, between the
+        <code>throw</code> and the handler, before a single line of the handler ran. And the
+        handler that caught the <code>::std::invalid_argument</code> was written for
+        <code>::std::logic_error</code>, its base &mdash; which is why the type hierarchy in
+        <a href="/docs/19.exceptionsandherbceptions/04.stdexcept/">Ch19.4</a> matters.
+      </p>
+      <p>
+        One thing to notice about the signature: <code>noexcept(false)</code>. That is the legacy
+        spelling of "this function may throw", and it is the only error contract the old mechanism
+        can state. If the function were plain <code>noexcept</code>, the throw would call
+        <code>::std::terminate</code> instead of unwinding, which is why every legacy codebase is
+        full of functions whose contract is invisible.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Storing an Exception Instead of Throwing It</h2>
+      <p>
+        Sometimes you must catch an exception and keep it &mdash; to rethrow it from another
+        thread, to store it in a <code>future</code>, to attach it to a result. The type for that
+        is <code>::std::exception_ptr</code>, and you get one with
+        <code>::std::current_exception()</code> inside a handler:
+      </p>
+      <pre><code class="language-cpp">
+try
+{
+	work();
+}
+catch (...)
+{
+	::std::exception_ptr saved{::std::current_exception()};   // keeps the exception alive
+	// ... hand `saved` to another thread or store it ...
+	::std::rethrow_exception(saved);                          // re-raise it later
+}
+</code></pre>
+      <p>
+        <code>exception_ptr</code> is reference-counted, so copying it is cheap-ish, and the
+        exception object lives as long as the last pointer to it. It is a heap allocation with a
+        reference count, a type-erased handle and an ABI-defined layout &mdash; and it is exactly
+        the kind of machinery herbceptions replaced with two words, except that a herbception is a
+        value you can copy freely and compare.
+      </p>
+      <p>
+        There is also <code>::std::nested_exception</code> and
+        <code>::std::rethrow_if_nested</code> for "this failure was caused by that failure". Both
+        exist because the mechanism has no way to carry a second error value; a herbception domain
+        just has a code that says what the failure was
+        (<a href="/docs/19.exceptionsandherbceptions/01.customdomains/">Ch19.1</a>).
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Reading It Is the Job; Writing It Is Not</h2>
+      <p>
+        You now know everything you need to read a legacy codebase: what a <code>throw</code>
+        costs you in understanding, what a handler matches, what unwinding destroys, and what
+        <code>exception_ptr</code> keeps alive. The two pages that follow fill in the two class
+        libraries that come with the mechanism
+        (<a href="/docs/19.exceptionsandherbceptions/04.stdexcept/">Ch19.4</a>,
+        <a href="/docs/19.exceptionsandherbceptions/05.systemerror/">Ch19.5</a>), and then
+        <a href="/docs/19.exceptionsandherbceptions/06.interop/">Ch19.6</a> shows the one supported
+        way to hand a failure between the two mechanisms.
+      </p>
+      <p>
+        What you must <em>not</em> take from this page is "so I can use it in my new code". Legacy
+        exceptions are not available on most targets you will ship to, and the build flags in
+        <a href="/docs/19.exceptionsandherbceptions/07.banflags/">Ch19.7</a> make that a compile
+        error rather than a surprise. The reasons are in
+        <a href="/docs/19.exceptionsandherbceptions/08.issues/">Ch19.8</a>.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/19.exceptionsandherbceptions/02.crash/" class="prev-button">&larr; Ch19.2: std::abort(), std::terminate() and __builtin_trap()</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/19.exceptionsandherbceptions/04.stdexcept/" class="next-button">Ch19.4: &lt;stdexcept&gt; &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

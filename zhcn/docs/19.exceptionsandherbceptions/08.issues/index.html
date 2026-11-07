@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第19.8章：C++ 遗留异常的问题 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第19.8章：C++ 遗留异常的问题</h1>
+    <p class="lang-switch"><a href="/docs/19.exceptionsandherbceptions/08.issues/">English</a></p>
+
+    <section>
+      <h2>1. 清单</h2>
+      <p>
+        <a href="/zhcn/docs/19.exceptionsandherbceptions/03.legacyexceptions/">第19.3章</a> 讲了机制，<a href="/zhcn/docs/19.exceptionsandherbceptions/04.stdexcept/">第19.4章</a> 和 <a href="/zhcn/docs/19.exceptionsandherbceptions/05.systemerror/">第19.5章</a> 讲了随它一起提供的两个库。这一页是账单。有五个性质让遗留异常无法用作通用的错误上报机制，而其中只有第一个和速度有关：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>问题</th>
+            <th>后果</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1. 失败路径会分配内存并遍历内存</td>
+            <td>延迟没有上界、多出一种失败方式，而且没有一个你可以做预算的固定开销</td>
+          </tr>
+          <tr>
+            <td>2. 它需要一个目标上可能没有的运行时</td>
+            <td>
+              在 freestanding、嵌入式、内核、WebAssembly 以及任何 <code>-fno-exceptions</code> 构建里都不存在
+            </td>
+          </tr>
+          <tr>
+            <td>3. 错误不是类型的一部分</td>
+            <td>
+              没有调用者能看出一个函数可能失败成什么样；契约不可见（<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）
+            </td>
+          </tr>
+          <tr>
+            <td>4. 与语言的其他部分组合时不健全</td>
+            <td>
+              展开途中抛出、析构函数里抛出、或从 <code>noexcept</code> 里逃出，都会调用 <code>::std::terminate</code>
+            </td>
+          </tr>
+          <tr>
+            <td>5. 两套 ABI，没有桥</td>
+            <td>
+              异常无法跨越 Itanium &harr; MSVC 边界；表、personality routine 和对象布局全都不同
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. 问题一：一次抛出到底花多少（实测）</h2>
+      <p>
+        遗留异常的一次抛出不是一次跳转。它先用 <code>__cxa_allocate_exception</code> 分配异常对象 —— 在每一个实现里都是失败路径上的一次堆分配 —— 然后调用 <code>__cxa_throw</code>，后者开始一次两阶段的栈遍历，对每一帧都去问 personality routine，通过运行时类型信息匹配处理块，析构一路走过的所有东西，最后才运行处理块。
+      </p>
+      <p>
+        下面的程序把同一个错误抛出二十万次：一半作为遗留的 <code>::std::runtime_error</code>，一半作为赫布异常。两个循环都由同一个数组驱动，因此什么都不会被折叠掉，而且两者都记录有多少次错误抵达了处理块。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;stdexcept&gt;
+
+namespace
+{
+constexpr ::std::size_t round_count{200000};
+constexpr ::std::size_t small_mask{3};
+
+inline ::std::int_least64_t to_ns(::fast_io::posix_timespec64 d) noexcept
+{
+	return static_cast&lt;::std::int_least64_t&gt;(d.tv_sec) * 1000000000 + static_cast&lt;::std::int_least64_t&gt;(d.tv_nsec);
+}
+
+/* the values live in memory the optimizer cannot reason about */
+::std::size_t count_legacy(::std::uint_least32_t const *values) throws
+{
+	::std::size_t caught{};
+	for (::std::size_t i{}; i != round_count; ++i)
+	{
+		try
+		{
+			if (values[i] == 0)
+			{
+				throw ::std::runtime_error("riser");
+			}
+		}
+		catch (::std::exception const &amp;)
+		{
+			++caught;
+		}
+	}
+	return caught;
+}
+
+::std::size_t count_herbception(::std::uint_least32_t const *values) throws
+{
+	::std::size_t caught{};
+	for (::std::size_t i{}; i != round_count; ++i)
+	{
+		try
+		{
+			if (values[i] == 0)
+			{
+				throw throws ::std::errc::invalid_argument;
+			}
+		}
+		catch throws (::std::error e)
+		{
+			++caught;
+		}
+	}
+	return caught;
+}
+} // namespace
+
+int main()
+{
+	auto *buffer{static_cast&lt;::std::uint_least32_t *&gt;(::std::malloc(round_count * sizeof(::std::uint_least32_t)))};
+	if (buffer == nullptr)
+	{
+		::std::abort();
+	}
+	for (::std::size_t i{}; i != round_count; ++i)
+	{
+		buffer[i] = static_cast&lt;::std::uint_least32_t&gt;((i * 2654435761u) &gt;&gt; 7) &amp; small_mask;
+	}
+	::std::size_t legacy_caught{};
+	::std::size_t herbception_caught{};
+	::std::int_least64_t legacy_ns{};
+	::std::int_least64_t herbception_ns{};
+	try
+	{
+		auto const start{::fast_io::posix_clock_gettime(::fast_io::posix_clock_id::monotonic_raw)};
+		legacy_caught = count_legacy(buffer);
+		legacy_ns = to_ns(::fast_io::posix_clock_gettime(::fast_io::posix_clock_id::monotonic_raw) - start);
+
+		auto const start2{::fast_io::posix_clock_gettime(::fast_io::posix_clock_id::monotonic_raw)};
+		herbception_caught = count_herbception(buffer);
+		herbception_ns = to_ns(::fast_io::posix_clock_gettime(::fast_io::posix_clock_id::monotonic_raw) - start2);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error ", e, "\n");
+		return 1;
+	}
+	::std::free(buffer);
+	::fast_io::io::print("caught        ", legacy_caught, " ", herbception_caught, " throws out of ", round_count, "\n"
+		"total ns      ", legacy_ns, " ", herbception_ns, "\n"
+		"ps per throw  ", legacy_ns * 1000 / static_cast&lt;::std::int_least64_t&gt;(legacy_caught), " ",
+		herbception_ns * 1000 / static_cast&lt;::std::int_least64_t&gt;(herbception_caught), "\n");
+}
+
+</code></pre>
+      <pre><code class="language-text">
+caught        49999 49999 throws out of 200000
+total ns      46726099 44253
+ps per throw  934540 885
+</code></pre>
+      <p>
+        大约一微秒对一纳秒。有意思的不是这个比值，而是遗留的失败路径会<em>分配</em>并且<em>遍历内存</em>，这意味着它还有第二种失败方式（在报告错误的时候内存不足）、第二种变慢方式（帧表上的缓存缺失），而且根本没有常数上界。赫布异常的路径就是两个寄存器加一个条件跳转，这甚至让编译器在结果无人使用时把它整个删掉。
+      </p>
+      <p>
+        这个测量还有一个比平均值更要紧的版本：<em>最坏情况</em>。一次遗留抛出会遍历从抛出点到处理块之间的每一帧，查询那些必须在加载器里注册过的表，在某些平台上还可能触发对已加载对象的一次线性扫描。在一个栈很深、共享库很多的程序里，同一次抛出可能比"每帧一纳秒"的平均值贵上好几个数量级 —— 这就是为什么遗留异常不适合任何有延迟要求的场合。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 问题二：它对环境有什么要求</h2>
+      <p>
+        把一个会抛遗留异常的函数编译成目标文件，然后问它还缺什么：
+      </p>
+      <pre><code class="language-text">
+__cxa_allocate_exception
+__cxa_throw
+__cxa_begin_catch
+__cxa_end_catch
+__gxx_personality_v0
+_Unwind_Resume
+
+</code></pre>
+      <p>
+        其中四个就是异常机制本身：分配、抛出、进入/退出 catch，以及 itanium 的 personality routine <code>__gxx_personality_v0</code> —— 那是 unwinder 用来判断某一帧是否捕获任何东西的函数（此外还有平台 unwinder 里的 <code>_Unwind_Resume</code>）。要让这些调用工作，一个二进制还需要：
+      </p>
+      <ul>
+        <li>一个 unwinder：一个理解目标帧布局的栈遍历器；</li>
+        <li>
+          路径上每个函数的帧表（<code>.eh_frame</code>）和语言异常表（<code>.gcc_except_table</code>），并且要在加载器里注册，好让遍历器找得到；
+        </li>
+        <li>
+          每套 ABI 一个 personality routine，以及一个负责异常对象生命周期的运行时；
+        </li>
+        <li>RTTI：用来匹配处理块所需的类型信息。</li>
+      </ul>
+      <p>
+        这是一整摞由平台掌管的组件，而其中任何一个都可能不存在：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>环境</th>
+            <th>为什么遗留异常不可用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>freestanding、内核、引导程序、嵌入式</td>
+            <td>
+              没有 unwinder、没有可以注册表的加载器、也没有 <code>__cxa_*</code> 运行时。这些表本身就是你付不起的体积，而失败路径还会分配
+            </td>
+          </tr>
+          <tr>
+            <td>WebAssembly / WASI</td>
+            <td>
+              展开栈并不属于基础目标：异常提案和各种 JS 宿主变体都要给引擎加表面积，而工具链默认就发布 <code>-fno-exceptions</code>
+            </td>
+          </tr>
+          <tr>
+            <td>任何使用 <code>-fno-exceptions</code> 的构建</td>
+            <td>
+              编译器直接从语法上拒绝这些关键字。很多工具链、游戏主机、移动 SDK 以及 C++ 标准库的构建就是这样配置的
+            </td>
+          </tr>
+          <tr>
+            <td>跨越 GNU &harr; MSVC 边界</td>
+            <td>
+              Itanium 与 Microsoft 的异常 ABI 不同：表不同、personality routine 不同、对象布局不同。异常无法跨越，对端的捕获点也根本不存在
+            </td>
+          </tr>
+          <tr>
+            <td>在 <code>noexcept</code> 函数内部</td>
+            <td>逃出它的异常会调用 <code>::std::terminate</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        所以诚实的说法不是"遗留异常慢"。而是：<strong>在你大多要发布到的目标上，它根本不存在</strong>；而在它存在的地方，它是失败路径上的一次堆分配加一次栈遍历。一个用 <code>throw</code> 报告失败的库，无法在内核里、在 Wasm 模块里、在板子上、或在任何以 <code>-fno-exceptions</code> 编译的项目里使用。而那是大多数项目。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 问题三：契约不可见</h2>
+      <p>
+        遗留异常不在函数的类型里。这是日常工作中代价最大的问题，也是和性能毫无关系的那个：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>签名</th>
+            <th>调用者能知道什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>int parse(char const *text);</code></td>
+            <td>什么都不知道</td>
+          </tr>
+          <tr>
+            <td><code>int parse(char const *text) noexcept(false);</code></td>
+            <td>"它可能抛出某种东西" —— 而语言只允许它说到这里</td>
+          </tr>
+          <tr>
+            <td><code>int parse(::std::string_view text) throws;</code></td>
+            <td>
+              唯一可能抵达的失败是 <code>::std::error</code> 值，而且编译器强制每个调用点都处理它们
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        遗留代码库里每个函数都有第二个签名，无论它写没写出来，所以一个程序的失败面只能靠读实现或靠运行它来发现。相比之下，赫布异常的签名里编译器根本不允许 <code>throws</code> 调用不被处理（<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）：哪些函数会失败、失败在哪里被处理，都是机械检查的。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 问题四：展开周围的不健全</h2>
+      <p>
+        有三种情形没有正确的行为，而运行时对这三种都是用杀掉进程来解决的：
+      </p>
+      <ul>
+        <li>
+          <strong>一个异常正在展开时，析构函数又抛出。</strong>现在有两个异常在飞，运行时无法选择，于是调用 <code>::std::terminate</code>。每个遗留代码库里都装着一些"不可能失败"的析构函数，因为另一条路就是未定义的终止。
+        </li>
+        <li>
+          <strong>抛出逃出了一个 <code>noexcept</code> 函数。</strong>移动构造函数之所以是 <code>noexcept</code>，是有原因的；而一个会抛出的遗留移动操作，会把一次容器扩容变成一次死进程。
+        </li>
+        <li>
+          <strong>在整个程序里都不存在处理块的地方抛出了异常。</strong>又是一次 <code>::std::terminate</code>，而且是在一次把沿途对象都析构掉、走向虚无的展开之后。
+        </li>
+      </ul>
+      <p>
+        这些都不是实现的 bug，而是机制本身。<code>std::terminate</code> 之所以存在，正是因为遗留异常可能抵达语言无法继续的地方 —— 而 <a href="/zhcn/docs/19.exceptionsandherbceptions/02.crash/">第19.2章</a> 把这件事重新表述成一个朴素的事实：有些情形就是要结束进程，而有意识地结束它更好。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 问题五：两套 ABI</h2>
+      <p>
+        Itanium C++ ABI（GCC、Clang、Linux/macOS/BSD 上的一切）和 Microsoft ABI 使用不同的异常表、不同的 personality routine、被抛出对象的不同布局，以及不同的 unwinder 入口。在 GNU 编译的 DLL 里抛出的遗留异常，无法被 MSVC 编译的代码捕获，反之亦然：捕获点得知道该问哪个运行时，而对象布局也彼此不符。
+      </p>
+      <p>
+        这就是为什么赫布异常运行时带着取值 <code>itanium</code>、<code>microsoft</code> 和 <code>platform</code> 的 <code>::std::legacy_exception_abi</code>（<a href="/zhcn/docs/19.exceptionsandherbceptions/06.interop/">第19.6章</a>），也是为什么两个字组成的 <code>::std::error</code> 是唯一能跨越这种边界的东西：两个字的 C ABI 在两个世界里都一样，而一个 C++ 异常对象不一样。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 结论</h2>
+      <p>
+        本书里的各种机制之所以存在，正是因为这五个问题，顺序也一致：
+      </p>
+      <ul>
+        <li>
+          <strong>错误是返回路径上的两个字</strong>，所以失败路径的代价就是成功路径的代价加一个分支 —— 没有分配、没有遍历、没有表（<a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>）。
+        </li>
+        <li>
+          <strong>每个函数都声明自己的契约</strong>，而编译器强制处理（<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）。
+        </li>
+        <li>
+          <strong>损坏就结束进程</strong>，不作为错误上报（<a href="/zhcn/docs/19.exceptionsandherbceptions/02.crash/">第19.2章</a>）。
+        </li>
+        <li>
+          <strong>机制在 freestanding 下可用</strong>，那是 <a href="/zhcn/docs/20.freestanding/">第20章</a> 的主题。
+        </li>
+        <li>
+          <strong>构建把旧机制彻底删掉</strong>，所以它回不来（<a href="/zhcn/docs/19.exceptionsandherbceptions/07.banflags/">第19.7章</a>）。
+        </li>
+      </ul>
+      <p>
+        你仍然得读遗留代码；而当某个库硬把遗留异常塞进你的程序时，只有一种受支持的应对方式（<a href="/zhcn/docs/19.exceptionsandherbceptions/06.interop/">第19.6章</a>）。但你永远不写它，也永远不再围绕它设计接口。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/19.exceptionsandherbceptions/07.banflags/" class="prev-button">&larr; 第19.7章：用构建选项禁止遗留异常</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/19.exceptionsandherbceptions/09.allocatorflags/" class="next-button">第19.9章：fast_io 的分配器选项 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

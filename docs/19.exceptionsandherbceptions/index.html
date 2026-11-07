@@ -44,7 +44,7 @@
             <td>A heap allocation per throw, a two-phase stack walk, frame tables in every
               function, a personality routine, RTTI for handler matching</td>
             <td>Read-only. Removed from every build by flag
-              (<a href="/docs/19.exceptionsandherbceptions/04.banflags/">Ch19.4</a>)</td>
+              (<a href="/docs/19.exceptionsandherbceptions/07.banflags/">Ch19.4</a>)</td>
           </tr>
         </tbody>
       </table>
@@ -52,7 +52,7 @@
       <p>
         The short version of the second row: legacy exceptions are not merely slow (about a
         microsecond per throw, measured in
-        <a href="/docs/19.exceptionsandherbceptions/02.legacyexceptions/">Ch19.2</a>). They are
+        <a href="/docs/19.exceptionsandherbceptions/08.issues/">Ch19.8</a>). They are
         <strong>unavailable</strong> on most targets you will ship to &mdash; freestanding, kernels,
         bootloaders, embedded boards, WebAssembly &mdash; because the unwinder, the loader
         registration and the <code>__cxa_*</code> runtime they depend on do not exist there.
@@ -70,11 +70,15 @@
         everything.
       </p>
       <p>
-        Read <a href="/docs/19.exceptionsandherbceptions/02.legacyexceptions/">19.2</a> and
-        <a href="/docs/19.exceptionsandherbceptions/03.interop/">19.3</a> as recognition training
-        for the code you will inherit, and as the two directions of the bridge you will need on the
-        day a dependency hands you a <code>std::runtime_error</code>.
-        <a href="/docs/19.exceptionsandherbceptions/04.banflags/">19.4</a> is four lines to copy
+        Read <a href="/docs/19.exceptionsandherbceptions/02.crash/">19.2</a> first: it decides what
+        counts as an error at all, and everything else in the chapter follows from it. Then read
+        <a href="/docs/19.exceptionsandherbceptions/03.legacyexceptions/">19.3</a>,
+        <a href="/docs/19.exceptionsandherbceptions/04.stdexcept/">19.4</a> and
+        <a href="/docs/19.exceptionsandherbceptions/05.systemerror/">19.5</a> as recognition
+        training for the code you will inherit, and
+        <a href="/docs/19.exceptionsandherbceptions/06.interop/">19.6</a> as the two directions of
+        the bridge you will need the day a dependency hands you a <code>std::runtime_error</code>.
+        <a href="/docs/19.exceptionsandherbceptions/07.banflags/">19.7</a> is five flags to copy
         into your build right now.
       </p>
 
@@ -84,15 +88,39 @@
           <code>::std::error_domain_singleton</code>, the one that is mandatory, the
           <code>error_domain&lt;T&gt;</code> specialization, a complete CSV domain, and how to
           replace a shipped domain when the environment demands it</li>
-        <li><a href="/docs/19.exceptionsandherbceptions/02.legacyexceptions/">Ch19.2: C++ Legacy
-          Exceptions</a> &mdash; how the old mechanism works, what one throw costs measured, the
-          runtime symbols it needs, and the environments where it simply does not exist</li>
-        <li><a href="/docs/19.exceptionsandherbceptions/03.interop/">Ch19.3: Crossing the
+        <li><a href="/docs/19.exceptionsandherbceptions/02.crash/">Ch19.2:
+          <code>std::abort()</code>, <code>std::terminate()</code> and
+          <code>__builtin_trap()</code></a> &mdash; why allocation failure, size overflow and a
+          broken invariant are not errors, the three ways to end a process, and what fast_io
+          crashes on</li>
+        <li><a href="/docs/19.exceptionsandherbceptions/03.legacyexceptions/">Ch19.3: C++ Legacy
+          Exceptions</a> &mdash; how the mechanism works and how to read it: what a throw copies,
+          what a handler matches, what unwinding destroys, and what
+          <code>exception_ptr</code> keeps alive</li>
+        <li><a href="/docs/19.exceptionsandherbceptions/04.stdexcept/">Ch19.4:
+          <code>&lt;stdexcept&gt;</code></a> &mdash; the <code>logic_error</code> /
+          <code>runtime_error</code> tree, what <code>what()</code> actually returns, and the
+          slicing bug the header invites</li>
+        <li><a href="/docs/19.exceptionsandherbceptions/05.systemerror/">Ch19.5:
+          <code>&lt;system_error&gt;</code></a> &mdash; <code>error_code</code>,
+          <code>error_category</code> with its vtable and its ABI scar, and why the design
+          fragmented instead of unifying</li>
+        <li><a href="/docs/19.exceptionsandherbceptions/06.interop/">Ch19.6: Crossing the
           Boundary</a> &mdash; legacy to herbceptions is automatic, herbceptions to legacy is
           <code>throw_legacy_exception()</code>, and what is lost on the way</li>
-        <li><a href="/docs/19.exceptionsandherbceptions/04.banflags/">Ch19.4: Ban Legacy Exceptions
+        <li><a href="/docs/19.exceptionsandherbceptions/07.banflags/">Ch19.7: Ban Legacy Exceptions
           With Your Build Flags</a> &mdash; <code>-fno-exceptions -fno-rtti -fno-unwind-tables
           -fno-asynchronous-unwind-tables -fno-ident</code>, and what each one deletes</li>
+        <li><a href="/docs/19.exceptionsandherbceptions/08.issues/">Ch19.8: The Issues With Legacy
+          C++ Exceptions</a> &mdash; the measured cost, the runtime it requires, the environments
+          that do not have it, the unsound corners, and the two ABIs</li>
+        <li><a href="/docs/19.exceptionsandherbceptions/09.allocatorflags/">Ch19.9: fast_io's
+          Allocator Flags</a> &mdash; the allocator is the policy: how to make a fast_io container
+          report <code>::std::errc::not_enough_memory</code> instead of terminating, and why the
+          standard allocator model cannot express any of it</li>
+        <li><a href="/docs/19.exceptionsandherbceptions/10.video/">Ch19.10: De-fragmenting
+          C++</a> &mdash; Herb Sutter's CppCon 2019 talk, the source of everything this chapter
+          taught</li>
       </ul>
 
     </section>

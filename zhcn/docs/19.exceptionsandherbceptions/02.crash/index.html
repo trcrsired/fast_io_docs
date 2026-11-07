@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第19.2章：std::abort()、std::terminate() 与 __builtin_trap() - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第19.2章：<code>std::abort()</code>、<code>std::terminate()</code> 与 <code>__builtin_trap()</code></h1>
+    <p class="lang-switch"><a href="/docs/19.exceptionsandherbceptions/02.crash/">English</a></p>
+
+    <section>
+      <h2>1. 有些失败不是错误</h2>
+      <p>
+        错误是调用者能对它做点什么的失败：文件不在、对端重置了连接、文本不是数字。这些走 <code>throws</code> 通道，本章其余部分都在讲它们。
+      </p>
+      <p>
+        还有第二类失败，而这个区分是本书最重要的一条规则：<strong>让抽象机无法继续的失败不是错误，而是损坏，唯一正确的反应是终止进程。</strong>有三类情形属于此类：
+      </p>
+      <ul>
+        <li>
+          <strong>分配失败。</strong>如果 <code>malloc</code> 返回 <code>nullptr</code>，或者内核拒绝再给进程一页栈空间，那就没有内存用来报告这个错误、没有内存用来展开栈、也没有内存用来打日志。所有出口都关上了。
+        </li>
+        <li>
+          <strong>尺寸溢出。</strong>请求 2<sup>40</sup> 个元素不是资源问题，而是调用者把尺寸算错了。这样的请求在任何存在的机器上都不可能成功，把它切成更小的请求只会把一个 bug 变成一个很慢的 bug。
+        </li>
+        <li>
+          <strong>不变量被破坏。</strong>容器的边界没有被检查、<code>switch</code> 走到了不可能的分支、长度字段与缓冲区不符。继续执行意味着运行已经失去意义的代码。
+        </li>
+      </ul>
+      <p>
+        从上述任何一种情形继续，都是让程序从"一次崩溃"变成"一个安全漏洞"的方式：它会带着损坏的堆、损坏的尺寸或损坏的下标继续运行。专业的回答是就地立即死掉，让操作系统记录原因。<strong>fast_io 就是这么做的</strong>，处处如此；本页讲它的三种写法，以及你该用哪一种。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 三种写法</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdlib&gt;
+
+int main()
+{
+	::fast_io::io::perr("about to die\n");
+#if defined(USE_ABORT)
+	::std::abort();
+#elif defined(USE_TERMINATE)
+	::std::terminate();
+#else
+	::fast_io::fast_terminate();
+#endif
+}
+
+</code></pre>
+      <p>
+        同一个程序的三个构建，各自选择一种死法：
+      </p>
+      <pre><code class="language-text">
+$ ./crash -DUSE_ABORT
+about to die
+Aborted (core dumped)
+$ ./crash -DUSE_TERMINATE
+about to die
+Aborted (core dumped)
+$ ./crash
+about to die
+Illegal instruction (core dumped)
+</code></pre>
+      <p>
+        注意第三种情形的输出里<em>没有</em>什么：shell 说它死于信号，而这个信号是 <code>SIGILL</code>（退出码 132 = 128 + 4），不是 <code>SIGABRT</code>（134 = 128 + 6）。<code>fast_terminate()</code> 不是换了名字的 <code>abort</code>；它编译成一条指令：
+      </p>
+      <pre><code class="language-text">
+  401169:       ud2
+  40116b:       nopl   0x0(%rax,%rax,1)
+</code></pre>
+      <p>
+        <code>ud2</code> 是架构上保证非法的一条指令。陷阱由 CPU 自己抛出，所以不涉及任何库调用、信号帧、处理函数或 unwinder，而且这条指令就内联在检查失败的地方。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th><code>::std::abort()</code></th>
+            <th><code>::std::terminate()</code></th>
+            <th><code>::fast_io::fast_terminate()</code></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>需要什么</td>
+            <td>libc</td>
+            <td>libc++ / libstdc++ 以及一个 terminate 处理函数</td>
+            <td>什么都不需要</td>
+          </tr>
+          <tr>
+            <td>信号 / 状态码</td>
+            <td><code>SIGABRT</code> / 134</td>
+            <td><code>SIGABRT</code> / 134（它的处理函数会 abort）</td>
+            <td><code>SIGILL</code> / 132</td>
+          </tr>
+          <tr>
+            <td>能否用于 freestanding、内核、引导程序</td>
+            <td>不能</td>
+            <td>不能</td>
+            <td>
+              能：<code>__builtin_trap</code>，退路依次是 <code>__builtin_abort</code> 和 <code>::std::abort</code>
+            </td>
+          </tr>
+          <tr>
+            <td>是否运行析构函数或 <code>atexit</code> 处理函数</td>
+            <td>不运行</td>
+            <td>不运行</td>
+            <td>不运行</td>
+          </tr>
+          <tr>
+            <td>什么时候用它</td>
+            <td>遗留代码、测试</td>
+            <td>
+              你选不了它：是语言替你调用它（异常逃出 <code>noexcept</code>、展开途中又抛出、遗留异常没有处理块）
+            </td>
+            <td>你写下的每一处不变量检查，以及 fast_io 替你检查的每一处</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>::std::terminate()</code> 值得知道，但作为工具没什么用：你几乎不会主动调用它。它是运行时在遗留异常机制无处安放异常时调用的东西 —— <a href="/zhcn/docs/19.exceptionsandherbceptions/08.issues/">第19.8章</a> 把这一点算作那套机制的缺陷之一。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. fast_io 在什么情况下崩溃</h2>
+      <p>
+        每个 fast_io 容器的默认分配器，以及每一处内部的尺寸计算，都把上面三种情形当作损坏并当场调用 <code>::fast_io::fast_terminate()</code>。这里是一个真实例子：在只有几 GB 内存的机器上保留 2<sup>40</sup> 个 <code>int</code>，也就是 8 TiB。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+int main()
+{
+	::fast_io::io::print(::fast_io::c_stdout(), "reserving 2^40 ints\n");
+	::fast_io::operations::output_stream_buffer_flush(::fast_io::c_stdout());
+	::fast_io::vector&lt;int&gt; v;
+	v.reserve(static_cast&lt;::std::size_t&gt;(1) &lt;&lt; 40);
+	::fast_io::io::print("reserved ", v.capacity(), " ints\n");
+}
+
+</code></pre>
+      <pre><code class="language-text">
+reserving 2^40 ints
+Illegal instruction (core dumped)
+</code></pre>
+      <p>
+        注意输出的第二行：shell 报告了信号，因为进程已经没了。没有错误值、没有返回码、没有异常，也没有任何东西可检查。程序不是<em>保留失败</em>，而是在那道栅栏处直接不存在了。
+      </p>
+      <p>
+        这就是 <code>::fast_io::vector</code>、<code>::fast_io::string</code> 以及库里其他每个容器的预期行为，也是它有意区别于 <code>std::vector</code> 的地方。你的程序里不会有一个围着分配的 <code>try</code>，也不该有：一个能从 <code>bad_alloc</code> 里活下来的程序，是一个必须在"每次分配都可能失败"的状态下仍然正确的程序，包括它自己错误上报路径里的那些分配。没人会去审计这个，所以没人是正确的。
+      </p>
+      <p>
+        当你想要相反的策略 —— 你在写一个库，而你的调用者应该拿到赫布异常而不是一个死进程 —— 那在 fast_io 里是一个按分配器做的决定，而不是按调用做的决定，见 <a href="/zhcn/docs/19.exceptionsandherbceptions/09.allocatorflags/">第19.9章</a>。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 你会丢掉的输出</h2>
+      <p>
+        陷阱不会刷新任何东西。还留在进程用户态缓冲区里的输出会随进程一起丢弃，所以你程序死前打印的最后一句可能永远看不到。两个流的行为不同，这个差别值得测量一次：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+int main()
+{
+	::fast_io::io::print("about to reserve 2^40 ints\n");   // buffered stdout
+	::fast_io::io::perr("about to reserve 2^40 ints\n");   // unbuffered stderr
+	::fast_io::vector&lt;int&gt; v;
+	v.reserve(static_cast&lt;::std::size_t&gt;(1) &lt;&lt; 40);
+}
+
+</code></pre>
+      <pre><code class="language-text">
+about to reserve 2^40 ints
+Illegal instruction (core dumped)          &lt;- the perr line; the print line is gone
+$ ./lose 2&gt;/dev/null
+Illegal instruction (core dumped)          &lt;- neither line: stdout never flushed
+</code></pre>
+      <p>
+        <code>print</code> 那一行进了带缓冲的 stdout 流，随进程一起死了；<code>perr</code> 那一行进了 stderr，它是无缓冲的，活了下来。所以规则是：<strong>故意崩溃前的最后几句话走 <code>perr</code></strong>（<a href="/zhcn/docs/11.io/01.fileio/">第11.1章</a> 讲了两个流为何不同），其余都可以留在 <code>print</code> 上。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 你绝不能拿来替代的做法</h2>
+      <ul>
+        <li>
+          <strong>不要返回 <code>nullptr</code>。</strong>空指针把失败从"知道自己身上发生了什么"的分配器转移给了"将要靠解引用才发现"的调用者。遗留代码库里每一处 <code>malloc</code> 检查，都是一个把不可能的情形转交出去而不是处理掉的地方（<a href="/zhcn/docs/18.virtual/01.newdelete/">第18.1章</a>）。
+        </li>
+        <li>
+          <strong>不要用 <code>::std::nothrow</code>。</strong>那是同一种转交，只是名字更友好。
+        </li>
+        <li>
+          <strong>不要保留存活对象计数器</strong>来在损坏之后"检测泄漏"。损坏已经发生了，计数器现在也是错的。
+        </li>
+        <li>
+          <strong>不要捕获它。</strong>没有东西可捕获：陷阱不是异常，围着它的信号处理函数只会让一个已经被证明不可能正确的程序继续运行。
+        </li>
+        <li>
+          <strong>不要把它当作错误上报并沿栈继续。</strong>那正是本书拒绝的设计：它把每个函数的契约都变成"可能失败，包括那些不可能失败的函数"，也是 <code>vector</code> 会在一段消息格式化代码里、在一个崩溃上报器里、拿到 <code>bad_alloc</code> 的原因。
+        </li>
+      </ul>
+      <p>
+        在那道栅栏处死掉，如果付得起就在 stderr 上留一句话，然后让 core dump 或崩溃上报器告诉你位置。停下来的程序是可诊断的；在损坏之后继续运行的程序是一个谜、一个 CVE，或者两者都是。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/19.exceptionsandherbceptions/01.customdomains/" class="prev-button">&larr; 第19.1章：定义与覆盖错误域</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/19.exceptionsandherbceptions/03.legacyexceptions/" class="next-button">第19.3章：C++ 遗留异常 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

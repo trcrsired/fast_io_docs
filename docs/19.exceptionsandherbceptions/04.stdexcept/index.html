@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch19.4: &lt;stdexcept&gt; - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch19.4: <code>&lt;stdexcept&gt;</code></h1>
+    <p class="lang-switch"><a href="/zhcn/docs/19.exceptionsandherbceptions/04.stdexcept/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Header Everyone Includes</h2>
+      <p>
+        <code>&lt;stdexcept&gt;</code> is the class library that came with legacy exceptions, and it
+        is the one header that every C++ codebase includes without thinking. Its entire content is
+        a two-branch tree below <code>::std::exception</code>:
+      </p>
+      <pre><code class="language-text">
+std::exception                     what()  ->  char const *
+├── std::logic_error                 "violated a precondition the caller could have checked"
+│   ├── std::invalid_argument
+│   ├── std::domain_error
+│   ├── std::length_error
+│   └── std::out_of_range
+└── std::runtime_error               "only detectable while running"
+    ├── std::range_error
+    ├── std::overflow_error
+    ├── std::underflow_error
+    └── std::system_error            (&lt;system_error&gt;, Ch19.5)
+</code></pre>
+      <p>
+        Four more classes live in other headers and are thrown by the runtime itself:
+        <code>::std::bad_alloc</code> and <code>::std::bad_array_new_length</code> in
+        <code>&lt;new&gt;</code>, <code>::std::bad_cast</code> and
+        <code>::std::bad_typeid</code> in <code>&lt;typeinfo&gt;</code>. Every one of them stores a
+        message string and returns it from a <code>virtual what()</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. What the Split Means, and Why It Carries Nothing</h2>
+      <p>
+        The standard's intent is: <code>logic_error</code> is for a bug in the caller, a
+        precondition that could have been checked before the call; <code>runtime_error</code> is for
+        something only the running program can discover. That sounds like information, and it is
+        the reason tutorials spend a page on it.
+      </p>
+      <p>
+        It carries nothing. No compiler checks it, no catch site can act on it, and the
+        distinction is invisible at the call site because the function's signature does not
+        mention the type. A caller in a <code>catch (::std::exception const &amp;)</code> has no
+        way to tell whether it violated a precondition or hit a full disk, and after the fact it
+        does not matter: the recovery is the same "give up on this operation" path. What actually
+        carries information is the <em>code</em>, which is what a herbception puts in its two words
+        (<a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>).
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Class</th>
+            <th>The standard's intent</th>
+            <th>What a program can do with it</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>invalid_argument</code></td>
+            <td>A parameter was wrong</td>
+            <td>Nothing; it arrives after the call</td>
+          </tr>
+          <tr>
+            <td><code>out_of_range</code></td>
+            <td>An index or key was outside its domain</td>
+            <td>Nothing; the check it describes is one you should have made yourself</td>
+          </tr>
+          <tr>
+            <td><code>length_error</code></td>
+            <td>A container cannot hold that many elements</td>
+            <td>Print a message nobody reads</td>
+          </tr>
+          <tr>
+            <td><code>overflow_error</code> / <code>underflow_error</code></td>
+            <td>Arithmetic went out of range</td>
+            <td>Nothing</td>
+          </tr>
+          <tr>
+            <td><code>bad_alloc</code></td>
+            <td>Memory ran out</td>
+            <td>Almost never anything correct &mdash;
+              <a href="/docs/19.exceptionsandherbceptions/02.crash/">Ch19.2</a> argues it should
+              terminate</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>3. Constructing One, and What It Stores</h2>
+      <p>
+        The constructors are <code>(char const *)</code> and <code>(::std::string const &amp;)</code>.
+        The message is stored inside the object, which means the constructor of a
+        <code>runtime_error</code> with a long message <strong>allocates</strong> &mdash; on the
+        failure path, before the exception has even been thrown.
+      </p>
+      <p>
+        <code>what()</code> returns <code>char const *</code>, and in this book that is not
+        printable as text (<a href="/docs/05.pointerscarray/08.cstylestring/">Ch5.8</a>): you must
+        say what the pointer means, so every example here writes
+        <code>::fast_io::mnp::os_c_str(e.what())</code>. A C string is a convention, not a type.
+      </p>
+      <p>
+        To add anything of your own to a legacy exception you must derive from one of these classes
+        and pass a message up to it. There is no other way: the base class owns the only channel
+        out. Here is a parser error with a line and a column, caught as its base, next to the
+        standard library's own <code>length_error</code> from a container:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;stdexcept&gt;
+#include &lt;string&gt;
+#include &lt;vector&gt;
+
+/* the only way to add data to a legacy exception: derive and pass a message up */
+struct parse_error : ::std::runtime_error
+{
+	::std::size_t line;
+	::std::size_t column;
+	parse_error(::std::size_t l, ::std::size_t c)
+		: ::std::runtime_error("invalid token"), line(l), column(c)
+	{}
+};
+
+int main()
+{
+	try
+	{
+		throw parse_error(12, 34);
+	}
+	catch (::std::exception const &amp;e)
+	{
+		::fast_io::io::print("as exception ", ::fast_io::mnp::os_c_str(e.what()), "\n");
+	}
+	try
+	{
+		::std::vector&lt;int&gt; v;
+		v.resize(static_cast&lt;::std::size_t&gt;(1) &lt;&lt; 63);
+	}
+	catch (::std::exception const &amp;e)
+	{
+		::fast_io::io::print("as length     ", ::fast_io::mnp::os_c_str(e.what()), "\n");
+	}
+}
+
+</code></pre>
+      <pre><code class="language-text">
+as exception invalid token
+as length     vector::_M_default_append
+</code></pre>
+      <p>
+        Two things about that transcript. First, the <code>parse_error</code>'s own data
+        &mdash; <code>line</code> and <code>column</code> &mdash; is <strong>gone</strong> at the
+        catch site: the handler was written for <code>::std::exception</code>, so the only thing it
+        can reach is <code>what()</code>. The extra data exists, was paid for, and cannot be
+        recovered without RTTI and a <code>dynamic_cast</code>
+        (<a href="/docs/18.virtual/05.rtti/">Ch18.5</a>).
+      </p>
+      <p>
+        Second, the standard library's message is <code>vector::_M_default_append</code> &mdash;
+        the name of a private member function, not a sentence about the user's problem. That is what
+        <code>what()</code> is in practice: an implementation detail string, in English, that no
+        program can parse and no user can act on.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The Bug the Header Invites: Catching by Value</h2>
+      <p>
+        <code>catch (T e)</code> is legal for every <code>T</code>, and for a polymorphic
+        <code>T</code> it copies only the <code>T</code> part of the exception object. The rest of
+        the object is sliced off, including the vtable, so the <code>what()</code> you call through
+        the base is the base's:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;stdexcept&gt;
+
+int main()
+{
+	try
+	{
+		throw ::std::out_of_range("index 7 is past the end");
+	}
+	catch (::std::exception e)
+	{
+		::fast_io::io::print("what ", ::fast_io::mnp::os_c_str(e.what()), "\n");
+	}
+}
+
+</code></pre>
+      <pre><code class="language-text">
+slice.cc: In function 'int main()':
+slice.cc:10:33: warning: catching polymorphic type 'class std::exception' by value [-Wcatch-value=]
+   10 |         catch (::std::exception e)
+      |                                 ^
+what std::exception
+</code></pre>
+      <p>
+        The program threw <code>out_of_range("index 7 is past the end")</code> and printed
+        <code>std::exception</code>. The message is not lost, it is <em>sliced away</em>: the copy
+        the handler owns is a <code>::std::exception</code> subobject, and its <code>what()</code>
+        says so. The compiler will tell you about it if you ask for warnings
+        (<code>-Wcatch-value</code>), and every legacy style guide has a line about catching by
+        <code>const&amp;</code> because of this.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. What Replaces It</h2>
+      <p>
+        Nothing in the herbceptions world corresponds to <code>&lt;stdexcept&gt;</code>, and nothing
+        needs to. An error is a code in a domain
+        (<a href="/docs/19.exceptionsandherbceptions/01.customdomains/">Ch19.1</a>): the code says
+        what happened, the domain says what the code means, and <code>to_errc()</code> gives every
+        caller a common tongue. There is no message string to allocate, no base class to derive
+        from, no virtual <code>what()</code> to slice, and no handler ordering to get wrong.
+      </p>
+      <p>
+        When a legacy library throws one of these at you anyway, it arrives as a
+        <code>::std::error</code> with a domain and a message
+        (<a href="/docs/19.exceptionsandherbceptions/06.interop/">Ch19.6</a>), which is the whole
+        reason the interop layer exists.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/19.exceptionsandherbceptions/03.legacyexceptions/" class="prev-button">&larr; Ch19.3: C++ Legacy Exceptions</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/19.exceptionsandherbceptions/05.systemerror/" class="next-button">Ch19.5: &lt;system_error&gt; &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch19.9: fast_io's Allocator Flags - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch19.9: fast_io's Allocator Flags</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/19.exceptionsandherbceptions/09.allocatorflags/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Policy Is a Type Parameter, Not a Global</h2>
+      <p>
+        <a href="/docs/19.exceptionsandherbceptions/02.crash/">Ch19.2</a> said what fast_io does
+        when an allocation cannot be satisfied, a size cannot be represented, or an invariant is
+        violated: it calls <code>::fast_io::fast_terminate()</code>, on the spot. That is the
+        default, and it is the default of every container in the library.
+      </p>
+      <p>
+        It is not a law of nature, it is a <strong>property of the allocator type</strong>. fast_io
+        does not use the standard allocator model &mdash; it does not use <code>::std::allocator</code>,
+        it does not use <code>::operator new</code>, and it has nothing to do with
+        <code>std::allocator_traits</code>. An allocator in fast_io is a type with a
+        <em>static</em> interface and a policy, and the policy is spelled as a bit flag in the
+        allocator's own type:
+      </p>
+      <pre><code class="language-cpp">
+enum class allocator_adapter_flags
+{
+	none = 0,
+	secure_clear = 1,
+	throws_on_allocation_failure = 2,    // by default we fail fast
+	throws_on_violations = 4,            // by default we fail fast
+	throws_on_overflow = 8,              // by default we fail fast
+	prefer_big_allocation_on_stack = 16, // pick stack scratch (e.g. print) over heap
+};
+</code></pre>
+      <p>
+        The three middle flags are the ones this chapter is about: they turn the three
+        corruption cases of <a href="/docs/19.exceptionsandherbceptions/02.crash/">Ch19.2</a> from
+        "terminate" into "throw a <code>::std::error</code> on the <code>throws</code> channel".
+        <code>secure_clear</code> makes the allocator wipe memory before returning it, and
+        <code>prefer_big_allocation_on_stack</code> chooses a stack scratch buffer over the heap
+        when a print operation needs a large temporary &mdash; both are policies of the same kind,
+        which is the point: the allocator <em>is</em> the policy object.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. How an Allocator Is Assembled</h2>
+      <p>
+        Two layers. The inner layer is a class with static functions in two flavours:
+        <code>allocate_die</code>, which may not return on failure, and <code>allocate_try</code>,
+        which throws a herbception. <code>::fast_io::c_malloc_allocator</code> is the smallest
+        example and shows the whole idea:
+      </p>
+      <pre><code class="language-cpp">
+class c_malloc_allocator
+{
+public:
+	static inline void *allocate_die(::std::size_t n) noexcept
+	{
+		if (n == 0)
+		{
+			n = 1;
+		}
+		void *p{__builtin_malloc(n)};
+		if (p == nullptr)
+		{
+			::fast_io::fast_terminate();
+		}
+		return p;
+	}
+
+	static inline void *allocate_try(::std::size_t n) FAST_IO_HERBCEPTIONS_THROWS
+	{
+		if (n == 0)
+		{
+			n = 1;
+		}
+		void *p{__builtin_malloc(n)};
+		if (p == nullptr)
+		{
+			::fast_io::herbceptions::throws_errc(::std::errc::not_enough_memory);
+		}
+		return p;
+	}
+	// deallocate and the reallocate pair follow the same two-flavour pattern
+};
+
+</code></pre>
+      <p>
+        The outer layer is <code>::fast_io::generic_allocator_adapter&lt;alloc, flags&gt;</code>. It
+        reads the flags, and for each operation picks the flavour the policy asks for: with the
+        <code>throws_on_*</code> flags it requires the <code>_try</code> functions and propagates
+        their errors; without them it prefers <code>_die</code>, and if the allocator only has a
+        <code>_try</code> function, the adapter calls it and <strong>terminates</strong> when it
+        throws. That fallback is deliberate: a policy that says "fail fast" must fail fast, even
+        when the underlying allocator was written to throw.
+      </p>
+      <p>
+        Every fast_io container takes the allocator type:
+
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T, typename Alloc = ::fast_io::native_global_allocator&gt;
+using vector = ::fast_io::containers::vector&lt;T, Alloc&gt;;
+
+template &lt;::std::integral chartype, typename allocator = ::fast_io::native_global_allocator&gt;
+using basic_string = ::fast_io::containers::basic_string&lt;chartype, allocator&gt;;
+</code></pre>
+      <p>
+        So the choice is made once, per container type, at compile time. There is no global switch
+        to flip at run time, no virtual allocator, no <code>std::pmr</code>, and no way for two
+        parts of a program to disagree about the policy of a container they share: the policy is
+        part of the type.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Asking for Herbceptions</h2>
+      <p>
+        Here is the same program as
+        <a href="/docs/19.exceptionsandherbceptions/02.crash/">Ch19.2</a>'s, with an allocator that
+        says "report it, do not die". The underlying allocator is the same
+        <code>c_malloc_allocator</code>, and the container is the same <code>basic_string</code>
+        &mdash; only the flag changed:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+
+/* the same malloc-backed allocator, but with the failure policy changed */
+using throwing_allocator = ::fast_io::generic_allocator_adapter&lt;
+	::fast_io::c_malloc_allocator,
+	::fast_io::allocator_adapter_flags::throws_on_allocation_failure |
+		::fast_io::allocator_adapter_flags::throws_on_violations |
+		::fast_io::allocator_adapter_flags::throws_on_overflow&gt;;
+
+using throwing_string = ::fast_io::basic_string&lt;char, throwing_allocator&gt;;
+
+int main()
+{
+	try
+	{
+		throwing_string s;
+		::std::size_t const huge{static_cast&lt;::std::size_t&gt;(1) &lt;&lt; 40};
+		::fast_io::io::print("reserving ", huge, " bytes\n");
+		s.reserve(huge);
+		::fast_io::io::print("reserved ", s.capacity(), " bytes\n");
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("caught ", e, "\n");
+	}
+}
+
+</code></pre>
+      <pre><code class="language-text">
+reserving 1099511627776 bytes
+caught [posix](12)Not enough space
+</code></pre>
+      <p>
+        The error is <code>::std::errc::not_enough_memory</code>, reported by
+        <code>c_malloc_allocator::allocate_try</code> when <code>malloc</code> returns
+        <code>nullptr</code>, and it arrives as a normal herbception with a normal domain, so
+        <code>::fast_io::mnp::message(e)</code> prints the operating system's own text for it.
+        Notice what did <em>not</em> happen: no legacy exception, no <code>bad_alloc</code>, no
+        unwinding, no <code>::std::terminate</code>, and no null pointer.
+      </p>
+      <p>
+        The <code>huge</code> value is a size the operating system cannot possibly satisfy
+        (1 TiB); a size that cannot be <em>represented</em> is the <code>throws_on_overflow</code>
+        case instead, and a null handle passed to a container operation is
+        <code>throws_on_violations</code>. They are separate flags because a program may want to
+        report one and die on the others.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. When to Turn It On</h2>
+      <p>
+        The default is right for applications. Turn the flags on in exactly one situation: <strong>you
+        are writing a library, and your caller must be able to see the failure</strong>. A library
+        that terminates cannot be composed with anything; a library that reports
+        <code>::std::errc::not_enough_memory</code> can be used by an application that decides, at
+        its own boundary, whether to retry, to shrink the request, or to die.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>You are writing</th>
+            <th>Allocator policy</th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>An application</td>
+            <td>Default: fail fast</td>
+            <td>There is nobody above you to report to, and a program that survives a failed
+              allocation is a program nobody has audited</td>
+          </tr>
+          <tr>
+            <td>A library with a <code>throws</code> interface</td>
+            <td><code>throws_on_allocation_failure</code> (and the other two if you expose
+              sizes)</td>
+            <td>Your caller can only handle what it is told about</td>
+          </tr>
+          <tr>
+            <td>A test harness</td>
+            <td><code>throws_on_allocation_failure</code></td>
+            <td>You want to prove the failure path, not to abort the test runner</td>
+          </tr>
+          <tr>
+            <td>Anything holding secrets</td>
+            <td>Default plus <code>secure_clear</code></td>
+            <td>Freed memory must not retain the plaintext</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        And the rule that keeps this honest: <strong>do not mix policies inside one object</strong>.
+        A container's allocator type is part of the container's type, so a
+        <code>::fast_io::basic_string&lt;char, throwing_allocator&gt;</code> cannot be silently
+        passed to code expecting <code>::fast_io::string</code>. That is the same "the policy is
+        the type" principle as everywhere else in this book, and it is why the choice cannot be
+        wrong at run time.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Why Not <code>::std::allocator</code></h2>
+      <p>
+        The standard allocator model cannot express any of this, and the reasons are structural:
+      </p>
+      <ul>
+        <li>
+          <strong>There is no policy.</strong> A standard allocator has one failure mode chosen by
+          the allocator's own implementation: <code>::std::allocator&lt;T&gt;::allocate</code> throws
+          <code>::std::bad_alloc</code>, and that is all it can do. There is no way to say "fail
+          fast here" or "report a size overflow differently" without replacing the whole allocator,
+          and then you are no longer using the standard model.
+        </li>
+        <li>
+          <strong>It is type-parameterized by the wrong thing.</strong>
+          <code>::std::allocator&lt;T&gt;</code> is parameterized by the element type, so two
+          containers with different element types have different allocator types even when the
+          policy is identical, and rebound allocators make the policy impossible to name.
+        </li>
+        <li>
+          <strong>It allocates through <code>::operator new</code></strong>, which is itself a
+          global with an invisible failure policy and, in every implementation, is not freestanding
+          on the targets that matter (<a href="/docs/20.freestanding/">Ch20</a>).
+        </li>
+        <li>
+          <strong>It reports failure by throwing a legacy exception</strong>, which
+          <a href="/docs/19.exceptionsandherbceptions/08.issues/">Ch19.8</a> rules out for most
+          targets. <code>std::nothrow</code> is the other option, and
+          <a href="/docs/19.exceptionsandherbceptions/02.crash/">Ch19.2</a> rules that out.
+        </li>
+      </ul>
+      <p>
+        fast_io's allocator is a static interface with a policy and no state: the compiler picks
+        the <code>_die</code> or the <code>_try</code> implementation for you from the flags, and
+        the failure path is whatever that policy says. That is what makes it possible to have
+        <code>::fast_io::vector</code> terminate in a game and report
+        <code>::std::errc::not_enough_memory</code> in a library, from the same header, with no
+        configuration file and no runtime switch.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/19.exceptionsandherbceptions/08.issues/" class="prev-button">&larr; Ch19.8: The Issues With Legacy C++ Exceptions</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/19.exceptionsandherbceptions/10.video/" class="next-button">Ch19.10: De-fragmenting C++ &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

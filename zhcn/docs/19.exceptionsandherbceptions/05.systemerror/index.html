@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第19.5章：&lt;system_error&gt; - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第19.5章：<code>&lt;system_error&gt;</code></h1>
+    <p class="lang-switch"><a href="/docs/19.exceptionsandherbceptions/05.systemerror/">English</a></p>
+
+    <section>
+      <h2>1. 本应修好错误码的那个头文件</h2>
+      <p>
+        加入 <code>&lt;system_error&gt;</code> 是为了给 C++ 一个可移植地携带操作系统错误码的方式。它定义了四样东西：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>它是什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::std::errc</code></td>
+            <td>
+              一组 POSIX 错误值的 <code>enum class</code>：<code>invalid_argument</code>、<code>no_space_on_device</code>、<code>not_enough_memory</code> 等等。这一部分是好的，而且活了下来
+            </td>
+          </tr>
+          <tr>
+            <td><code>::std::error_code</code></td>
+            <td>
+              一个值，外加一个指向说明该值含义的 <code>error_category</code> 的指针
+            </td>
+          </tr>
+          <tr>
+            <td><code>::std::error_condition</code></td>
+            <td>同样的形状，用于"这一类错误"而不是某个具体错误</td>
+          </tr>
+          <tr>
+            <td><code>::std::error_category</code></td>
+            <td>
+              让错误码有含义的东西：一个抽象类，你要从它派生并注册成单例
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        这个设计听起来应该很熟悉：它就是赫布异常错误域的直接祖先。区别在于含义是如何携带的 —— 而这个区别正是本页的全部故事。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 用法</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;system_error&gt;
+
+int main()
+{
+	try
+	{
+		throw ::std::system_error(::std::make_error_code(::std::errc::no_space_on_device));
+	}
+	catch (::std::system_error const &amp;e)
+	{
+		::fast_io::io::print("what       ", ::fast_io::mnp::os_c_str(e.what()), "\n"
+			"code value ", e.code().value(), "\n"
+			"category   ", ::fast_io::mnp::os_c_str(e.code().category().name()), "\n"
+			"message    ", ::fast_io::mnp::os_c_str(e.code().message().c_str()), "\n"
+			"generic?   ", ::fast_io::mnp::boolalpha(e.code() == ::std::errc::no_space_on_device), "\n");
+	}
+}
+
+</code></pre>
+      <pre><code class="language-text">
+what       No space left on device
+code value 28
+category   generic
+message    No space left on device
+generic?   true
+</code></pre>
+      <p>
+        注意程序第四行里的 <code>.c_str()</code>：<code>message()</code> <em>按值</em>返回一个 <code>::std::string</code>。每次调用它都会分配一个新字符串、把消息格式化进去、再交回来 —— 在失败路径上，而那正是你已经缺资源的唯一一条路径。赫布异常世界里的同一次调用是 <code>::fast_io::mnp::message(e)</code>，它把 scatter 直接写进输出缓冲区，一次分配都不做（<a href="/zhcn/docs/19.exceptionsandherbceptions/01.customdomains/">第19.1章</a>）。
+      </p>
+      <p>
+        <code>::std::system_error</code> 本身就是一个遗留异常：它派生自 <code>::std::runtime_error</code>，所以带着一个 <code>what()</code> 字符串，同时还存着一个 <code>error_code</code>。在 <code>libstdc++</code> 里它的构造函数真的会调用 <code>runtime_error(__ec.message())</code> —— 一次分配用于错误域里的消息字符串，另一次用于异常对象内部的拷贝，而这一切都发生在抛出还没开始之前。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 错误域是一个带 vtable 的对象</h2>
+      <p>
+        这是 <code>libstdc++</code> 的 <code>&lt;system_error&gt;</code> 里的接口。要把它读成一张义务清单：每个想拥有自己错误码的库都必须履行这些义务：
+      </p>
+      <pre><code class="language-cpp">
+  class error_category
+  {
+  public:
+    constexpr error_category() noexcept = default;
+
+    virtual ~error_category();
+
+    error_category(const error_category&amp;) = delete;
+    error_category&amp; operator=(const error_category&amp;) = delete;
+
+    /// A string that identifies the error category.
+    virtual const char*
+    name() const noexcept = 0;
+
+    // We need two different virtual functions here, one returning a
+    // COW string and one returning an SSO string. Their positions in the
+    // vtable must be consistent for dynamic dispatch to work, but which one
+    // the name "message()" finds depends on which ABI the caller is using.
+  private:
+    _GLIBCXX_DEFAULT_ABI_TAG
+    virtual __cow_string
+    _M_message(int) const;
+
+  public:
+    /// A description of the error condition corresponding to the number.
+    _GLIBCXX_DEFAULT_ABI_TAG
+    virtual string
+    message(int) const = 0;
+
+  public:
+    /// Return an error_condition corresponding to `i` in this category.
+    virtual error_condition
+    default_error_condition(int __i) const noexcept;
+
+    /// Test whether `cond` is equivalent to `i` for this category.
+    virtual bool
+    equivalent(int __i, const error_condition&amp; __cond) const noexcept;
+
+    /// Test whether `code` is equivalent to `i` for this category.
+    virtual bool
+    equivalent(const error_code&amp; __code, int __i) const noexcept;
+
+    /// An error_category only compares equal to itself.
+    [[__nodiscard__]]
+    bool
+    operator==(const error_category&amp; __other) const noexcept
+    { return this == &amp;__other; }
+
+</code></pre>
+      <p>
+        那个声明里有四件事决定了这个设计的命运：
+      </p>
+      <ul>
+        <li>
+          <strong>它是一个带虚函数的类。</strong>错误域是一个对象，带 vtable、析构函数和类型 —— 于是错误域只能是藏在指针后面的单例，而 <code>operator==</code> 比较的是 <code>this == &amp;__other</code>。两个定义了同名错误域的库拥有两个不同的错误域，它们的错误码永远不会相等。
+        </li>
+        <li>
+          <strong><code>message()</code> 返回 <code>::std::string</code>。</strong>生成错误的文本要分配内存。你没有办法要求另一种编码的形式，也没有办法写进你已有的缓冲区。
+        </li>
+        <li>
+          <strong>有两个层次：<code>error_code</code> 和 <code>error_condition</code>。</strong>"这个具体失败"和"这一类失败"之间的差别是真实的，但把一个和另一个比较的规则是 <code>default_error_condition</code> 加上两个 <code>equivalent</code> 重载，几乎没人能凭记忆说清它们。把它们写错的代码照样能编译。
+        </li>
+        <li>
+          <strong>声明中间的那段注释是一道 ABI 伤疤。</strong>返回 <code>__cow_string</code> 的 <code>_M_message</code> 和返回 <code>string</code> 的 <code>message</code> 并排存在，是因为改变虚函数的返回类型会改变 vtable，而标准库不能破坏旧 ABI。一个自己的接口被迫绕着五年前的 ABI 错误分层的错误处理设施，是不可能被修好的。
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>4. 它在实践中为何失败</h2>
+      <p>
+        每个想要错误码的库都定义了自己的错误域，结果正是这个特性本应终结的那种碎片化：来自网络库、文件系统库和数据库库的 <code>error_code</code> 是三个不可比较的值，带着三张消息表、三个单例。一个返回 <code>::std::error_code</code> 的函数对调用者什么也没说 —— 不说它会在哪个错误域里，所以调用者甚至无法在不了解那个库的情况下把它打印出来；而把它与 <code>::std::errc::no_space_on_device</code> 比较，只有在那个特定库记得走通用错误域时才成立。
+      </p>
+      <p>
+        赫布异常的错误域保住了那唯一的好想法，并删掉了让碎片化变得容易的机制。要紧的差别如下：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th><code>&lt;system_error&gt;</code></th>
+            <th>赫布异常错误域</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>A category is a class with virtual functions and a vtable</td>
+            <td>
+              错误域是一个由五个函数指针组成的 <code>constexpr</code> 结构体 —— <code>::std::error_domain_singleton</code>。没有对象、没有 vtable、没有析构函数
+            </td>
+          </tr>
+          <tr>
+            <td><code>message()</code> returns <code>::std::string</code></td>
+            <td>
+              <code>do_query_information</code> 把 <code>{指针, 长度}</code> 形式的 scatter 写进调用者的缓冲区，用调用者的编码，不做任何分配
+            </td>
+          </tr>
+          <tr>
+            <td>Meaning is compared through <code>default_error_condition</code> and two
+              <code>equivalent</code> overloads nobody remembers</td>
+            <td>
+              只有一个必需的钩子：<code>do_to_errc</code>。每个错误域都必须回答"这是哪一个 <code>::std::errc</code>"，而那个答案正是所有人用来比较的东西
+            </td>
+          </tr>
+          <tr>
+            <td>An error is an object: <code>error_code</code> plus a message string plus, in
+              <code>system_error</code>, a whole exception hierarchy</td>
+            <td>
+              错误是两个字：<code>{domain 指针, 错误码}</code>。它满足 <code>sizeof(::std::error) == 2 * sizeof(void *)</code>，并且走返回寄存器
+            </td>
+          </tr>
+          <tr>
+            <td>Carrying an error to the caller requires a legacy <code>throw</code></td>
+            <td>
+              把错误带到调用者那里就是返回路径本身；不分配任何东西，也不遍历栈
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>::std::errc</code> 是活下来并原样保留的那部分，它成了 POSIX 错误域。当你在 fast_io 或本书里看到 <code>::std::errc::not_enough_memory</code> 时，它就是同一个枚举：那些值一直是对的，错的是它们周围的机制。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 在别人的代码里怎么读它</h2>
+      <ul>
+        <li>
+          接口里的 <code>std::error_code</code> 意味着作者想在没有异常的世界里报告失败，而那个世界没有更好的办法。他真正想要的是 <code>::std::error</code>。
+        </li>
+        <li>
+          自定义的 <code>std::error_category</code> 就是一个带 vtable 的错误域。读它的 <code>message()</code> 表来了解错误码，然后在边界处转换（<a href="/zhcn/docs/19.exceptionsandherbceptions/06.interop/">第19.6章</a>）。
+        </li>
+        <li>
+          <code>std::system_error</code> 是一个遗留异常。它会展开你的栈、分配两次、然后在处理块里到达 —— 而那个处理块不通过 <code>.code()</code> 就拿不到错误码。这就是为什么它是 <code>&lt;filesystem&gt;</code> 的失败类型，也是为什么那个库在任何没有 unwinder 的目标上都很难用。
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/19.exceptionsandherbceptions/04.stdexcept/" class="prev-button">&larr; 第19.4章：&lt;stdexcept&gt;</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/19.exceptionsandherbceptions/06.interop/" class="next-button">第19.6章：跨越边界 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

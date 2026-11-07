@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch19.2: std::abort(), std::terminate() and __builtin_trap() - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch19.2: <code>std::abort()</code>, <code>std::terminate()</code> and <code>__builtin_trap()</code></h1>
+    <p class="lang-switch"><a href="/zhcn/docs/19.exceptionsandherbceptions/02.crash/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Some Failures Are Not Errors</h2>
+      <p>
+        An error is something a caller can do something about: the file was not there, the peer
+        reset the connection, the text was not a number. Those travel on the
+        <code>throws</code> channel, and that is what the rest of this chapter is about.
+      </p>
+      <p>
+        There is a second kind of failure, and the distinction is the most important rule in this
+        book: <strong>a failure that leaves the abstract machine unable to continue is not an
+        error, it is corruption, and the only correct response is to stop the process.</strong>
+        Three things fall in that category:
+      </p>
+      <ul>
+        <li>
+          <strong>Allocation failure.</strong> If <code>malloc</code> returns
+          <code>nullptr</code>, or the kernel refuses to give the process another page for its
+          stack, there is no memory to report the error with, no memory to unwind with, and no
+          memory to log with. Every avenue out is closed.
+        </li>
+        <li>
+          <strong>Size overflow.</strong> A request of 2<sup>40</sup> elements is not a resource
+          problem, it is a caller that computed a size wrong. Reserving it cannot succeed on any
+          machine that exists, and slicing the request into smaller ones would only turn a bug into
+          a slow bug.
+        </li>
+        <li>
+          <strong>A broken invariant.</strong> A container's bounds were not checked, a
+          <code>switch</code> reached an impossible case, a length field disagreed with the buffer.
+          Continuing means running code that no longer has a meaning.
+        </li>
+      </ul>
+      <p>
+        Continuing from any of those is how a program becomes a security vulnerability instead of a
+        crash: it keeps running with a corrupted heap, a corrupted size, or a corrupted index. The
+        professional answer is to die immediately, at the point of detection, with the operating
+        system recording why. <strong>That is what fast_io does</strong>, everywhere, and this page
+        shows the three spellings of it and the one you should use.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. The Three Spellings</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdlib&gt;
+
+int main()
+{
+	::fast_io::io::perr("about to die\n");
+#if defined(USE_ABORT)
+	::std::abort();
+#elif defined(USE_TERMINATE)
+	::std::terminate();
+#else
+	::fast_io::fast_terminate();
+#endif
+}
+
+</code></pre>
+      <p>
+        Three builds of the same program, each selecting a different death:
+      </p>
+      <pre><code class="language-text">
+$ ./crash -DUSE_ABORT
+about to die
+Aborted (core dumped)
+$ ./crash -DUSE_TERMINATE
+about to die
+Aborted (core dumped)
+$ ./crash
+about to die
+Illegal instruction (core dumped)
+</code></pre>
+      <p>
+        Note what is <em>not</em> in the output for the third case: the shell says it died from a
+        signal, and the signal is <code>SIGILL</code> (exit status 132 = 128 + 4), not
+        <code>SIGABRT</code> (134 = 128 + 6). <code>fast_terminate()</code> is not
+        <code>abort</code> with another name; it compiles to a single instruction:
+      </p>
+      <pre><code class="language-text">
+  401169:       ud2
+  40116b:       nopl   0x0(%rax,%rax,1)
+</code></pre>
+      <p>
+        <code>ud2</code> is an architecturally guaranteed illegal instruction. The CPU raises the
+        trap itself, so no library call, no signal frame, no handler and no unwinder are involved,
+        and the instruction is emitted inline wherever the check fails.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th><code>::std::abort()</code></th>
+            <th><code>::std::terminate()</code></th>
+            <th><code>::fast_io::fast_terminate()</code></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>What it needs</td>
+            <td>libc</td>
+            <td>libc++ / libstdc++ and a terminate handler</td>
+            <td>Nothing</td>
+          </tr>
+          <tr>
+            <td>Signal / status</td>
+            <td><code>SIGABRT</code> / 134</td>
+            <td><code>SIGABRT</code> / 134 (its handler aborts)</td>
+            <td><code>SIGILL</code> / 132</td>
+          </tr>
+          <tr>
+            <td>Usable freestanding, in a kernel, in a bootloader</td>
+            <td>No</td>
+            <td>No</td>
+            <td>Yes: <code>__builtin_trap</code> with a fallback to
+              <code>__builtin_abort</code> and then <code>::std::abort</code></td>
+          </tr>
+          <tr>
+            <td>Runs destructors or <code>atexit</code> handlers</td>
+            <td>No</td>
+            <td>No</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td>When you reach for it</td>
+            <td>Legacy code, tests</td>
+            <td>You cannot choose it: the language calls it for you (an exception escaping
+              <code>noexcept</code>, a throw during unwinding, no handler for a legacy
+              exception)</td>
+            <td>Every invariant check you write, and everything fast_io checks for you</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>::std::terminate()</code> is worth knowing but useless as a tool: you almost never
+        decide to call it. It is what the runtime calls when the legacy exception machinery has
+        nowhere to put an exception &mdash; which
+        <a href="/docs/19.exceptionsandherbceptions/08.issues/">Ch19.8</a> counts as one of the
+        defects of that machinery.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. What fast_io Crashes On</h2>
+      <p>
+        The default allocator of every fast_io container, and every internal size computation,
+        treats the three cases above as corruption and calls
+        <code>::fast_io::fast_terminate()</code> on the spot. Here is a real one: reserving
+        2<sup>40</sup> <code>int</code>s, which is 8 TiB, on a machine with a few gigabytes.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+int main()
+{
+	::fast_io::io::print(::fast_io::c_stdout(), "reserving 2^40 ints\n");
+	::fast_io::operations::output_stream_buffer_flush(::fast_io::c_stdout());
+	::fast_io::vector&lt;int&gt; v;
+	v.reserve(static_cast&lt;::std::size_t&gt;(1) &lt;&lt; 40);
+	::fast_io::io::print("reserved ", v.capacity(), " ints\n");
+}
+
+</code></pre>
+      <pre><code class="language-text">
+reserving 2^40 ints
+Illegal instruction (core dumped)
+</code></pre>
+      <p>
+        Note the second line of the transcript: the shell reports the signal, because the process
+        is gone. There is no error value, no return code, no exception, and nothing to check. The
+        program did not <em>fail to reserve</em>; it went out of existence at the fence.
+      </p>
+      <p>
+        That is the intended behaviour of <code>::fast_io::vector</code>,
+        <code>::fast_io::string</code> and every other container in the library, and it is a
+        deliberate difference from <code>std::vector</code>. There is no <code>try</code> around an
+        allocation in your program, and there must not be: a program that can survive
+        <code>bad_alloc</code> is a program that has to be correct in a state where every
+        allocation can fail, including the ones inside its own error reporting. Nobody audits that,
+        so nobody is correct at it.
+      </p>
+      <p>
+        When you want the opposite policy &mdash; you are writing a library and your caller should
+        get a herbception instead of a dead process &mdash; that is a per-allocator decision in
+        fast_io, not a per-call decision, and it is
+        <a href="/docs/19.exceptionsandherbceptions/09.allocatorflags/">Ch19.9</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The Output You Lose</h2>
+      <p>
+        A trap does not flush anything. Buffered output that is still in the process's user-space
+        buffer is discarded with the process, so the last thing your program printed before dying
+        may never be seen. The two streams behave differently, and the difference is worth
+        measuring once:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+int main()
+{
+	::fast_io::io::print("about to reserve 2^40 ints\n");   // buffered stdout
+	::fast_io::io::perr("about to reserve 2^40 ints\n");   // unbuffered stderr
+	::fast_io::vector&lt;int&gt; v;
+	v.reserve(static_cast&lt;::std::size_t&gt;(1) &lt;&lt; 40);
+}
+
+</code></pre>
+      <pre><code class="language-text">
+about to reserve 2^40 ints
+Illegal instruction (core dumped)          &lt;- the perr line; the print line is gone
+$ ./lose 2&gt;/dev/null
+Illegal instruction (core dumped)          &lt;- neither line: stdout never flushed
+</code></pre>
+      <p>
+        The <code>print</code> line went into the buffered stdout stream and died with the process;
+        the <code>perr</code> line went to stderr, which is unbuffered, and survived. So the rule
+        is: <strong>the last words before a deliberate crash go to <code>perr</code></strong>
+        (<a href="/docs/11.io/01.fileio/">Ch11.1</a> explains why the two streams differ), and
+        everything else can stay on <code>print</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. What You Must Not Do Instead</h2>
+      <ul>
+        <li>
+          <strong>Do not return <code>nullptr</code>.</strong> A null pointer moves the failure
+          from the allocator, which knows exactly what happened, to a caller that will find out by
+          dereferencing it. Every <code>malloc</code> check in a legacy codebase is a place where
+          an impossible situation was forwarded instead of handled
+          (<a href="/docs/18.virtual/01.newdelete/">Ch18.1</a>).
+        </li>
+        <li>
+          <strong>Do not use <code>::std::nothrow</code>.</strong> It is the same forwarding with a
+          friendlier name.
+        </li>
+        <li>
+          <strong>Do not keep a counter of live objects</strong> to "detect leaks" after a
+          corruption. The corruption already happened; the counter is now also wrong.
+        </li>
+        <li>
+          <strong>Do not catch it.</strong> There is nothing to catch: the trap is not an
+          exception, and a signal handler around it would only resume a program that has already
+          established it cannot be correct.
+        </li>
+        <li>
+          <strong>Do not report it as an error and continue up the stack.</strong> That is the
+          design this book rejects: it makes every function's contract "may fail, even the ones
+          that cannot fail", and it is how a <code>vector</code> ends up with a
+          <code>bad_alloc</code> inside a message formatter inside a crash reporter.
+        </li>
+      </ul>
+      <p>
+        Die at the fence, with a message on stderr if you can afford one, and let the core dump or
+        the crash reporter tell you where. A program that stops is diagnosable. A program that
+        continues after corruption is a mystery, a CVE, or both.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/19.exceptionsandherbceptions/01.customdomains/" class="prev-button">&larr; Ch19.1: Defining and Overriding Error Domains</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/19.exceptionsandherbceptions/03.legacyexceptions/" class="next-button">Ch19.3: C++ Legacy Exceptions &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

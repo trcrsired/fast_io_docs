@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第19.3章：C++ 遗留异常 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第19.3章：C++ 遗留异常</h1>
+    <p class="lang-switch"><a href="/docs/19.exceptionsandherbceptions/03.legacyexceptions/">English</a></p>
+
+    <section>
+      <h2>1. 这个特性是什么</h2>
+      <p>
+        C++ 的异常机制就是本书所说的<strong>遗留异常</strong>。它有三个关键字、一个用作基类的标准库类、一个编译器选项 <code>-fexceptions</code>（默认开启）。这里讲它，是因为<strong>你一定会读到它</strong>：它在标准库里、在每个老代码库里、在每一场 C++ 面试里。至于它不该是你写的东西，那是 <a href="/zhcn/docs/19.exceptionsandherbceptions/08.issues/">第19.8章</a> 的主题。
+      </p>
+      <pre><code class="language-cpp">
+throw some_value;                                    // report a failure
+try { ... } catch (::std::exception const &amp;e) { }  // handle the ones you know
+try { ... } catch (...) { }                          // handle anything that is left
+throw;                                               // re-raise the current exception
+</code></pre>
+      <p>
+        这四行加上 <code>-fexceptions</code> 就是全部表面。其余都是关于关键字运行时那个运行时到底做了什么的细节。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 精确的规则</h2>
+      <p>
+        因为赫布异常是返回路径上的两个字（<a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>），很容易以为 <code>throw</code> 是同一个形状。它不是，而这些差别正是你读懂遗留代码而不误读所需要知道的：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>规则</th>
+            <th>它的含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>任何可拷贝类型都可以被抛出</td>
+            <td>
+              <code>throw 42;</code> 合法。别这么干：一个 <code>int</code> 既没有消息，也没有可供处理块匹配的类型
+            </td>
+          </tr>
+          <tr>
+            <td>对象会被<em>拷贝</em>到运行时拥有的存储里</td>
+            <td>
+              <code>throw local_variable;</code> 抛出的是一个拷贝，而这个拷贝一直活到最后一个处理它的处理块退出。抛拷贝还意味着你的类型必须可拷贝，而且那次拷贝发生在最糟糕的时刻
+            </td>
+          </tr>
+          <tr>
+            <td>抛出对象，按 <code>const&amp;</code> 捕获</td>
+            <td>
+              <code>catch (T const &amp;e)</code> 绑定那个运行时拷贝而不产生又一次拷贝。<code>catch (T e)</code> 会拷贝它，而且对多态的 <code>T</code> 而言还会把对象<em>切片</em> —— 见 <a href="/zhcn/docs/19.exceptionsandherbceptions/04.stdexcept/">第19.4章</a>
+            </td>
+          </tr>
+          <tr>
+            <td>处理块按顺序尝试，第一个匹配者胜出</td>
+            <td>
+              所以 <code>catch (::std::exception const &amp;e)</code> 必须写在 <code>catch (::std::invalid_argument const &amp;e)</code> 之后，否则它会把后者吞掉
+            </td>
+          </tr>
+          <tr>
+            <td>匹配也使用基类</td>
+            <td>
+              <code>throw ::std::invalid_argument</code> 会被针对 <code>::std::logic_error</code> 或 <code>::std::exception</code> 的处理块捕获，因为它们是它的基类
+            </td>
+          </tr>
+          <tr>
+            <td>离开的途中栈帧会被析构</td>
+            <td>
+              <code>throw</code> 与处理块之间的自动对象会按构造的逆序被析构，抵达那里所经历的过程就是<em>展开</em>
+            </td>
+          </tr>
+          <tr>
+            <td>展开途中析构函数抛出会终止进程</td>
+            <td>
+              运行时手里有两个在飞的异常，无从选择。这就是本书里析构函数都是 <code>noexcept</code> 的原因（<a href="/zhcn/docs/14.fiverules/">第14章</a>）
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>3. 一个用上全部规则的程序</h2>
+      <p>
+        一次真实运行里有两件事值得看：析构函数的执行顺序，以及"基类的处理块会接受派生异常"这一事实。析构函数不能打印 —— 它是 <code>noexcept</code> 的 —— 所以这个程序记录到缓冲区，再由 <code>main</code> 打印出来：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;stdexcept&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+namespace
+{
+char log_buffer[256]{};
+::std::size_t log_length{};
+
+void record(char const *data, ::std::size_t size) noexcept
+{
+	for (::std::size_t i{}; i != size &amp;&amp; log_length != sizeof(log_buffer); ++i)
+	{
+		log_buffer[log_length] = data[i];
+		++log_length;
+	}
+}
+
+struct tracer
+{
+	::fast_io::string_view name;
+	explicit tracer(::fast_io::string_view n) noexcept
+		: name(n)
+	{}
+	tracer(tracer const &amp;) = delete;
+	tracer &amp;operator=(tracer const &amp;) = delete;
+	~tracer()
+	{
+		record(name.data(), name.size());
+		record(";", 1);
+	}
+};
+
+int parse(char const *text) noexcept(false)
+{
+	tracer const outer{"outer"};
+	tracer const inner{"inner"};
+	throw ::std::invalid_argument(text);
+}
+
+} // namespace
+
+int main()
+{
+	try
+	{
+		parse("7 is not a number");
+	}
+	catch (::std::logic_error const &amp;e)
+	{
+		::fast_io::io::print("logic_error ", ::fast_io::mnp::os_c_str(e.what()), "\n");
+	}
+	catch (::std::exception const &amp;e)
+	{
+		::fast_io::io::print("exception   ", ::fast_io::mnp::os_c_str(e.what()), "\n");
+	}
+	::fast_io::io::print("destructors ", ::fast_io::mnp::os_c_str(log_buffer, log_length), "\n");
+}
+
+</code></pre>
+      <pre><code class="language-text">
+logic_error 7 is not a number
+destructors inner;outer;
+</code></pre>
+      <p>
+        <code>inner;outer;</code> 就是展开：<code>parse</code> 里的两个 <code>tracer</code> 对象在 <code>throw</code> 和处理块之间按构造逆序被析构了，而那时处理块还一行都没执行。而捕获到 <code>::std::invalid_argument</code> 的处理块，是写给 <code>::std::logic_error</code> 这个基类的 —— 这就是 <a href="/zhcn/docs/19.exceptionsandherbceptions/04.stdexcept/">第19.4章</a> 里那棵类型树为何重要的原因。
+      </p>
+      <p>
+        关于签名有一处要注意：<code>noexcept(false)</code>。那是"这个函数可能抛出"的遗留写法，也是旧机制唯一能表达的出错契约。如果这个函数是普通的 <code>noexcept</code>，抛出就会调用 <code>::std::terminate</code> 而不是展开 —— 这就是为什么每个遗留代码库里都塞满了契约不可见的函数。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 保存异常而不是抛出它</h2>
+      <p>
+        有时你必须捕获一个异常并保留它 —— 为了从另一个线程重新抛出、为了存进 <code>future</code>、为了附在结果上。用于此的类型是 <code>::std::exception_ptr</code>，在处理块里用 <code>::std::current_exception()</code> 拿到：
+      </p>
+      <pre><code class="language-cpp">
+try
+{
+	work();
+}
+catch (...)
+{
+	::std::exception_ptr saved{::std::current_exception()};   // keeps the exception alive
+	// ... hand `saved` to another thread or store it ...
+	::std::rethrow_exception(saved);                          // re-raise it later
+}
+</code></pre>
+      <p>
+        <code>exception_ptr</code> 是引用计数的，所以拷贝它还算便宜，而异常对象的寿命与最后一个指向它的指针一样长。它是一次带引用计数的堆分配、一个类型擦除的句柄和一种 ABI 定义的布局 —— 正是赫布异常用两个字替换掉的那类机制，区别在于赫布异常是可以自由拷贝和比较的值。
+      </p>
+      <p>
+        另外还有 <code>::std::nested_exception</code> 和 <code>::std::rethrow_if_nested</code>，用于表达"这个失败是由那个失败引起的"。两者之所以存在，是因为那套机制没有办法携带第二个错误值；而赫布异常的错误域里只要有一个说清失败是什么的错误码就够了（<a href="/zhcn/docs/19.exceptionsandherbceptions/01.customdomains/">第19.1章</a>）。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 读它是你的工作，写它不是</h2>
+      <p>
+        现在你已经具备读遗留代码库所需要的一切：一次 <code>throw</code> 在理解上要你付出什么、处理块会匹配到什么、展开会析构什么、<code>exception_ptr</code> 又会让什么活下去。接下来两页补上随这套机制一起提供的两个类库（<a href="/zhcn/docs/19.exceptionsandherbceptions/04.stdexcept/">第19.4章</a>、<a href="/zhcn/docs/19.exceptionsandherbceptions/05.systemerror/">第19.5章</a>），然后 <a href="/zhcn/docs/19.exceptionsandherbceptions/06.interop/">第19.6章</a> 讲两种机制之间唯一受支持的交接方式。
+      </p>
+      <p>
+        这一页你<em>不能</em>带走的是"所以新代码里我可以用它"。在你大多数要发布到的目标上遗留异常根本不存在，而 <a href="/zhcn/docs/19.exceptionsandherbceptions/07.banflags/">第19.7章</a> 的构建选项会把这件事变成编译错误而不是意外。原因在 <a href="/zhcn/docs/19.exceptionsandherbceptions/08.issues/">第19.8章</a>。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/19.exceptionsandherbceptions/02.crash/" class="prev-button">&larr; 第19.2章：std::abort()、std::terminate() 与 __builtin_trap()</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/19.exceptionsandherbceptions/04.stdexcept/" class="next-button">第19.4章：&lt;stdexcept&gt; &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

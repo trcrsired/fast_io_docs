@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第19.10章：De-fragmenting C++ - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第19.10章：De-fragmenting C++</h1>
+    <p class="lang-switch"><a href="/docs/19.exceptionsandherbceptions/10.video/">English</a></p>
+
+    <section>
+      <h2>在你写下下一个 <code>throw</code> 之前，先看这个</h2>
+      <p>
+        本章论证过：遗留异常是<em>机制</em>的问题，不是使用它的人的问题。这个论证并不新鲜：Herb Sutter 在 2019 年就讲过，而那场演讲正是本章所教一切的发源。演讲是 <em>De-fragmenting C++: Making Exceptions and RTTI More Affordable and Usable</em>，值得花那一小时，理由有两个：它从另一侧展示了同样的测量（二进制体积、一次抛出的代价），并给出了后来成为你从 <a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a> 起一直在用的 <code>throws</code> 通道的那套设计。
+      </p>
+    </section>
+
+    <section>
+      <h2>那场演讲</h2>
+      <div class="video">
+        <iframe width="560" height="315" src="https://www.youtube.com/embed/ARYP83yNAWk?si=8ITHPZ0GKjkEA8In" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+      </div>
+      <p>
+        按演讲提出的顺序，值得留意的几点：
+      </p>
+      <ul>
+        <li>
+          <strong>两种失败模型，以及它们为何无法共存。</strong>如果程序一半用返回值报告错误、一半用 <code>throw</code>，那么用返回值的那一半并不安全，因为它仍然会调用可能展开栈的代码。
+        </li>
+        <li>
+          <strong>体积数字。</strong>每个可能需要展开的函数都带着帧表；演讲统计了这在真实二进制里要花多少，而那正是 <a href="/zhcn/docs/19.exceptionsandherbceptions/07.banflags/">第19.7章</a> 用 <code>.eh_frame</code> 和 <code>.gcc_except_table</code> 量到的同一个机制。
+        </li>
+        <li>
+          <strong>延迟数字。</strong>一次抛出是一次栈遍历，所以它的代价取决于栈有多深、加载了多少共享对象 —— <a href="/zhcn/docs/19.exceptionsandherbceptions/08.issues/">第19.8章</a> 对同一个错误量到大约一微秒对一纳秒。
+        </li>
+        <li>
+          <strong>两个字加一个标志位。</strong>演讲结尾的提案正是你一直在捕获的 <code>::std::error</code>：一个错误域指针、一个错误码，以及返回路径上的一个失败位，于是失败路径就是成功路径加一个分支。
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>看完之后</h2>
+      <p>
+        带着演讲留下的问题回到本章，因为这些页面会具体回答它们：
+      </p>
+      <ul>
+        <li>
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/01.customdomains/">第19.1章</a> —— 错误域那张表：谁写它、五个钩子是什么、以及为什么 <code>do_to_errc</code> 是必需的，好让每个错误都可以比较。
+        </li>
+        <li>
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/02.crash/">第19.2章</a> —— 提案留作"不可捕获"的那些情形怎么办：分配失败、尺寸溢出、不变量被破坏。
+        </li>
+        <li>
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/06.interop/">第19.6章</a> —— 与旧机制之间的边界，两个方向都有。
+        </li>
+        <li>
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/09.allocatorflags/">第19.9章</a> —— 容器的策略如何决定一次失败是被上报还是终止进程。
+        </li>
+      </ul>
+      <p>
+        本书其余部分处处使用那场演讲提出的机制，无一例外。<a href="/zhcn/docs/20.freestanding/">第20章</a> 就是回报：它讲的正是这套机制为何重要，因为那一章讲的是在别的什么都行不通的目标上运行。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/19.exceptionsandherbceptions/09.allocatorflags/" class="prev-button">&larr; 第19.9章：fast_io 的分配器选项</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/20.freestanding/" class="next-button">第20章：Freestanding &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

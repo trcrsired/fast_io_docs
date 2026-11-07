@@ -41,14 +41,14 @@
               每次抛出一次堆分配、两阶段栈遍历、每个函数都要有帧表、一个 personality routine、处理匹配需要 RTTI
             </td>
             <td>
-              只读。通过编译选项从每个构建里移除（<a href="/zhcn/docs/19.exceptionsandherbceptions/04.banflags/">第19.4章</a>）
+              只读。通过编译选项从每个构建里移除（<a href="/zhcn/docs/19.exceptionsandherbceptions/07.banflags/">第19.7章</a>）
             </td>
           </tr>
         </tbody>
       </table>
 
       <p>
-        第二行的简要版本：遗留异常不只是慢（每次抛出约一微秒，在 <a href="/zhcn/docs/19.exceptionsandherbceptions/02.legacyexceptions/">第19.2章</a> 中测量过）。在你大多数要发布到的目标上，它们根本<strong>不存在</strong> —— freestanding、内核、引导程序、嵌入式板子、WebAssembly —— 因为它们依赖的 unwinder、加载器注册以及 <code>__cxa_*</code> 运行时在那些地方都没有。
+        第二行的简要版本：遗留异常不只是慢（每次抛出约一微秒，在 <a href="/zhcn/docs/19.exceptionsandherbceptions/08.issues/">第19.8章</a> 中测量过）。在你大多数要发布到的目标上，它们根本<strong>不存在</strong> —— freestanding、内核、引导程序、嵌入式板子、WebAssembly —— 因为它们依赖的 unwinder、加载器注册以及 <code>__cxa_*</code> 运行时在那些地方都没有。
       </p>
 
     </section>
@@ -59,7 +59,7 @@
         只有当你写的库拥有自己的错误码空间时才去读 <a href="/zhcn/docs/19.exceptionsandherbceptions/01.customdomains/" >19.1</a>。但仍然要<em>仔细</em>读，因为它开篇就是那条最省事的建议：运行时里的错误域本来就是拿来复用的，其中一个几乎覆盖了一切。
       </p>
       <p>
-        把 <a href="/zhcn/docs/19.exceptionsandherbceptions/02.legacyexceptions/">19.2</a> 和 <a href="/zhcn/docs/19.exceptionsandherbceptions/03.interop/">19.3</a> 当作识别训练来读：你将来要维护这种代码，而当某个依赖把 <code>std::runtime_error</code> 递到你手上时，你需要那座桥的两个方向。<a href="/zhcn/docs/19.exceptionsandherbceptions/04.banflags/">19.4</a> 则是现在就该抄进构建里的四行。
+        先读 <a href="/zhcn/docs/19.exceptionsandherbceptions/02.crash/">19.2</a>：它决定了什么才算错误，本章其余内容都由它推出。然后把 <a href="/zhcn/docs/19.exceptionsandherbceptions/03.legacyexceptions/">19.3</a>、<a href="/zhcn/docs/19.exceptionsandherbceptions/04.stdexcept/">19.4</a> 和 <a href="/zhcn/docs/19.exceptionsandherbceptions/05.systemerror/">19.5</a> 当作识别训练来读：你将来要维护这种代码。再读 <a href="/zhcn/docs/19.exceptionsandherbceptions/06.interop/">19.6</a>，那是"某个依赖把 <code>std::runtime_error</code> 递到你手上"那天你需要的那座桥的两个方向。<a href="/zhcn/docs/19.exceptionsandherbceptions/07.banflags/">19.7</a> 则是现在就该抄进构建里的五个选项。
       </p>
 
       <ul>
@@ -67,13 +67,31 @@
           <a href="/zhcn/docs/19.exceptionsandherbceptions/01.customdomains/">第19.1章：定义与覆盖错误域</a> &mdash; <code>::std::error_domain_singleton</code> 的五个钩子、其中唯一必需的那个、<code>error_domain&lt;T&gt;</code> 特化、一个完整的 CSV 错误域，以及环境需要时如何替换随运行时提供的错误域
         </li>
         <li>
-          <a href="/zhcn/docs/19.exceptionsandherbceptions/02.legacyexceptions/">第19.2章：C++ 遗留异常</a> &mdash; 老机制怎么工作、一次抛出实测要多少代价、它需要哪些运行时符号，以及它在哪些环境里根本不存在
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/02.crash/">第19.2章：<code>std::abort()</code>、<code>std::terminate()</code> 与 <code>__builtin_trap()</code></a> &mdash; 为什么分配失败、尺寸溢出和不变量被破坏不是错误，结束进程的三种写法，以及 fast_io 在什么情况下崩溃
         </li>
         <li>
-          <a href="/zhcn/docs/19.exceptionsandherbceptions/03.interop/">第19.3章：跨越边界</a> &mdash; 遗留异常到赫布异常是自动的，赫布异常到遗留异常要调用 <code>throw_legacy_exception()</code>，以及路上丢掉了什么
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/03.legacyexceptions/">第19.3章：C++ 遗留异常</a> &mdash; 这套机制怎么工作、怎么读它：抛出拷贝了什么、处理块匹配到什么、展开析构了什么，以及 <code>exception_ptr</code> 让什么活下去
         </li>
         <li>
-          <a href="/zhcn/docs/19.exceptionsandherbceptions/04.banflags/">第19.4章：用构建选项禁止遗留异常</a> &mdash; <code>-fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-ident</code>，以及每一个各删掉了什么
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/04.stdexcept/">第19.4章：<code>&lt;stdexcept&gt;</code></a> &mdash; <code>logic_error</code> / <code>runtime_error</code> 那棵树、<code>what()</code> 实际返回什么，以及这个头文件招来的切片 bug
+        </li>
+        <li>
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/05.systemerror/">第19.5章：<code>&lt;system_error&gt;</code></a> &mdash; <code>error_code</code>、带 vtable 和 ABI 伤疤的 <code>error_category</code>，以及这个设计为何没有统一反而碎片化
+        </li>
+        <li>
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/06.interop/">第19.6章：跨越边界</a> &mdash; 遗留异常到赫布异常是自动的，赫布异常到遗留异常要调用 <code>throw_legacy_exception()</code>，以及路上丢掉了什么
+        </li>
+        <li>
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/07.banflags/">第19.7章：用构建选项禁止遗留异常</a> &mdash; <code>-fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-ident</code>，以及每一个各删掉了什么
+        </li>
+        <li>
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/08.issues/">第19.8章：C++ 遗留异常的问题</a> &mdash; 实测的代价、它需要的运行时、没有它的那些环境、不健全的角落，以及两套 ABI
+        </li>
+        <li>
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/09.allocatorflags/">第19.9章：fast_io 的分配器选项</a> &mdash; 分配器就是策略：如何让 fast_io 容器上报 <code>::std::errc::not_enough_memory</code> 而不是终止进程，以及标准分配器模型为何表达不了其中任何一点
+        </li>
+        <li>
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/10.video/">第19.10章：De-fragmenting C++</a> &mdash; Herb Sutter 的 CppCon 2019 演讲，本章所教一切的发源
         </li>
       </ul>
 

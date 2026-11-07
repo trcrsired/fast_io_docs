@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第19.9章：fast_io 的分配器选项 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第19.9章：fast_io 的分配器选项</h1>
+    <p class="lang-switch"><a href="/docs/19.exceptionsandherbceptions/09.allocatorflags/">English</a></p>
+
+    <section>
+      <h2>1. 策略是类型参数，不是全局开关</h2>
+      <p>
+        <a href="/zhcn/docs/19.exceptionsandherbceptions/02.crash/">第19.2章</a> 说了 fast_io 在分配无法满足、尺寸无法表示、不变量被破坏时怎么做：当场调用 <code>::fast_io::fast_terminate()</code>。那是默认行为，也是库里每个容器的默认行为。
+      </p>
+      <p>
+        它不是自然规律，而是<strong>分配器类型的一个属性</strong>。fast_io 不使用标准分配器模型 —— 它不用 <code>::std::allocator</code>，不用 <code>::operator new</code>，和 <code>std::allocator_traits</code> 毫无关系。fast_io 里的分配器是一个具有<em>静态</em>接口和策略的类型，而策略就写成分配器自己类型里的一个位标志：
+      </p>
+      <pre><code class="language-cpp">
+enum class allocator_adapter_flags
+{
+	none = 0,
+	secure_clear = 1,
+	throws_on_allocation_failure = 2,    // by default we fail fast
+	throws_on_violations = 4,            // by default we fail fast
+	throws_on_overflow = 8,              // by default we fail fast
+	prefer_big_allocation_on_stack = 16, // pick stack scratch (e.g. print) over heap
+};
+</code></pre>
+      <p>
+        中间那三个标志就是本章要讲的：它们把 <a href="/zhcn/docs/19.exceptionsandherbceptions/02.crash/">第19.2章</a> 里的三种损坏情形，从"终止进程"变成"在 <code>throws</code> 通道上抛出 <code>::std::error</code>"。<code>secure_clear</code> 让分配器在归还内存前擦除它，<code>prefer_big_allocation_on_stack</code> 让打印操作在需要大临时缓冲区时优先用栈上的草稿区 —— 两者都是同一类策略，这正是要点：分配器<em>就是</em>那个策略对象。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 分配器是怎么拼起来的</h2>
+      <p>
+        两层。内层是一个带静态函数的类，函数有两种口味：<code>allocate_die</code>，失败时可以不返回；<code>allocate_try</code>，失败时抛出赫布异常。<code>::fast_io::c_malloc_allocator</code> 是最小的例子，把整套想法都展示出来了：
+      </p>
+      <pre><code class="language-cpp">
+class c_malloc_allocator
+{
+public:
+	static inline void *allocate_die(::std::size_t n) noexcept
+	{
+		if (n == 0)
+		{
+			n = 1;
+		}
+		void *p{__builtin_malloc(n)};
+		if (p == nullptr)
+		{
+			::fast_io::fast_terminate();
+		}
+		return p;
+	}
+
+	static inline void *allocate_try(::std::size_t n) FAST_IO_HERBCEPTIONS_THROWS
+	{
+		if (n == 0)
+		{
+			n = 1;
+		}
+		void *p{__builtin_malloc(n)};
+		if (p == nullptr)
+		{
+			::fast_io::herbceptions::throws_errc(::std::errc::not_enough_memory);
+		}
+		return p;
+	}
+	// deallocate and the reallocate pair follow the same two-flavour pattern
+};
+
+</code></pre>
+      <p>
+        外层是 <code>::fast_io::generic_allocator_adapter&lt;alloc, flags&gt;</code>。它读取标志，并对每个操作挑选策略要求的那种口味：带 <code>throws_on_*</code> 标志时，它要求存在 <code>_try</code> 函数并传播它们的错误；没有这些标志时，它优先用 <code>_die</code>，而如果分配器只有 <code>_try</code> 函数，适配器会调用它，并在它抛出时<strong>终止进程</strong>。这个退路是有意的：策略说要快速失败，就必须快速失败，哪怕底层分配器被写成了抛出版本。
+      </p>
+      <p>
+        每个 fast_io 容器都接受分配器类型：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T, typename Alloc = ::fast_io::native_global_allocator&gt;
+using vector = ::fast_io::containers::vector&lt;T, Alloc&gt;;
+
+template &lt;::std::integral chartype, typename allocator = ::fast_io::native_global_allocator&gt;
+using basic_string = ::fast_io::containers::basic_string&lt;chartype, allocator&gt;;
+</code></pre>
+      <p>
+        所以这个选择是在每个容器类型上、在编译期做一次。没有运行时能翻转的全局开关，没有虚分配器，没有 <code>std::pmr</code>，也不可能让程序的两个部分对它们共享的容器的策略产生分歧：策略是类型的一部分。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 要求抛出赫布异常</h2>
+      <p>
+        下面这个程序和 <a href="/zhcn/docs/19.exceptionsandherbceptions/02.crash/">第19.2章</a> 那个是同一个，只是分配器说了"报告它，不要死"。底层分配器还是同一个 <code>c_malloc_allocator</code>，容器还是同一个 <code>basic_string</code> —— 只有标志变了：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+
+/* the same malloc-backed allocator, but with the failure policy changed */
+using throwing_allocator = ::fast_io::generic_allocator_adapter&lt;
+	::fast_io::c_malloc_allocator,
+	::fast_io::allocator_adapter_flags::throws_on_allocation_failure |
+		::fast_io::allocator_adapter_flags::throws_on_violations |
+		::fast_io::allocator_adapter_flags::throws_on_overflow&gt;;
+
+using throwing_string = ::fast_io::basic_string&lt;char, throwing_allocator&gt;;
+
+int main()
+{
+	try
+	{
+		throwing_string s;
+		::std::size_t const huge{static_cast&lt;::std::size_t&gt;(1) &lt;&lt; 40};
+		::fast_io::io::print("reserving ", huge, " bytes\n");
+		s.reserve(huge);
+		::fast_io::io::print("reserved ", s.capacity(), " bytes\n");
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("caught ", e, "\n");
+	}
+}
+
+</code></pre>
+      <pre><code class="language-text">
+reserving 1099511627776 bytes
+caught [posix](12)Not enough space
+</code></pre>
+      <p>
+        这个错误是 <code>::std::errc::not_enough_memory</code>，由 <code>c_malloc_allocator::allocate_try</code> 在 <code>malloc</code> 返回 <code>nullptr</code> 时报出，而它作为一个带正常错误域的普通赫布异常抵达，所以 <code>::fast_io::mnp::message(e)</code> 打印的就是操作系统给它自己的文本。注意<em>没有</em>发生什么：没有遗留异常、没有 <code>bad_alloc</code>、没有展开栈、没有 <code>::std::terminate</code>，也没有空指针。
+      </p>
+      <p>
+        <code>huge</code> 这个值是操作系统根本不可能满足的尺寸（1 TiB）；一个无法被<em>表示</em>的尺寸属于 <code>throws_on_overflow</code> 的情形，而传给容器操作的空句柄属于 <code>throws_on_violations</code>。它们是分开的标志，因为程序可能想上报其中一种而对另外两种直接死掉。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 什么时候打开它</h2>
+      <p>
+        默认值对应用程序来说是对的。只在一种情况下打开这些标志：<strong>你在写一个库，而你的调用者必须能看到失败</strong>。一个直接终止的库无法与任何东西组合；一个上报 <code>::std::errc::not_enough_memory</code> 的库，可以被一个在它自己的边界上决定重试、缩小请求还是干脆死掉的应用程序使用。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>你在写</th>
+            <th>分配器策略</th>
+            <th>为什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>一个应用程序</td>
+            <td>默认：快速失败</td>
+            <td>
+              你上面没有别人可以上报，而且一个能从分配失败中活下来的程序，是一个没人审计过的程序
+            </td>
+          </tr>
+          <tr>
+            <td>A library with a <code>throws</code> interface</td>
+            <td>
+              <code>throws_on_allocation_failure</code>（如果你暴露尺寸，再加上另外两个）
+            </td>
+            <td>你的调用者只能处理被告知的事情</td>
+          </tr>
+          <tr>
+            <td>A test harness</td>
+            <td><code>throws_on_allocation_failure</code></td>
+            <td>你想验证失败路径，而不是让测试运行器中止</td>
+          </tr>
+          <tr>
+            <td>Anything holding secrets</td>
+            <td>默认，再加 <code>secure_clear</code></td>
+            <td>被释放的内存不该残留明文</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        还有一条让这件事保持诚实的规则：<strong>不要在一个对象里混用策略</strong>。容器的分配器类型是容器类型的一部分，所以 <code>::fast_io::basic_string&lt;char, throwing_allocator&gt;</code> 不可能被悄悄传给期待 <code>::fast_io::string</code> 的代码。这和本书其余部分一样，是"策略就是类型"的原则，也是这个选择不可能在运行时出错的原因。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 为什么不用 <code>::std::allocator</code></h2>
+      <p>
+        标准分配器模型无法表达这里的任何一点，原因是结构性的：
+      </p>
+      <ul>
+        <li>
+          <strong>没有策略。</strong>标准分配器只有一种失败模式，由分配器自己的实现决定：<code>::std::allocator&lt;T&gt;::allocate</code> 抛出 <code>::std::bad_alloc</code>，它也只能这样。没有办法说"这里要快速失败"或"尺寸溢出要另作报告"，除非替换整个分配器，而那时你已经不再使用标准模型了。
+        </li>
+        <li>
+          <strong>它按错误的东西做类型参数化。</strong><code>::std::allocator&lt;T&gt;</code> 按元素类型参数化，所以两个元素类型不同的容器即使策略完全一样，分配器类型也不同；而 rebind 出来的分配器让策略根本无法命名。
+        </li>
+        <li>
+          <strong>它通过 <code>::operator new</code> 分配</strong>，而 <code>::operator new</code> 本身就是一个带不可见失败策略的全局，并且在每个实现里，在要紧的目标上都不是 freestanding（<a href="/zhcn/docs/20.freestanding/">第20章</a>）。
+        </li>
+        <li>
+          <strong>它通过抛遗留异常报告失败</strong>，而 <a href="/zhcn/docs/19.exceptionsandherbceptions/08.issues/">第19.8章</a> 已把它从大多数目标上排除。<code>std::nothrow</code> 是另一个选项，而 <a href="/zhcn/docs/19.exceptionsandherbceptions/02.crash/">第19.2章</a> 把它也排除了。
+        </li>
+      </ul>
+      <p>
+        fast_io 的分配器是一个带策略、无状态的静态接口：编译器按标志替你挑选 <code>_die</code> 或 <code>_try</code> 实现，而失败路径就是那个策略所说的样子。这正是为什么可以让 <code>::fast_io::vector</code> 在游戏里终止进程、在库里上报 <code>::std::errc::not_enough_memory</code> —— 同一个头文件，没有配置文件，没有运行时开关。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/19.exceptionsandherbceptions/08.issues/" class="prev-button">&larr; 第19.8章：C++ 遗留异常的问题</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/19.exceptionsandherbceptions/10.video/" class="next-button">第19.10章：De-fragmenting C++ &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
