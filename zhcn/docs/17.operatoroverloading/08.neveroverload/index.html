@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>第17.6章 不该存在的运算符 - C++ Tutorial with fast_io</title>
+  <title>第17.8章 不该存在的运算符 - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>第17.6章 不该存在的运算符</h1>
-    <p class="lang-switch"><a href="/docs/17.operatoroverloading/06.neveroverload/">English</a></p>
+    <h1>第17.8章 不该存在的运算符</h1>
+    <p class="lang-switch"><a href="/docs/17.operatoroverloading/08.neveroverload/">English</a></p>
 
     <section>
       <h2>1. 五个永远错误的</h2>
@@ -45,9 +45,10 @@
               重载之后它就是一次普通函数调用，实参的求值顺序是不确定的。</td>
           </tr>
           <tr>
-            <td><code>&amp;</code></td>
-            <td><strong>取地址。</strong>任何取你对象地址的代码 —— 容器、包装、调试器脚本 ——
-              现在调用的都是你的函数。</td>
+            <td><code>&amp;</code>（一元，取地址）</td>
+            <td><strong>取地址。</strong>C 保持了半个世纪的一个特性，
+              也是语言最不该交出去的那一个
+              （<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/#operatoramp">第3节</a>）。</td>
           </tr>
           <tr>
             <td><code>operator T()</code></td>
@@ -172,7 +173,133 @@ error: no match for ‘operator+’ (operand types are ‘handle_flag’ and ‘
 
     </section>
     <section>
-      <h2>3. <code>&lt;&lt;</code> 和 <code>&gt;&gt;</code>：流运算符</h2>
+      <h2>3. <code>operator&amp;</code>：弄坏语言的那一个</h2>
+
+      <p id="operatoramp">
+        允许 <code>operator&amp;</code> 是个错误，而且不是小错误。
+        本章其它每一条破坏的都是一个便利：短路求值、顺序点、流的错误通道。
+        <code>operator&amp;</code> 破坏的是 C 程序有史以来指代一个对象所用的唯一操作。
+      </p>
+      <p>
+        在 C 里，<code>&amp;obj</code> 就是“<code>obj</code> 的地址”。句号。
+        没有例外，没有类型能重新定义它，而语言里每一个接口都建立在这句话上：
+        <code>malloc</code> 的结果是通过 <code>&amp;p</code> 存下来的，
+        <code>scanf</code> 通过 <code>&amp;n</code> 写回，<code>memcpy</code> 收的是
+        <code>&amp;x</code>。C++ 保留了这套语法，却允许任何类把这句话拿走：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;memory&gt;
+
+struct sneaky
+{
+	int v{};
+
+	[[nodiscard]] sneaky *operator&amp;() noexcept /* C++ lets you write this. Never write it. */
+	{
+		return nullptr;
+	}
+};
+
+template &lt;typename T&gt;
+[[nodiscard]] bool points_at_its_argument(T &amp;ref) noexcept
+{
+	return &amp;ref != nullptr; /* true for every type in the language, except the ones that lie */
+}
+
+int main()
+{
+	try
+	{
+		int plain{7};
+		sneaky s{7};
+
+		::fast_io::io::println("plain: &amp;x != nullptr        ", ::fast_io::mnp::boolalpha(points_at_its_argument(plain)));
+		::fast_io::io::println("sneaky: &amp;x != nullptr       ", ::fast_io::mnp::boolalpha(points_at_its_argument(s)));
+		::fast_io::io::println("&amp;s == nullptr               ", ::fast_io::mnp::boolalpha(&amp;s == nullptr));
+		::fast_io::io::println("::std::addressof(s) == null ", ::fast_io::mnp::boolalpha(::std::addressof(s) == nullptr));
+		::fast_io::io::println("s.v                         ", s.v);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+plain: &amp;x != nullptr        true
+sneaky: &amp;x != nullptr       false
+&amp;s == nullptr               true
+::std::addressof(s) == null false
+s.v                         7
+</code></pre>
+      <p>
+        把第三行和第四行放在一起读。<code>&amp;s</code> 是 <code>nullptr</code>，
+        而这个对象活得好好的，就在一个真实地址上。没有诊断、没有警告、调用方也无从发现：
+        一个写 <code>&amp;ref</code> 的模板 —— 也就是每个容器、每个包装、
+        每个排序算法、每个调试器都在做的事 —— 静默地收到了一个谎话。
+        这就是第二行那个 <code>false</code>，而第一行对语言里其它每个类型都是
+        <code>true</code>。
+      </p>
+
+      <h3>疤痕组织：<code>std::addressof</code></h3>
+      <p>
+        标准库被逼着要有一条出路，而它就是一个只干一件事的函数：
+      </p>
+      <pre><code class="language-cpp">
+  template&lt;typename _Tp&gt;
+    [[__nodiscard__,__gnu__::__always_inline__]]
+    inline _GLIBCXX17_CONSTEXPR _Tp*
+    addressof(_Tp&amp; __r) noexcept
+    { return __builtin_addressof(__r); }
+
+  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+  // 2598. addressof works on temporaries
+  template&lt;typename _Tp&gt;
+    const _Tp* addressof(const _Tp&amp;&amp;) = delete;
+</code></pre>
+      <p>
+        这是 <code>libstdc++</code> 的 <code>&lt;bits/move.h&gt;</code>，值得盯着看一会儿：
+        <code>std::addressof</code> 不是算法，也不是库特性。
+        它是带标准名字的编译器魔法 —— <code>__builtin_addressof</code> ——
+        而它存在的全部理由，就是 <code>&amp;</code> 不再表示 <code>&amp;</code> 的含义了。
+        那个被 delete 掉的右值重载（LWG 2598）同理：
+        如果 <code>&amp;</code> 保住了它的含义，这些措辞一个字都不需要。
+      </p>
+      <p>
+        所以这个特性的代价不是由重载它的那个类型付出的。
+        它是由世界上每个模板付出的 —— 它们现在必须写 <code>::std::addressof(x)</code>，
+        而语言本该让它们写 <code>&amp;x</code>；也是由每个读者付出的 ——
+        他必须知道 <code>&amp;x</code> 不等于 <code>x</code> 的地址，
+        除非 <code>x</code> 的类型是某个拒绝了这项特性的人写的。
+        而且这份代价付得不均匀：你能不能用到 <code>std::addressof</code>，
+        取决于你的标准库，也取决于你是不是 freestanding。
+        <a href="/zhcn/docs/20.freestanding/">第20章</a> 会接着讲这件事，
+        因为在那里答案并不是"总是有"。
+      </p>
+      <p>
+        当年为什么允许？历史上的答案是 COM。在微软的对象模型里，
+        智能指针按惯例让 <code>&amp;p</code> 回答一个 <code>T**</code>，
+        这样某个函数就能把新的接口指针装进去，调用点写成
+        <code>CoCreateInstance(..., &amp;p, ...)</code>。
+        这个约定现在已经无法收拾：对每个模板来说，<code>&amp;p</code> 是"<code>p</code> 的地址"；
+        对每个 COM 调用点来说，<code>&amp;p</code> 是"<code>p</code> 内部那个 <code>T*</code> 的地址"；
+        而类型系统里没有任何东西能区分它们。
+        如果你想要那个输出参数的写法，就给它起个名字 ——
+        <code>p.address_for_init()</code> —— 让 <code>&amp;p</code> 保留它的含义。
+      </p>
+      <p>
+        对自己代码的规则没有例外：<strong>永远不要重载一元 <code>&amp;</code>。</strong>
+        二元 <code>&amp;</code> 也别重载，理由见
+        <a href="/zhcn/docs/17.operatoroverloading/03.valuearithmetic/">第17.3章</a> 的算术论证 ——
+        如果你的类型有一个按位与，读者就必须知道用的是哪一种含义。
+        也不要设计一个<em>必须</em>靠它的接口：一个需要 <code>&amp;x</code> 表示别的东西的类型，
+        有的是接口问题，而命名函数能解决它。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. <code>&lt;&lt;</code> 和 <code>&gt;&gt;</code>：流运算符</h2>
 
       <p>
         这两个值得单独一节，因为它们是被过度使用最多的 C++ 运算符，
@@ -204,7 +331,7 @@ error: no match for ‘operator+’ (operand types are ‘handle_flag’ and ‘
 
     </section>
     <section>
-      <h2>4. 那些“聪明”的运算符</h2>
+      <h2>5. 那些“聪明”的运算符</h2>
       <p>
         还有一类不是按规则错误，而是实践中错误：标点代表的操作和这个标点所表示的意思不一样。
       </p>
@@ -258,7 +385,7 @@ error: no match for ‘operator+’ (operand types are ‘handle_flag’ and ‘
 
     </section>
     <section>
-      <h2>5. <code>operator new</code> 与 <code>operator delete</code></h2>
+      <h2>6. <code>operator new</code> 与 <code>operator delete</code></h2>
       <p>
         类级分配函数是这一类里的最后一个成员，它单独占一页，因为这是唯一一种
         不仅误导而且危险的场合：它改变了这个类型每个对象的分配策略，
@@ -268,10 +395,13 @@ error: no match for ‘operator+’ (operand types are ‘handle_flag’ and ‘
 
     </section>
     <section>
-      <h2>6. 经验法则</h2>
+      <h2>7. 经验法则</h2>
       <ul>
         <li>永远不要重载 <code>&amp;&amp;</code>、<code>||</code>、<code>,</code> 或
-          <code>&amp;</code>。没有例外。</li>
+          <code>&amp;</code>。没有例外，而 <code>&amp;</code> 是四者中最糟的：
+          它撕毁了 C 从 1972 年保持到今天的承诺，而修补它的代价，
+          是标准库多了一个叫 <code>std::addressof</code> 的编译器内建
+          （<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/#operatoramp">第3节</a>）。</li>
         <li><code>explicit operator bool</code> 是唯一值得写的转换运算符。
           其余的一律用命名函数（<code>to_integer()</code>、<code>as_string()</code>）。</li>
         <li>不要写 <code>operator&lt;&lt;</code> 或 <code>operator&gt;&gt;</code>。
@@ -284,9 +414,9 @@ error: no match for ‘operator+’ (operand types are ‘handle_flag’ and ‘
     </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/17.operatoroverloading/05.subscriptcall/" class="prev-button">&larr; 第17.5章 下标、调用与解引用</a>
+      <a href="/zhcn/docs/17.operatoroverloading/07.subscriptcall/" class="prev-button">&larr; 第17.7章 下标、调用与解引用</a>
       <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/17.operatoroverloading/07.rules/" class="next-button">第17.7章 规则与检查表 &rarr;</a>
+      <a href="/zhcn/docs/17.operatoroverloading/09.rules/" class="next-button">第17.9章 规则与检查表 &rarr;</a>
     </div>
   </main>
 </body>

@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch17.5: Subscript, Call, and Dereference - C++ Tutorial with fast_io</title>
+  <title>Ch17.7: Subscript, Call, and Dereference - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch17.5: Subscript, Call, and Dereference</h1>
-    <p class="lang-switch"><a href="/zhcn/docs/17.operatoroverloading/05.subscriptcall/">中文（简体）</a></p>
+    <h1>Ch17.7: Subscript, Call, and Dereference</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/17.operatoroverloading/07.subscriptcall/">中文（简体）</a></p>
     <section>
       <h2>1. Three Operators With Real Jobs</h2>
 
@@ -241,7 +241,8 @@ scale_by{3}(7) = 21
         <li><strong><code>scale_by</code></strong> is a class whose purpose is to be called, so
           <code>operator()</code> is its natural interface: it composes with algorithms and
           callables, it can carry state (<code>factor</code>), and
-          <code>scale_by{3}(7)</code> cannot be confused with anything else.</li>
+          <code>scale_by{3}(7)</code> cannot be confused with anything else
+          (<a href="/docs/17.operatoroverloading/07.subscriptcall/#call-operator">&sect;6</a>).</li>
         <li><strong>The anti-pattern</strong> is <code>operator()</code> used as "the entry point
           of a service": <code>app()</code>, <code>db()</code>, <code>ctx(...)</code>, where the
           object is not a function at all and the operator is being used because it is shorter
@@ -251,7 +252,130 @@ scale_by{3}(7) = 21
 
     </section>
     <section>
-      <h2>6. Rules of Thumb</h2>
+      <h2 id="call-operator">6. <code>operator()</code>: the Function Call Operator</h2>
+
+      <p>
+        <code>()</code> is the only operator that makes an object <em>callable</em>, and
+        "callable" is not a matter of taste in this language &mdash; it is a library-wide
+        contract. Every algorithm that takes a predicate, a comparator, a projection or a hash
+        says the same sentence: "I will call <code>f(x)</code>". <code>operator()</code> is how a
+        type agrees to that sentence, which is why it is the one operator in this chapter that a
+        generic library has a real reason to require.
+      </p>
+      <p>
+        The shape has a few rules that are easy to get wrong:
+      </p>
+      <ul>
+        <li>It must be a member function. There is no non-member form, and no way to make
+          <code>x(y)</code> mean anything for a type that does not declare one.</li>
+        <li>Any arity, including zero, including a parameter pack, including a template. The
+          "call operator" is not "the zero-argument operator" &mdash; a comparator with two
+          arguments is the most common instance in the library.</li>
+        <li><code>const</code> when it does not modify the object, which is almost always. An
+          <code>operator()</code> that mutates its object cannot be used by an algorithm that
+          holds the callable const, and most do.</li>
+        <li>The same contract rules as any other function: <code>noexcept</code> or
+          <code>throws</code>, and no function escapes that
+          (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>).</li>
+      </ul>
+      <p>
+        It is right when the type's reason to exist is being called &mdash; a scalar multiplier, a
+        threshold test, a hasher, a comparator. It is wrong when the object is a thing that
+        happens to have an operation: <code>server()</code> as "run the server" says the object
+        <em>is</em> the operation, and the reader has no way to know that from the declaration.
+        That one is <code>server.run()</code>.
+      </p>
+
+      <h3>Stateless callables: make it <code>static</code></h3>
+      <p>
+        If the operation needs no state &mdash; nothing but the type's own template arguments
+        &mdash; declare <code>operator()</code> <code>static inline constexpr</code>. Calling it
+        then constructs no object and passes no <code>this</code>:
+        <code>at_least&lt;10&gt;{}(11)</code> is a call to a function with one argument, and the
+        empty temporary is never materialised.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;concepts&gt;
+#include &lt;cstdint&gt;
+
+template &lt;::std::int_least32_t Threshold&gt;
+struct at_least /* stateless: the threshold lives in the type, not in an object */
+{
+	static inline constexpr bool operator()(::std::int_least32_t v) noexcept
+	{
+		return v &gt;= Threshold;
+	}
+};
+
+struct scale_by /* stateful: the factor lives in the object */
+{
+	::std::int_least32_t factor{};
+
+	[[nodiscard]] constexpr ::std::int_least32_t operator()(::std::int_least32_t v) const noexcept
+	{
+		return v * factor;
+	}
+};
+
+int main()
+{
+	try
+	{
+		static_assert(::std::predicate&lt;at_least&lt;10&gt;, ::std::int_least32_t&gt;);
+		::fast_io::io::println("at_least&lt;10&gt;{}(11)    ", ::fast_io::mnp::boolalpha(at_least&lt;10&gt;{}(11)));
+		::fast_io::io::println("at_least&lt;10&gt;{}(9)     ", ::fast_io::mnp::boolalpha(at_least&lt;10&gt;{}(9)));
+		::fast_io::io::println("scale_by{3}(7)        ", scale_by{3}(7));
+		::fast_io::io::println("sizeof at_least&lt;10&gt;   ", sizeof(at_least&lt;10&gt;));
+		::fast_io::io::println("sizeof scale_by       ", sizeof(scale_by));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+at_least&lt;10&gt;{}(11)    true
+at_least&lt;10&gt;{}(9)     false
+scale_by{3}(7)        21
+sizeof at_least&lt;10&gt;   1
+sizeof scale_by       4
+</code></pre>
+      <p>
+        Read the last two lines together. <code>at_least&lt;10&gt;</code> is one byte because it is
+        empty and no object of it exists at the call site; <code>scale_by</code> is four bytes
+        because its factor has to travel with the call. Both are callable, both satisfy whatever
+        the algorithm asks for &mdash; the <code>static_assert</code> is there to say the stateless
+        one is a full citizen of <code>&lt;concepts&gt;</code> &mdash; and the difference between
+        them is exactly "does this operation have state?", which is the question the declaration
+        answers by writing <code>static</code> or not writing it.
+      </p>
+      <p>
+        What you cannot write is a <code>static</code> one with a cv-qualifier: there is no object
+        to qualify. The compiler says so in one line:
+      </p>
+      <pre><code class="language-cpp">
+struct bad
+{
+	static inline constexpr bool operator()(int v) const noexcept { return v &gt; 0; }
+};
+</code></pre>
+      <pre><code class="language-text">
+st2.cc:3:62: error: static member function ‘static constexpr bool bad::operator()(int)’ cannot have cv-qualifier
+</code></pre>
+      <p>
+        <code>static</code> works on <code>operator[]</code> on the same terms and for the same
+        reason: a stateless index needs no object to be indexed. And the rule that keeps all of
+        this honest is the one from
+        <a href="/docs/17.operatoroverloading/02.prefernamed/">Ch17.2</a>: if nothing will ever
+        <em>call</em> your object &mdash; no algorithm, no concept, no interface that takes a
+        callable &mdash; then the operator buys you nothing and a named function is clearer.
+      </p>
+
+    </section>
+    <section>
+      <h2>7. Rules of Thumb</h2>
       <ul>
         <li><code>operator[]</code> must be the cheapest access you have: no allocation, no
           insertion, no check, no failure. Otherwise it is not a subscript, and it gets a
@@ -265,15 +389,21 @@ scale_by{3}(7) = 21
         <li><code>operator*</code> and <code>operator-&gt;</code> are for things that behave like
           pointers. If the thing is not a pointer, use <code>.get()</code>,
           <code>.value()</code>, or a named accessor.</li>
-        <li><code>operator()</code> only when the type's reason to exist is being called.</li>
+        <li><code>operator()</code> only when the type's reason to exist is being called &mdash;
+          and <code>static</code> when it needs no state
+          (<a href="/docs/17.operatoroverloading/07.subscriptcall/#call-operator">&sect;6</a>).</li>
+        <li>A callable with state gets a <code>const</code> <code>operator()</code> unless it is
+          genuinely the operation that mutates; a callable without state gets <code>static</code>.</li>
+        <li>Never the entry point of a service: <code>server.run()</code>, not
+          <code>server()</code>.</li>
       </ul>
 
     </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/docs/17.operatoroverloading/04.comparisons/" class="prev-button">&larr; Ch17.4: Equality and Ordering</a>
+      <a href="/docs/17.operatoroverloading/06.conversions/" class="prev-button">&larr; Ch17.6: Conversion Operators</a>
       <a href="/" class="main-button">&uarr; Main Page</a>
-      <a href="/docs/17.operatoroverloading/06.neveroverload/" class="next-button">Ch17.6: Operators That Should Not Exist &rarr;</a>
+      <a href="/docs/17.operatoroverloading/08.neveroverload/" class="next-button">Ch17.8: Operators That Should Not Exist &rarr;</a>
     </div>
   </main>
 </body>

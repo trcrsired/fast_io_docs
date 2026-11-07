@@ -96,7 +96,7 @@
             <td><code>[]</code></td>
             <td>可以，前提是它便宜且不会失败</td>
             <td>容器下标；一旦它能插入或能抛，它就在撒谎
-              （<a href="/zhcn/docs/17.operatoroverloading/05.subscriptcall/">第17.5章</a>）</td>
+              （<a href="/zhcn/docs/17.operatoroverloading/07.subscriptcall/">第17.7章</a>）</td>
           </tr>
           <tr>
             <td><code>*</code>、<code>-&gt;</code></td>
@@ -105,8 +105,10 @@
           </tr>
           <tr>
             <td><code>()</code></td>
-            <td>只用于可调用对象</td>
-            <td>不要当构造器用，也不要当“万能入口”用</td>
+            <td>可以，用于可调用对象</td>
+            <td>这是每个接受可调用对象的算法都依赖的契约；无状态时写成
+              <code>static inline constexpr</code>，并且永远不要当“万能入口”用
+              （<a href="/zhcn/docs/17.operatoroverloading/07.subscriptcall/#call-operator">第17.7章第6节</a>）</td>
           </tr>
           <tr>
             <td>容器类型上的 <code>+</code></td>
@@ -118,7 +120,7 @@
             <td><code>&lt;&lt;</code>、<code>&gt;&gt;</code></td>
             <td>不行</td>
             <td>iostream 不是错误通道；用 <code>print</code> 和
-              <code>scan</code>（<a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/">第17.6章</a>）</td>
+              <code>scan</code>（<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">第17.8章</a>）</td>
           </tr>
           <tr>
             <td><code>&amp;&amp;</code>、<code>||</code>、<code>,</code>、<code>&amp;</code></td>
@@ -127,8 +129,16 @@
           </tr>
           <tr>
             <td><code>operator T()</code></td>
-            <td>几乎永远不行</td>
-            <td>远距离的隐式转换；<code>explicit operator bool</code> 是唯一值得写的那一个</td>
+            <td>只有 <code>explicit operator bool</code></td>
+            <td>远距离的隐式转换；隐式的那些会静默地改变
+              <code>==</code> 和 <code>+</code> 的含义
+              （<a href="/zhcn/docs/17.operatoroverloading/06.conversions/">第17.6章</a>）</td>
+          </tr>
+          <tr>
+            <td><code>++</code>、<code>--</code></td>
+            <td>可以，前缀优先</td>
+            <td>前缀形式是原语；后缀是三行代码加一次拷贝
+              （<a href="/zhcn/docs/17.operatoroverloading/05.increment/">第17.5章</a>）</td>
           </tr>
           <tr>
             <td><code>operator new</code> / <code>operator delete</code></td>
@@ -156,13 +166,19 @@
         <li><a href="/zhcn/docs/17.operatoroverloading/04.comparisons/">第17.4章: 相等与序关系</a>
           —— <code>= default</code>、<code>&lt;=&gt;</code>、全序与偏序，
           以及为什么有时候你要的命名函数是一个比较器。</li>
-        <li><a href="/zhcn/docs/17.operatoroverloading/05.subscriptcall/">第17.5章: 下标、调用与解引用</a>
+        <li><a href="/zhcn/docs/17.operatoroverloading/05.increment/">第17.5章: 自增与自减</a>
+          —— 为什么前缀形式是原语、怎么写 <code>++i</code> 和 <code>i++</code> 才不至于互相漂移、
+          后缀那次拷贝要付多少、以及 <code>[[nodiscard]]</code> 能强制什么。</li>
+        <li><a href="/zhcn/docs/17.operatoroverloading/06.conversions/">第17.6章: 转换运算符</a>
+          —— <code>explicit operator bool</code> 作为唯一值得拥有的转换、两个被测量出来的隐式转换
+          bug、以及取代它们的命名访问器。</li>
+        <li><a href="/zhcn/docs/17.operatoroverloading/07.subscriptcall/">第17.7章: 下标、调用与解引用</a>
           —— <code>[]</code>、<code>()</code>、<code>*</code>、<code>-&gt;</code>、
           会插入的 <code>operator[]</code> 陷阱，以及代理引用。</li>
-        <li><a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/">第17.6章: 不该存在的运算符</a>
+        <li><a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">第17.8章: 不该存在的运算符</a>
           —— 流运算符、转换运算符、<code>&amp;&amp;</code>、<code>||</code>、<code>,</code>、
           <code>&amp;</code>，以及路径上的 <code>operator/</code>。</li>
-        <li><a href="/zhcn/docs/17.operatoroverloading/07.rules/">第17.7章: 规则与检查表</a>
+        <li><a href="/zhcn/docs/17.operatoroverloading/09.rules/">第17.9章: 规则与检查表</a>
           —— 把整章变成代码评审里可以 grep 的决定。</li>
       </ul>
 

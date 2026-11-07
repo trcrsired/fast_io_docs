@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第17.6章 转换运算符 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第17.6章 转换运算符</h1>
+    <p class="lang-switch"><a href="/docs/17.operatoroverloading/06.conversions/">English</a></p>
+    <section>
+      <h2>1. 转换运算符是什么</h2>
+
+      <p>
+        <code>operator T()</code> 是一个没有返回类型、没有参数的成员函数。
+        它说的是："凡是要一个 <code>T</code> 的地方，我能造一个出来。"
+        它是语言里侵入性最强的运算符，因为它不参与某一个表达式 ——
+        它参与<strong>每一个</strong>涉及该类型对象的表达式：
+        初始化、赋值、传参、返回、每个内建运算符的操作数、
+        <code>if</code> 和 <code>while</code> 的条件、
+        <code>?:</code> 的两个分支，以及该对象出现的每个重载集的排序。
+      </p>
+      <pre><code class="language-cpp">
+struct handle
+{
+	unsigned p{};
+	operator bool() const noexcept { return p != 0; }  /* implicit: every context */
+};
+</code></pre>
+      <p>
+        只写了那一行，<code>h + 1</code> 就能编过、<code>h * h</code> 也能编过、
+        <code>h == "text"</code> 也能编过，
+        而 <code>f(h)</code> 对每一个接受"<code>bool</code> 能转换成的东西"的 <code>f</code>
+        都变成了可行候选。调用方的代码里没有一个字提到转换，
+        这就是"隔着距离发生的转换"的定义。
+      </p>
+      <p>
+        所以本章对转换的规则比它对算术运算符的规则更窄：
+        <strong>只有一个转换运算符值得拥有 —— <code>explicit operator bool</code> ——
+        其它的都本该写成命名函数。</strong>
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 值得拥有的那一个</h2>
+
+      <p>
+        一个句柄 —— 指针包装、文件、套接字、类 optional 的值 —— 天生带一个问题是：
+        "里面到底有没有东西？"这个问题在 C++ 里有一个约定俗成的写法（<code>if (h)</code>），
+        值得支持。支持它的那个转换是 <code>explicit</code> 的，
+        这就把它限制在语言<em>要求</em>一个真值的那些上下文里
+        （"到 <code>bool</code> 的语境转换"）：<code>if</code>、<code>while</code>、
+        <code>for</code>、<code>switch</code> 的条件，
+        <code>!</code>、<code>&amp;&amp;</code>、<code>||</code> 的操作数，
+        以及 <code>?:</code> 的条件。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+struct [[nodiscard]] handle
+{
+	::std::uintptr_t p{};
+
+	explicit operator bool() const noexcept /* the one conversion worth having */
+	{
+		return p != 0;
+	}
+
+	[[nodiscard]] ::std::uintptr_t raw() const noexcept /* everything else gets a name */
+	{
+		return p;
+	}
+};
+
+int main()
+{
+	try
+	{
+		handle empty{};
+		handle full{0x1234uz};
+
+		::fast_io::io::println("empty          ", ::fast_io::mnp::boolalpha(static_cast&lt;bool&gt;(empty)));
+		::fast_io::io::println("full           ", ::fast_io::mnp::boolalpha(static_cast&lt;bool&gt;(full)));
+		::fast_io::io::println("!empty         ", ::fast_io::mnp::boolalpha(!empty));
+		::fast_io::io::println("full || empty  ", ::fast_io::mnp::boolalpha(full || empty));
+		::fast_io::io::println("full.raw()     ", full.raw());
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+empty          false
+full           true
+!empty         true
+full || empty  true
+full.raw()     4660
+</code></pre>
+      <p>
+        注意程序为了打印需要写什么：<code>static_cast&lt;bool&gt;(empty)</code>。
+        这不是仪式 —— <code>explicit</code> 转换恰好只允许用在语言要求真值的地方，
+        而 <code>println</code> 要的是"一个可格式化的值"，不是真值。
+        这个限制正在履行它的职责：顺手的写法能用，顺带出来的写法不能。
+      </p>
+      <p>
+        对这个运算符有三条要求，三条都容易搞错：
+      </p>
+      <ul>
+        <li><strong><code>const</code>。</strong>"里面有没有东西？"不能修改句柄，
+          否则你没法对一个 <code>handle const</code> 问这个问题 ——
+          而那是你唯一能交给读者的那种。</li>
+        <li><strong><code>noexcept</code>。</strong>这个运算符会在条件里被调用，
+          也会在析构期的清理路径上被调用。一个会抛的真值测试不是真值测试。</li>
+        <li><strong>没有副作用、没有 I/O、没有系统调用。</strong>
+          如果答案需要去问操作系统，那它不是转换；
+          给它起个名字、给它一份契约，比如
+          <code>[[nodiscard]] bool is_valid() const throws</code>
+          （<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>3. <code>explicit</code> 拒绝做什么</h2>
+
+      <p>
+        同一个句柄，一行本该编不过的代码 —— 它确实编不过。
+        下面是编译器的输出，其中重复的源码回显已省略：
+      </p>
+      <pre><code class="language-cpp">
+struct handle
+{
+	unsigned p{};
+	explicit operator bool() const noexcept { return p != 0; }
+};
+
+int f(handle h) noexcept
+{
+	return h + 1;   /* explicit conversions do not apply here */
+}
+</code></pre>
+      <pre><code class="language-text">
+e1.cc: In function ‘int f(handle)’:
+e1.cc:9:18: error: no match for ‘operator+’ (operand types are ‘handle’ and ‘int’)
+    9 |         return h + 1;   /* explicit conversions do not apply here */
+      |                ~ ^ ~
+      |                |   |
+      |                |   int
+      |                handle
+  • there is 1 candidate
+    • candidate 1: ‘operator+(int, int)’ (built-in)
+      • no known conversion for argument 1 from ‘handle’ to ‘int’
+</code></pre>
+      <p>
+        以及那个看起来无害的比较：
+      </p>
+      <pre><code class="language-cpp">
+bool f(handle h) noexcept
+{
+	return h == 1;   /* explicit conversions do not apply here either */
+}
+</code></pre>
+      <pre><code class="language-text">
+e4.cc: In function ‘bool f(handle)’:
+e4.cc:9:18: error: no match for ‘operator==’ (operand types are ‘handle’ and ‘int’)
+    9 |         return h == 1;   /* explicit conversions do not apply here either */
+      |                ~ ^~ ~
+      |                |    |
+      |                |    int
+      |                handle
+  • there is 1 candidate
+    • candidate 1: ‘operator==(int, int)’ (built-in)
+      • no known conversion for argument 1 from ‘handle’ to ‘int’
+</code></pre>
+      <p>
+        这就是 <code>explicit</code> 的意义：这个接口<em>在它专属的那一个上下文里可用</em>，
+        而<em>在其它地方都是隐形的</em>。这些诊断本身就是特性。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 两个可以被测量出来的 bug</h2>
+
+      <p>
+        现在去掉 <code>explicit</code>，并且换个方向去掉：
+        让类型能转换成指针，再让两个数值类型都能转换成 <code>int</code>。
+        两次编译都成功，两个程序都是错的。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+#include &lt;cstddef&gt;
+
+struct cpath /* implicit conversion to the bytes of the path */
+{
+	char const *s{};
+	operator char const *() const noexcept { return s; }
+};
+
+struct bytes /* implicit conversion to an int */
+{
+	int v{};
+	operator int() const noexcept { return v; }
+};
+
+struct items /* a different quantity, the same implicit conversion */
+{
+	int v{};
+	operator int() const noexcept { return v; }
+};
+
+int main()
+{
+	try
+	{
+		char buffer[16]{}; /* the same ten bytes as the literal, in a buffer we own */
+		for (::std::size_t i{}; i != 10; ++i)
+		{
+			buffer[i] = "/etc/hosts"[i];
+		}
+		cpath p{buffer};
+
+		::fast_io::io::println("p == \"/etc/hosts\"  ", ::fast_io::mnp::boolalpha(p == "/etc/hosts"));
+
+		bytes b{100};
+		items it{3};
+		::fast_io::io::println("b + it            ", b + it);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+p == "/etc/hosts"  false
+b + it            103
+</code></pre>
+      <p>
+        <strong>第一行。</strong><code>p</code> 和那个字面量装着同样的十个字节，
+        而 <code>==</code> 回答 <code>false</code>，
+        因为有了这个转换，<code>p == "/etc/hosts"</code> 根本就不是路径之间的比较：
+        它是两个 <code>char const *</code> 的内建比较，也就是两个地址之间的比较。
+        没有警告、没有诊断、测试也不会失败 ——
+        除非那个测试把路径和"恰好是同一个对象的字面量"拿来比。
+      </p>
+      <p>
+        <strong>第二行。</strong>100 字节加 3 个项目等于 103，而类型系统无话可说，
+        因为两个类型都自愿变成 <code>int</code>。
+        这正是 <a href="/zhcn/docs/02.basics/16.enumclass/">枚举类</a>
+        的强类型要防住的错误，现在它从转换运算符这扇后门又回来了。
+      </p>
+      <p>
+        这两个 bug 都不稀奇。它们距离"评审会通过的代码"都只差一个被删掉的词，
+        这正是本章要把这个词要回来的原因。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 两个转换，其中一个多余</h2>
+
+      <p>
+        一个类型同时有 <code>operator bool</code> <em>和</em> <code>operator int</code>，
+        在调用点并不会产生歧义错误；编译器直接挑一个。这个程序把它的选择打印出来：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+struct flag
+{
+	bool b{};
+	operator bool() const noexcept { return b; }
+	operator int() const noexcept { return static_cast&lt;int&gt;(b); }
+};
+
+int main()
+{
+	try
+	{
+		flag x{true};
+		::fast_io::io::println("x == 1  ", ::fast_io::mnp::boolalpha(x == 1));
+		::fast_io::io::println("x == 2  ", ::fast_io::mnp::boolalpha(x == 2));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+x == 1  true
+x == 2  false
+</code></pre>
+      <p>
+        <code>x == 2</code> 回答 <code>false</code>，只有当编译器是通过
+        <code>operator int</code> 走到这个比较的（也就是 <code>1 == 2</code>）才可能；
+        如果走的是 <code>operator bool</code>，那会是 <code>true == true</code>，
+        答案就该是 <code>true</code>。所以第二个比较的含义是作者从没写过的，
+        而语言里没有任何东西报告这次替换。
+        一个类型一旦有不止一种"变成别的东西"的方式，
+        每一个提到它的表达式都得靠人重新读一遍。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 用命名函数走出去</h2>
+
+      <p>
+        修法不是"把这个转换改成 explicit"，而是"不要有这个转换"。
+        给类型命名访问器，让比较发生在"知道怎么比较内容"的类型上。
+        同一个程序，删掉转换之后：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+#include &lt;cstddef&gt;
+
+struct path /* no conversion operator: one named way out */
+{
+	char const *s{};
+	::std::size_t n{};
+
+	[[nodiscard]] ::fast_io::string_view view() const noexcept
+	{
+		return ::fast_io::string_view{s, n};
+	}
+};
+
+struct byte_count /* a count of bytes, not a number */
+{
+	::std::uint_least64_t n{};
+
+	[[nodiscard]] ::std::uint_least64_t count() const noexcept
+	{
+		return n;
+	}
+};
+
+int main()
+{
+	try
+	{
+		char buffer[16]{};
+		for (::std::size_t i{}; i != 10; ++i)
+		{
+			buffer[i] = "/etc/hosts"[i];
+		}
+
+		path p{buffer, 10};
+		::fast_io::io::println("p.view() == \"/etc/hosts\"  ",
+							   ::fast_io::mnp::boolalpha(p.view() == ::fast_io::string_view{"/etc/hosts"}));
+
+		byte_count b{100};
+		::fast_io::io::println("b.count()                ", b.count());
+
+		::fast_io::string a{::fast_io::string_view{"abc"}};
+		::fast_io::string c{::fast_io::string_view{"abc"}};
+		::fast_io::io::println("a == c                   ", ::fast_io::mnp::boolalpha(a == c));
+		::fast_io::io::println("a == \"abc\"               ", ::fast_io::mnp::boolalpha(a == "abc"));
+		::fast_io::io::println("a.size()                 ", a.size());
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+p.view() == "/etc/hosts"  true
+b.count()                100
+a == c                   true
+a == "abc"               true
+a.size()                 3
+</code></pre>
+      <p>
+        现在每一行都是真的，而且每一行都说明了它在做什么。
+        <code>p.view()</code> 返回一个 <code>string_view</code>，
+        那种类型的 <code>==</code> 比较字节，所以这个比较是关于路径的。
+        <code>b.count()</code> 返回一个数，而 <code>b + 1</code> 现在会是编译错误，而不是 101：
+      </p>
+      <pre><code class="language-cpp">
+struct byte_count
+{
+	unsigned n{};
+	unsigned count() const noexcept { return n; }
+};
+
+int f(byte_count b) noexcept
+{
+	return b + 1;
+}
+</code></pre>
+      <pre><code class="language-text">
+e2.cc: In function ‘int f(byte_count)’:
+e2.cc:9:18: error: no match for ‘operator+’ (operand types are ‘byte_count’ and ‘int’)
+    9 |         return b + 1;
+      |                ~ ^ ~
+      |                |   |
+      |                |   int
+      |                byte_count
+</code></pre>
+      <p>
+        那个错误<em>就是</em>修复。错误从运行期（在那里它打印 103）
+        搬到了编译期（在那里它打印文件名和行号）。
+      </p>
+
+    </section>
+    <section>
+      <h2>7. fast_io 是怎么做的</h2>
+
+      <p>
+        <code>::fast_io::string</code> 根本没有转换运算符：没有
+        <code>operator char const *</code>，没有 <code>operator ::fast_io::string_view</code>。
+        要字节就调 <code>c_str()</code> 或 <code>data()</code>；要长度就调
+        <code>size()</code>（<code>include/fast_io_dsal/impl/string.h</code>，第 246 行和第 267 行）。
+        它也没有 <code>operator+</code>，理由见
+        <a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">第17.2章</a> 的测量。
+      </p>
+      <p>
+        与此同时，比较却不需要任何转换就能用，
+        因为那些重载是照着"本来就知道怎么比较字节"的类型写的：
+      </p>
+      <pre><code class="language-cpp">
+inline constexpr bool operator==(::fast_io::containers::basic_string&lt;chtype, allocator1&gt; const &amp;lhs, ::fast_io::containers::basic_string&lt;chtype, allocator2&gt; const &amp;rhs) noexcept
+inline constexpr bool operator==(::fast_io::containers::basic_string&lt;chtype, allocator1&gt; const &amp;lhs, ::fast_io::containers::basic_string_view&lt;chtype&gt; rhs) noexcept
+inline constexpr bool operator==(::fast_io::containers::basic_string&lt;char_type, allocator1&gt; a, char_type const (&amp;buffer)[n]) noexcept
+</code></pre>
+      <p>
+        三个重载，三个决定，只在一个地方做一次：
+        两个字符串按内容比较，字符串和视图按内容比较，字符串和字面量按内容比较 ——
+        最后一个通过引用数组，所以字面量永远不会退化成指针，
+        上面那个指针比较的 bug 也就无法从一个 <code>::fast_io::string</code> 走进去。
+        这就是"类型拒绝被转换"时，一个比较运算符该有的样子：
+        库必须把三种情况写下来，而不是让编译器挑一个内建运算符然后祈祷。
+      </p>
+      <p>
+        序关系是同样的形状：字符串/字符串、字符串/视图、字符串/字面量都提供了
+        <code>operator&lt;=&gt;</code>，返回的是这些比较本来就具有的类别
+        （<a href="/zhcn/docs/17.operatoroverloading/04.comparisons/">第17.4章</a>）。
+      </p>
+
+    </section>
+    <section>
+      <h2>8. 转换构造函数：同一个决定，反着做</h2>
+
+      <p>
+        单参数构造函数是一个朝着反方向的转换运算符：它决定什么能变成<em>这个</em>类型。
+        这里的默认值取向和内建的相反，理由却相同：
+      </p>
+      <pre><code class="language-cpp">
+struct metres
+{
+	double m{};
+
+	explicit metres(double value) noexcept : m{value} {} /* you must say what unit you mean */
+};
+
+struct milliseconds
+{
+	unsigned long long ms{};
+
+	explicit milliseconds(unsigned long long value) noexcept : ms{value} {}
+};
+
+[[nodiscard]] milliseconds from_seconds(unsigned long long s) noexcept /* a name for a conversion that has arithmetic in it */
+{
+	return milliseconds{s * 1000uz};
+}
+</code></pre>
+      <p>
+        <code>explicit metres(3.0)</code> 说明了它转换的是什么；
+        <code>metres m = 3.0;</code> 没有说明，因此被拒绝。
+        当转换里含有规则 —— 单位、舍入、失效方式 —— 就给这个转换一个函数名，
+        因为规则就住在名字里。
+        <code>from_seconds</code> 不可能被误认为"给时长赋一个数"，
+        而那正是时长类型上的 <code>operator int</code> 所邀请的错误
+        （<a href="/zhcn/docs/13.class/06.constructors/">第13.6章</a>）。
+      </p>
+      <p>
+        模板形式同理。模板的转换运算符
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+operator T() const noexcept;   /* every overload set in the program now considers this */
+</code></pre>
+      <p>
+        是最难推理的一种转换，因为它让这个对象成为程序里每一个调用、每一种类型下的候选。
+        如果你非有不可，就把它标成 <code>explicit</code>。
+        如果能不拥有它，就别拥有它 ——
+        本章的姊妹页 <a href="/zhcn/docs/17.operatoroverloading/01.whatoperatorsare/">第17.1章</a>
+        对一般的模板运算符给的是同样的建议。
+      </p>
+
+    </section>
+    <section>
+      <h2>9. 经验法则</h2>
+      <ul>
+        <li><code>explicit operator bool</code>：可以有，并且写成
+          <code>const noexcept</code>、没有副作用。</li>
+        <li>其它任何转换运算符：不要。写命名访问器
+          （<code>count()</code>、<code>raw()</code>、<code>view()</code>、
+          <code>has_value()</code>），让调用方有意识地转换。</li>
+        <li>绝不写转到指针、C 字符串或算术类型的转换。
+          这三种转换会静默地改变一个表达式的含义，而三种都在上面被测量过。</li>
+        <li>每个类型最多一个转换。有两个就意味着编译器替你挑，
+          而脚本没法告诉你作者想的是哪一个。</li>
+        <li>如果一次转换需要分配、需要抛、或者需要碰操作系统，
+          那就是一个带契约的命名函数，不是运算符。</li>
+        <li>构造函数是镜像：默认写 <code>explicit</code>，
+          当转换里带着规则时，用一个命名工厂。</li>
+        <li>这些规则里值得再说一遍的只有一句：
+          如果这个运算符是读者看见某个他看不见的决定的唯一途径，它就不该是运算符。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/17.operatoroverloading/05.increment/" class="prev-button">&larr; 第17.5章 自增与自减</a>
+      <a href="/zhcn/" class="main-button">&uarr; Main Page</a>
+      <a href="/zhcn/docs/17.operatoroverloading/07.subscriptcall/" class="next-button">第17.7章 下标、调用与解引用 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

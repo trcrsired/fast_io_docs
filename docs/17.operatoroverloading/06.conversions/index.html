@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch17.6: Conversion Operators - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch17.6: Conversion Operators</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/17.operatoroverloading/06.conversions/">中文（简体）</a></p>
+    <section>
+      <h2>1. What a Conversion Operator Is</h2>
+
+      <p>
+        <code>operator T()</code> is a member function with no return type and no parameters. It
+        says: "wherever a <code>T</code> is wanted, I can produce one". It is the most invasive
+        operator in the language, because it does not participate in one expression &mdash; it
+        participates in <strong>every</strong> expression that involves an object of the type:
+        initialisation, assignment, argument passing, return, the operands of every built-in
+        operator, the conditions of <code>if</code> and <code>while</code>, both arms of
+        <code>?:</code>, and the ranking of every overload set the object appears in.
+      </p>
+      <pre><code class="language-cpp">
+struct handle
+{
+	unsigned p{};
+	operator bool() const noexcept { return p != 0; }  /* implicit: every context */
+};
+</code></pre>
+      <p>
+        With that one line, <code>h + 1</code> compiles, <code>h * h</code> compiles,
+        <code>h == "text"</code> compiles, and <code>f(h)</code> becomes viable for every
+        <code>f</code> taking anything a <code>bool</code> converts to. Nothing in the calling
+        code mentions a conversion, which is the definition of a conversion at a distance.
+      </p>
+      <p>
+        So this chapter's rule for conversions is narrower than its rule for arithmetic operators:
+        <strong>there is exactly one conversion operator worth having &mdash;
+        <code>explicit operator bool</code> &mdash; and everything else should have been a named
+        function.</strong>
+      </p>
+
+    </section>
+    <section>
+      <h2>2. The One Worth Having</h2>
+
+      <p>
+        A handle &mdash; a pointer wrapper, a file, a socket, an optional-like value &mdash; has a
+        natural question attached to it: "is there anything in there?". That question has a
+        conventional spelling in C++ (<code>if (h)</code>), and it is worth supporting. The
+        conversion that supports it is <code>explicit</code>, which restricts it to the contexts
+        where the language <em>requires</em> a truth value ("contextual conversion to
+        <code>bool</code>"): the condition of <code>if</code>, <code>while</code>,
+        <code>for</code> and <code>switch</code>, the operands of <code>!</code>,
+        <code>&amp;&amp;</code> and <code>||</code>, and the condition of <code>?:</code>.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+struct [[nodiscard]] handle
+{
+	::std::uintptr_t p{};
+
+	explicit operator bool() const noexcept /* the one conversion worth having */
+	{
+		return p != 0;
+	}
+
+	[[nodiscard]] ::std::uintptr_t raw() const noexcept /* everything else gets a name */
+	{
+		return p;
+	}
+};
+
+int main()
+{
+	try
+	{
+		handle empty{};
+		handle full{0x1234uz};
+
+		::fast_io::io::println("empty          ", ::fast_io::mnp::boolalpha(static_cast&lt;bool&gt;(empty)));
+		::fast_io::io::println("full           ", ::fast_io::mnp::boolalpha(static_cast&lt;bool&gt;(full)));
+		::fast_io::io::println("!empty         ", ::fast_io::mnp::boolalpha(!empty));
+		::fast_io::io::println("full || empty  ", ::fast_io::mnp::boolalpha(full || empty));
+		::fast_io::io::println("full.raw()     ", full.raw());
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+empty          false
+full           true
+!empty         true
+full || empty  true
+full.raw()     4660
+</code></pre>
+      <p>
+        Note what the program needs in order to print: <code>static_cast&lt;bool&gt;(empty)</code>.
+        That is not ceremony &mdash; an <code>explicit</code> conversion is allowed exactly where
+        the language asks for truth, and <code>println</code> asks for a value to format, not for
+        truth. The restriction is doing its job: the comfortable spellings work, and the
+        accidental ones do not.
+      </p>
+      <p>
+        Three requirements on this operator, all of which are easy to get wrong:
+      </p>
+      <ul>
+        <li><strong><code>const</code>.</strong> "Is there anything in there?" must not modify the
+          handle, or you cannot ask it of a <code>handle const</code> &mdash; which is the only
+          kind you can hand to a reader.</li>
+        <li><strong><code>noexcept</code>.</strong> This operator gets called from conditions and
+          from destructor-time clean-up paths. A truth test that can throw is not a truth
+          test.</li>
+        <li><strong>No side effects, no I/O, no syscall.</strong> If the answer requires asking
+          the operating system, it is not a conversion; give it a name and a contract, for example
+          <code>[[nodiscard]] bool is_valid() const throws</code>
+          (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>).</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>3. What <code>explicit</code> Refuses to Do</h2>
+
+      <p>
+        The same handle, one line that should not compile &mdash; and does not. The output below
+        is the compiler's, with the repeated source echo elided:
+      </p>
+      <pre><code class="language-cpp">
+struct handle
+{
+	unsigned p{};
+	explicit operator bool() const noexcept { return p != 0; }
+};
+
+int f(handle h) noexcept
+{
+	return h + 1;   /* explicit conversions do not apply here */
+}
+</code></pre>
+      <pre><code class="language-text">
+e1.cc: In function ‘int f(handle)’:
+e1.cc:9:18: error: no match for ‘operator+’ (operand types are ‘handle’ and ‘int’)
+    9 |         return h + 1;   /* explicit conversions do not apply here */
+      |                ~ ^ ~
+      |                |   |
+      |                |   int
+      |                handle
+  • there is 1 candidate
+    • candidate 1: ‘operator+(int, int)’ (built-in)
+      • no known conversion for argument 1 from ‘handle’ to ‘int’
+</code></pre>
+      <p>
+        And the comparison that looks harmless:
+      </p>
+      <pre><code class="language-cpp">
+bool f(handle h) noexcept
+{
+	return h == 1;   /* explicit conversions do not apply here either */
+}
+</code></pre>
+      <pre><code class="language-text">
+e4.cc: In function ‘bool f(handle)’:
+e4.cc:9:18: error: no match for ‘operator==’ (operand types are ‘handle’ and ‘int’)
+    9 |         return h == 1;   /* explicit conversions do not apply here either */
+      |                ~ ^~ ~
+      |                |    |
+      |                |    int
+      |                handle
+  • there is 1 candidate
+    • candidate 1: ‘operator==(int, int)’ (built-in)
+      • no known conversion for argument 1 from ‘handle’ to ‘int’
+</code></pre>
+      <p>
+        This is the point of <code>explicit</code>: the interface is <em>usable in the one
+        context it is for</em> and <em>invisible everywhere else</em>. The diagnostics are the
+        feature.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Two Bugs You Can Measure</h2>
+
+      <p>
+        Now remove <code>explicit</code>, and remove it in the other direction: let the type
+        convert to a pointer, and let two numeric types convert to <code>int</code>. Both
+        compilations succeed, and both programs are wrong.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+#include &lt;cstddef&gt;
+
+struct cpath /* implicit conversion to the bytes of the path */
+{
+	char const *s{};
+	operator char const *() const noexcept { return s; }
+};
+
+struct bytes /* implicit conversion to an int */
+{
+	int v{};
+	operator int() const noexcept { return v; }
+};
+
+struct items /* a different quantity, the same implicit conversion */
+{
+	int v{};
+	operator int() const noexcept { return v; }
+};
+
+int main()
+{
+	try
+	{
+		char buffer[16]{}; /* the same ten bytes as the literal, in a buffer we own */
+		for (::std::size_t i{}; i != 10; ++i)
+		{
+			buffer[i] = "/etc/hosts"[i];
+		}
+		cpath p{buffer};
+
+		::fast_io::io::println("p == \"/etc/hosts\"  ", ::fast_io::mnp::boolalpha(p == "/etc/hosts"));
+
+		bytes b{100};
+		items it{3};
+		::fast_io::io::println("b + it            ", b + it);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+p == "/etc/hosts"  false
+b + it            103
+</code></pre>
+      <p>
+        <strong>The first line.</strong> <code>p</code> and the literal hold the same ten bytes,
+        and <code>==</code> answers <code>false</code>, because with the conversion in place
+        <code>p == "/etc/hosts"</code> is not a comparison of paths at all: it is the built-in
+        comparison of two <code>char const *</code>, i.e. of two addresses. No warning, no
+        diagnostic, no test failure unless the test compares paths rather than a path to a literal
+        that happens to be the same object.
+      </p>
+      <p>
+        <strong>The second line.</strong> 100 bytes plus 3 items is 103, and the type system had
+        nothing to say, because both types volunteered to be <code>int</code>. This is the failure
+        that the strong-typing of <a href="/docs/02.basics/16.enumclass/">enum classes</a> exists
+        to prevent, reintroduced through the back door of a conversion operator.
+      </p>
+      <p>
+        Neither bug is exotic. Both are one removed word away from code that a reviewer would
+        approve, which is exactly why this chapter asks for the word.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Two Conversions Are One Too Many</h2>
+
+      <p>
+        A type with <code>operator bool</code> <em>and</em> <code>operator int</code> does not
+        produce an ambiguity error at the call site; the compiler simply picks. This program
+        prints the choice:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+struct flag
+{
+	bool b{};
+	operator bool() const noexcept { return b; }
+	operator int() const noexcept { return static_cast&lt;int&gt;(b); }
+};
+
+int main()
+{
+	try
+	{
+		flag x{true};
+		::fast_io::io::println("x == 1  ", ::fast_io::mnp::boolalpha(x == 1));
+		::fast_io::io::println("x == 2  ", ::fast_io::mnp::boolalpha(x == 2));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+x == 1  true
+x == 2  false
+</code></pre>
+      <p>
+        <code>x == 2</code> answering <code>false</code> is only possible if the compiler reached
+        the comparison through <code>operator int</code> (giving <code>1 == 2</code>); through
+        <code>operator bool</code> it would have been <code>true == true</code> and the answer
+        would have been <code>true</code>. So the second comparison means something the author
+        never wrote, and nothing in the language reports the substitution. When a type has more
+        than one way to be something else, every expression that mentions it has to be re-read by
+        hand.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. The Named Way Out</h2>
+
+      <p>
+        The repair is not "make the conversion explicit"; it is "do not have the conversion".
+        Give the type named accessors, and let the comparison happen on a type that knows how to
+        compare contents. The same program with the conversions deleted:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+#include &lt;cstddef&gt;
+
+struct path /* no conversion operator: one named way out */
+{
+	char const *s{};
+	::std::size_t n{};
+
+	[[nodiscard]] ::fast_io::string_view view() const noexcept
+	{
+		return ::fast_io::string_view{s, n};
+	}
+};
+
+struct byte_count /* a count of bytes, not a number */
+{
+	::std::uint_least64_t n{};
+
+	[[nodiscard]] ::std::uint_least64_t count() const noexcept
+	{
+		return n;
+	}
+};
+
+int main()
+{
+	try
+	{
+		char buffer[16]{};
+		for (::std::size_t i{}; i != 10; ++i)
+		{
+			buffer[i] = "/etc/hosts"[i];
+		}
+
+		path p{buffer, 10};
+		::fast_io::io::println("p.view() == \"/etc/hosts\"  ",
+							   ::fast_io::mnp::boolalpha(p.view() == ::fast_io::string_view{"/etc/hosts"}));
+
+		byte_count b{100};
+		::fast_io::io::println("b.count()                ", b.count());
+
+		::fast_io::string a{::fast_io::string_view{"abc"}};
+		::fast_io::string c{::fast_io::string_view{"abc"}};
+		::fast_io::io::println("a == c                   ", ::fast_io::mnp::boolalpha(a == c));
+		::fast_io::io::println("a == \"abc\"               ", ::fast_io::mnp::boolalpha(a == "abc"));
+		::fast_io::io::println("a.size()                 ", a.size());
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+p.view() == "/etc/hosts"  true
+b.count()                100
+a == c                   true
+a == "abc"               true
+a.size()                 3
+</code></pre>
+      <p>
+        Every line is now true, and every line says what it does. <code>p.view()</code> returns a
+        <code>string_view</code>, a type whose <code>==</code> compares bytes, so the comparison is
+        about paths. <code>b.count()</code> returns a number, and <code>b + 1</code> would now be a
+        compile error instead of 101:
+      </p>
+      <pre><code class="language-cpp">
+struct byte_count
+{
+	unsigned n{};
+	unsigned count() const noexcept { return n; }
+};
+
+int f(byte_count b) noexcept
+{
+	return b + 1;
+}
+</code></pre>
+      <pre><code class="language-text">
+e2.cc: In function ‘int f(byte_count)’:
+e2.cc:9:18: error: no match for ‘operator+’ (operand types are ‘byte_count’ and ‘int’)
+    9 |         return b + 1;
+      |                ~ ^ ~
+      |                |   |
+      |                |   int
+      |                byte_count
+</code></pre>
+      <p>
+        That error <em>is</em> the fix. The mistake moved from run time, where it printed 103, to
+        compile time, where it prints a file name and a line number.
+      </p>
+
+    </section>
+    <section>
+      <h2>7. What fast_io Does</h2>
+
+      <p>
+        <code>::fast_io::string</code> has no conversion operator at all: no
+        <code>operator char const *</code>, no <code>operator ::fast_io::string_view</code>. If
+        you want the bytes you call <code>c_str()</code> or <code>data()</code>; if you want the
+        length you call <code>size()</code>
+        (<code>include/fast_io_dsal/impl/string.h</code>, lines 246 and 267). It also has no
+        <code>operator+</code>, for the reason
+        <a href="/docs/17.operatoroverloading/02.prefernamed/">Ch17.2</a> measures.
+      </p>
+      <p>
+        Comparison, meanwhile, works without any conversion, because the overloads are written
+        against types that already know how to compare bytes:
+      </p>
+      <pre><code class="language-cpp">
+inline constexpr bool operator==(::fast_io::containers::basic_string&lt;chtype, allocator1&gt; const &amp;lhs, ::fast_io::containers::basic_string&lt;chtype, allocator2&gt; const &amp;rhs) noexcept
+inline constexpr bool operator==(::fast_io::containers::basic_string&lt;chtype, allocator1&gt; const &amp;lhs, ::fast_io::containers::basic_string_view&lt;chtype&gt; rhs) noexcept
+inline constexpr bool operator==(::fast_io::containers::basic_string&lt;char_type, allocator1&gt; a, char_type const (&amp;buffer)[n]) noexcept
+</code></pre>
+      <p>
+        Three overloads, three decisions made once, in one place: two strings compare by content,
+        a string and a view compare by content, and a string and a literal compare by content
+        &mdash; the last one through a reference-to-array, so the literal never decays to a
+        pointer and the pointer-comparison bug above cannot be reached from a
+        <code>::fast_io::string</code>. That is what a comparison operator looks like when the
+        type refuses to be converted: the library has to write the three cases down instead of
+        letting the compiler pick a built-in operator and hope.
+      </p>
+      <p>
+        Ordering follows the same shape: <code>operator&lt;=&gt;</code> is provided for
+        string/string, string/view and string/literal, and returns the category those comparisons
+        actually have (<a href="/docs/17.operatoroverloading/04.comparisons/">Ch17.4</a>).
+      </p>
+
+    </section>
+    <section>
+      <h2>8. Converting Constructors: The Same Decision, Reversed</h2>
+
+      <p>
+        A one-argument constructor is a conversion operator facing the other way: it decides what
+        can become <em>this</em> type. The default here is the opposite of the built-in one, and
+        for the same reason:
+      </p>
+      <pre><code class="language-cpp">
+struct metres
+{
+	double m{};
+
+	explicit metres(double value) noexcept : m{value} {} /* you must say what unit you mean */
+};
+
+struct milliseconds
+{
+	unsigned long long ms{};
+
+	explicit milliseconds(unsigned long long value) noexcept : ms{value} {}
+};
+
+[[nodiscard]] milliseconds from_seconds(unsigned long long s) noexcept /* a name for a conversion that has arithmetic in it */
+{
+	return milliseconds{s * 1000uz};
+}
+</code></pre>
+      <p>
+        <code>explicit metres(3.0)</code> says what it converts; <code>metres m = 3.0;</code> does
+        not, and is rejected. When the conversion involves a rule &mdash; a unit, a rounding, a
+        failure mode &mdash; give it a function name, because the name is where the rule goes.
+        <code>from_seconds</code> cannot be mistaken for "assign a number to a duration", which is
+        the mistake <code>operator int</code> on a duration invites
+        (<a href="/docs/13.class/06.constructors/">Ch13.6</a>).
+      </p>
+      <p>
+        The same applies to the template form. A conversion operator that is a template
+      </p>
+      <pre><code class="language-cpp">
+template &lt;typename T&gt;
+operator T() const noexcept;   /* every overload set in the program now considers this */
+</code></pre>
+      <p>
+        is the most expensive kind of conversion to reason about, because it makes the object a
+        candidate for every type in every call. If you have one, mark it <code>explicit</code>.
+        If you can avoid having one, avoid it &mdash; this chapter's chapter-mate,
+        <a href="/docs/17.operatoroverloading/01.whatoperatorsare/">Ch17.1</a>, has the same advice
+        for template operators in general.
+      </p>
+
+    </section>
+    <section>
+      <h2>9. Rules of Thumb</h2>
+      <ul>
+        <li><code>explicit operator bool</code>: yes, and make it <code>const noexcept</code> and
+          free of side effects.</li>
+        <li>Every other conversion operator: no. Write the named accessor
+          (<code>count()</code>, <code>raw()</code>, <code>view()</code>,
+          <code>has_value()</code>) and let callers convert deliberately.</li>
+        <li>Never a conversion to a pointer, a C string, or an arithmetic type. Those are the
+          three conversions that silently change the meaning of an expression, and all three are
+          measured bugs above.</li>
+        <li>One conversion per type at most. Two means the compiler picks, and a script cannot
+          tell which one the author meant.</li>
+        <li>If a conversion would need to allocate, throw, or touch the operating system, it is a
+          named function with a contract, not an operator.</li>
+        <li>Constructors are the mirror image: <code>explicit</code> by default, and a named
+          factory when the conversion carries a rule.</li>
+        <li>Only the postfix form of these rules is worth restating: if the operator would be the
+          only way to reach a decision the reader cannot see, it should not be an operator.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/17.operatoroverloading/05.increment/" class="prev-button">&larr; Ch17.5: Increment and Decrement</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/17.operatoroverloading/07.subscriptcall/" class="next-button">Ch17.7: Subscript, Call, and Dereference &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch17.6: Operators That Should Not Exist - C++ Tutorial with fast_io</title>
+  <title>Ch17.8: Operators That Should Not Exist - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch17.6: Operators That Should Not Exist</h1>
-    <p class="lang-switch"><a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/">中文（简体）</a></p>
+    <h1>Ch17.8: Operators That Should Not Exist</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">中文（简体）</a></p>
     <section>
       <h2>1. The Five That Are Always Wrong</h2>
 
@@ -46,9 +46,10 @@
               arguments are evaluated in unspecified order.</td>
           </tr>
           <tr>
-            <td><code>&amp;</code></td>
-            <td><strong>Address-of.</strong> Any code that takes the address of your object &mdash;
-              a container, a wrapper, a debugger script &mdash; now calls your function instead.</td>
+            <td><code>&amp;</code> (unary, address-of)</td>
+            <td><strong>Address-of.</strong> A feature C has had for half a century, and the one
+              the language should never have handed out
+              (<a href="/docs/17.operatoroverloading/08.neveroverload/#operatoramp">&sect;3</a>).</td>
           </tr>
           <tr>
             <td><code>operator T()</code></td>
@@ -179,7 +180,134 @@ error: no match for ‘operator+’ (operand types are ‘handle_flag’ and ‘
 
     </section>
     <section>
-      <h2>3. <code>&lt;&lt;</code> and <code>&gt;&gt;</code>: the Stream Operators</h2>
+      <h2>3. <code>operator&amp;</code>: the One That Broke the Language</h2>
+
+      <p id="operatoramp">
+        Allowing <code>operator&amp;</code> was a mistake, and not a mild one. Every other entry in
+        this chapter destroys a convenience: short-circuiting, sequencing, a stream's error
+        channel. <code>operator&amp;</code> destroys the only operation by which a C program has
+        ever referred to an object.
+      </p>
+      <p>
+        In C, <code>&amp;obj</code> means "the address of <code>obj</code>". Full stop. There is no
+        exception, no type can redefine it, and every interface in the language is built on that
+        sentence: <code>malloc</code>'s result is stored through <code>&amp;p</code>,
+        <code>scanf</code> writes through <code>&amp;n</code>, <code>memcpy</code> takes
+        <code>&amp;x</code>. C++ kept the syntax and let any class take the sentence away:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;memory&gt;
+
+struct sneaky
+{
+	int v{};
+
+	[[nodiscard]] sneaky *operator&amp;() noexcept /* C++ lets you write this. Never write it. */
+	{
+		return nullptr;
+	}
+};
+
+template &lt;typename T&gt;
+[[nodiscard]] bool points_at_its_argument(T &amp;ref) noexcept
+{
+	return &amp;ref != nullptr; /* true for every type in the language, except the ones that lie */
+}
+
+int main()
+{
+	try
+	{
+		int plain{7};
+		sneaky s{7};
+
+		::fast_io::io::println("plain: &amp;x != nullptr        ", ::fast_io::mnp::boolalpha(points_at_its_argument(plain)));
+		::fast_io::io::println("sneaky: &amp;x != nullptr       ", ::fast_io::mnp::boolalpha(points_at_its_argument(s)));
+		::fast_io::io::println("&amp;s == nullptr               ", ::fast_io::mnp::boolalpha(&amp;s == nullptr));
+		::fast_io::io::println("::std::addressof(s) == null ", ::fast_io::mnp::boolalpha(::std::addressof(s) == nullptr));
+		::fast_io::io::println("s.v                         ", s.v);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+plain: &amp;x != nullptr        true
+sneaky: &amp;x != nullptr       false
+&amp;s == nullptr               true
+::std::addressof(s) == null false
+s.v                         7
+</code></pre>
+      <p>
+        Read the third and fourth lines together. <code>&amp;s</code> is <code>nullptr</code>, and
+        the object is perfectly alive at a real address. There is no diagnostic, no warning, and no
+        way for a caller to notice: a template that writes <code>&amp;ref</code> &mdash; which is
+        what every container, every wrapper, every sorting algorithm and every debugger does
+        &mdash; silently receives a lie. That is the <code>false</code> on line two, where line one
+        is <code>true</code> for every other type in the language.
+      </p>
+
+      <h3>The scar tissue: <code>std::addressof</code></h3>
+      <p>
+        The standard library had to be given a way out, and it is one function with one job:
+      </p>
+      <pre><code class="language-cpp">
+  template&lt;typename _Tp&gt;
+    [[__nodiscard__,__gnu__::__always_inline__]]
+    inline _GLIBCXX17_CONSTEXPR _Tp*
+    addressof(_Tp&amp; __r) noexcept
+    { return __builtin_addressof(__r); }
+
+  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+  // 2598. addressof works on temporaries
+  template&lt;typename _Tp&gt;
+    const _Tp* addressof(const _Tp&amp;&amp;) = delete;
+</code></pre>
+      <p>
+        That is <code>libstdc++</code>'s <code>&lt;bits/move.h&gt;</code>, and it is worth staring
+        at: <code>std::addressof</code> is not an algorithm and not a library feature. It is
+        compiler magic with a standard name &mdash; <code>__builtin_addressof</code> &mdash; and
+        the whole reason it exists is that <code>&amp;</code> stopped meaning what
+        <code>&amp;</code> means. The deleted rvalue overload (LWG 2598) exists for the same
+        reason: if <code>&amp;</code> had kept its meaning, none of this wording would be needed.
+      </p>
+      <p>
+        So the cost of the feature is not paid by the type that overloads it. It is paid by every
+        template in the world, which must now write <code>::std::addressof(x)</code> where the
+        language should have let it write <code>&amp;x</code>; and by every reader who has to know
+        that <code>&amp;x</code> is not the address of <code>x</code> unless <code>x</code>'s type
+        was written by somebody who declined a feature. And it is paid unevenly: whether
+        <code>std::addressof</code> is even available to you depends on your standard library and
+        on whether you are freestanding at all. <a href="/docs/20.freestanding/">Chapter 20</a>
+        takes that up, because the answer there is not "always".
+      </p>
+      <p>
+        Why was it allowed? The historical answer is COM. In the Microsoft object model a smart
+        pointer conventionally answered <code>&amp;p</code> with a <code>T**</code>, so that a
+        function could install a fresh interface pointer into it, and call sites read
+        <code>CoCreateInstance(..., &amp;p, ...)</code>. That convention is now unrecoverable:
+        <code>&amp;p</code> means "the address of <code>p</code>" to every template and "the
+        address of the <code>T*</code> inside <code>p</code>" to every COM call site, and nothing
+        in the type system tells them apart. If you want that out-parameter idiom, give it a name
+        &mdash; <code>p.address_for_init()</code> &mdash; and let <code>&amp;p</code> keep its
+        meaning.
+      </p>
+      <p>
+        The rule for your own code has no exceptions: <strong>never overload unary
+        <code>&amp;</code>.</strong> Do not overload binary <code>&amp;</code> either, for the
+        arithmetic reason in <a href="/docs/17.operatoroverloading/03.valuearithmetic/">Ch17.3</a>
+        &mdash; if your type has a bitwise-and, the reader has to know which meaning was intended.
+        And do not write an interface that <em>requires</em> one: a type that needs
+        <code>&amp;x</code> to mean something else has an interface problem that a named function
+        solves.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. <code>&lt;&lt;</code> and <code>&gt;&gt;</code>: the Stream Operators</h2>
 
       <p>
         These deserve their own paragraph because they are the most overused operators in C++ and
@@ -214,7 +342,7 @@ error: no match for ‘operator+’ (operand types are ‘handle_flag’ and ‘
 
     </section>
     <section>
-      <h2>4. The Clever Operators</h2>
+      <h2>5. The Clever Operators</h2>
       <p>
         Then there is a category that is not wrong by rule but wrong in practice: punctuation
         that stands for an operation the glyph does not mean.
@@ -270,7 +398,7 @@ error: no match for ‘operator+’ (operand types are ‘handle_flag’ and ‘
 
     </section>
     <section>
-      <h2>5. <code>operator new</code> and <code>operator delete</code></h2>
+      <h2>6. <code>operator new</code> and <code>operator delete</code></h2>
       <p>
         Class-level allocation functions are the last member of this category, and they get a
         whole page because they are the one case where the operator is not just misleading but
@@ -282,10 +410,13 @@ error: no match for ‘operator+’ (operand types are ‘handle_flag’ and ‘
 
     </section>
     <section>
-      <h2>6. Rules of Thumb</h2>
+      <h2>7. Rules of Thumb</h2>
       <ul>
         <li>Never overload <code>&amp;&amp;</code>, <code>||</code>, <code>,</code>, or
-          <code>&amp;</code>. There is no exception.</li>
+          <code>&amp;</code>. There is no exception, and <code>&amp;</code> is the worst of the
+          four: it breaks a promise C has kept since 1972, and the repair cost the standard
+          library a compiler intrinsic called <code>std::addressof</code>
+          (<a href="/docs/17.operatoroverloading/08.neveroverload/#operatoramp">&sect;3</a>).</li>
         <li><code>explicit operator bool</code> is the only conversion operator worth writing.
           Everything else gets a named function (<code>to_integer()</code>,
           <code>as_string()</code>).</li>
@@ -300,9 +431,9 @@ error: no match for ‘operator+’ (operand types are ‘handle_flag’ and ‘
     </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/docs/17.operatoroverloading/05.subscriptcall/" class="prev-button">&larr; Ch17.5: Subscript, Call, and Dereference</a>
+      <a href="/docs/17.operatoroverloading/07.subscriptcall/" class="prev-button">&larr; Ch17.7: Subscript, Call, and Dereference</a>
       <a href="/" class="main-button">&uarr; Main Page</a>
-      <a href="/docs/17.operatoroverloading/07.rules/" class="next-button">Ch17.7: Rules and a Checklist &rarr;</a>
+      <a href="/docs/17.operatoroverloading/09.rules/" class="next-button">Ch17.9: Rules and a Checklist &rarr;</a>
     </div>
   </main>
 </body>

@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第17.5章 自增与自减 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第17.5章 自增与自减</h1>
+    <p class="lang-switch"><a href="/docs/17.operatoroverloading/05.increment/">English</a></p>
+    <section>
+      <h2>1. 一个操作，两种拼写，两份契约</h2>
+
+      <p>
+        <code>++</code> 是本章里唯一一个"两个运算符共用一副标点"的东西。
+        <code>++i</code> 有一份契约，<code>i++</code> 有的是另一份：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>拼写</th>
+            <th>签名</th>
+            <th>返回什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>++i</code></td>
+            <td><code>T &amp;operator++()</code></td>
+            <td>前进之后的对象本身 —— 引用，没有拷贝</td>
+          </tr>
+          <tr>
+            <td><code>i++</code></td>
+            <td><code>T operator++(int)</code></td>
+            <td>一个<em>值</em>：对象前进之前的样子</td>
+          </tr>
+          <tr>
+            <td><code>--i</code></td>
+            <td><code>T &amp;operator--()</code></td>
+            <td>后退之后的对象本身</td>
+          </tr>
+          <tr>
+            <td><code>i--</code></td>
+            <td><code>T operator--(int)</code></td>
+            <td>一个值：对象后退之前所在的位置</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        对 <code>int</code> 来说，两种拼写生成同样的代码，选哪个是口味问题。
+        对类类型来说，这个选择是一次<strong>拷贝</strong>：
+        后缀形式必须在前进的同时把旧状态留在某处，而唯一能留它的地方就是一个临时对象。
+        所以语言给你一个原语和一个便利形式，而原语是前缀形式。
+      </p>
+      <p>
+        这就是本章第二条规则存在的原因：
+        <strong>写 <code>++i</code>；给你自己的类型写一个真正干活的前缀
+        <code>++</code>，后缀形式则建立在它之上，只有一行。</strong>
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 怎么写</h2>
+
+      <pre><code class="language-cpp">
+struct cursor
+{
+	::std::uint64_t lane[8]{};
+
+	cursor &amp;operator++() noexcept /* the primitive: advance, hand back *this */
+	{
+		++lane[0];
+		return *this;
+	}
+
+	[[nodiscard]] cursor operator++(int) noexcept /* the convenience: hand back where we were */
+	{
+		cursor old{*this};
+		++*this;
+		return old;
+	}
+};
+</code></pre>
+      <p>
+        六行逻辑，里面有四个决定：
+      </p>
+      <ul>
+        <li><strong>前缀形式返回 <code>cursor &amp;</code>。</strong>
+          不是 <code>cursor</code>，也不是 <code>cursor const &amp;</code>。
+          它返回 <code>*this</code>，这样 <code>++++i</code>、<code>(i = ++j)</code>、
+          <code>f(++i)</code> 的表现才和 <code>int</code> 上的表现一致。</li>
+        <li><strong>后缀形式带一个 <code>int</code> 参数。</strong>
+          这个参数是占位的：它从不被传入、从不被命名、从不被读取。
+          它存在只是因为 <code>operator++()</code> 和 <code>operator++(int)</code>
+          是两个不同的签名，而这是语言区分两种拼写的唯一办法。</li>
+        <li><strong>后缀形式是用前缀形式写出来的。</strong>
+          拷贝、<code>++*this</code>、返回那份拷贝。绝不把前进逻辑写两遍。</li>
+        <li><strong><code>[[nodiscard]]</code> 只加在后缀形式上。</strong>
+          丢掉 <code>i++</code> 的结果，意味着你本该写 <code>++i</code>；
+          丢掉 <code>++i</code> 的结果则是常态，因为"为了副作用而前进"正是它的用途。</li>
+      </ul>
+      <p>
+        <code>noexcept</code> 在这里不是装饰。让一个游标在容器上前进不可能失败：
+        不分配、没有边界要检查（那是 <code>operator*</code> 的活）、也没有错误可报。
+        一个会失败的自增不是自增 —— 如果你发现自己想要一个，
+        你想要的是带 <code>throws</code> 契约的命名函数，比如
+        <code>advance_to(next)</code>（<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）。
+      </p>
+      <p>
+        这不是本文的风格偏好，而是 fast_io 自己的容器用的形状。在
+        <code>include/fast_io_dsal/impl/list.h</code> 里：
+      </p>
+      <pre><code class="language-cpp">
+	inline constexpr list_iterator &amp;operator++() noexcept
+	{
+		iter = static_cast&lt;list_node_common *&gt;(iter)-&gt;next;
+		return *this;
+	}
+
+	inline constexpr list_iterator operator++(int) noexcept
+	{
+		auto temp(*this);
+		++*this;
+		return temp;
+	}
+</code></pre>
+      <p>
+        在 <code>deque.h</code>、<code>forward_list.h</code> 以及库里其它每一个迭代器里，
+        对 <code>--</code> 和 <code>++</code> 也都是一模一样的写法
+        （<a href="/zhcn/docs/04.dsal/">第9章</a>）。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 后缀形式要付什么</h2>
+
+      <p>
+        我们数拷贝次数，而不是掐表，因为拷贝正是不同的那部分，而计数器是精确的。
+        这个类型携带 64 字节状态 —— 真实迭代器拖着的差不多就是这种东西 ——
+        它的拷贝构造函数只做一件看得见的事：给自己计数。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+struct cursor
+{
+	::std::uint64_t lane[8]{}; /* stands in for the state a real iterator drags along */
+	static inline ::std::uint64_t copies{};
+
+	cursor() = default;
+	cursor(cursor const &amp;other) noexcept : lane{}
+	{
+		for (::std::size_t i{}; i != 8; ++i)
+		{
+			lane[i] = other.lane[i];
+		}
+		++copies;
+	}
+
+	cursor &amp;operator++() noexcept /* the primitive: advance, hand back *this */
+	{
+		++lane[0];
+		return *this;
+	}
+
+	[[nodiscard]] cursor operator++(int) noexcept /* the convenience: hand back where we were */
+	{
+		cursor old{*this};
+		++*this;
+		return old;
+	}
+};
+
+int main()
+{
+	try
+	{
+		constexpr ::std::uint64_t rounds{4000000uz};
+
+		cursor prefix{};
+		cursor::copies = 0;
+		for (::std::uint64_t i{}; i != rounds; ++i)
+		{
+			++prefix;
+		}
+		auto const prefix_copies{cursor::copies};
+
+		cursor postfix{};
+		cursor::copies = 0;
+		for (::std::uint64_t i{}; i != rounds; ++i)
+		{
+			(void)(postfix++); /* the old value is dropped on the floor */
+		}
+		auto const postfix_copies{cursor::copies};
+
+		::fast_io::io::println("++i  advanced=", prefix.lane[0], " copies=", prefix_copies);
+		::fast_io::io::println("i++  advanced=", postfix.lane[0], " copies=", postfix_copies);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+++i  advanced=4000000 copies=0
+i++  advanced=4000000 copies=4000000
+</code></pre>
+      <p>
+        两个循环都前进了四百万次。只有一个为了做到这件事创建了四百万个对象。
+        这就是全部差别，而且这个差别属于类型的契约，不属于循环。
+      </p>
+      <p>
+        两点诚实的限定，因为教程里的测量不该被夸大。
+      </p>
+      <p>
+        <strong>第一：</strong>当被丢弃的临时对象可证明没有被使用时，优化器会删掉那次拷贝。
+        上面那个计数器之所以还会响，只是因为那个拷贝构造函数有一个它必须保留的副作用。
+        所以在这台机器上、在 <code>-O2</code> 下，两个循环耗时相同 ——
+        而此时唯一还能显示"拷贝确实发生过"的仪器就是计数器。
+        一旦你写 <code>sum += *it++</code>，旧值<em>就</em>被用上了，
+        临时对象是真实的，拷贝也就跟着真实了。
+      </p>
+      <p>
+        <strong>第二：</strong>对循环计数器本身这样的标量，完全没有差别 ——
+        编译器为 <code>i++</code> 和 <code>++i</code> 生成同样的代码。
+        之所以仍然要写 <code>++i</code>，不是因为计数器贵，
+        而是因为 <code>for (auto it{first}; it != last; ++it)</code>
+        对语言里每一个类型都是同一条语句，
+        而写成 <code>it++</code> 的版本只对提供了后缀形式的类型才是同一条语句 ——
+        而且当它们真的提供时，它向它们要了一份并不需要的拷贝。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 为什么"固定下来的写法"比那次拷贝更重要</h2>
+
+      <p>
+        拷贝只是这个论证里便宜的一半。贵的那一半是：
+        把后缀形式当成<em>第二份实现</em>来写，它会慢慢偏离前缀形式，而没有任何东西会告诉你。
+        下面这个计数器在 100 处停住，两种写法都实现了：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+struct broken
+{
+	int v{};
+	static constexpr int max{100};
+
+	broken &amp;operator++() noexcept /* clamps at max */
+	{
+		if (v &lt; max)
+		{
+			++v;
+		}
+		return *this;
+	}
+	[[nodiscard]] broken operator++(int) noexcept /* a second copy of the logic, and it forgot the clamp */
+	{
+		broken old{*this};
+		v = v + 1;
+		return old;
+	}
+};
+
+struct fixed
+{
+	int v{};
+	static constexpr int max{100};
+
+	fixed &amp;operator++() noexcept
+	{
+		if (v &lt; max)
+		{
+			++v;
+		}
+		return *this;
+	}
+	[[nodiscard]] fixed operator++(int) noexcept /* one line, so there is no logic to forget */
+	{
+		fixed old{*this};
+		++*this;
+		return old;
+	}
+};
+
+int main()
+{
+	try
+	{
+		broken b{};
+		for (int i{}; i != 200; ++i)
+		{
+			++b;
+		}
+		broken p{};
+		for (int i{}; i != 200; ++i)
+		{
+			(void)(p++);
+		}
+		fixed fb{};
+		for (int i{}; i != 200; ++i)
+		{
+			++fb;
+		}
+		fixed fp{};
+		for (int i{}; i != 200; ++i)
+		{
+			(void)(fp++);
+		}
+		::fast_io::io::println("broken  ++i v=", b.v, "  broken  i++ v=", p.v);
+		::fast_io::io::println("fixed   ++i v=", fb.v, "  fixed   i++ v=", fp.v);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+broken  ++i v=100  broken  i++ v=200
+fixed   ++i v=100  fixed   i++ v=100
+</code></pre>
+      <p>
+        <code>broken</code> 在你用 <code>++b</code> 时饱和在 100，在你用 <code>b++</code>
+        时就一路跑到 200。同一个操作的两种拼写说法不一致。
+        没有人会故意写第二个版本；它出现是因为逻辑被复制了，
+        而复制的人当时想的是"之前的值"，而不是那个不变式。
+      </p>
+      <p>
+        一行的后缀形式让这一类 bug 变成不可能，而不是"不太可能"：
+        状态改变的地方只有一处，所以对规则的任何修改都不可能漏掉两种形式中的一种。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 强制这条规则的警告</h2>
+
+      <p>
+        因为后缀形式被标记了 <code>[[nodiscard]]</code>，
+        "你其实不需要旧值"这种情况就不再是静默的拷贝，而是一条诊断：
+      </p>
+      <pre><code class="language-cpp">
+struct cursor
+{
+	::std::size_t pos{};
+	cursor &amp;operator++() noexcept { ++pos; return *this; }
+	[[nodiscard]] cursor operator++(int) noexcept
+	{
+		cursor old{*this};
+		++*this;
+		return old;
+	}
+};
+
+void step(cursor &amp;c) noexcept
+{
+	c++;   /* the old value is thrown away: this is the statement the warning is about */
+}
+</code></pre>
+      <pre><code class="language-text">
+warn.cc: In function ‘void step(cursor&amp;)’:
+warn.cc:17:10: warning: ignoring return value of ‘cursor cursor::operator++(int)’, declared with attribute ‘nodiscard’ [-Wunused-result]
+   17 |         c++;   /* the old value is thrown away: this is the statement the warning is about */
+      |          ^~
+warn.cc:7:30: note: declared here
+    7 |         [[nodiscard]] cursor operator++(int) noexcept
+      |                              ^~~~~~~~
+</code></pre>
+      <p>
+        编译器指的修法是一个字符：<code>++c;</code>。
+        而且这个警告是免费的、对你写的库里每个调用者都生效的 ——
+        这比风格文档里的一句话有效得多。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. <code>++</code> 不是用来干什么的</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>诱惑</th>
+            <th>结论</th>
+            <th>改用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>前进 10 的 <code>++</code></td>
+            <td>不行</td>
+            <td><code>+= 10</code>，它存在就是为了这个，随机访问迭代器提供的也正是它
+              （<code>deque.h</code> 里有 <code>operator+=</code>，以及两种操作数顺序的
+              <code>operator+</code>）</td>
+          </tr>
+          <tr>
+            <td>往没有"位置"概念的东西上写 <code>++</code></td>
+            <td>不行</td>
+            <td>用命名函数；对配置对象做 <code>x++</code> 是个谜题，不是简写</td>
+          </tr>
+          <tr>
+            <td>会失败或会分配的 <code>++</code></td>
+            <td>不行</td>
+            <td>带 <code>throws</code> 契约的 <code>advance_to(next)</code>；
+              失败藏在标点里是看不见的
+              （<a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">第17.2章</a>）</td>
+          </tr>
+          <tr>
+            <td>只有后缀 <code>++</code> 的类型</td>
+            <td>不行</td>
+            <td>定义前缀形式，再由它派生后缀形式；反过来是做不到的</td>
+          </tr>
+          <tr>
+            <td>对临时对象写 <code>++</code> 来制造副作用</td>
+            <td>不行</td>
+            <td>把语句写出来；<code>++make_cursor()</code> 递增的是一个立刻就被销毁的对象</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        随机访问迭代器上的二元 <code>+</code> 是正当的运算符，fast_io 为它写了两种操作数顺序：
+      </p>
+      <pre><code class="language-cpp">
+inline constexpr ::fast_io::containers::details::deque_iterator&lt;T, isconst&gt; operator+(::fast_io::containers::details::deque_iterator&lt;T, isconst&gt; a, postype pos) noexcept
+</code></pre>
+      <p>
+        它配得上这副标点，因为它的含义就是指针本来具有的含义：
+        不分配、不失败、答案唯一，而且对称 —— <code>a + 3</code> 和 <code>3 + a</code>
+        是同一个迭代器（<a href="/zhcn/docs/17.operatoroverloading/03.valuearithmetic/">第17.3章</a>
+        对数字给出了同样的论证）。
+      </p>
+
+    </section>
+    <section>
+      <h2>7. 经验法则</h2>
+      <ul>
+        <li>写 <code>++i</code>。写 <code>--i</code>。只有在你确实需要步进之前那个值的时候才用后缀形式，
+          而这种时候几乎没有。</li>
+        <li>前缀返回 <code>T &amp;</code>，后缀返回 <code>T</code>。这两条弄反，
+          每一个假设了通常契约的泛型算法就会失效。</li>
+        <li>后缀形式是三条语句、零逻辑：拷贝、<code>++*this</code>、返回那份拷贝。</li>
+        <li><code>[[nodiscard]]</code> 加在后缀形式上，永远不加在前缀形式上。</li>
+        <li>两个都标 <code>noexcept</code>，并且是真的：会失败的自增，是套着标点的命名函数。</li>
+        <li>步进多个单位用 <code>+=</code>。不要让 <code>++</code> 表示"前进一大截"。</li>
+        <li>如果你的类型没有后缀形式，那没问题 —— 本章的规则不要求它。
+          如果你的类型没有<em>前缀</em>形式，那你的类型就是这条规则存在的理由。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/17.operatoroverloading/04.comparisons/" class="prev-button">&larr; 第17.4章 相等与序关系</a>
+      <a href="/zhcn/" class="main-button">&uarr; Main Page</a>
+      <a href="/zhcn/docs/17.operatoroverloading/06.conversions/" class="next-button">第17.6章 转换运算符 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

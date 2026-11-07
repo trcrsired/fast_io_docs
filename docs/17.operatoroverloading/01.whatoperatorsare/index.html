@@ -157,12 +157,86 @@ error: expected initializer before ‘*’ token
       <p>
         You cannot change an operator's arity, its associativity, or its precedence:
         <code>a + b * c</code> groups as <code>a + (b * c)</code> for your type too, and
-        <code>a.b.c</code> cannot be redefined as multiply. And you cannot overload
-        <code>::</code>, <code>.</code>, <code>.*</code>, <code>?:</code>, <code>sizeof</code>,
-        <code>alignof</code>, <code>typeid</code>, or a cast operator other than to a type.
+        <code>a.b.c</code> cannot be redefined as multiply. And ten operator spellings are not
+        overloadable at all &mdash; the list is short, closed, and worth knowing by heart, because
+        it is exactly the set of expressions a reader is entitled to understand without knowing
+        your type:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Not overloadable</th>
+            <th>What it answers</th>
+            <th>Why the language keeps it out of reach</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::</code></td>
+            <td>which entity a name denotes</td>
+            <td>name lookup happens before any object exists, so there is nothing to dispatch
+              on</td>
+          </tr>
+          <tr>
+            <td><code>.</code></td>
+            <td>which member of an object</td>
+            <td>member access is the one operation the compiler must fully know: layout,
+              <code>offsetof</code>, and the meaning of every other member expression depend on
+              it. (<code>operator-&gt;</code> is the overloadable one-step cousin.)</td>
+          </tr>
+          <tr>
+            <td><code>.*</code></td>
+            <td>which member through a pointer-to-member</td>
+            <td>same reason; <code>operator-&gt;*</code> <em>is</em> overloadable and lives in the
+              library</td>
+          </tr>
+          <tr>
+            <td><code>?:</code></td>
+            <td>which of two expressions is evaluated</td>
+            <td>it is one of the three forms of lazy evaluation in the language; a function call
+              would evaluate both arms</td>
+          </tr>
+          <tr>
+            <td><code>sizeof</code>, <code>sizeof...</code>, <code>alignof</code></td>
+            <td>how big the type is, and how it is aligned</td>
+            <td>these are answers about layout, not about values; they must not run code
+              (<a href="/docs/02.basics/07.sizeof/">Ch2.7</a>)</td>
+          </tr>
+          <tr>
+            <td><code>typeid</code></td>
+            <td>what the dynamic type is</td>
+            <td>a property of the object, not of your interface; a type must not be able to
+              report itself as another type</td>
+          </tr>
+          <tr>
+            <td><code>static_cast</code>, <code>dynamic_cast</code>,
+              <code>const_cast</code>, <code>reinterpret_cast</code></td>
+            <td>what the value means as another type</td>
+            <td>casts are the escape hatches <em>from</em> the type system; a type that could
+              define <code>reinterpret_cast</code> could make it lie</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Two footnotes. <code>#</code> and <code>##</code> are not C++ operators at all &mdash;
+        they belong to the preprocessor, which runs before there are types to overload
+        (<a href="/docs/03.statements/11.preprocessor/">Ch3.11</a>). And a C-style cast
+        <code>(T)x</code> has no operator name: it is a request to try
+        <code>const_cast</code>, <code>static_cast</code>, <code>static_cast</code> plus
+        <code>const_cast</code>, and <code>reinterpret_cast</code> in that order, so it cannot be
+        overloaded either &mdash; it can only be redirected through a conversion operator.
       </p>
       <p>
-        That last restriction is what makes operator overloading safe to reason about: an
+        Everything else <em>is</em> overloadable, including the four that should never be: the
+        address-of <code>&amp;</code>, the short-circuiting <code>&amp;&amp;</code> and
+        <code>||</code>, and the sequencing <code>,</code>. That asymmetry is the whole subject of
+        <a href="/docs/17.operatoroverloading/08.neveroverload/">Ch17.8</a>: the language protects
+        the operators it considers structural, and trusts you with the ones it considers
+        disposable &mdash; and one of the disposable ones, <code>&amp;</code>, is the single most
+        load-bearing operation in systems code.
+      </p>
+      <p>
+        The list above is what makes operator overloading safe to reason about at all: an
         expression such as <code>a + b * c</code> means the same <em>shape</em> for every type in
         the program, so a reader's parser never has to be told about your class. Everything this
         chapter warns about is inside that shape: the punctuation is fixed, but its
@@ -194,7 +268,7 @@ error: expected initializer before ‘*’ token
             <td></td>
             <td></td>
             <td>member, unless you are doing iostreams &mdash; and you are not
-              (<a href="/docs/17.operatoroverloading/06.neveroverload/">Ch17.6</a>)</td>
+              (<a href="/docs/17.operatoroverloading/08.neveroverload/">Ch17.8</a>)</td>
           </tr>
           <tr>
             <td><code>+= -= *= /=</code> and friends</td>
@@ -212,7 +286,7 @@ error: expected initializer before ‘*’ token
             <td><code>operator T()</code></td>
             <td>yes</td>
             <td></td>
-            <td>do not write it at all (<a href="/docs/17.operatoroverloading/06.neveroverload/">Ch17.6</a>)</td>
+            <td>do not write it at all (<a href="/docs/17.operatoroverloading/08.neveroverload/">Ch17.8</a>)</td>
           </tr>
         </tbody>
       </table>

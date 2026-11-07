@@ -1,4 +1,4 @@
-const CACHE_NAME = "fast_io-docs-v73.0";
+const CACHE_NAME = "fast_io-docs-v74.0";
 const urlsToCache = [
   "/",
   "/style.css",
@@ -291,7 +291,6 @@ const urlsToCache = [
   "/zhcn/docs/15.genericprogramming/10.typeerasure/",
   "/zhcn/docs/15.genericprogramming/11.printscan/",
   "/zhcn/docs/14.fiverules/",
-  "/zhcn/docs/15.template/",
   "/zhcn/docs/16.operatoroverloading/",
   "/zhcn/docs/17.inheritance/",
   "/zhcn/docs/18.virtual/",

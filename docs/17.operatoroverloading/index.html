@@ -101,7 +101,7 @@
             <td><code>[]</code></td>
             <td>yes, if it is cheap and cannot fail</td>
             <td>container index; the moment it can insert or throw it lies
-              (<a href="/docs/17.operatoroverloading/05.subscriptcall/">Ch17.5</a>)</td>
+              (<a href="/docs/17.operatoroverloading/07.subscriptcall/">Ch17.7</a>)</td>
           </tr>
           <tr>
             <td><code>*</code>, <code>-&gt;</code></td>
@@ -110,8 +110,11 @@
           </tr>
           <tr>
             <td><code>()</code></td>
-            <td>only for callables</td>
-            <td>not as a builder and not as a "do everything" entry point</td>
+            <td>yes, for callables</td>
+            <td>it is the contract every algorithm that takes a callable relies on; make it
+              <code>static inline constexpr</code> when the callable is stateless, and never use it
+              as a "do everything" entry point
+              (<a href="/docs/17.operatoroverloading/07.subscriptcall/#call-operator">Ch17.7 &sect;6</a>)</td>
           </tr>
           <tr>
             <td><code>+</code> on containing types</td>
@@ -123,7 +126,7 @@
             <td><code>&lt;&lt;</code>, <code>&gt;&gt;</code></td>
             <td>no</td>
             <td>iostreams are not an error channel; use <code>print</code> and
-              <code>scan</code> (<a href="/docs/17.operatoroverloading/06.neveroverload/">Ch17.6</a>)</td>
+              <code>scan</code> (<a href="/docs/17.operatoroverloading/08.neveroverload/">Ch17.8</a>)</td>
           </tr>
           <tr>
             <td><code>&amp;&amp;</code>, <code>||</code>, <code>,</code>, <code>&amp;</code></td>
@@ -133,9 +136,16 @@
           </tr>
           <tr>
             <td><code>operator T()</code></td>
-            <td>almost never</td>
-            <td>invisible conversions at a distance; <code>explicit operator bool</code> is the
-              only one worth having</td>
+            <td>only <code>explicit operator bool</code></td>
+            <td>invisible conversions at a distance; the implicit ones silently change what
+              <code>==</code> and <code>+</code> mean
+              (<a href="/docs/17.operatoroverloading/06.conversions/">Ch17.6</a>)</td>
+          </tr>
+          <tr>
+            <td><code>++</code>, <code>--</code></td>
+            <td>yes, prefix first</td>
+            <td>the prefix form is the primitive; postfix is three lines and one copy
+              (<a href="/docs/17.operatoroverloading/05.increment/">Ch17.5</a>)</td>
           </tr>
           <tr>
             <td><code>operator new</code> / <code>operator delete</code></td>
@@ -164,15 +174,23 @@
         <li><a href="/docs/17.operatoroverloading/04.comparisons/">Ch17.4: Equality and
           Ordering</a> &mdash; <code>= default</code>, <code>&lt;=&gt;</code>, total vs partial
           order, and why a comparator is sometimes the named function you want.</li>
-        <li><a href="/docs/17.operatoroverloading/05.subscriptcall/">Ch17.5: Subscript, Call, and
+        <li><a href="/docs/17.operatoroverloading/05.increment/">Ch17.5: Increment and
+          Decrement</a> &mdash; why the prefix form is the primitive, how to write
+          <code>++i</code> and <code>i++</code> so they cannot drift apart, what the postfix copy
+          costs, and what <code>[[nodiscard]]</code> enforces.</li>
+        <li><a href="/docs/17.operatoroverloading/06.conversions/">Ch17.6: Conversion
+          Operators</a> &mdash; <code>explicit operator bool</code> as the only conversion worth
+          having, two measured bugs from implicit conversions, and the named accessors that
+          replace them.</li>
+        <li><a href="/docs/17.operatoroverloading/07.subscriptcall/">Ch17.7: Subscript, Call, and
           Dereference</a> &mdash; <code>[]</code>, <code>()</code>, <code>*</code>,
           <code>-&gt;</code>, the inserting <code>operator[]</code> trap, and proxy
           references.</li>
-        <li><a href="/docs/17.operatoroverloading/06.neveroverload/">Ch17.6: Operators That
+        <li><a href="/docs/17.operatoroverloading/08.neveroverload/">Ch17.8: Operators That
           Should Not Exist</a> &mdash; streams, conversions, <code>&amp;&amp;</code>,
           <code>||</code>, <code>,</code>, <code>&amp;</code>, and <code>operator/</code> on
           paths.</li>
-        <li><a href="/docs/17.operatoroverloading/07.rules/">Ch17.7: Rules and a Checklist</a>
+        <li><a href="/docs/17.operatoroverloading/09.rules/">Ch17.9: Rules and a Checklist</a>
           &mdash; the whole chapter as decisions you can grep for in review.</li>
       </ul>
 

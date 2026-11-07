@@ -148,12 +148,79 @@ error: expected initializer before ‘*’ token
       <p>
         你不能改运算符的元数、结合性或者优先级：对你的类型，<code>a + b * c</code>
         照样按 <code>a + (b * c)</code> 分组，<code>a.b.c</code> 也不能被重新定义成乘法。
-        你也不能重载 <code>::</code>、<code>.</code>、<code>.*</code>、<code>?:</code>、
-        <code>sizeof</code>、<code>alignof</code>、<code>typeid</code>，
-        或者除“到某个类型”之外的转换。
+        另外有十种运算符拼写根本不能重载 —— 这个列表很短、是封闭的、值得背下来，
+        因为它恰好就是“读者有权在不了解你的类型的情况下看懂”的那些表达式：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>不能重载</th>
+            <th>它回答什么</th>
+            <th>语言为什么不让它被碰</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::</code></td>
+            <td>一个名字指的是哪个实体</td>
+            <td>名字查找发生在任何对象存在之前，没有可以分派的东西</td>
+          </tr>
+          <tr>
+            <td><code>.</code></td>
+            <td>一个对象的哪个成员</td>
+            <td>成员访问是编译器必须完全知道的那一个操作：布局、<code>offsetof</code>、
+              以及其它每个成员表达式的含义都依赖它。（可重载的近亲是
+              <code>operator-&gt;</code>，它只能走一步。）</td>
+          </tr>
+          <tr>
+            <td><code>.*</code></td>
+            <td>通过成员指针访问的是哪个成员</td>
+            <td>同样的理由；<code>operator-&gt;*</code> <em>是</em>可以重载的，它住在库里</td>
+          </tr>
+          <tr>
+            <td><code>?:</code></td>
+            <td>两个表达式里哪一个被求值</td>
+            <td>它是语言里三种惰性求值形式之一；函数调用会把两边都求值</td>
+          </tr>
+          <tr>
+            <td><code>sizeof</code>、<code>sizeof...</code>、<code>alignof</code></td>
+            <td>类型有多大、怎么对齐</td>
+            <td>这些是关于布局的答案，不是关于值的；它们不能运行代码
+              （<a href="/zhcn/docs/02.basics/07.sizeof/">第2.7章</a>）</td>
+          </tr>
+          <tr>
+            <td><code>typeid</code></td>
+            <td>动态类型是什么</td>
+            <td>这是对象的性质，不是你的接口的性质；一个类型不能有权把自己报告成另一个类型</td>
+          </tr>
+          <tr>
+            <td><code>static_cast</code>、<code>dynamic_cast</code>、
+              <code>const_cast</code>、<code>reinterpret_cast</code></td>
+            <td>这个值当成另一个类型时是什么意思</td>
+            <td>转型是<em>逃出</em>类型系统的逃生门；一个能定义 <code>reinterpret_cast</code>
+              的类型就能让它说谎</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        两个脚注。<code>#</code> 和 <code>##</code> 根本不是 C++ 运算符 ——
+        它们属于预处理器，运行在任何类型存在之前
+        （<a href="/zhcn/docs/03.statements/11.preprocessor/">第3.11章</a>）。
+        而 C 风格转型 <code>(T)x</code> 没有运算符名字：
+        它是“依次尝试 <code>const_cast</code>、<code>static_cast</code>、
+        <code>static_cast</code> 加 <code>const_cast</code>、<code>reinterpret_cast</code>”
+        的一个请求，所以它也不能被重载 —— 只能通过转换运算符被间接影响。
       </p>
       <p>
-        最后这条限制正是运算符重载可以安全推理的原因：<code>a + b * c</code>
+        其它一切都<em>可以</em>重载，包括四个永远不该重载的：
+        取地址 <code>&amp;</code>、短路的 <code>&amp;&amp;</code> 和 <code>||</code>、
+        以及负责顺序的 <code>,</code>。这种不对称正是
+        <a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">第17.8章</a> 的全部主题：
+        语言保护它认为属于结构性的运算符，把其余的托付给你 ——
+        而其中被托付出去的 <code>&amp;</code>，恰恰是系统代码里最吃重的那一个操作。
+      </p>
+      <p>
+        上面这张表正是运算符重载可以安全推理的原因：<code>a + b * c</code>
         这样的表达式对程序里的每个类型都表示同一个<em>形状</em>，
         所以读者解析表达式时永远不需要被告知你的类。本章警告的一切都在这个形状内部：
         标点是固定的，但它的<em>含义</em>不是，麻烦就住在那里。
@@ -184,7 +251,7 @@ error: expected initializer before ‘*’ token
             <td></td>
             <td></td>
             <td>成员 —— 除非你在搞 iostream，而你没有
-              （<a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/">第17.6章</a>）</td>
+              （<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">第17.8章</a>）</td>
           </tr>
           <tr>
             <td><code>+= -= *= /=</code> 这一类</td>
@@ -202,7 +269,7 @@ error: expected initializer before ‘*’ token
             <td><code>operator T()</code></td>
             <td>是</td>
             <td></td>
-            <td>根本不要写（<a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/">第17.6章</a>）</td>
+            <td>根本不要写（<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">第17.8章</a>）</td>
           </tr>
         </tbody>
       </table>

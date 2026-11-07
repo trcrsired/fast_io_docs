@@ -177,13 +177,109 @@ auto const joined{::fast_io::concat_fast_io("concatenated: ", 1, " + ", 2, " = "
       <p>
         这就是为什么 <code>::fast_io::print</code> 和 <code>::fast_io::scan</code>
         是<em>有名字的函数</em>，而不是 <code>operator&lt;&lt;</code> 和
-        <code>operator&gt;&gt;</code>（<a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/">第17.6章</a>）：
+        <code>operator&gt;&gt;</code>（<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">第17.8章</a>）：
         一个以“把值变成文本”为业的库，承受不起隐藏方向、编码或失败的标点符号。
       </p>
 
     </section>
     <section>
-      <h2>4. 写标点符号之前要问的四个问题</h2>
+      <h2>4. <code>::fast_io::string</code> 故意不提供 <code>operator+</code></h2>
+
+      <p>
+        <code>::std::string</code> 有。这正是那个习惯的源头：
+        二十年的 <code>a + b</code> 教会了一代人"连接就是标点"。
+        同一个库里也有 <code>append</code>，而它才是绝大多数调用点真正想要的操作，
+        而且它不做拷贝。
+      </p>
+      <p>
+        <code>::fast_io::string</code> 既没有 <code>operator+</code>，也没有
+        <code>operator+=</code>。这不是疏忽，也不是缺少特性 —— 这是一个决定，
+        而本页就是为它辩护的论证。把过去写成 <code>a + b</code> 的那个表达式写出来，
+        编译器会告诉你：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+int main()
+{
+	::fast_io::string a{::fast_io::string_view{"hello "}};
+	::fast_io::string b{::fast_io::string_view{"world"}};
+	auto c{a + b};
+	::fast_io::io::println(c);
+}
+</code></pre>
+      <pre><code class="language-text">
+plus.cc: In function ‘int main()’:
+plus.cc:9:18: error: no match for ‘operator+’ (operand types are ‘fast_io::string’ {aka ‘fast_io::containers::basic_string&lt;char, fast_io::generic_allocator_adapter&lt;fast_io::c_malloc_allocator&gt; &gt;’} and ‘fast_io::string’ {aka ‘fast_io::containers::basic_string&lt;char, fast_io::generic_allocator_adapter&lt;fast_io::c_malloc_allocator&gt; &gt;’})
+    9 |         auto c{a + b};
+      |                ~ ^ ~
+      |                |   |
+      |                |   basic_string&lt;[...],[...]&gt;
+      |                basic_string&lt;[...],[...]&gt;
+  • there is 1 candidate
+    • candidate 1: ‘constexpr fast_io::posix_timespec64 fast_io::operator+(posix_timespec64, posix_timespec64)’
+      • no known conversion for argument 1 from ‘fast_io::string’ {aka ‘fast_io::containers::basic_string&lt;char, fast_io::generic_allocator_adapter&lt;fast_io::c_malloc_allocator&gt; &gt;’} to ‘fast_io::posix_timespec64’
+</code></pre>
+      <p>
+        编译器在整个头文件集合里能找到的唯一候选，是给时间戳用的
+        <code>operator+</code>（<code>include/fast_io_core_impl/iso/iso8601.h</code>，第 108 行），
+        那是一个配得上这副标点的运算符：一个时间点加一段时长，不分配、不失败、答案唯一。
+        字符串没有候选，因为字符串没有 <code>operator+</code>。
+        候选下面重复的那段源码回显在上面被省略了。
+      </p>
+      <p>
+        库提供的，是调用点真正必须在其中做选择的那些操作：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+int main()
+{
+	try
+	{
+		::fast_io::string a{::fast_io::string_view{"hello "}};
+		::fast_io::string b{::fast_io::string_view{"world"}};
+
+		::fast_io::string c{a}; /* the copy that "+" would have made, made on purpose */
+		c.append(b);            /* in place: nothing that was already there is copied again */
+		::fast_io::io::println("c        ", c);
+
+		a.append(::fast_io::string_view{"there"});
+		::fast_io::io::println("a        ", a);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+c        hello world
+a        hello there
+</code></pre>
+      <p>
+        <code>append</code> 在 <code>include/fast_io_dsal/impl/string.h</code> 里有四个重载
+        —— 一个 <code>string_view</code>、另一个 <code>basic_string</code>、
+        一对 <code>[begin, end)</code> 指针、以及指针加长度 —— 而且它们都返回
+        <code>void</code>。追加不可能产出一个值，因为并没有新值：
+        有的是你本来就持有的那个字符串，它变长了。
+        当你确实想要一个新值时，那是第3节里的 <code>::fast_io::concat_fast_io</code>，
+        它也是函数，也把这件事写在名字里。
+      </p>
+      <p>
+        重点不是"<code>::std::string</code> 错了、fast_io 对了"。
+        重点是这种拼写是一个带可测量代价的设计决定，
+        而把一个昂贵的拼写从接口里拿掉，正是库让你"有意识地"而不是"凭习惯"去做这个决定的方式。
+        这里的代价是 998000 个被拷贝的字节对 0。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 写标点符号之前要问的四个问题</h2>
 
       <table>
         <thead>
@@ -219,16 +315,16 @@ auto const joined{::fast_io::concat_fast_io("concatenated: ", 1, " + ", 2, " = "
       <p>
         把这个测试用到熟悉的运算符上：<code>::std::map</code> 的 <code>operator[]</code>
         在键缺失时会插入一个默认值，所以 <code>m[k]</code> 会失败（分配内存）并且会修改容器 ——
-        这就是 <a href="/zhcn/docs/17.operatoroverloading/05.subscriptcall/">第17.5章</a>
+        这就是 <a href="/zhcn/docs/17.operatoroverloading/07.subscriptcall/">第17.7章</a>
         更偏爱 <code>find</code> 的原因。<code>operator&lt;&lt;</code> 往流里写，
         并通过设置一个没人检查的流状态来报告失败 ——
-        这就是 <a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/">第17.6章</a>
+        这就是 <a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">第17.8章</a>
         把它删掉的原因。
       </p>
 
     </section>
     <section>
-      <h2>5. 该用的名字</h2>
+      <h2>6. 该用的名字</h2>
 
       <table>
         <thead>
@@ -280,7 +376,7 @@ auto const joined{::fast_io::concat_fast_io("concatenated: ", 1, " + ", 2, " = "
 
     </section>
     <section>
-      <h2>6. 当你两者都需要</h2>
+      <h2>7. 当你两者都需要</h2>
       <p>
         有时候为了数学代码的可读性，在命名函数<em>之上</em>再提供一个运算符是值得的。
         那就把运算符写成一行别名，把真正的工作放在函数里：
@@ -301,7 +397,7 @@ template &lt;typename... Args&gt;
 
     </section>
     <section>
-      <h2>7. 经验法则</h2>
+      <h2>8. 经验法则</h2>
       <ul>
         <li>优先用命名函数。运算符必须自己挣得那个标点。</li>
         <li>不要写会失败、会分配、会阻塞的运算符。这三件事是读者必须看得见的。</li>

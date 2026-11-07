@@ -182,14 +182,112 @@ auto const joined{::fast_io::concat_fast_io("concatenated: ", 1, " + ", 2, " = "
       <p>
         This is why <code>::fast_io::print</code> and <code>::fast_io::scan</code> are
         <em>functions with names</em> and not <code>operator&lt;&lt;</code> and
-        <code>operator&gt;&gt;</code> (<a href="/docs/17.operatoroverloading/06.neveroverload/">Ch17.6</a>):
+        <code>operator&gt;&gt;</code> (<a href="/docs/17.operatoroverloading/08.neveroverload/">Ch17.8</a>):
         a library whose business is converting values to text cannot afford punctuation that
         hides direction, encoding, or failure.
       </p>
 
     </section>
     <section>
-      <h2>4. Four Questions Before You Write Punctuation</h2>
+      <h2>4. <code>::fast_io::string</code> Deliberately Has No <code>operator+</code></h2>
+
+      <p>
+        <code>::std::string</code> has one. It is the reason the habit exists: two decades of
+        <code>a + b</code> on strings taught a generation that concatenation is punctuation. The
+        same library also has <code>append</code>, which is the operation most call sites actually
+        wanted, and which does no copying.
+      </p>
+      <p>
+        <code>::fast_io::string</code> has no <code>operator+</code> and no
+        <code>operator+=</code>. Not an oversight and not a missing feature &mdash; a decision,
+        and this page is the argument for it. Write the expression that used to be
+        <code>a + b</code>, and the compiler tells you so:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+int main()
+{
+	::fast_io::string a{::fast_io::string_view{"hello "}};
+	::fast_io::string b{::fast_io::string_view{"world"}};
+	auto c{a + b};
+	::fast_io::io::println(c);
+}
+</code></pre>
+      <pre><code class="language-text">
+plus.cc: In function ‘int main()’:
+plus.cc:9:18: error: no match for ‘operator+’ (operand types are ‘fast_io::string’ {aka ‘fast_io::containers::basic_string&lt;char, fast_io::generic_allocator_adapter&lt;fast_io::c_malloc_allocator&gt; &gt;’} and ‘fast_io::string’ {aka ‘fast_io::containers::basic_string&lt;char, fast_io::generic_allocator_adapter&lt;fast_io::c_malloc_allocator&gt; &gt;’})
+    9 |         auto c{a + b};
+      |                ~ ^ ~
+      |                |   |
+      |                |   basic_string&lt;[...],[...]&gt;
+      |                basic_string&lt;[...],[...]&gt;
+  • there is 1 candidate
+    • candidate 1: ‘constexpr fast_io::posix_timespec64 fast_io::operator+(posix_timespec64, posix_timespec64)’
+      • no known conversion for argument 1 from ‘fast_io::string’ {aka ‘fast_io::containers::basic_string&lt;char, fast_io::generic_allocator_adapter&lt;fast_io::c_malloc_allocator&gt; &gt;’} to ‘fast_io::posix_timespec64’
+</code></pre>
+      <p>
+        The one candidate the compiler can even find in the whole header set is
+        <code>operator+</code> for timestamps (<code>include/fast_io_core_impl/iso/iso8601.h</code>,
+        line 108), which is an operator that earns its glyph: a point in time plus a duration, no
+        allocation, no failure, one obvious answer. There is no candidate for strings, because
+        there is no <code>operator+</code> for strings. The repetition of the source line under the
+        candidate is elided above.
+      </p>
+      <p>
+        What the library offers instead is the set of operations a call site actually has to
+        choose between:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+int main()
+{
+	try
+	{
+		::fast_io::string a{::fast_io::string_view{"hello "}};
+		::fast_io::string b{::fast_io::string_view{"world"}};
+
+		::fast_io::string c{a}; /* the copy that "+" would have made, made on purpose */
+		c.append(b);            /* in place: nothing that was already there is copied again */
+		::fast_io::io::println("c        ", c);
+
+		a.append(::fast_io::string_view{"there"});
+		::fast_io::io::println("a        ", a);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+c        hello world
+a        hello there
+</code></pre>
+      <p>
+        <code>append</code> has four overloads in <code>include/fast_io_dsal/impl/string.h</code>
+        &mdash; a <code>string_view</code>, another <code>basic_string</code>, a
+        <code>[begin, end)</code> pair of pointers, and a pointer with a length &mdash; and all of
+        them return <code>void</code>. Appending cannot produce a value, because there is no new
+        value: there is the string you already had, grown. When you do want a new value, that is
+        <code>::fast_io::concat_fast_io</code> from &sect;3, which is also a function and also says
+        so in its name.
+      </p>
+      <p>
+        The point is not that <code>::std::string</code> is wrong and fast_io is right. The point
+        is that the spelling is a design decision with a measurable cost, and that leaving the
+        expensive spelling out of the interface is how a library makes you take the decision
+        consciously instead of by habit. Here the cost is 998,000 copied bytes against zero.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Four Questions Before You Write Punctuation</h2>
 
       <table>
         <thead>
@@ -227,15 +325,15 @@ auto const joined{::fast_io::concat_fast_io("concatenated: ", 1, " + ", 2, " = "
         Apply the test to familiar operators: <code>::std::map</code>'s
         <code>operator[]</code> inserts a default value when the key is missing, so
         <code>m[k]</code> can fail (allocation) and can change the container &mdash; which is why
-        <a href="/docs/17.operatoroverloading/05.subscriptcall/">Ch17.5</a> prefers
+        <a href="/docs/17.operatoroverloading/07.subscriptcall/">Ch17.7</a> prefers
         <code>find</code>. <code>operator&lt;&lt;</code> writes to a stream and reports failure by
         setting a stream state nobody checks &mdash; which is why
-        <a href="/docs/17.operatoroverloading/06.neveroverload/">Ch17.6</a> removes it.
+        <a href="/docs/17.operatoroverloading/08.neveroverload/">Ch17.8</a> removes it.
       </p>
 
     </section>
     <section>
-      <h2>5. Names to Reach For</h2>
+      <h2>6. Names to Reach For</h2>
 
       <table>
         <thead>
@@ -288,7 +386,7 @@ auto const joined{::fast_io::concat_fast_io("concatenated: ", 1, " + ", 2, " = "
 
     </section>
     <section>
-      <h2>6. When You Need Both</h2>
+      <h2>7. When You Need Both</h2>
       <p>
         Sometimes an operator is worth having <em>on top of</em> the named function, for
         readability in mathematical code. Then define the operator as a one-line alias, and put
@@ -311,7 +409,7 @@ template &lt;typename... Args&gt;
 
     </section>
     <section>
-      <h2>7. Rules of Thumb</h2>
+      <h2>8. Rules of Thumb</h2>
       <ul>
         <li>Prefer a named function. The operator must earn its glyph.</li>
         <li>No operator that can fail, allocate, or block. Those are the three things a reader

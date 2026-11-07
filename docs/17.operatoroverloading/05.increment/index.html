@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch17.5: Increment and Decrement - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch17.5: Increment and Decrement</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/17.operatoroverloading/05.increment/">中文（简体）</a></p>
+    <section>
+      <h2>1. One Operation, Two Spellings, Two Contracts</h2>
+
+      <p>
+        <code>++</code> is the only operator in this chapter that is really two operators wearing
+        one glyph. <code>++i</code> has one contract and <code>i++</code> has a different one:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Spelling</th>
+            <th>Signature</th>
+            <th>What it returns</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>++i</code></td>
+            <td><code>T &amp;operator++()</code></td>
+            <td>the object itself, advanced &mdash; a reference, no copy</td>
+          </tr>
+          <tr>
+            <td><code>i++</code></td>
+            <td><code>T operator++(int)</code></td>
+            <td>a <em>value</em>: what the object was before it advanced</td>
+          </tr>
+          <tr>
+            <td><code>--i</code></td>
+            <td><code>T &amp;operator--()</code></td>
+            <td>the object itself, stepped back</td>
+          </tr>
+          <tr>
+            <td><code>i--</code></td>
+            <td><code>T operator--(int)</code></td>
+            <td>a value: where the object was before it stepped back</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        For an <code>int</code>, the two spellings produce the same code and the choice is
+        taste. For a class type the choice is a <strong>copy</strong>: the postfix form has to
+        keep the old state somewhere while it advances, and the only place to keep it is a
+        temporary object. So the language gives you one primitive and one convenience, and the
+        primitive is the prefix form.
+      </p>
+      <p>
+        This is why the second of this chapter's rules exists: <strong>write <code>++i</code>,
+        and give your own types a prefix <code>++</code> that is the real work, with the postfix
+        form defined as one line on top of it.</strong>
+      </p>
+
+    </section>
+    <section>
+      <h2>2. How to Write It</h2>
+
+      <pre><code class="language-cpp">
+struct cursor
+{
+	::std::uint64_t lane[8]{};
+
+	cursor &amp;operator++() noexcept /* the primitive: advance, hand back *this */
+	{
+		++lane[0];
+		return *this;
+	}
+
+	[[nodiscard]] cursor operator++(int) noexcept /* the convenience: hand back where we were */
+	{
+		cursor old{*this};
+		++*this;
+		return old;
+	}
+};
+</code></pre>
+      <p>
+        Six lines of logic, and four decisions inside them:
+      </p>
+      <ul>
+        <li><strong>The prefix form returns <code>cursor &amp;</code>.</strong> Not
+          <code>cursor</code>, not <code>cursor const &amp;</code>. It returns
+          <code>*this</code>, so that <code>++++i</code>, <code>(i = ++j)</code> and
+          <code>f(++i)</code> all behave the way they behave for <code>int</code>.</li>
+        <li><strong>The postfix form takes an <code>int</code>.</strong> The parameter is a
+          dummy: it is never passed, never named, never read. It exists only because
+          <code>operator++()</code> and <code>operator++(int)</code> are different signatures,
+          and that is the only way the language can tell the two spellings apart.</li>
+        <li><strong>The postfix form is written in terms of the prefix form.</strong> Copy,
+          <code>++*this</code>, return the copy. Never write the advancing logic twice.</li>
+        <li><strong><code>[[nodiscard]]</code> on the postfix form only.</strong> Discarding the
+          result of <code>i++</code> means you should have written <code>++i</code>; discarding
+          the result of <code>++i</code> is normal, because advancing for effect is what it
+          is for.</li>
+      </ul>
+      <p>
+        <code>noexcept</code> is not decoration here. Advancing a cursor over a container cannot
+        fail: there is no allocation, no bounds to check (that is <code>operator*</code>'s job),
+        and no error to report. An increment that can fail is not an increment &mdash; if you
+        find yourself wanting one, you want a named function such as
+        <code>advance_to(next)</code> with a <code>throws</code> contract
+        (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>).
+      </p>
+      <p>
+        This is not a house style; it is the shape fast_io's own containers use. In
+        <code>include/fast_io_dsal/impl/list.h</code>:
+      </p>
+      <pre><code class="language-cpp">
+	inline constexpr list_iterator &amp;operator++() noexcept
+	{
+		iter = static_cast&lt;list_node_common *&gt;(iter)-&gt;next;
+		return *this;
+	}
+
+	inline constexpr list_iterator operator++(int) noexcept
+	{
+		auto temp(*this);
+		++*this;
+		return temp;
+	}
+</code></pre>
+      <p>
+        and identically in <code>deque.h</code>, <code>forward_list.h</code> and every other
+        iterator in the library, for <code>--</code> as well as <code>++</code>
+        (<a href="/docs/04.dsal/">Chapter 9</a>).
+      </p>
+
+    </section>
+    <section>
+      <h2>3. What the Postfix Form Costs</h2>
+
+      <p>
+        We count copies instead of measuring time, because the copy is the thing that differs and
+        a counter is exact. The type carries 64 bytes of state &mdash; the sort of thing a real
+        iterator drags along &mdash; and its copy constructor does one visible thing: it counts
+        itself.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+struct cursor
+{
+	::std::uint64_t lane[8]{}; /* stands in for the state a real iterator drags along */
+	static inline ::std::uint64_t copies{};
+
+	cursor() = default;
+	cursor(cursor const &amp;other) noexcept : lane{}
+	{
+		for (::std::size_t i{}; i != 8; ++i)
+		{
+			lane[i] = other.lane[i];
+		}
+		++copies;
+	}
+
+	cursor &amp;operator++() noexcept /* the primitive: advance, hand back *this */
+	{
+		++lane[0];
+		return *this;
+	}
+
+	[[nodiscard]] cursor operator++(int) noexcept /* the convenience: hand back where we were */
+	{
+		cursor old{*this};
+		++*this;
+		return old;
+	}
+};
+
+int main()
+{
+	try
+	{
+		constexpr ::std::uint64_t rounds{4000000uz};
+
+		cursor prefix{};
+		cursor::copies = 0;
+		for (::std::uint64_t i{}; i != rounds; ++i)
+		{
+			++prefix;
+		}
+		auto const prefix_copies{cursor::copies};
+
+		cursor postfix{};
+		cursor::copies = 0;
+		for (::std::uint64_t i{}; i != rounds; ++i)
+		{
+			(void)(postfix++); /* the old value is dropped on the floor */
+		}
+		auto const postfix_copies{cursor::copies};
+
+		::fast_io::io::println("++i  advanced=", prefix.lane[0], " copies=", prefix_copies);
+		::fast_io::io::println("i++  advanced=", postfix.lane[0], " copies=", postfix_copies);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+++i  advanced=4000000 copies=0
+i++  advanced=4000000 copies=4000000
+</code></pre>
+      <p>
+        Both loops advanced four million times. Only one of them created four million objects to
+        do it. That is the whole difference, and it is a difference in the type's contract, not in
+        the loop.
+      </p>
+      <p>
+        Two honest qualifications, because measurements in a tutorial should not be oversold.
+      </p>
+      <p>
+        <strong>First:</strong> when the discarded temporary is provably unused, the optimiser
+        deletes the copy. The counter above still fires only because that copy constructor has a
+        side effect it must preserve. So on this machine, at <code>-O2</code>, the two loops take
+        the same time &mdash; and the counter is the only instrument that still shows the copy
+        happening. The moment you write <code>sum += *it++</code>, the old value <em>is</em> used,
+        the temporary is real, and the copying is real with it.
+      </p>
+      <p>
+        <strong>Second:</strong> for a scalar like the loop counter itself, there is no difference
+        at all &mdash; the compiler emits identical code for <code>i++</code> and
+        <code>++i</code>. The reason to write <code>++i</code> anyway is not that the counter is
+        expensive. It is that <code>for (auto it{first}; it != last; ++it)</code> is the same
+        statement for every type in the language, and the version with <code>it++</code> is only
+        the same statement for types that provide a postfix form &mdash; and, when they do, it
+        asks them for a copy they do not need.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Why the Fixed Shape Matters More Than the Copy</h2>
+
+      <p>
+        The copy is the cheap half of the argument. The expensive half is that a postfix form
+        written as a <em>second implementation</em> drifts away from the prefix form, and nothing
+        tells you. Here is a counter that stops at 100, implemented both ways:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+struct broken
+{
+	int v{};
+	static constexpr int max{100};
+
+	broken &amp;operator++() noexcept /* clamps at max */
+	{
+		if (v &lt; max)
+		{
+			++v;
+		}
+		return *this;
+	}
+	[[nodiscard]] broken operator++(int) noexcept /* a second copy of the logic, and it forgot the clamp */
+	{
+		broken old{*this};
+		v = v + 1;
+		return old;
+	}
+};
+
+struct fixed
+{
+	int v{};
+	static constexpr int max{100};
+
+	fixed &amp;operator++() noexcept
+	{
+		if (v &lt; max)
+		{
+			++v;
+		}
+		return *this;
+	}
+	[[nodiscard]] fixed operator++(int) noexcept /* one line, so there is no logic to forget */
+	{
+		fixed old{*this};
+		++*this;
+		return old;
+	}
+};
+
+int main()
+{
+	try
+	{
+		broken b{};
+		for (int i{}; i != 200; ++i)
+		{
+			++b;
+		}
+		broken p{};
+		for (int i{}; i != 200; ++i)
+		{
+			(void)(p++);
+		}
+		fixed fb{};
+		for (int i{}; i != 200; ++i)
+		{
+			++fb;
+		}
+		fixed fp{};
+		for (int i{}; i != 200; ++i)
+		{
+			(void)(fp++);
+		}
+		::fast_io::io::println("broken  ++i v=", b.v, "  broken  i++ v=", p.v);
+		::fast_io::io::println("fixed   ++i v=", fb.v, "  fixed   i++ v=", fp.v);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+broken  ++i v=100  broken  i++ v=200
+fixed   ++i v=100  fixed   i++ v=100
+</code></pre>
+      <p>
+        <code>broken</code> saturates at 100 when you use <code>++b</code> and runs to 200 when you
+        use <code>b++</code>. The two spellings of one operation disagree. Nobody would write the
+        second version on purpose; it appears because the logic was copied, and because whoever
+        copied it was thinking about "the value before" rather than about the invariant.
+      </p>
+      <p>
+        The one-line postfix makes that class of bug impossible, not unlikely: there is exactly
+        one place where the state changes, so a change to the rule cannot miss one of the two
+        forms.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. The Warning That Enforces the Rule</h2>
+
+      <p>
+        Because the postfix form is marked <code>[[nodiscard]]</code>, the case where you did not
+        need the old value becomes a diagnostic instead of a silent copy:
+      </p>
+      <pre><code class="language-cpp">
+struct cursor
+{
+	::std::size_t pos{};
+	cursor &amp;operator++() noexcept { ++pos; return *this; }
+	[[nodiscard]] cursor operator++(int) noexcept
+	{
+		cursor old{*this};
+		++*this;
+		return old;
+	}
+};
+
+void step(cursor &amp;c) noexcept
+{
+	c++;   /* the old value is thrown away: this is the statement the warning is about */
+}
+</code></pre>
+      <pre><code class="language-text">
+warn.cc: In function ‘void step(cursor&amp;)’:
+warn.cc:17:10: warning: ignoring return value of ‘cursor cursor::operator++(int)’, declared with attribute ‘nodiscard’ [-Wunused-result]
+   17 |         c++;   /* the old value is thrown away: this is the statement the warning is about */
+      |          ^~
+warn.cc:7:30: note: declared here
+    7 |         [[nodiscard]] cursor operator++(int) noexcept
+      |                              ^~~~~~~~
+</code></pre>
+      <p>
+        The fix the compiler is pointing at is one character: <code>++c;</code>. And you get that
+        warning in the library you are writing, for free, for every caller &mdash; which is a much
+        better enforcement mechanism than a sentence in a style document.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. What <code>++</code> Is Not For</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Temptation</th>
+            <th>Verdict</th>
+            <th>Instead</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>++</code> that advances by ten</td>
+            <td>no</td>
+            <td><code>+= 10</code>, which exists for exactly this and is what random-access
+              iterators provide (<code>deque.h</code> has <code>operator+=</code> and
+              <code>operator+</code> in both operand orders)</td>
+          </tr>
+          <tr>
+            <td><code>++</code> on something with no notion of position</td>
+            <td>no</td>
+            <td>a named function; <code>x++</code> on a configuration object is a puzzle, not a
+              shorthand</td>
+          </tr>
+          <tr>
+            <td><code>++</code> that can fail or allocate</td>
+            <td>no</td>
+            <td><code>advance_to(next)</code> with a <code>throws</code> contract; failure is
+              invisible inside a glyph (<a href="/docs/17.operatoroverloading/02.prefernamed/">Ch17.2</a>)</td>
+          </tr>
+          <tr>
+            <td>a type with only a postfix <code>++</code></td>
+            <td>no</td>
+            <td>define the prefix form and derive the postfix form from it; the reverse is
+              impossible</td>
+          </tr>
+          <tr>
+            <td><code>++</code> on a temporary, to force a side effect</td>
+            <td>no</td>
+            <td>write the statement; <code>++make_cursor()</code> increments an object that is
+              destroyed immediately</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Binary <code>+</code> on a random-access iterator is a legitimate operator, and fast_io
+        writes both orders for it:
+      </p>
+      <pre><code class="language-cpp">
+inline constexpr ::fast_io::containers::details::deque_iterator&lt;T, isconst&gt; operator+(::fast_io::containers::details::deque_iterator&lt;T, isconst&gt; a, postype pos) noexcept
+</code></pre>
+      <p>
+        It earns the glyph because the meaning is the meaning a pointer already has: no
+        allocation, no failure, one obvious answer, and symmetry &mdash; <code>a + 3</code> and
+        <code>3 + a</code> are the same iterator
+        (<a href="/docs/17.operatoroverloading/03.valuearithmetic/">Ch17.3</a> makes the same
+        argument for numbers).
+      </p>
+
+    </section>
+    <section>
+      <h2>7. Rules of Thumb</h2>
+      <ul>
+        <li>Write <code>++i</code>. Write <code>--i</code>. Use the postfix form only when you
+          actually need the value from before the step, which is almost never.</li>
+        <li>Prefix returns <code>T &amp;</code>. Postfix returns <code>T</code>. Get those two
+          wrong and every generic algorithm that assumes the usual contract stops working.</li>
+        <li>The postfix form is three statements and no logic: copy, <code>++*this</code>, return
+          the copy.</li>
+        <li><code>[[nodiscard]]</code> on the postfix form, never on the prefix form.</li>
+        <li><code>noexcept</code> on both, and mean it: an increment that can fail is a named
+          function wearing a glyph.</li>
+        <li><code>+=</code> for stepping by more than one. Do not overload <code>++</code> to mean
+          "advance a lot".</li>
+        <li>If your type has no postfix form, that is fine &mdash; nothing in this chapter's rules
+          requires one. If your type has no <em>prefix</em> form, your type is the reason the rule
+          exists.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/17.operatoroverloading/04.comparisons/" class="prev-button">&larr; Ch17.4: Equality and Ordering</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/17.operatoroverloading/06.conversions/" class="next-button">Ch17.6: Conversion Operators &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

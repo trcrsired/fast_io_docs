@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>第17.5章 下标、调用与解引用 - C++ Tutorial with fast_io</title>
+  <title>第17.7章 下标、调用与解引用 - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>第17.5章 下标、调用与解引用</h1>
-    <p class="lang-switch"><a href="/docs/17.operatoroverloading/05.subscriptcall/">English</a></p>
+    <h1>第17.7章 下标、调用与解引用</h1>
+    <p class="lang-switch"><a href="/docs/17.operatoroverloading/07.subscriptcall/">English</a></p>
 
     <section>
       <h2>1. 三个有真实职责的运算符</h2>
@@ -235,7 +235,8 @@ scale_by{3}(7) = 21
         <li><strong><code>scale_by</code></strong> 是一个“存在就是为了被调用”的类，
           所以 <code>operator()</code> 是它天然的接口：它能和算法、可调用对象组合，
           它能携带状态（<code>factor</code>），而且 <code>scale_by{3}(7)</code>
-          不会和别的东西混淆。</li>
+          不会和别的东西混淆
+          （<a href="/zhcn/docs/17.operatoroverloading/07.subscriptcall/#call-operator">第6节</a>）。</li>
         <li><strong>反模式</strong>是把 <code>operator()</code> 当成“服务的入口”：
           <code>app()</code>、<code>db()</code>、<code>ctx(...)</code>，
           对象根本不是函数，用这个运算符只是因为比写 <code>run</code> 短。
@@ -245,7 +246,126 @@ scale_by{3}(7) = 21
 
     </section>
     <section>
-      <h2>6. 经验法则</h2>
+      <h2 id="call-operator">6. <code>operator()</code>：函数调用运算符</h2>
+
+      <p>
+        <code>()</code> 是唯一能让一个对象<em>可调用</em>的运算符，
+        而在这个语言里"可调用"不是口味问题 —— 它是贯穿整个库的契约。
+        每个接受谓词、比较器、投影或哈希的算法说的都是同一句话："我会调用
+        <code>f(x)</code>"。<code>operator()</code> 就是一个类型同意这句话的方式，
+        这也是本章里唯一一个"泛型库有真实理由要求它"的运算符。
+      </p>
+      <p>
+        这个形状有几条容易搞错的规则：
+      </p>
+      <ul>
+        <li>它必须是成员函数。没有非成员形式，也没有任何办法让 <code>x(y)</code>
+          对一个没有声明它的类型有任何含义。</li>
+        <li>元数任意，可以是零个、可以是一个参数包、可以是模板。
+          "调用运算符"不是"零参数运算符" —— 库里最常见的实例恰恰是带两个参数的比较器。</li>
+        <li>不修改对象时写 <code>const</code>，而这几乎总是。
+          会修改自己对象的 <code>operator()</code> 无法被"把可调用对象按 const 持有"的算法使用，
+          而大多数算法都是这么持有的。</li>
+        <li>契约规则与其它任何函数相同：<code>noexcept</code> 或 <code>throws</code>，
+          没有函数能逃过这一条
+          （<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）。</li>
+      </ul>
+      <p>
+        它正确的场合是"这个类型存在的理由就是被调用" —— 一个缩放因子、一个阈值判断、
+        一个哈希器、一个比较器。它错误的场合是"这个对象碰巧有个操作"：
+        用 <code>server()</code> 表示"运行服务器"，等于说这个对象<em>就是</em>那个操作，
+        而读者从声明里看不出这一点。那个应该写成 <code>server.run()</code>。
+      </p>
+
+      <h3>无状态的可调用对象：写成 <code>static</code></h3>
+      <p>
+        如果这个操作不需要状态 —— 除了类型自己的模板参数之外什么都没有 ——
+        就把 <code>operator()</code> 声明成 <code>static inline constexpr</code>。
+        这样调用它既不构造对象，也不传递 <code>this</code>：
+        <code>at_least&lt;10&gt;{}(11)</code> 就是一个只有一个参数的函数调用，
+        那个空的临时对象从来不会被真正生成。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;concepts&gt;
+#include &lt;cstdint&gt;
+
+template &lt;::std::int_least32_t Threshold&gt;
+struct at_least /* stateless: the threshold lives in the type, not in an object */
+{
+	static inline constexpr bool operator()(::std::int_least32_t v) noexcept
+	{
+		return v &gt;= Threshold;
+	}
+};
+
+struct scale_by /* stateful: the factor lives in the object */
+{
+	::std::int_least32_t factor{};
+
+	[[nodiscard]] constexpr ::std::int_least32_t operator()(::std::int_least32_t v) const noexcept
+	{
+		return v * factor;
+	}
+};
+
+int main()
+{
+	try
+	{
+		static_assert(::std::predicate&lt;at_least&lt;10&gt;, ::std::int_least32_t&gt;);
+		::fast_io::io::println("at_least&lt;10&gt;{}(11)    ", ::fast_io::mnp::boolalpha(at_least&lt;10&gt;{}(11)));
+		::fast_io::io::println("at_least&lt;10&gt;{}(9)     ", ::fast_io::mnp::boolalpha(at_least&lt;10&gt;{}(9)));
+		::fast_io::io::println("scale_by{3}(7)        ", scale_by{3}(7));
+		::fast_io::io::println("sizeof at_least&lt;10&gt;   ", sizeof(at_least&lt;10&gt;));
+		::fast_io::io::println("sizeof scale_by       ", sizeof(scale_by));
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+at_least&lt;10&gt;{}(11)    true
+at_least&lt;10&gt;{}(9)     false
+scale_by{3}(7)        21
+sizeof at_least&lt;10&gt;   1
+sizeof scale_by       4
+</code></pre>
+      <p>
+        把最后两行放在一起读。<code>at_least&lt;10&gt;</code> 只占一个字节，因为它是空的，
+        而且调用点根本没有它的对象；<code>scale_by</code> 占四个字节，因为它的因子必须跟着调用走。
+        两者都可调用，两者都满足算法所要求的东西 ——
+        那个 <code>static_assert</code> 就是为了说明无状态的那一个也是
+        <code>&lt;concepts&gt;</code> 的正式公民 ——
+        而它们的差别恰好就是"这个操作有状态吗？"，
+        这正是声明里写不写 <code>static</code> 所回答的问题。
+      </p>
+      <p>
+        你不能写的是带 cv 限定符的 <code>static</code> 版本：没有对象可以被限定。
+        编译器用一行话告诉你：
+      </p>
+      <pre><code class="language-cpp">
+struct bad
+{
+	static inline constexpr bool operator()(int v) const noexcept { return v &gt; 0; }
+};
+</code></pre>
+      <pre><code class="language-text">
+st2.cc:3:62: error: static member function ‘static constexpr bool bad::operator()(int)’ cannot have cv-qualifier
+</code></pre>
+      <p>
+        <code>static</code> 对 <code>operator[]</code> 也是同样的条件、同样的理由：
+        一个无状态的下标不需要对象来被下标访问。而让这一切保持诚实的规则，
+        就是 <a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">第17.2章</a> 里那条：
+        如果永远没有任何东西会<em>调用</em>你的对象 —— 没有算法、没有概念、
+        没有接受可调用对象的接口 —— 那这个运算符什么也没给你买到，命名函数更清楚。
+      </p>
+
+    </section>
+    <section>
+      <h2>7. 经验法则</h2>
       <ul>
         <li><code>operator[]</code> 必须是你最便宜的访问方式：不分配、不插入、不检查、不失败。
           否则它就不是下标，它要有一个名字。</li>
@@ -256,15 +376,20 @@ scale_by{3}(7) = 21
           （<code>::std::vector&lt;bool&gt;</code> 是反面教材，不是范本）。</li>
         <li><code>operator*</code> 和 <code>operator-&gt;</code> 是给“行为像指针”的东西用的。
           如果它不是一个指针，就用 <code>.get()</code>、<code>.value()</code> 或者命名访问器。</li>
-        <li>只有当类型存在的理由就是被调用时才写 <code>operator()</code>。</li>
+        <li>只有当类型存在的理由就是被调用时才写 <code>operator()</code> ——
+          无状态时写成 <code>static inline constexpr</code>
+          （<a href="/zhcn/docs/17.operatoroverloading/07.subscriptcall/#call-operator">第6节</a>）。</li>
+        <li>有状态的可调用对象用 <code>const</code> 的 <code>operator()</code>，
+          除非它本来就是那个会修改的操作；无状态的一律加 <code>static</code>。</li>
+        <li>永远不要当服务的入口：写 <code>server.run()</code>，而不是 <code>server()</code>。</li>
       </ul>
 
     </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/17.operatoroverloading/04.comparisons/" class="prev-button">&larr; 第17.4章 相等与序关系</a>
+      <a href="/zhcn/docs/17.operatoroverloading/06.conversions/" class="prev-button">&larr; 第17.6章 转换运算符</a>
       <a href="/zhcn/" class="main-button">&uarr; 主页</a>
-      <a href="/zhcn/docs/17.operatoroverloading/06.neveroverload/" class="next-button">第17.6章 不该存在的运算符 &rarr;</a>
+      <a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/" class="next-button">第17.8章 不该存在的运算符 &rarr;</a>
     </div>
   </main>
 </body>
