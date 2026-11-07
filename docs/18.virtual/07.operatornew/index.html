@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch18.7: Class-Level operator new and operator delete - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch18.7: Class-Level <code>operator new</code> and <code>operator delete</code></h1>
+    <p class="lang-switch"><a href="/zhcn/docs/18.virtual/07.operatornew/">中文（简体）</a></p>
+    <section>
+      <h2>1. When a Class Owns Its Allocation</h2>
+
+      <p>
+        A class can replace the allocation used by <code>new</code> on itself by declaring a
+        <em>static member</em> named <code>operator new</code>. When you write
+        <code>new T(...)</code>, the compiler looks for <code>T::operator new</code> first, and
+        only falls back to the global one if the class does not have one.
+      </p>
+      <p>
+        The full set you must think about:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Form</th>
+            <th>Called by</th>
+            <th>Required?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>static void *operator new(::std::size_t)</code></td>
+            <td><code>new T</code></td>
+            <td>yes, if you write any of them</td>
+          </tr>
+          <tr>
+            <td><code>static void operator delete(void *)</code></td>
+            <td><code>delete p</code> when the delete is not sized</td>
+            <td>yes &mdash; if it is missing, the <em>global</em> one is used on memory you
+              allocated yourself</td>
+          </tr>
+          <tr>
+            <td><code>static void operator delete(void *, ::std::size_t)</code></td>
+            <td><code>delete p</code> (sized deallocation, C++14 and later)</td>
+            <td>yes &mdash; this is the one the compiler will usually call</td>
+          </tr>
+          <tr>
+            <td><code>static void *operator new[](::std::size_t)</code></td>
+            <td><code>new T[n]</code></td>
+            <td>only if you also want arrays pooled</td>
+          </tr>
+          <tr>
+            <td><code>static void *operator new(::std::size_t, void *)</code></td>
+            <td>placement <code>new (p) T</code></td>
+            <td>never: the global placement form must not be replaced</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Mismatch is the classic defect: a class that declares <code>operator new</code> and
+        forgets <code>operator delete</code> gets its memory from your pool and returns it to the
+        C++ heap. That is heap corruption with no diagnostic, and it usually shows up as a crash
+        in an unrelated allocation a second later.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. A Complete, Correct Example</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;cstdlib&gt;
+
+struct pooled
+{
+	static inline ::std::size_t live{};
+
+	::std::int_least32_t v{};
+
+	static void *operator new(::std::size_t n) noexcept
+	{
+		void *p{::std::malloc(n)};
+		if (p != nullptr)
+		{
+			++live;
+		}
+		return p;
+	}
+
+	static void operator delete(void *p, ::std::size_t) noexcept
+	{
+		if (p != nullptr)
+		{
+			--live;
+		}
+		::std::free(p);
+	}
+
+	static void operator delete(void *p) noexcept
+	{
+		if (p != nullptr)
+		{
+			--live;
+		}
+		::std::free(p);
+	}
+};
+
+struct huge
+{
+	double pad[4]{};
+
+	static void *operator new(::std::size_t) noexcept { return nullptr; }
+	static void operator delete(void *) noexcept {}
+};
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println("sizeof(pooled)=", sizeof(pooled), " live=", pooled::live);
+		pooled *p = new pooled{};
+		p-&gt;v = 7;
+		::fast_io::io::println("after new: live=", pooled::live, " v=", p-&gt;v, " sizeof(huge)=", sizeof(huge));
+		delete p;
+		::fast_io::io::println("after delete: live=", pooled::live);
+
+		huge *h = new huge{};
+		::fast_io::io::println("noexcept operator new returning null gives a null pointer: ", h == nullptr);
+		delete h;
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+sizeof(pooled)=4 live=0
+after new: live=1 v=7 sizeof(huge)=32
+after delete: live=0
+noexcept operator new returning null gives a null pointer: 1
+</code></pre>
+      <p>
+        Four things to notice, each of which is a rule:
+      </p>
+      <ul>
+        <li><strong><code>sizeof(pooled)</code> is still 4.</strong> <code>operator new</code> is
+          a static function; it adds nothing to the object. Allocation policy is not state.</li>
+        <li><strong>The destructor is still your destructor.</strong> <code>delete p</code> runs
+          <code>~pooled()</code> and then <code>pooled::operator delete</code>, in that order.</li>
+        <li><strong>Both <code>operator delete</code> overloads are needed</strong> because the
+          compiler passes the size when it knows it and does not when it does not (arrays,
+          polymorphic deletes, some library code paths).</li>
+        <li><strong>A <code>noexcept</code> <code>operator new</code> that returns
+          <code>nullptr</code> makes the <em>new-expression</em> yield
+          <code>nullptr</code></strong> &mdash; measured above. This is the standard-sanctioned
+          escape from <code>bad_alloc</code>: a non-throwing <code>operator new</code> is allowed
+          to fail by returning null, while a throwing one would be undefined behaviour. Note
+          that the standard library's <code>::operator new(n, ::std::nothrow)</code> gives you the
+          same effect, and is still worse, because it is implemented by calling the throwing
+          version and catching <code>bad_alloc</code> internally, and the standard does not let
+          you replace it.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>3. What You Can Do Inside It</h2>
+
+      <ul>
+        <li><strong>Pool/free-list allocation.</strong> Keep a private free list of fixed-size
+          blocks; <code>operator new</code> pops, <code>operator delete</code> pushes. This is
+          the legitimate use: a hot type with a known size, allocated and freed constantly.</li>
+        <li><strong>Arena allocation.</strong> Bump-allocate from a region you own;
+          <code>operator delete</code> does nothing. Only correct if the whole arena dies at
+          once &mdash; which means you should have modelled the arena as a type, not as an
+          allocator hidden in another type.</li>
+        <li><strong>Instruments.</strong> Count allocations, tag them, catch
+          <code>new</code> of a type you want to remove. The example above is this, and it is
+          how you find out that a library is allocating something you thought was gone.</li>
+        <li><strong>Not alignment-sensitive work.</strong> If your type needs more than
+          <code>__STDCPP_DEFAULT_NEW_ALIGNMENT__</code>, you must also provide the
+          <code>::std::align_val_t</code> overloads, or the compiler will call your plain
+          <code>operator new</code> with an unaligned buffer.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>4. Why You Should Not Do It</h2>
+
+      <ul>
+        <li><strong>It hides a design decision inside a type.</strong> The caller writes
+          <code>new T</code> and cannot see, choose, or override where the memory comes from
+          &mdash; and cannot pass an allocator. A factory function
+          <code>make_pooled(...)</code> or a container taking an allocator makes the same
+          decision visible at the call site, which is where decisions belong.</li>
+        <li><strong>It is invisible to the standard containers.</strong>
+          <code>::fast_io::vector&lt;pooled&gt;</code> does <em>not</em> call
+          <code>pooled::operator new</code>; it asks its allocator, which asks the global heap.
+          So the "pooling" you thought you added applies to exactly the objects you write
+          <code>new</code> for by hand &mdash; which, <a href="/docs/18.virtual/01.newdelete/">as
+          we said</a>, you should not be writing.</li>
+        <li><strong>It bakes an ABI in.</strong> If the library's <code>operator new</code>
+          changes, every caller must be rebuilt, because the allocation and the free no longer
+          come from the same place.</li>
+        <li><strong>It interacts badly with polymorphic deletion.</strong> A class-level
+          <code>operator delete</code> is only found if the static type used at the
+          <code>delete</code> expression has it. Through a base pointer without a virtual
+          destructor, you get the base's <code>operator delete</code> &mdash; or the global one
+          &mdash; on memory your derived class allocated.</li>
+        <li><strong>You now have to test it.</strong> Allocation bugs are the hardest kind to
+          attribute, so the moment you write a custom allocator you own a new class of defect
+          that no sanitizer will describe clearly.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>5. What To Do Instead</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Goal</th>
+            <th>Class <code>operator new</code></th>
+            <th>Better</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>faster allocation of one hot type</td>
+            <td><code>static void *operator new(size_t)</code></td>
+            <td>A pool object you pass to a container, or an arena type
+              (<a href="/docs/14.fiverules/01.ownership/">Ch14.1</a>)</td>
+          </tr>
+          <tr>
+            <td>no exceptions from allocation</td>
+            <td><code>operator new</code> returning null</td>
+            <td><code>malloc</code>-based ownership inside your own type, reporting
+              <code>throw throws</code> failures
+              (<a href="/docs/18.virtual/06.typeerasure/">Ch18.6</a>)</td>
+          </tr>
+          <tr>
+            <td>bulk lifetime</td>
+            <td><code>operator delete</code> that leaks</td>
+            <td>A region type with a destructor that releases everything in one call</td>
+          </tr>
+          <tr>
+            <td>diagnostics</td>
+            <td>a counter in <code>operator new</code></td>
+            <td>A link-time interposer for <code>::operator new</code> in a test build, or a
+              sanitizer</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>6. Rules of Thumb</h2>
+
+      <ul>
+        <li>Do not write class-level <code>operator new</code>. If you need allocation policy,
+          pass it: an allocator parameter, a pool object, an arena.</li>
+        <li>If you do write one, write <em>both</em> <code>operator delete</code> overloads in
+          the same class, in the same edit, with the same storage source.</li>
+        <li>Make <code>operator new</code> <code>noexcept</code> and return <code>nullptr</code>
+          on failure, and check the result &mdash; that is the only way to allocate through a type
+          without reintroducing <code>bad_alloc</code>.</li>
+        <li>Never mix: memory from <code>malloc</code> goes back to <code>free</code>, memory
+          from <code>new</code> goes back to <code>delete</code>, and a class-level
+          <code>operator new</code> must pair with a class-level
+          <code>operator delete</code>.</li>
+        <li>Prefer <code>malloc</code>-and-placement-<code>new</code> inside your own factory
+          function. It is the same amount of code, it is visible at the call site, and it cannot
+          be inherited by accident.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/18.virtual/06.typeerasure/" class="prev-button">&larr; Ch18.6: Type Erasure Instead</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/18.virtual/08.gui/" class="next-button">Ch18.8: Qt, MFC, and GUIs &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

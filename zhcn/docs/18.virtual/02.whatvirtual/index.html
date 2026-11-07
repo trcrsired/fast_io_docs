@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第18.2章 virtual 究竟是什么 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第18.2章 <code>virtual</code> 究竟是什么</h1>
+    <p class="lang-switch"><a href="/docs/18.virtual/02.whatvirtual/">English</a></p>
+    <section>
+      <h2>1. 三件事，按顺序</h2>
+
+      <p><code>virtual</code> 函数不是魔法。它是三个机械事实：</p>
+      <ol>
+        <li><strong>多态类的每个对象都带一个隐藏指针</strong>（<em>vptr</em>），
+          指向它所在类的函数指针表。所以这种对象不可能比一个指针更小，
+          而且至少按 <code>alignof(void*)</code> 对齐。</li>
+        <li><strong>每个多态类在只读数据里有一张表</strong>（<em>vtable</em>），
+          每个虚函数一个槽位，按声明顺序排列。它由编译器生成；你从来不用写，也改不了。</li>
+        <li><strong>虚调用是：读 vptr、读槽位、跳转。</strong>两次相关加载而不是一次直接跳转，
+          而且目标地址在运行时才知道，所以不可能通过它内联。</li>
+      </ol>
+      <p>
+        机制就这些。本章其余内容 —— 膨胀、RTTI、<code>__cxa_pure_virtual</code> 符号、ABI ——
+        全都是由它推出来的。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 它的字节代价</h2>
+
+      <pre><code class="language-cpp">
+struct drawable
+{
+	virtual ::std::string_view kind() const noexcept = 0;
+	virtual ~drawable() noexcept = default;
+};
+
+struct point : drawable
+{
+	double x{}, y{};
+	point(double px, double py) noexcept : x{px}, y{py} {}
+	::std::string_view kind() const noexcept override { return "point"; }
+};
+
+struct square : drawable
+{
+	double side{};
+	explicit square(double s) noexcept : side{s} {}
+	::std::string_view kind() const noexcept override { return "square"; }
+};
+</code></pre>
+      <pre><code class="language-text">
+sizeof(drawable)=8 sizeof(point)=24 sizeof(square)=16 through base=point through object=square
+</code></pre>
+      <p>
+        算一下：<code>point</code> 是两个 <code>double</code>（16 字节）加 vptr（8）= 24。
+        <code>square</code> 是一个 <code>double</code>（8）加 vptr（8）= 16。
+        一个只有一个 <code>double</code> 的形状，因为一个函数是虚的，体积翻了一倍；
+        而一旦把它放到 <code>::std::unique_ptr</code> 后面，
+        它又变成一个指针加分配器头部，再翻一次
+        （<a href="/zhcn/docs/18.virtual/01.newdelete/">第18.1章</a>）。
+      </p>
+      <p>
+        和本章后面的类型擦除版本对比：一个指针加一个表指针，16 字节，
+        <em>能装下任何形状</em>，载荷里没有 vptr，头部也不用分配。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 为什么 <code>virtual</code> 只有配合分配才“划算”</h2>
+
+      <p>有一种不用堆的 <code>virtual</code> 用法：把派生对象按值放进容器，通过引用调用。</p>
+      <pre><code class="language-cpp">
+point p{1.0, 2.0};
+square q{3.0};
+drawable &amp;d = p;                  // dispatch through a reference
+::fast_io::io::println(d.kind());  // "point"
+</code></pre>
+      <p>
+        这是正确且不分配的，但注意它<b>没有</b>给你什么：类型集合在编译期就固定了，
+        每个变量只有一个静态类型，你没法把一个 <code>point</code> 和一个
+        <code>square</code> 放进同一个 <code>::fast_io::vector</code>。
+        你一旦想要“任何可绘制对象的容器”，<code>virtual</code> 能给你的唯一东西就是基类指针，
+        而活得比作用域长的基类指针需要一个拥有者，C++ 的拥有者是
+        <code>::std::unique_ptr</code>，而 <code>::std::unique_ptr</code> 需要
+        <code>new</code>。
+      </p>
+      <p>
+        <strong>这就是那条链。</strong><code>virtual</code> 本身并不是最贵的部分；
+        <code>virtual</code> <em>加上异构</em>才是，而异构恰恰是人们选 OOP 时想要的东西。
+        在链条上任何一环断开它 —— 用值代替指针、用类型擦除代替继承 —— 整套代价就消失了。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 诚实的代价模型</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>你要付什么</th>
+            <th>什么时候</th>
+            <th>本章里的实测</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>每个对象 8 字节</td>
+            <td>永远</td>
+            <td><code>sizeof(square)</code> 从 8 变 16</td>
+          </tr>
+          <tr>
+            <td>每个类一张 vtable</td>
+            <td>永远</td>
+            <td><code>vtable for square</code>，<code>.rodata</code> 里 48 字节</td>
+          </tr>
+          <tr>
+            <td>每个虚函数都被生成</td>
+            <td>即使从没被调用</td>
+            <td>12,448 字节死代码
+              （<a href="/zhcn/docs/18.virtual/04.bloat/">第18.4章</a>）</td>
+          </tr>
+          <tr>
+            <td>每次分派一次间接调用</td>
+            <td>每次调用</td>
+            <td>不能内联、不能常量折叠、不能跨它向量化</td>
+          </tr>
+          <tr>
+            <td>每个类若干 RTTI 对象</td>
+            <td>永远</td>
+            <td>3 个类共 6 个 type-info 符号
+              （<a href="/zhcn/docs/18.virtual/05.rtti/">第18.5章</a>）</td>
+          </tr>
+          <tr>
+            <td><code>__cxa_pure_virtual</code> 及其运行时</td>
+            <td>任何一个纯虚函数</td>
+            <td>把 <code>std::terminate</code>、demangler、<code>fwrite</code>、
+              <code>fputs</code>、<code>abort</code> 都拉进来</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        只有一个分派点的程序，这些都不重要。有一千个类型搅在一个插件式层次里的程序，
+        这些就是 200 KB 二进制和 2 MB 二进制的差别，
+        是“瞬间启动”和“从磁盘加载自己的类型名”的差别。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 那什么时候可以接受 <code>virtual</code></h2>
+
+      <ul>
+        <li><strong>当你在读遗留代码时。</strong>这是整个第18章最诚实的答案：
+          <code>virtual</code> 是一个遗留特性。Qt、MFC、COM 和三十年的库都建立在它之上，
+          你必须能读。</li>
+        <li><strong>当库的 ABI 要求它时。</strong>如果平台递给你一个带虚函数的
+          <code>struct</code>（COM、某些驱动模型），实现它；不要用它做设计。</li>
+        <li><strong>当实现集合固定、封闭、且很少，而且对象都活在栈上时。</strong>
+          这时 <code>virtual</code> 就是一个语法更漂亮的 switch —— 而
+          <code>::std::variant</code> 加 <code>::std::visit</code> 能做同样的事，
+          而且根本没有 vptr。</li>
+        <li><strong>绝不在你正在设计的新抽象里用它。</strong>那种情况用函数指针表
+          （<a href="/zhcn/docs/18.virtual/06.typeerasure/">第18.6章</a>）：
+          同样的分派机制，但有三个好处：你看得见它、你能把它实例化成常量、
+          而且它不会带来 RTTI、<code>virtual</code> ABI 规则和
+          <code>__cxa_pure_virtual</code>。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>6. 经验法则</h2>
+
+      <ul>
+        <li>写 <code>virtual</code> 之前，先把类型列表写下来。如果列表固定且已知，
+          你要的是标签、<code>variant</code> 或 <code>switch</code>，不是 vtable。</li>
+        <li>如果列表是开放的（插件、用户提供的回调），你要的是一张你自己拥有的表，
+          这样你能给它定版本、把它放进 <code>.rodata</code>，
+          并让它成为你自己 ABI 的一部分，而不是 C++ 的 ABI。</li>
+        <li>永远不要“以防万一”把类型做成多态的。那 8 个字节是这个错误里最便宜的部分。</li>
+        <li>如果必须为分派而继承，让层次浅一些，所有东西都标注
+          （<a href="/zhcn/docs/18.virtual/03.marking/">第18.3章</a>），
+          并且永远不要让基类指针逃进你自己的 API。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/18.virtual/01.newdelete/" class="prev-button">&larr; 第18.1章 new、delete 与 unique_ptr</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/18.virtual/03.marking/" class="next-button">第18.3章 每个虚函数都要标注 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

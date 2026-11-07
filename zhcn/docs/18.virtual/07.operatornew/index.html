@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第18.7章 类级 operator new 与 operator delete - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第18.7章 类级 <code>operator new</code> 与 <code>operator delete</code></h1>
+    <p class="lang-switch"><a href="/docs/18.virtual/07.operatornew/">English</a></p>
+    <section>
+      <h2>1. 当一个类拥有自己的分配</h2>
+
+      <p>
+        类可以通过声明一个名为 <code>operator new</code> 的<b>静态成员</b>，
+        替换作用在它自己身上的 <code>new</code> 所使用的分配。
+        当你写 <code>new T(...)</code> 时，编译器先找 <code>T::operator new</code>，
+        只有类里没有时才退回全局那个。
+      </p>
+      <p>你必须想清楚的一整套：</p>
+      <table>
+        <thead>
+          <tr>
+            <th>形式</th>
+            <th>被谁调用</th>
+            <th>需要吗</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>static void *operator new(::std::size_t)</code></td>
+            <td><code>new T</code></td>
+            <td>要，只要你写了其中任何一个</td>
+          </tr>
+          <tr>
+            <td><code>static void operator delete(void *)</code></td>
+            <td>不带大小的 <code>delete p</code></td>
+            <td>要 —— 缺了它，<b>全局</b>那个会被用来释放你自己分配的内存</td>
+          </tr>
+          <tr>
+            <td><code>static void operator delete(void *, ::std::size_t)</code></td>
+            <td><code>delete p</code>（C++14 起的带大小释放）</td>
+            <td>要 —— 编译器通常调用的就是它</td>
+          </tr>
+          <tr>
+            <td><code>static void *operator new[](::std::size_t)</code></td>
+            <td><code>new T[n]</code></td>
+            <td>只有当你也想给数组用池时</td>
+          </tr>
+          <tr>
+            <td><code>static void *operator new(::std::size_t, void *)</code></td>
+            <td>定位 <code>new (p) T</code></td>
+            <td>永远不要：全局的定位形式不允许被替换</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        不匹配是经典缺陷：一个类声明了 <code>operator new</code> 却忘了
+        <code>operator delete</code>，于是它的内存从你的池里来、却还给 C++ 的堆。
+        那是堆破坏，没有任何诊断，通常表现为一秒之后某个不相干的分配里崩溃。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. 一个完整正确的例子</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;cstdlib&gt;
+
+struct pooled
+{
+	static inline ::std::size_t live{};
+
+	::std::int_least32_t v{};
+
+	static void *operator new(::std::size_t n) noexcept
+	{
+		void *p{::std::malloc(n)};
+		if (p != nullptr)
+		{
+			++live;
+		}
+		return p;
+	}
+
+	static void operator delete(void *p, ::std::size_t) noexcept
+	{
+		if (p != nullptr)
+		{
+			--live;
+		}
+		::std::free(p);
+	}
+
+	static void operator delete(void *p) noexcept
+	{
+		if (p != nullptr)
+		{
+			--live;
+		}
+		::std::free(p);
+	}
+};
+
+struct huge
+{
+	double pad[4]{};
+
+	static void *operator new(::std::size_t) noexcept { return nullptr; }
+	static void operator delete(void *) noexcept {}
+};
+
+int main()
+{
+	try
+	{
+		::fast_io::io::println("sizeof(pooled)=", sizeof(pooled), " live=", pooled::live);
+		pooled *p = new pooled{};
+		p-&gt;v = 7;
+		::fast_io::io::println("after new: live=", pooled::live, " v=", p-&gt;v, " sizeof(huge)=", sizeof(huge));
+		delete p;
+		::fast_io::io::println("after delete: live=", pooled::live);
+
+		huge *h = new huge{};
+		::fast_io::io::println("noexcept operator new returning null gives a null pointer: ", h == nullptr);
+		delete h;
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+sizeof(pooled)=4 live=0
+after new: live=1 v=7 sizeof(huge)=32
+after delete: live=0
+noexcept operator new returning null gives a null pointer: 1
+</code></pre>
+      <p>要注意四件事，每一件都是一条规则：</p>
+      <ul>
+        <li><strong><code>sizeof(pooled)</code> 仍然是 4。</strong>
+          <code>operator new</code> 是静态函数，不给对象增加任何东西。分配策略不是状态。</li>
+        <li><strong>析构函数仍然是你的析构函数。</strong><code>delete p</code> 先跑
+          <code>~pooled()</code>，再跑 <code>pooled::operator delete</code>，顺序如此。</li>
+        <li><strong>两个 <code>operator delete</code> 重载都需要，</strong>
+          因为编译器在知道大小时会传、不知道时不传
+          （数组、多态删除、某些库代码路径）。</li>
+        <li><strong>一个返回 <code>nullptr</code> 的 <code>noexcept</code>
+          <code>operator new</code> 会让 <em>new 表达式</em>得到
+          <code>nullptr</code></strong> —— 上面实测如此。
+          这是标准认可的逃离 <code>bad_alloc</code> 的通道：
+          一个不抛的 <code>operator new</code> 允许用返回空来失败，
+          而一个会抛的这样做是未定义行为。注意标准库的
+          <code>::operator new(n, ::std::nothrow)</code> 给你同样的效果，
+          但它仍然更糟，因为它内部是靠调用会抛的版本并捕获
+          <code>bad_alloc</code> 实现的，而标准还不允许你替换它。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>3. 你可以在里面做什么</h2>
+
+      <ul>
+        <li><strong>池/自由链表分配。</strong>用私有的固定大小块自由链表；
+          <code>operator new</code> 弹一个，<code>operator delete</code> 压回去。
+          这是正当用法：一个大小已知、频繁分配释放的热点类型。</li>
+        <li><strong>区域分配。</strong>从你拥有的内存区域里做 bump 分配，
+          <code>operator delete</code> 什么都不做。只有当整个区域一起死亡时才对 ——
+          而那就意味着你该把区域建模成一个类型，而不是把分配器藏在另一个类型里。</li>
+        <li><strong>插桩。</strong>统计分配次数、打标记、抓你想删掉的类型里的
+          <code>new</code>。上面的例子就是这个，也是你发现“库在分配一个你以为已经消失的东西”的办法。</li>
+        <li><strong>不是对对齐敏感的工作。</strong>如果你的类型需要超过
+          <code>__STDCPP_DEFAULT_NEW_ALIGNMENT__</code> 的对齐，
+          你还必须提供 <code>::std::align_val_t</code> 的重载，
+          否则编译器会用一块没对齐的缓冲区来调用你的普通 <code>operator new</code>。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>4. 为什么你不该这么做</h2>
+
+      <ul>
+        <li><strong>它把一个设计决定藏进了类型里。</strong>调用者写 <code>new T</code>，
+          看不见、选不了、也覆盖不了内存从哪来 —— 而且传不进分配器。
+          一个工厂函数 <code>make_pooled(...)</code>，或者一个接收分配器的容器，
+          把同一个决定放在调用点可见的地方，而决定就该在那儿。</li>
+        <li><strong>它对标准容器不可见。</strong>
+          <code>::fast_io::vector&lt;pooled&gt;</code> <b>不会</b>调用
+          <code>pooled::operator new</code>；它问自己的分配器，而分配器问全局堆。
+          所以你自以为加上的“池化”恰好只作用于你手写 <code>new</code> 的那些对象 ——
+          而<a href="/zhcn/docs/18.virtual/01.newdelete/">我们已经说过</a>，
+          那些对象你根本不该写。</li>
+        <li><strong>它把 ABI 焊死了。</strong>如果库里的 <code>operator new</code> 变了，
+          每个调用者都必须重编，因为分配和释放不再来自同一个地方。</li>
+        <li><strong>它和多态删除配合得很糟。</strong>类级 <code>operator delete</code>
+          只有在 <code>delete</code> 表达式所用静态类型拥有它时才会被找到。
+          通过没有虚析构的基类指针去 delete，你得到的是基类的
+          <code>operator delete</code> —— 或者全局那个 ——
+          作用在你派生类分配的、属于你自己的内存上。</li>
+        <li><strong>你现在得测试它。</strong>分配 bug 是最难归因的一类，
+          所以你一写自定义分配器，就拥有了一类新的缺陷，而且没有任何消毒器能把它讲清楚。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>5. 那该做什么</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>目标</th>
+            <th>类 <code>operator new</code></th>
+            <th>更好的做法</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>让某个热点类型分配得更快</td>
+            <td><code>static void *operator new(size_t)</code></td>
+            <td>一个传给容器的池对象，或者一个区域类型
+              （<a href="/zhcn/docs/14.fiverules/01.ownership/">第14.1章</a>）</td>
+          </tr>
+          <tr>
+            <td>分配时不抛异常</td>
+            <td>返回空的 <code>operator new</code></td>
+            <td>在自己的类型里用基于 <code>malloc</code> 的拥有方式，
+              用 <code>throw throws</code> 报告失败
+              （<a href="/zhcn/docs/18.virtual/06.typeerasure/">第18.6章</a>）</td>
+          </tr>
+          <tr>
+            <td>批量生命周期</td>
+            <td>一个泄露的 <code>operator delete</code></td>
+            <td>一个带析构函数的区域类型，一次调用释放全部</td>
+          </tr>
+          <tr>
+            <td>诊断</td>
+            <td>在 <code>operator new</code> 里放计数器</td>
+            <td>测试构建里给 <code>::operator new</code> 做一个链接期插桩，或者用消毒器</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>6. 经验法则</h2>
+
+      <ul>
+        <li>不要写类级 <code>operator new</code>。如果你需要分配策略，就把它传进去：
+          分配器参数、池对象、区域。</li>
+        <li>如果你写了，就在同一个类里、同一次修改里、用同一个存储来源，
+          把<b>两个</b> <code>operator delete</code> 重载都写上。</li>
+        <li>让 <code>operator new</code> 是 <code>noexcept</code> 并在失败时返回
+          <code>nullptr</code>，然后检查结果 —— 这是通过类型分配、又不把
+          <code>bad_alloc</code> 引回来的唯一办法。</li>
+        <li>永远不要混：来自 <code>malloc</code> 的内存还给 <code>free</code>，
+          来自 <code>new</code> 的内存还给 <code>delete</code>，
+          而类级 <code>operator new</code> 必须与类级 <code>operator delete</code> 配对。</li>
+        <li>优先在你自己写的工厂函数里用 <code>malloc</code> 加定位
+          <code>new</code>。代码量一样，它在调用点可见，而且不会被意外继承。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/18.virtual/06.typeerasure/" class="prev-button">&larr; 第18.6章 改用类型擦除</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/18.virtual/08.gui/" class="next-button">第18.8章 Qt、MFC 与 GUI &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

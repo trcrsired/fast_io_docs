@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第18.1章 new、delete 与 unique_ptr - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第18.1章 <code>new</code>、<code>delete</code> 与 <code>::std::unique_ptr</code></h1>
+    <p class="lang-switch"><a href="/docs/18.virtual/01.newdelete/">English</a></p>
+    <section>
+      <h2>1. <code>new</code> 到底做了什么</h2>
+
+      <p>一个表达式，四步：</p>
+      <pre><code class="language-cpp">
+square *p = new square{2.0};
+</code></pre>
+      <ol>
+        <li>调用 <code>::operator new(sizeof(square))</code>，向实现的堆要内存；</li>
+        <li>在这块内存上运行构造函数；</li>
+        <li>把指针交给你；</li>
+        <li>如果第 1 步失败，<strong>抛出 <code>::std::bad_alloc</code></strong>。</li>
+      </ol>
+      <p>
+        第 4 步就是那个历史性错误。在真实机器上分配失败是常态 —— 它是一个返回值，
+        不是异常事件 —— 而语言把它做成了 1998 年发明的类型的抛出异常，
+        那时候 C++ 根本没有可用的错误通道。
+        于是你程序里的每个 <code>new</code> 都是一条隐藏的控制流边，
+        都能让函数提前离开，于是每个调用 <code>new</code> 的函数都必须做好抛的准备。
+      </p>
+      <p>这就是为什么 <code>new</code> <em>不是 <code>noexcept</code></em>：</p>
+      <pre><code class="language-cpp">
+::std::printf("noexcept(new square{2.0}) = %d\n", noexcept(new square{2.0}));
+::std::printf("noexcept(::operator new(8)) = %d\n", noexcept(::operator new(8)));
+</code></pre>
+      <pre><code class="language-text">
+noexcept(new square{2.0}) = 0
+noexcept(::operator new(8)) = 0
+</code></pre>
+      <p>
+        也是为什么在赫布异常下，<code>new</code> 的失败根本不是以 <code>throws</code>
+        错误的形式出现的：它以一个包在 <code>itanium_exception</code> 载荷里的遗留异常形式出现：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+	try
+	{
+		void *p = ::operator new(static_cast&lt;::std::size_t&gt;(-1) / 2u);
+		::fast_io::io::println("allocated ", p != nullptr);
+		::operator delete(p);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("caught by herbception: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+caught by herbception: [itanium_exception](St9bad_alloc)std::bad_alloc
+</code></pre>
+      <p>
+        仔细看这一行。语言核心里的一个特性 —— 分配 —— 把一个本来完全用赫布异常写的程序，
+        硬拽进了整套遗留异常机制（因而是 unwinder 和 RTTI）。
+        你没有办法让 <code>new</code> 返回一个值。（你可以用
+        <code>::operator new(n, ::std::nothrow)</code>，但
+        <a href="/zhcn/docs/18.virtual/07.operatornew/">第18.7章</a>解释了为什么那更糟：
+        <code>nothrow</code> 重载是靠调用会抛的版本并捕获来实现的，
+        而标准甚至不允许你替换它们。）
+      </p>
+
+    </section>
+    <section>
+      <h2>2. <code>delete</code> 更糟，因为它不做任何检查</h2>
+
+      <ul>
+        <li><code>delete p</code> 先调析构函数，再调 <code>::operator delete(p)</code>；</li>
+        <li>它<strong>不</strong>知道分配的大小，除非编译器把它传进来（带大小的释放），
+          所以不匹配的 <code>operator delete</code> 会破坏堆；</li>
+        <li>它<strong>不</strong>知道 <code>p</code> 是否还活着，所以重复
+          <code>delete</code> 是一次常常能活到生产环境的堆破坏；</li>
+        <li>它<strong>不</strong>知道动态类型，所以通过没有虚析构的基类指针 delete
+          只会销毁基类子对象 —— 未定义行为加一次泄漏；</li>
+        <li><code>delete</code> 和 <code>delete[]</code> 是一个没有任何诊断的拼写错误。</li>
+      </ul>
+      <p>
+        上面每一条都是程序员必须在每个函数里、永远记住的规则。这就是烂 API 的定义。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. <code>::std::unique_ptr</code>：带析构函数的指针</h2>
+
+      <p>
+        <code>::std::unique_ptr&lt;T&gt;</code> 包一个裸指针和一个删除器，做的是 C++ RAII
+        包装器该做的事：
+      </p>
+      <pre><code class="language-cpp">
+void use() throws
+{
+	::std::unique_ptr&lt;square&gt; p{::std::make_unique&lt;square&gt;(2.0)};
+	::fast_io::io::println(p-&gt;area());     // p is destroyed here, exactly once
+}
+</code></pre>
+      <p>
+        它解决泄漏，而且只解决泄漏。上面 <code>delete</code> 的四个问题它一个都不解决：
+        它挡不住你留第二个裸指针指向同一个对象（释放后使用），
+        你用 <code>release()</code> 作弊时它挡不住你把所有权交给两个人，
+        它在调用点说不清 <code>unique_ptr&lt;shape&gt;</code> 是什么意思，
+        它也挡不住类型混淆，因为被指对象的动态类型仍然没有任何东西检查。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 人们伸手去拿它的唯一理由</h2>
+
+      <p>异构。你有好几种形状，想把它们放进一个容器，而容器的元素类型只有一个：</p>
+      <pre><code class="language-cpp">
+struct shape
+{
+	virtual double area() const noexcept = 0;
+	virtual ::std::string_view name() const noexcept = 0;
+	virtual ~shape() noexcept = default;
+};
+
+struct square final : shape
+{
+	double side{};
+	explicit square(double s) noexcept : side{s} {}
+	double area() const noexcept override { return side * side; }
+	::std::string_view name() const noexcept override { return "square"; }
+};
+
+struct circle final : shape
+{
+	double r{};
+	explicit circle(double x) noexcept : r{x} {}
+	double area() const noexcept override { return 3.0 * r * r; }
+	::std::string_view name() const noexcept override { return "circle"; }
+};
+</code></pre>
+      <p>然后在 <code>main</code> 里：</p>
+      <pre><code class="language-cpp">
+::fast_io::vector&lt;::std::unique_ptr&lt;shape&gt;&gt; shapes;
+shapes.push_back(::std::make_unique&lt;square&gt;(2.0));
+shapes.push_back(::std::make_unique&lt;circle&gt;(1.0));
+double total{};
+for (auto const &amp;p : shapes)
+{
+	total += p-&gt;area();
+}
+</code></pre>
+      <pre><code class="language-text">
+total=7 sizeof(unique_ptr)=8 sizeof(vector)=24
+</code></pre>
+      <p>
+        它能用。但实测下来，容器一次堆分配，<em>每个元素</em>再一次堆分配，
+        每个形状一个 8 字节指针加分配器头部，每个元素一次虚调用，两个类都要 RTTI，
+        而调用点看到的类型还说不清是什么。
+        <a href="/zhcn/docs/18.virtual/06.typeerasure/">第18.6章</a>把同一个程序写成
+        <code>::fast_io::vector&lt;shape&gt;</code> —— 一个装值的向量，
+        你代码里没有 <code>new</code>，任何地方都没有 <code>virtual</code>。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 为什么我们不用 <code>::std::unique_ptr</code></h2>
+
+      <p>来自 <code>Portable-Cpp-Guideline</code>，这里只留真正重要的理由：</p>
+      <ul>
+        <li><strong>它鼓励 OOP。</strong>它最自然的落脚点是“指向基类的指针”，
+          而这正是我们想摆脱的设计。</li>
+        <li><strong>它的 ABI 不稳定，而且实测很慢。</strong>按值传一个
+          <code>unique_ptr</code> 是非平凡类型，所以它被间接传递，被调方还要跑析构；
+          libc++ 关于给 <code>unique_ptr</code> 加 <code>[[clang::trivial_abi]]</code>
+          的那份文档说，光这一项改动就让大型服务器宏基准快了最多 1.6%。</li>
+        <li><strong>它不是“指向内存的指针”，它是“指向某个由别人释放的东西的指针”，</strong>
+          所以它表达不了 POSIX 文件描述符、<code>HANDLE</code>、数据库连接或 mmap 区域：
+          创建资源的 API 才是必须释放它的 API，而那不是 <code>delete</code>。
+          答案是给资源写一个带析构的类，而不是一个带自定义删除器的
+          <code>unique_ptr</code>。</li>
+        <li><strong>自定义删除器是性能陷阱。</strong>lambda、函数指针、函数对象各有各的代码生成、
+          各有各的大小、各有各的内联行为，而且很容易不小心用了最慢的那个。</li>
+        <li><strong><code>unique_ptr&lt;T[]&gt;</code> 是个坑：</strong>那个 <code>[]</code>
+          很容易忘，忘了就是未定义行为。</li>
+        <li><strong>你不能拿它建数据结构。</strong><code>unique_ptr</code> 节点组成的树
+          递归销毁，直接把栈打爆；由它们组成的链表是两头好处都没有。</li>
+        <li><strong>它在 freestanding 环境里不可用，</strong>因为
+          <code>::std::make_unique</code> 不是 freestanding 的，而 <code>new</code>
+          并不保证存在（<em>第20章 freestanding</em>）。</li>
+        <li><strong>它把调用点的类型信息毁掉了。</strong>
+          <code>unique_ptr&lt;shape&gt;</code> 说的是“一个形状，在别的地方，而且我拥有它”。
+          值 <code>shape</code> 说的是“一个形状”。前者是读者能用的句子，后者是关于堆的传闻。</li>
+        <li><strong>它逼你用 <code>nullptr</code> 表示“空”，</strong>于是每次使用都要检查，
+          于是检查总会被忘掉。</li>
+      </ul>
+      <p>
+        指南里的总结句：<em><code>::std::unique_ptr</code> 不是智能指针，
+        而是一个可疑、可能有害的指针类型。</em>
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 那该写什么</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>你想要</th>
+            <th>不要这个</th>
+            <th>要这个</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>同一种类型的很多对象</td>
+            <td><code>::fast_io::vector&lt;::std::unique_ptr&lt;T&gt;&gt;</code></td>
+            <td><code>::fast_io::vector&lt;T&gt;</code></td>
+          </tr>
+          <tr>
+            <td>一个类型背后的多种表示</td>
+            <td><code>vector&lt;unique_ptr&lt;base&gt;&gt;</code> 加 <code>virtual</code></td>
+            <td>类型擦除的值类型（<a href="/zhcn/docs/18.virtual/06.typeerasure/">第18.6章</a>）</td>
+          </tr>
+          <tr>
+            <td>一个有生命周期的资源</td>
+            <td><code>unique_ptr&lt;X, deleter&gt;</code></td>
+            <td>一个析构函数只拥有那一个资源的类
+              （<a href="/zhcn/docs/14.fiverules/01.ownership/">第14.1章</a>）</td>
+          </tr>
+          <tr>
+            <td>可空的所有权</td>
+            <td>可能为空的 <code>unique_ptr&lt;T&gt;</code></td>
+            <td>空容器，或者给便宜的平凡可拷贝值用
+              <code>::std::optional&lt;T&gt;</code></td>
+          </tr>
+          <tr>
+            <td>动态分配的缓冲区</td>
+            <td><code>unique_ptr&lt;::std::byte[]&gt;</code></td>
+            <td><code>::fast_io::vector&lt;::std::byte&gt;</code>，或者你自己的区域</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </section>
+    <section>
+      <h2>7. 经验法则</h2>
+
+      <ul>
+        <li>应用代码里永远不要写 <code>new</code> 或 <code>delete</code>。
+          如果库给了你一个要你自己释放的裸指针，立刻在你自己的拥有型类里包起来，
+          只在一个地方包，不要让裸指针到处跑。</li>
+        <li>永远不要写 <code>::std::unique_ptr</code>。它是症状而不是解法：
+          症状是你在建模对象图，而不是值。</li>
+        <li>如果你从遗留代码里继承了 <code>::std::unique_ptr</code>，不要在原地“改进”它。
+          把它包住：给你自己的类型一个值接口，把指针藏进私有成员。</li>
+        <li>记住 <code>new</code> 是一个遗留的会抛函数，所以 <code>noexcept</code>
+          函数不能调用它 —— 如果你的契约写得诚实，编译器会拦住你。</li>
+        <li>当你需要分配时，说清楚内存从哪来、没有内存时会发生什么。那是一个设计决定，
+          而 <code>new</code> 替你、一次、永远地、悄悄地做掉了它。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/18.virtual/" class="prev-button">&larr; 第18章 virtual</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/18.virtual/02.whatvirtual/" class="next-button">第18.2章 virtual 究竟是什么 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
