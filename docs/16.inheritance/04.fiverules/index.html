@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch16.4: The Rule of Five in a Derived Class - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch16.4: The Rule of Five in a Derived Class</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/16.inheritance/04.fiverules/">中文（简体）</a></p>
+    <section>
+      <h2>1. A Derived Class Has Five Members Built Out of Its Parts</h2>
+
+      <p>
+        <a href="/docs/14.fiverules/">Chapter 14</a> listed the five operations every class that
+        owns something must get right. In a derived class the same five exist, and every one of
+        them has the same shape: <strong>do it to the base subobject, then to every
+        member</strong>. The compiler writes them that way when you do not, and that default is
+        correct as long as the parts behave.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>What it must do with the base</th>
+            <th>Contract</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>copy constructor</td>
+            <td>copy-construct the base subobject</td>
+            <td><code>noexcept</code> only if the base's copy is</td>
+          </tr>
+          <tr>
+            <td>move constructor</td>
+            <td>move-construct the base subobject</td>
+            <td><code>noexcept</code> only if the base's move is</td>
+          </tr>
+          <tr>
+            <td>copy assignment</td>
+            <td><code>base::operator=(other)</code> &mdash; <strong>explicitly</strong></td>
+            <td>what the base's assignment gives</td>
+          </tr>
+          <tr>
+            <td>move assignment</td>
+            <td><code>base::operator=(::std::move(other))</code></td>
+            <td>what the base's move assignment gives</td>
+          </tr>
+          <tr>
+            <td>destructor</td>
+            <td>destroy the base subobject <em>last</em></td>
+            <td>always <code>noexcept</code></td>
+          </tr>
+          <tr>
+            <td><code>swap</code></td>
+            <td>swap the base subobject as a <code>base&amp;</code></td>
+            <td><code>noexcept</code> only if the base's swap is</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Three of those are automatic. The interesting question is which ones you have to write,
+        and the answer is the same as in <a href="/docs/14.fiverules/01.ownership/">Ch14.1</a>:
+        write the ones your base and members cannot do for you.
+      </p>
+
+    </section>
+    <section>
+      <h2>2. Defaulting Is Not the Same as Forget</h2>
+
+      <p>
+        A derived class that writes nothing gets all five, implicitly defined, each one doing
+        the right thing with the base subobject. That is the <strong>rule of zero</strong>, and
+        it is the preferred answer whenever the base and every member are well behaved:
+      </p>
+      <pre><code class="language-cpp">
+struct quiet_base
+{
+	::std::size_t id{};
+};
+
+struct rule_of_zero : quiet_base
+{
+	::std::size_t extra{};
+};
+</code></pre>
+      <p>
+        <code>rule_of_zero</code> is copyable, movable, destructible, and its move is
+        <code>noexcept</code> &mdash; the compiler worked all of that out from
+        <code>::std::size_t</code>. Writing <code>= default</code> for each of the five changes
+        nothing, and writing a body for each is how bugs get in.
+      </p>
+      <p>
+        What the compiler does <em>not</em> do is compensate for a part that is broken. If a
+        base deletes its copy constructor, the derived class has no copy constructor, and the
+        trait says so:
+      </p>
+      <pre><code class="language-cpp">
+struct no_copy_base
+{
+	::std::size_t id{};
+	no_copy_base() noexcept = default;
+	no_copy_base(no_copy_base const &) = delete;
+};
+
+struct derived_no_copy : no_copy_base
+{
+	::std::size_t extra{};
+};
+</code></pre>
+      <pre><code class="language-cpp">
+class guarded
+{
+	~guarded() noexcept = default;      // private destructor on purpose
+};
+
+struct derived_from_guarded : guarded
+{
+};
+</code></pre>
+      <pre><code class="language-text">
+is_copy_constructible&lt;derived_no_copy&gt;=0
+is_destructible&lt;guarded&gt;=0
+is_destructible&lt;derived_from_guarded&gt;=0
+</code></pre>
+      <p>
+        The second and third lines are the same rule applied to destruction: a base whose
+        destructor is inaccessible (here <code>private</code>) makes the derived destructor
+        deleted too. That is one more reason to keep base destructors
+        <code>public</code> and <code>noexcept</code>.
+      </p>
+
+    </section>
+    <section>
+      <h2>3. The Move Constructor Must Move the Base</h2>
+
+      <pre><code class="language-cpp">
+derived(derived &amp;&amp;other) noexcept : base{::std::move(other)}, extra{other.extra}
+{
+	other.extra = 0;
+}
+</code></pre>
+      <p>
+        <code>::std::move(other)</code> has type <code>derived&amp;&amp;</code>, and a
+        <code>derived&amp;&amp;</code> binds to a <code>base&amp;&amp;</code> parameter, so the
+        base subobject is move-constructed by the base's move constructor
+        (<a href="/docs/16.inheritance/05.conversions/">Ch16.5</a>). Two things follow:
+      </p>
+      <ul>
+        <li><strong>Both halves are moved, and both halves are left empty.</strong> The base's
+          move constructor zeroes its own state; the body zeroes the member. A moved-from
+          derived object is a moved-from base plus a moved-from member
+          (<a href="/docs/14.fiverules/10.movedfrom/">Ch14.10</a>).</li>
+        <li><strong><code>noexcept</code> is a promise about the base too.</strong> If the base's
+          move can throw, this constructor cannot claim <code>noexcept</code>. Write the
+          contract conditionally and let the compiler check it
+          (<a href="/docs/15.genericprogramming/08.ifconstexpr/">Ch15.8</a>):
+          <code>throws(!noexcept(base{::std::move(other)}))</code>.</li>
+      </ul>
+      <p>
+        And verify with the traits rather than by memory, because
+        <code>::std::is_nothrow_move_constructible_v</code> answers exactly this question for
+        the whole object &mdash; base plus every member.
+      </p>
+
+    </section>
+    <section>
+      <h2>4. Copy Assignment: the Line Everybody Forgets</h2>
+
+      <p>
+        Assignment operators are not inherited and are not generated from the base's: you write
+        the derived one and you must assign the base subobject yourself. Forgetting that line
+        compiles, runs, and leaves the base part of the object untouched:
+      </p>
+      <pre><code class="language-cpp">
+// the same class with the classic bug: the base is never assigned
+struct buggy : base
+{
+	::std::int_least32_t extra{};
+
+	explicit buggy(::std::size_t i, ::std::int_least32_t e) noexcept : base{i}, extra{e} {}
+
+	buggy &amp;operator=(buggy const &amp;other) noexcept
+	{
+		extra = other.extra;             // base::operator= is missing
+		return *this;
+	}
+};
+</code></pre>
+      <pre><code class="language-text">
+buggy after assign: u.id=7 (expected 9) u.extra=90
+</code></pre>
+      <p>
+        <code>u</code> was given <code>v</code>, the member was copied, and the base kept the
+        old <code>id</code>. No warning, no error: the base subobject simply was not part of the
+        assignment. The fix is one line in both assignment operators:
+      </p>
+      <pre><code class="language-cpp">
+derived &amp;operator=(derived const &amp;other) noexcept
+{
+	base::operator=(other);
+	extra = other.extra;
+	return *this;
+}
+
+derived &amp;operator=(derived &amp;&amp;other) noexcept
+{
+	base::operator=(::std::move(other));
+	extra = other.extra;
+	other.extra = 0;
+	return *this;
+}
+</code></pre>
+      <p>
+        Two more rules about assignment in a hierarchy:
+      </p>
+      <ul>
+        <li><strong>They are not virtual.</strong> Assigning through a
+          <code>base&amp;</code> calls <code>base::operator=</code> and assigns only the base
+          part &mdash; the same loss as slicing, by another route
+          (<a href="/docs/16.inheritance/05.conversions/">Ch16.5</a>).</li>
+        <li><strong>A derived assignment hides the base's.</strong> If you want both overload
+          sets, bring the base's in with <code>using base::operator=;</code>
+          (<a href="/docs/16.inheritance/06.hiding/">Ch16.6</a>).</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>5. <code>swap</code> and Copy-and-Swap</h2>
+
+      <p>
+        A derived <code>swap</code> is the same two-step pattern as any other member: swap the
+        base, then swap the members. The base has to be named as a
+        <code>base&amp;</code> so that overload resolution finds the base's <code>swap</code>
+        rather than recursing into this one:
+      </p>
+      <pre><code class="language-cpp">
+void swap(derived &amp;other) noexcept
+{
+	using ::std::swap;
+	swap(static_cast&lt;base &amp;&gt;(*this), static_cast&lt;base &amp;&gt;(other));
+	swap(extra, other.extra);
+}
+</code></pre>
+      <p>
+        With those two lines, the copy-and-swap assignment of
+        <a href="/docs/14.fiverules/08.copyandswap/">Ch14.8</a> works unchanged for derived
+        classes, and it keeps the strong exception-safety guarantee: the new value is built
+        completely before anything is touched.
+      </p>
+
+    </section>
+    <section>
+      <h2>6. The Whole Program</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;utility&gt;
+#include &lt;type_traits&gt;
+
+struct base
+{
+	::std::size_t id{};
+
+	base() noexcept = default;
+	explicit base(::std::size_t i) noexcept : id{i} {}
+
+	base(base const &amp;) noexcept = default;
+	base(base &amp;&amp;other) noexcept : id{other.id} { other.id = 0; }
+	base &amp;operator=(base const &amp;) noexcept = default;
+	base &amp;operator=(base &amp;&amp;other) noexcept
+	{
+		id = other.id;
+		other.id = 0;
+		return *this;
+	}
+	~base() noexcept = default;
+};
+
+// the derived class that does it right
+struct derived : base
+{
+	::std::int_least32_t extra{};
+
+	derived() noexcept = default;
+	explicit derived(::std::size_t i, ::std::int_least32_t e) noexcept : base{i}, extra{e} {}
+
+	derived(derived const &amp;) noexcept = default;
+
+	derived(derived &amp;&amp;other) noexcept : base{::std::move(other)}, extra{other.extra}
+	{
+		other.extra = 0;
+	}
+
+	derived &amp;operator=(derived const &amp;other) noexcept
+	{
+		base::operator=(other);          // the line everybody forgets
+		extra = other.extra;
+		return *this;
+	}
+
+	derived &amp;operator=(derived &amp;&amp;other) noexcept
+	{
+		base::operator=(::std::move(other));
+		extra = other.extra;
+		other.extra = 0;
+		return *this;
+	}
+
+	~derived() noexcept = default;
+
+	void swap(derived &amp;other) noexcept
+	{
+		using ::std::swap;
+		swap(static_cast&lt;base &amp;&gt;(*this), static_cast&lt;base &amp;&gt;(other));
+		swap(extra, other.extra);
+	}
+};
+
+// the same class with the classic bug: the base is never assigned
+struct buggy : base
+{
+	::std::int_least32_t extra{};
+
+	explicit buggy(::std::size_t i, ::std::int_least32_t e) noexcept : base{i}, extra{e} {}
+
+	buggy &amp;operator=(buggy const &amp;other) noexcept
+	{
+		extra = other.extra;             // base::operator= is missing
+		return *this;
+	}
+};
+
+int main()
+{
+	try
+	{
+		derived a{1, 10};
+		derived b{::std::move(a)};
+		::fast_io::io::println("after move: b.id=", b.id, " b.extra=", b.extra, " a.id=", a.id, " a.extra=", a.extra);
+
+		derived c{2, 20};
+		c = b;
+		::fast_io::io::println("after copy assign: c.id=", c.id, " c.extra=", c.extra);
+
+		buggy u{7, 70};
+		buggy v{9, 90};
+		u = v;
+		::fast_io::io::println("buggy after assign: u.id=", u.id, " (expected 9) u.extra=", u.extra);
+
+		derived x{3, 30};
+		derived y{4, 40};
+		x.swap(y);
+		::fast_io::io::println("after swap: x.id=", x.id, " y.id=", y.id);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>Output:</p>
+      <pre><code class="language-text">
+after move: b.id=1 b.extra=10 a.id=0 a.extra=0
+after copy assign: c.id=1 c.extra=10
+buggy after assign: u.id=7 (expected 9) u.extra=90
+after swap: x.id=4 y.id=3
+</code></pre>
+      <p>
+        Four lines, four lessons. The move took both halves and emptied both halves of the
+        source. The copy assignment took both halves. The buggy assignment took one. The swap
+        exchanged the base subobjects as well as the members.
+      </p>
+
+    </section>
+    <section>
+      <h2>7. Contracts: A Derived Constructor Inherits Every Failure</h2>
+
+      <ul>
+        <li>A base constructor that allocates is <code>throws</code>, so every derived
+          constructor is <code>throws</code> too, whether or not it does anything itself
+          (<a href="/docs/16.inheritance/02.construction/">Ch16.2</a>).</li>
+        <li>A derived destructor is <code>noexcept</code>, therefore a base destructor must be
+          <code>noexcept</code> as well &mdash; and it is, or the program would not compile.</li>
+        <li>If the base's move constructor is <code>throws</code>, the derived move cannot be
+          <code>noexcept</code>. Say so explicitly with
+          <code>throws(!noexcept(base{::std::move(other)}))</code> so that the condition lives
+          next to the code that made it true.</li>
+        <li>Copy assignment is <code>noexcept</code> only if the base's is; if any member
+          allocates, it is <code>throws</code> and copy-and-swap is the shape to use.</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>8. Rules of Thumb</h2>
+
+      <ul>
+        <li>Try the rule of zero first: if the base and members behave, write nothing for the
+          derived class.</li>
+        <li>If you write a move constructor, move the base in the initialiser list and empty
+          both halves.</li>
+        <li>If you write an assignment operator, assign the base first. It is the single most
+          commonly forgotten line in C++ inheritance.</li>
+        <li>If you write a <code>swap</code>, swap the base as a <code>base&amp;</code> and
+          <code>using ::std::swap;</code> first, so the members and the base use the same
+          lookup.</li>
+        <li>Do not <code>= default</code> a member you have also written; the two cannot
+          coexist, and the compiler will tell you.</li>
+        <li>When in doubt about a contract, measure:
+          <code>::std::is_nothrow_move_constructible_v&lt;derived&gt;</code> answers for the
+          whole object, base included.</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/16.inheritance/03.access/" class="prev-button">&larr; Ch16.3: public, protected, private</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/16.inheritance/05.conversions/" class="next-button">Ch16.5: Conversion and Slicing &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

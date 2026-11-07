@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第16.4章 派生类中的五法则 - 用 fast_io 学 C++</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第16.4章 派生类中的五法则</h1>
+    <p class="lang-switch"><a href="/docs/16.inheritance/04.fiverules/">English</a></p>
+    <section>
+      <h2>1. 派生类的五个成员，都是由它的部件搭出来的</h2>
+
+      <p>
+        <a href="/zhcn/docs/14.fiverules/">第14章</a>列出了“拥有资源的类必须做对的五个操作”。
+        派生类里也是同样五个，而且每一个形状都一样：<strong>先对基类子对象做，再对每个成员做</strong>。
+        你不写的时候编译器就是这么生成的，而只要各部件行为正常，这个默认就是对的。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>成员</th>
+            <th>它必须对基类做什么</th>
+            <th>契约</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>拷贝构造</td>
+            <td>拷贝构造基类子对象</td>
+            <td>只有当基类的拷贝是 <code>noexcept</code> 时才是</td>
+          </tr>
+          <tr>
+            <td>移动构造</td>
+            <td>移动构造基类子对象</td>
+            <td>只有当基类的移动是 <code>noexcept</code> 时才是</td>
+          </tr>
+          <tr>
+            <td>拷贝赋值</td>
+            <td><code>base::operator=(other)</code> —— <strong>显式调用</strong></td>
+            <td>取决于基类的赋值</td>
+          </tr>
+          <tr>
+            <td>移动赋值</td>
+            <td><code>base::operator=(::std::move(other))</code></td>
+            <td>取决于基类的移动赋值</td>
+          </tr>
+          <tr>
+            <td>析构函数</td>
+            <td><em>最后</em>销毁基类子对象</td>
+            <td>永远是 <code>noexcept</code></td>
+          </tr>
+          <tr>
+            <td><code>swap</code></td>
+            <td>把基类子对象当作 <code>base&amp;</code> 交换</td>
+            <td>只有当基类的 swap 是 <code>noexcept</code> 时才是</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        其中三个是自动的。真正有意思的问题是哪些需要你自己写，而答案和
+        <a href="/zhcn/docs/14.fiverules/01.ownership/">第14.1章</a>一样：
+        基类和成员替你做不到的那几个。
+      </p>
+
+    </section>
+    <section>
+      <h2>2. “= default”不等于“忘记写”</h2>
+
+      <p>
+        什么都不写的派生类会得到全部五个：隐式定义，每一个都正确地处理基类子对象。
+        这就是<strong>零法则</strong>，而当基类与每个成员都行为良好时，它就是首选答案：
+      </p>
+      <pre><code class="language-cpp">
+struct quiet_base
+{
+	::std::size_t id{};
+};
+
+struct rule_of_zero : quiet_base
+{
+	::std::size_t extra{};
+};
+</code></pre>
+      <p>
+        <code>rule_of_zero</code> 可拷贝、可移动、可析构，而且它的移动是
+        <code>noexcept</code> —— 这一切都是编译器从 <code>::std::size_t</code> 推出来的。
+        给五个成员各写一个 <code>= default</code> 什么都不会改变，而给每个都写函数体正是 bug 的来源。
+      </p>
+      <p>
+        编译器<b>不会</b>替你弥补坏掉的部件。如果基类删除了拷贝构造，派生类就没有拷贝构造，
+        而特征会如实报告：
+      </p>
+      <pre><code class="language-cpp">
+struct no_copy_base
+{
+	::std::size_t id{};
+	no_copy_base() noexcept = default;
+	no_copy_base(no_copy_base const &) = delete;
+};
+
+struct derived_no_copy : no_copy_base
+{
+	::std::size_t extra{};
+};
+</code></pre>
+      <pre><code class="language-cpp">
+class guarded
+{
+	~guarded() noexcept = default;      // private destructor on purpose
+};
+
+struct derived_from_guarded : guarded
+{
+};
+</code></pre>
+      <pre><code class="language-text">
+is_copy_constructible&lt;derived_no_copy&gt;=0
+is_destructible&lt;guarded&gt;=0
+is_destructible&lt;derived_from_guarded&gt;=0
+</code></pre>
+      <p>
+        第二、三行是同一条规则用在析构上：析构函数不可访问（这里是 <code>private</code>）的基类，
+        会让派生类的析构函数也被删除。这也是要保持基类析构函数 <code>public</code> 且
+        <code>noexcept</code> 的又一个理由。
+      </p>
+
+    </section>
+    <section>
+      <h2>3. 移动构造必须移动基类</h2>
+
+      <pre><code class="language-cpp">
+derived(derived &amp;&amp;other) noexcept : base{::std::move(other)}, extra{other.extra}
+{
+	other.extra = 0;
+}
+</code></pre>
+      <p>
+        <code>::std::move(other)</code> 的类型是 <code>derived&amp;&amp;</code>，而
+        <code>derived&amp;&amp;</code> 可以绑定到 <code>base&amp;&amp;</code> 形参上，
+        于是基类子对象由基类的移动构造函数移动构造
+        （<a href="/zhcn/docs/16.inheritance/05.conversions/">第16.5章</a>）。由此有两点：
+      </p>
+      <ul>
+        <li><strong>两半都被移动，两半都被清空。</strong>基类的移动构造函数清空它自己的状态，
+          函数体清空成员。一个被移动后的派生对象 = 被移动后的基类 + 被移动后的成员
+          （<a href="/zhcn/docs/14.fiverules/10.movedfrom/">第14.10章</a>）。</li>
+        <li><strong><code>noexcept</code> 同时也是对基类的承诺。</strong>如果基类的移动会抛，
+          这个构造函数就不能声称 <code>noexcept</code>。把契约写成条件形式，让编译器替你去检查
+          （<a href="/zhcn/docs/15.genericprogramming/08.ifconstexpr/">第15.8章</a>）：
+          <code>throws(!noexcept(base{::std::move(other)}))</code>。</li>
+      </ul>
+      <p>
+        而且要靠特征去验证，而不是靠记忆，因为
+        <code>::std::is_nothrow_move_constructible_v</code> 回答的正是“整个对象”的这个问题 ——
+        基类加每一个成员。
+      </p>
+
+    </section>
+    <section>
+      <h2>4. 拷贝赋值：人人都忘的那一行</h2>
+
+      <p>
+        赋值运算符不能被继承，也不是从基类生成出来的：派生类的赋值要你自己写，而基类子对象也得你自己赋值。
+        忘掉那一行能编译、能运行，并且让对象的基类部分保持原样：
+      </p>
+      <pre><code class="language-cpp">
+// the same class with the classic bug: the base is never assigned
+struct buggy : base
+{
+	::std::int_least32_t extra{};
+
+	explicit buggy(::std::size_t i, ::std::int_least32_t e) noexcept : base{i}, extra{e} {}
+
+	buggy &amp;operator=(buggy const &amp;other) noexcept
+	{
+		extra = other.extra;             // base::operator= is missing
+		return *this;
+	}
+};
+</code></pre>
+      <pre><code class="language-text">
+buggy after assign: u.id=7 (expected 9) u.extra=90
+</code></pre>
+      <p>
+        <code>u</code> 被赋成了 <code>v</code>，成员被拷贝了，基类却留着旧的
+        <code>id</code>。没有警告、没有错误：基类子对象就是没参与这次赋值。
+        修法是两个赋值运算符里各加一行：
+      </p>
+      <pre><code class="language-cpp">
+derived &amp;operator=(derived const &amp;other) noexcept
+{
+	base::operator=(other);
+	extra = other.extra;
+	return *this;
+}
+
+derived &amp;operator=(derived &amp;&amp;other) noexcept
+{
+	base::operator=(::std::move(other));
+	extra = other.extra;
+	other.extra = 0;
+	return *this;
+}
+</code></pre>
+      <p>
+        关于层次结构里的赋值，还有两条规则：
+      </p>
+      <ul>
+        <li><strong>它们不是虚函数。</strong>通过 <code>base&amp;</code> 赋值调用的是
+          <code>base::operator=</code>，只赋值基类部分 —— 这和截断是同一种丢失，只是换了个入口
+          （<a href="/zhcn/docs/16.inheritance/05.conversions/">第16.5章</a>）。</li>
+        <li><strong>派生类的赋值会隐藏基类的。</strong>如果你要两个重载集，
+          用 <code>using base::operator=;</code> 把基类的引进来
+          （<a href="/zhcn/docs/16.inheritance/06.hiding/">第16.6章</a>）。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>5. <code>swap</code> 与拷贝并交换</h2>
+
+      <p>
+        派生类的 <code>swap</code> 和其他成员是同一个两步模式：先交换基类，再交换成员。
+        基类必须写成 <code>base&amp;</code>，这样重载解析才能找到基类的 <code>swap</code>，
+        而不是递归回自己：
+      </p>
+      <pre><code class="language-cpp">
+void swap(derived &amp;other) noexcept
+{
+	using ::std::swap;
+	swap(static_cast&lt;base &amp;&gt;(*this), static_cast&lt;base &amp;&gt;(other));
+	swap(extra, other.extra);
+}
+</code></pre>
+      <p>
+        有了这两行，<a href="/zhcn/docs/14.fiverules/08.copyandswap/">第14.8章</a>的
+        “拷贝并交换”赋值对派生类原样适用，而且保留了强异常安全保证：
+        新值在触碰任何东西之前就已经完整构造好。
+      </p>
+
+    </section>
+    <section>
+      <h2>6. 完整程序</h2>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;utility&gt;
+#include &lt;type_traits&gt;
+
+struct base
+{
+	::std::size_t id{};
+
+	base() noexcept = default;
+	explicit base(::std::size_t i) noexcept : id{i} {}
+
+	base(base const &amp;) noexcept = default;
+	base(base &amp;&amp;other) noexcept : id{other.id} { other.id = 0; }
+	base &amp;operator=(base const &amp;) noexcept = default;
+	base &amp;operator=(base &amp;&amp;other) noexcept
+	{
+		id = other.id;
+		other.id = 0;
+		return *this;
+	}
+	~base() noexcept = default;
+};
+
+// the derived class that does it right
+struct derived : base
+{
+	::std::int_least32_t extra{};
+
+	derived() noexcept = default;
+	explicit derived(::std::size_t i, ::std::int_least32_t e) noexcept : base{i}, extra{e} {}
+
+	derived(derived const &amp;) noexcept = default;
+
+	derived(derived &amp;&amp;other) noexcept : base{::std::move(other)}, extra{other.extra}
+	{
+		other.extra = 0;
+	}
+
+	derived &amp;operator=(derived const &amp;other) noexcept
+	{
+		base::operator=(other);          // the line everybody forgets
+		extra = other.extra;
+		return *this;
+	}
+
+	derived &amp;operator=(derived &amp;&amp;other) noexcept
+	{
+		base::operator=(::std::move(other));
+		extra = other.extra;
+		other.extra = 0;
+		return *this;
+	}
+
+	~derived() noexcept = default;
+
+	void swap(derived &amp;other) noexcept
+	{
+		using ::std::swap;
+		swap(static_cast&lt;base &amp;&gt;(*this), static_cast&lt;base &amp;&gt;(other));
+		swap(extra, other.extra);
+	}
+};
+
+// the same class with the classic bug: the base is never assigned
+struct buggy : base
+{
+	::std::int_least32_t extra{};
+
+	explicit buggy(::std::size_t i, ::std::int_least32_t e) noexcept : base{i}, extra{e} {}
+
+	buggy &amp;operator=(buggy const &amp;other) noexcept
+	{
+		extra = other.extra;             // base::operator= is missing
+		return *this;
+	}
+};
+
+int main()
+{
+	try
+	{
+		derived a{1, 10};
+		derived b{::std::move(a)};
+		::fast_io::io::println("after move: b.id=", b.id, " b.extra=", b.extra, " a.id=", a.id, " a.extra=", a.extra);
+
+		derived c{2, 20};
+		c = b;
+		::fast_io::io::println("after copy assign: c.id=", c.id, " c.extra=", c.extra);
+
+		buggy u{7, 70};
+		buggy v{9, 90};
+		u = v;
+		::fast_io::io::println("buggy after assign: u.id=", u.id, " (expected 9) u.extra=", u.extra);
+
+		derived x{3, 30};
+		derived y{4, 40};
+		x.swap(y);
+		::fast_io::io::println("after swap: x.id=", x.id, " y.id=", y.id);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln(e);
+	}
+}
+</code></pre>
+      <p>输出：</p>
+      <pre><code class="language-text">
+after move: b.id=1 b.extra=10 a.id=0 a.extra=0
+after copy assign: c.id=1 c.extra=10
+buggy after assign: u.id=7 (expected 9) u.extra=90
+after swap: x.id=4 y.id=3
+</code></pre>
+      <p>
+        四行输出，四个教训。移动取走了两半、也清空了两半。拷贝赋值取走了两半。有 bug 的赋值只取走一半。
+        交换则把基类子对象和成员都换了过来。
+      </p>
+
+    </section>
+    <section>
+      <h2>7. 契约：派生构造函数继承了所有失败可能</h2>
+
+      <ul>
+        <li>会分配的基类构造函数是 <code>throws</code>，所以每个派生构造函数也是
+          <code>throws</code>，不管它自己有没有做事
+          （<a href="/zhcn/docs/16.inheritance/02.construction/">第16.2章</a>）。</li>
+        <li>派生析构函数是 <code>noexcept</code>，因此基类析构函数也必须是 ——
+          事实上它一定是，否则编译不过。</li>
+        <li>如果基类的移动构造函数是 <code>throws</code>，派生类的移动就不能是
+          <code>noexcept</code>。用 <code>throws(!noexcept(base{::std::move(other)}))</code>
+          显式写出来，让条件与造成它的代码待在一起。</li>
+        <li>拷贝赋值只有在基类的也是 <code>noexcept</code> 时才是；只要有成员会分配，
+          它就是 <code>throws</code>，那就该用拷贝并交换的形状。</li>
+      </ul>
+
+    </section>
+    <section>
+      <h2>8. 经验法则</h2>
+
+      <ul>
+        <li>先试零法则：基类和成员都行为良好时，派生类什么都不用写。</li>
+        <li>写移动构造时，在初始化列表里移动基类，并把两半都清空。</li>
+        <li>写赋值运算符时，先给基类赋值。这是 C++ 继承里最常被忘掉的一行。</li>
+        <li>写 <code>swap</code> 时，把基类当作 <code>base&amp;</code> 交换，并先写
+          <code>using ::std::swap;</code>，让成员和基类用同一套查找。</li>
+        <li>不要给已经自己写了函数体的成员再写 <code>= default</code>；两者不能共存，
+          编译器会告诉你。</li>
+        <li>对契约拿不准就去测量：
+          <code>::std::is_nothrow_move_constructible_v&lt;derived&gt;</code>
+          回答的是整个对象（含基类）的问题。</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/16.inheritance/03.access/" class="prev-button">&larr; 第16.3章 public、protected、private</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/16.inheritance/05.conversions/" class="next-button">第16.5章 转换与截断 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
