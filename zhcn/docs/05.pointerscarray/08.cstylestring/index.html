@@ -182,6 +182,45 @@ print(ptr);         ❌ does not work (pointer)
 <pre><code class="language-cpp">
 println(os_c_str(ptr));
 </code></pre>
+
+      <h3>类型别名不会让它变成字符串</h3>
+      <p>
+        这种拒绝不是学究气，用一个明显不是文本的类型来看，就知道为什么：
+      </p>
+
+<pre><code class="language-cpp">
+using myint8constptr = char const *;
+
+myint8constptr p{nullptr};
+println(p);              // ✘ rejected
+</code></pre>
+
+<pre><code class="language-text">
+error: no matching function for call to ‘print_define(const fast_io::io_reserve_type_t&lt;char, const char*&gt;&amp;, …)’
+</code></pre>
+
+      <p>
+        在 <code>char const *</code> 上根本没有重载 —— 换什么名字、起什么别名都没有。
+        一个接受它的库 —— 因为"类型恰好是它"就把那八个字节当字符串 ——
+        是在假定一个没有任何东西保证过的 NUL 结尾。
+        那块缓冲区可能是一个网络包的切片、一段里面没有零的 <code>mmap</code> 文件，
+        或者一个恰好拼成 <code>char</code> 的字节数。
+        把它交给 <code>strlen</code>、交给 <code>printf("%s", …)</code>，
+        或者交给任何接受 <code>char const *</code> 然后调用 <code>strlen</code> 的接口，
+        就会读到分配之外；而它看起来什么也没发生：一个指针从一个函数传到了另一个函数。
+      </p>
+      <p>
+        这就是 <code>os_c_str</code> 为什么是一个<em>操纵器</em>而不是 <code>print</code> 的一个重载。
+        类型说不出这些字节是什么意思，所以必须由调用方来说：
+        <code>os_c_str(p)</code> 表示"这些字节以 NUL 结尾"，
+        <code>os_c_str(p, n)</code> 表示"正好 <code>n</code> 个"，
+        <code>pointervw(p)</code> 表示"这是一个地址，打印这个地址"。
+        同样八个字节的三种不同含义，而语言只给了你一个类型来表示这三种。
+      </p>
+      <p>
+        反方向也一样：<code>char</code> 是整数类型，所以一个 <code>char</code> 值默认按数字打印。
+        它是一个字节，而在有人说明编码之前，字节不是字符。
+      </p>
     </section>
 
     <section>

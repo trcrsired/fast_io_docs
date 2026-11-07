@@ -117,15 +117,24 @@
               <code>append</code>（<a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">第17.2章</a>）</td>
           </tr>
           <tr>
-            <td><code>&lt;&lt;</code>、<code>&gt;&gt;</code></td>
-            <td>不行</td>
-            <td>iostream 不是错误通道；用 <code>print</code> 和
-              <code>scan</code>（<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">第17.8章</a>）</td>
+            <td><code>,</code></td>
+            <td>永远不行</td>
+            <td>函数调用无法给它的实参排序，而排序正是逗号运算符唯一要做的事
+              （<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">第17.8章</a>）</td>
           </tr>
           <tr>
-            <td><code>&amp;&amp;</code>、<code>||</code>、<code>,</code>、<code>&amp;</code></td>
+            <td><code>&amp;</code>（一元，取地址）</td>
             <td>永远不行</td>
-            <td>每一个都会悄悄破坏一条语言规则（短路求值、求值顺序、取地址）</td>
+            <td>它是 C 指代一个对象五十年的方式，而补救的代价是标准库多了一个
+              <code>std::addressof</code>
+              （<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/#operatoramp">第17.8章第3节</a>）</td>
+          </tr>
+          <tr>
+            <td><code>&amp;&amp;</code>、<code>||</code></td>
+            <td>只在两个操作数都已经是值时</td>
+            <td>掩码和 lane 向量没有东西可短路，所以逐 lane 的合取就是诚实的拼写；
+              右操作数是惰性求值的表达式时，那就是 bug
+              （<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">第17.8章</a>）</td>
           </tr>
           <tr>
             <td><code>operator T()</code></td>
@@ -175,9 +184,10 @@
         <li><a href="/zhcn/docs/17.operatoroverloading/07.subscriptcall/">第17.7章: 下标、调用与解引用</a>
           —— <code>[]</code>、<code>()</code>、<code>*</code>、<code>-&gt;</code>、
           会插入的 <code>operator[]</code> 陷阱，以及代理引用。</li>
-        <li><a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">第17.8章: 不该存在的运算符</a>
-          —— 流运算符、转换运算符、<code>&amp;&amp;</code>、<code>||</code>、<code>,</code>、
-          <code>&amp;</code>，以及路径上的 <code>operator/</code>。</li>
+        <li><a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">第17.8章: 不该存在的运算符重载</a>
+          —— 两个没有任何可辩护用法的重载（<code>,</code> 和 <code>&amp;</code>，后者让标准库
+          付出了 <code>std::addressof</code>），以及 <code>&amp;&amp;</code> 与 <code>||</code>
+          真正的代价：它取决于操作数是什么。</li>
         <li><a href="/zhcn/docs/17.operatoroverloading/09.rules/">第17.9章: 规则与检查表</a>
           —— 把整章变成代码评审里可以 grep 的决定。</li>
       </ul>

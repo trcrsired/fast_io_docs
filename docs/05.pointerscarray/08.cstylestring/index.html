@@ -183,6 +183,47 @@ print(ptr);         ❌ does not work (pointer)
 <pre><code class="language-cpp">
 println(os_c_str(ptr));
 </code></pre>
+
+      <h3>A type alias does not make it a string</h3>
+      <p>
+        The refusal is not pedantry, and it is worth seeing why with a type that is obviously not
+        text:
+      </p>
+
+<pre><code class="language-cpp">
+using myint8constptr = char const *;
+
+myint8constptr p{nullptr};
+println(p);              // ✘ rejected
+</code></pre>
+
+<pre><code class="language-text">
+error: no matching function for call to ‘print_define(const fast_io::io_reserve_type_t&lt;char, const char*&gt;&amp;, …)’
+</code></pre>
+
+      <p>
+        There is no overload for <code>char const *</code> at all, under any name, through any
+        alias. A library that accepts one &mdash; that treats those eight bytes as a string because
+        of the type they happen to have &mdash; is assuming a NUL terminator that nothing guarantees.
+        The buffer may be a slice of a network packet, a <code>mmap</code>ed file without a zero in
+        it, or a byte count that happens to be spelled <code>char</code>. Passing it to
+        <code>strlen</code>, to <code>printf("%s", …)</code>, or to any interface that takes
+        <code>char const *</code> and calls <code>strlen</code> reads past the end of the allocation,
+        and it looks like nothing happened: a pointer was moved from one function to another.
+      </p>
+      <p>
+        That is the whole reason <code>os_c_str</code> exists as a <em>manipulator</em> rather than
+        as an overload of <code>print</code>. The type cannot say what the bytes mean, so the
+        caller has to: <code>os_c_str(p)</code> states "these bytes are NUL-terminated",
+        <code>os_c_str(p, n)</code> states "exactly <code>n</code> of them", and
+        <code>pointervw(p)</code> states "this is an address, print the address". Three different
+        meanings of the same eight bytes, and the language gives you one type for all three.
+      </p>
+      <p>
+        The same rule holds in the other direction: <code>char</code> is an integer type, so a
+        <code>char</code> value prints as a number unless you say otherwise. It is a byte, and a
+        byte is not a character until someone states the encoding.
+      </p>
     </section>
 
     <section>

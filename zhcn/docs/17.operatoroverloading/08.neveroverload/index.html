@@ -3,172 +3,142 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>第17.8章 不该存在的运算符 - C++ Tutorial with fast_io</title>
+  <title>第17.8章 不该存在的运算符重载 - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>第17.8章 不该存在的运算符</h1>
+    <h1>第17.8章 不该存在的运算符重载</h1>
     <p class="lang-switch"><a href="/docs/17.operatoroverloading/08.neveroverload/">English</a></p>
-
     <section>
-      <h2>1. 五个永远错误的</h2>
+      <h2>1. 正好有两个没有任何可辩护的用法</h2>
 
       <p>
-        有五个运算符在每个程序里都是错的，理由与风格无关。
-        每一个都不是口味问题：重载它就改变了语言对这个表达式所做的承诺。
+        在整个运算符集合里，正好有两种重载在任何程序里都是错的，
+        理由与风格无关：它们各自抹掉了语言对这个表达式做出的一个保证，
+        而且都是静默抹掉的。
       </p>
-
       <table>
         <thead>
           <tr>
-            <th>运算符</th>
-            <th>重载它破坏了什么</th>
+            <th>重载</th>
+            <th>它抹掉了什么</th>
+            <th>有正确的场合吗？</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><code>&amp;&amp;</code></td>
-            <td><strong>短路求值。</strong><code>a &amp;&amp; b</code> 变成一次函数调用，
-              所以即使 <code>a</code> 为假，<code>b</code> 也会被求值。
-              每个“先检查指针再解引用”的写法都静默失效。</td>
-          </tr>
-          <tr>
-            <td><code>||</code></td>
-            <td>同上，另一边。</td>
-          </tr>
-          <tr>
             <td><code>,</code></td>
-            <td><strong>求值顺序。</strong>内建逗号运算符从左到右求值并丢弃左边结果；
-              重载之后它就是一次普通函数调用，实参的求值顺序是不确定的。</td>
+            <td><strong>顺序。</strong>内建的逗号先求值左操作数，然后在其后求值右操作数，
+              并丢弃左值。重载的逗号是一次函数调用，操作数变成函数实参，
+              它们之间的求值顺序没有规定
+              （<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/#comma">第2节</a>）。</td>
+            <td>没有</td>
           </tr>
           <tr>
             <td><code>&amp;</code>（一元，取地址）</td>
-            <td><strong>取地址。</strong>C 保持了半个世纪的一个特性，
-              也是语言最不该交出去的那一个
+            <td><strong>取地址。</strong>C 用这一个操作指代一个对象已经五十年了，
+              也是标准库不得不引入一个叫 <code>std::addressof</code> 的编译器内建的原因
               （<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/#operatoramp">第3节</a>）。</td>
-          </tr>
-          <tr>
-            <td><code>operator T()</code></td>
-            <td><strong>对转换的局部推理。</strong>程序里任何地方的任何隐式转换都可能调用它。
-              唯一的例外是 <code>explicit operator bool</code>，它在使用点被检查。</td>
+            <td>没有</td>
           </tr>
         </tbody>
       </table>
+      <p>
+        其它一切都是需要判断的，而本章一直是这份判断的记录：
+        值类型上的 <code>+</code> 与 <code>*</code>
+        （<a href="/zhcn/docs/17.operatoroverloading/03.valuearithmetic/">第17.3章</a>）、
+        <code>==</code> 与 <code>&lt;=&gt;</code>
+        （<a href="/zhcn/docs/17.operatoroverloading/04.comparisons/">第17.4章</a>）、
+        <code>++</code> 与 <code>--</code>
+        （<a href="/zhcn/docs/17.operatoroverloading/05.increment/">第17.5章</a>）、
+        <code>[]</code>、<code>*</code>、<code>-&gt;</code> 与 <code>()</code>
+        （<a href="/zhcn/docs/17.operatoroverloading/07.subscriptcall/">第17.7章</a>）。
+        剩下两个运算符值得单独一节，因为它们既不是被禁止的，也不是安全的：
+        <code>&amp;&amp;</code> 和 <code>||</code> 在某些类型上完全合理，
+        在另一些类型上就是正确性 bug，而这个区别不属于口味问题（第4节）。
+      </p>
 
     </section>
     <section>
-      <h2>2. 把 <code>&amp;&amp;</code> 量出来</h2>
+      <h2 id="comma">2. <code>,</code>：无法被正确重载的运算符</h2>
 
       <p>
-        关于短路的说法不是理论，而且很容易演示：把右操作数做成一个会宣告自己的函数，
-        然后比较内建运算符和用户定义运算符。
+        内建的逗号运算符一次做两件事，而第二件才是要紧的。
+        它求值左操作数，然后<em>在它之后</em>求值右操作数，再丢弃左值。
+        逗号出现在真实代码里的唯一理由就是这个：
+        <code>for (i = 0, j = n; ...)</code> 是把两条语句塞进一个子句，
+        并且对它们的顺序有一个保证。
       </p>
-
+      <p>
+        重载的逗号是一次函数调用，而函数调用这两半都不给你。
+        操作数变成函数实参，所以它们之间没有顺序；
+        "丢弃左值"也一并没有了：运算符返回什么都行。
+      </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 
-/* explicit operator bool: usable in a boolean context, invisible everywhere else */
-struct handle_flag
+/* the comma operator, overloaded: `a , b` becomes operator,(a, b) */
+struct operand
 {
-	bool open{};
-
-	[[nodiscard]] constexpr explicit operator bool() const noexcept
-	{
-		return open;
-	}
+	int tag{};
 };
 
-/* the right operand: proves whether it was evaluated */
-[[nodiscard]] inline bool right() throws
+[[nodiscard]] inline operand operator,(operand a, operand b) throws
 {
-	::fast_io::io::print("  right() was evaluated\n");
-	return true;
-}
-
-struct short_circuit
-{
-	bool value{};
-
-	[[nodiscard]] constexpr explicit operator bool() const noexcept
-	{
-		return value;
-	}
-};
-
-namespace bad
-{
-struct gate
-{
-	bool value{};
-};
-
-/* a user-defined operator&amp;&amp;: both operands are evaluated before the call */
-[[nodiscard]] inline bool operator&amp;&amp;(gate, bool b) noexcept
-{
+	::fast_io::io::print("  operator, ran\n");
 	return b;
 }
+
+[[nodiscard]] operand make(int t) throws
+{
+	::fast_io::io::print("  make(", t, ")\n");
+	return operand{t};
 }
 
 int main()
 {
 	try
 	{
-		handle_flag const f{};
-		::fast_io::io::println("static_cast&lt;bool&gt;(f) = ", static_cast&lt;bool&gt;(f), "   !f = ", !f,
-							   "   (f + 1 would not compile)");
+		::fast_io::io::println("built-in comma: two int values, sequenced left to right");
+		(::fast_io::io::print("  left\n"), ::fast_io::io::print("  right\n"));
 
-		::fast_io::io::println("builtin &amp;&amp; with a false left operand:");
-		bool const r1{static_cast&lt;bool&gt;(short_circuit{false}) &amp;&amp; right()};
-		::fast_io::io::println("  result = ", r1);
-
-		::fast_io::io::println("user-defined operator&amp;&amp; with a false left operand:");
-		bool const r2{bad::gate{false} &amp;&amp; right()};
-		::fast_io::io::println("  result = ", r2);
+		::fast_io::io::println("overloaded comma: the operands are function arguments");
+		auto const r = (make(0), make(1));
+		::fast_io::io::println("  result tag = ", r.tag);
 	}
 	catch throws (::std::error e)
 	{
-		::fast_io::io::print("error: ");
-		::fast_io::io::println(e);
+		::fast_io::io::perrln("error: ", e);
 	}
 }
 </code></pre>
       <pre><code class="language-text">
-static_cast&lt;bool&gt;(f) = 0   !f = 1   (f + 1 would not compile)
-builtin &amp;&amp; with a false left operand:
-  result = 0
-user-defined operator&amp;&amp; with a false left operand:
-  right() was evaluated
-  result = 1
+built-in comma: two int values, sequenced left to right
+  left
+  right
+overloaded comma: the operands are function arguments
+  make(0)
+  make(1)
+  operator, ran
+  result tag = 1
 </code></pre>
       <p>
-        内建的情形里，输出记录中没有任何来自 <code>right()</code> 的行 —— 它从未被调用。
-        用户定义的情形里，<code>right()</code> 在运算符执行之前就被求值了，
-        因为运算符就是函数，而函数的实参在调用之前求值。
-        如果你的类型需要“并且”的语义，就用 <code>explicit operator bool</code> 写
-        <code>a &amp;&amp; b</code>，让语言自己去做；或者写一个命名函数
-        （<code>both(a, b)</code>、<code>a.and_then(b)</code>），让名字说出两边都会执行。
+        输出里内建的那部分是有保证的：<code>left</code> 在 <code>right</code> 开始之前就已完成。
+        重载的那部分没有保证。两次 <code>make()</code> 都在 <code>operator,</code> 运行之前发生，
+        而编译器可以按任意顺序做它们 —— 这一次它先做了 <code>make(0)</code>，
+        而程序里没有任何东西规定必须如此。一个看到 <code>a, b</code>、
+        知道内建规则的读者，会读出一个"有顺序保证"的含义，
+        而那个类型刚刚把这个保证删掉了。
       </p>
       <p>
-        同一个程序里的 <code>explicit operator bool</code> 才是<em>值得</em>拥有的转换：
-        它在 <code>if</code>、<code>while</code>、<code>!</code> 和 <code>&amp;&amp;</code>
-        里都能用，而其他场合一概不参与。这是编译期保证，不是约定：
-      </p>
-      <pre><code class="language-cpp">
-handle_flag f;
-int x{f + 1};
-</code></pre>
-      <pre><code class="language-text">
-error: no match for ‘operator+’ (operand types are ‘handle_flag’ and ‘int’)
-</code></pre>
-      <p>
-        对比 1998 年的替代方案 —— 不带 <code>explicit</code> 的 <code>operator bool()</code>：
-        它会转换成 <code>int</code>，于是 <code>f + 1</code> 能编译，
-        <code>f &lt; g</code>、<code>f &amp;&amp; x</code>、<code>if (f == true)</code>
-        也都能编译，这个类型的含义就此溶解。<code>explicit</code> 就是
-        “一个行为像布尔的类型”和“一个在你不注意时变成整数的类型”之间的差别。
+        这件事没有补救办法，也没有哪种惯用法需要它。
+        如果你想让两件事按顺序发生，就写两条语句。
+        如果你想要一个构建器，就给它一个能看出累积过程的名字（<code>add(a).add(b)</code>）。
+        逗号运算符是从 C 继承来的，被少数"列表字面量"库重载；
+        代价由每一个逗号表达式的每一位读者付出 —— 他们要问一个本不该问的问题。
       </p>
 
     </section>
@@ -177,8 +147,8 @@ error: no match for ‘operator+’ (operand types are ‘handle_flag’ and ‘
 
       <p id="operatoramp">
         允许 <code>operator&amp;</code> 是个错误，而且不是小错误。
-        本章其它每一条破坏的都是一个便利：短路求值、顺序点、流的错误通道。
-        <code>operator&amp;</code> 破坏的是 C 程序有史以来指代一个对象所用的唯一操作。
+        本章里另一个无药可救的重载是逗号（第2节），它破坏的是求值顺序。
+        <code>operator&amp;</code> 破坏的是更根本的东西：C 程序有史以来指代一个对象所用的唯一操作。
       </p>
       <p>
         在 C 里，<code>&amp;obj</code> 就是“<code>obj</code> 的地址”。句号。
@@ -298,117 +268,185 @@ s.v                         7
       </p>
 
     </section>
+
+    </section>
     <section>
-      <h2>4. <code>&lt;&lt;</code> 和 <code>&gt;&gt;</code>：流运算符</h2>
+      <h2>4. <code>&amp;&amp;</code> 与 <code>||</code>：不是错的，但要清楚它的代价</h2>
 
       <p>
-        这两个值得单独一节，因为它们是被过度使用最多的 C++ 运算符，
-        而且 <a href="/zhcn/docs/18.virtual/05.rtti/">第18.5章</a>
-        已经说明 iostream 不能用：它们依赖虚继承、依赖跨 DLL 的 <code>type_info</code> 同一性、
-        依赖大多数平台上根本没有的异常处理。剩下还值得说的是：
-        即使 iostream 能用，为什么运算符这种形式也是错的。
+        这两个不在上一张表里，也不该在。
+        在那些必须对"值"而不是对"控制流"建模的库里（掩码、lane 向量、位集），
+        重载它们是常规做法；而在另一种代码里，它确实是一个真实的正确性 bug。
+        把这两种情况说清楚，值得一节。
       </p>
+      <p>
+        <strong>失去的是什么：</strong>右操作数不被求值这件事。
+        用内建运算符时，<code>a &amp;&amp; b</code> 在 <code>a</code> 为假时根本不会求值
+        <code>b</code>。用重载的版本时，<code>b</code> 是一个函数实参，所以它在调用之前就被求值了。
+        如果 <code>b</code> 是一个"求值本身就是目的"的表达式 ——
+        被空指针检查守卫的解引用、一个绝不能发生的调用 —— 那么这个守卫就不再守卫，而且没有任何东西会报告它：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+/* explicit operator bool: usable in a boolean context, invisible everywhere else */
+struct handle_flag
+{
+	bool open{};
+
+	[[nodiscard]] constexpr explicit operator bool() const noexcept
+	{
+		return open;
+	}
+};
+
+/* the right operand: proves whether it was evaluated */
+[[nodiscard]] inline bool right() throws
+{
+	::fast_io::io::print("  right() was evaluated\n");
+	return true;
+}
+
+struct short_circuit
+{
+	bool value{};
+
+	[[nodiscard]] constexpr explicit operator bool() const noexcept
+	{
+		return value;
+	}
+};
+
+namespace bad
+{
+struct gate
+{
+	bool value{};
+};
+
+/* a user-defined operator&amp;&amp;: both operands are evaluated before the call */
+[[nodiscard]] inline bool operator&amp;&amp;(gate, bool b) noexcept
+{
+	return b;
+}
+}
+
+int main()
+{
+	try
+	{
+		handle_flag const f{};
+		::fast_io::io::println("static_cast&lt;bool&gt;(f) = ", static_cast&lt;bool&gt;(f), "   !f = ", !f,
+							   "   (f + 1 would not compile)");
+
+		::fast_io::io::println("builtin &amp;&amp; with a false left operand:");
+		bool const r1{static_cast&lt;bool&gt;(short_circuit{false}) &amp;&amp; right()};
+		::fast_io::io::println("  result = ", r1);
+
+		::fast_io::io::println("user-defined operator&amp;&amp; with a false left operand:");
+		bool const r2{bad::gate{false} &amp;&amp; right()};
+		::fast_io::io::println("  result = ", r2);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error: ");
+		::fast_io::io::println(e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+static_cast&lt;bool&gt;(f) = 0   !f = 1   (f + 1 would not compile)
+builtin &amp;&amp; with a false left operand:
+  result = 0
+user-defined operator&amp;&amp; with a false left operand:
+  right() was evaluated
+  result = 1
+</code></pre>
+      <p>
+        内建的那次，输出里没有来自 <code>right()</code> 的那一行：它根本没被调用。
+        用户定义的那次，它在运算符运行之前就跑了。
+        当右操作数是一个"必须可以被跳过"的表达式时，这个重载是 bug —— 不是风格问题。
+      </p>
+      <p>
+        <strong>没有失去的是什么：</strong>当两个操作数都已经是一个值的时候，什么都没失去。
+        短路求值的存在是为了跳过某次求值；如果没有任何东西可跳过，也就没什么可失去的。
+        硬件掩码里没有控制流：左操作数是一个寄存器，右操作数是一个寄存器，
+        "与"是一条指令。这正是重载 <code>&amp;&amp;</code> 正确的场合 ——
+        包一层编译器的向量扩展类型，这里的 <code>&amp;&amp;</code> 是按 lane 的合取，
+        而 <code>&amp;</code> 反而是错误的拼写，因为在一个语义是"逐 lane 真假"的接口上，
+        它会读成按位与：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+/* the compiler's vector extensions: four 32-bit lanes in one register */
+typedef ::std::int_least32_t lanes4 __attribute__((__vector_size__(16)));
+
+struct mask4
+{
+	lanes4 lane{};
+
+	/* element-wise "and". Both operands are already values, so there is no
+	   right-hand side that short-circuiting could have skipped. */
+	[[nodiscard]] friend mask4 operator&amp;&amp;(mask4 a, mask4 b) noexcept
+	{
+		return mask4{a.lane &amp; b.lane};
+	}
+};
+
+int main()
+{
+	try
+	{
+		mask4 const a{lanes4{-1, -1, 0, 0}};
+		mask4 const b{lanes4{-1, 0, -1, 0}};
+		mask4 const both{a &amp;&amp; b};
+		::fast_io::io::println("a       ", a.lane[0], " ", a.lane[1], " ", a.lane[2], " ", a.lane[3]);
+		::fast_io::io::println("b       ", b.lane[0], " ", b.lane[1], " ", b.lane[2], " ", b.lane[3]);
+		::fast_io::io::println("a &amp;&amp; b  ", both.lane[0], " ", both.lane[1], " ", both.lane[2], " ", both.lane[3]);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+a       -1 -1 0 0
+b       -1 0 -1 0
+a &amp;&amp; b  -1 0 0 0
+</code></pre>
+      <p>
+        三条 lane 独立判定，一个表达式，没有分支、没有临时对象、也没有任何一个可以被跳过的操作数。
+        那个 <code>&amp;&amp;</code> 不是"坏掉的 <code>&amp;&amp;</code>"；
+        它是唯一能让这个表达式仍然读起来像"对 lane 的逻辑运算"的拼写 ——
+        与本章其它地方同一个检验，只不过用在一个 <code>&amp;&amp;</code> 的含义
+        恰好就是硬件本来具备的含义的类型上。
+      </p>
+      <p>
+        所以这两个的规则是关于操作数的，不是关于运算符的：
+        两边都已经是值时（掩码、位集、lane 向量、算好的 bool），可以重载；
+        右边是一个"你会被迫求值"的表达式时，不要重载。
+      </p>
+
+    </section>
+    <section>
+      <h2>5. 经验法则</h2>
       <ul>
-        <li><strong><code>&lt;&lt;</code> 表示两件不同的事。</strong>对整数它是位移；
-          对流它是“把这个值格式化进流并返回流”。同一个标点，两个不相干的操作，
-          靠“左操作数是不是流”来区分。</li>
-        <li><strong>它没有错误通道。</strong>失败被记录在流的状态位里，
-          所以 <code>std::cout &lt;&lt; a &lt;&lt; b</code> 不可能在你看得见的地方失败；
-          你必须记得以后检查 <code>std::cout.fail()</code>，而没人这么做。</li>
-        <li><strong>它隐藏方向。</strong><code>a &gt;&gt; b</code> 读起来像比较，
-          实际是“从 <code>a</code> 读进 <code>b</code>”，而对大多数读者来说箭头指反了。</li>
-        <li><strong>它不能在一处被扩展。</strong>格式化策略（编码、宽度、进制、区域、缓冲）
-          必须绕着一个全局流对象传递，因为运算符没有地方放它们。</li>
-      </ul>
-      <p>
-        fast_io 的答案是两个命名函数加一个定制点：
-        调用侧的 <code>::fast_io::io::print(...)</code> 和 <code>::fast_io::io::scan(...)</code>，
-        类型侧的 <code>print_define</code> / <code>scan_define</code>
-        （<a href="/zhcn/docs/15.genericprogramming/11.printscan/">第15.11章</a>）。
-        格式是实参，失败是 <code>throws</code> 契约，
-        而类型是由在它自己命名空间里找到的重载来打印的，不是一个全局运算符。
-      </p>
-
-    </section>
-    <section>
-      <h2>5. 那些“聪明”的运算符</h2>
-      <p>
-        还有一类不是按规则错误，而是实践中错误：标点代表的操作和这个标点所表示的意思不一样。
-      </p>
-      <table>
-        <thead>
-          <tr>
-            <th>写成</th>
-            <th>实际含义</th>
-            <th>改成</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>路径上的 <code>p1 / p2</code></td>
-            <td>用分隔符连接两个路径，分配一个新字符串</td>
-            <td><code>join(p1, p2)</code></td>
-          </tr>
-          <tr>
-            <td>标志位或集合上的 <code>a | b</code></td>
-            <td>并集、按位或、或者把一个值管道进某个变换 —— 三种含义</td>
-            <td><code>set_union</code>、<code>with_flag</code></td>
-          </tr>
-          <tr>
-            <td><code>a &amp; b</code></td>
-            <td>某些库里表示相似度</td>
-            <td><code>similarity(a, b)</code></td>
-          </tr>
-          <tr>
-            <td><code>a ^ b</code></td>
-            <td>某些库里表示对称差</td>
-            <td><code>symmetric_difference(a, b)</code></td>
-          </tr>
-          <tr>
-            <td>矩阵上的 <code>a * b</code></td>
-            <td>视库而定，可能是会分配的乘法，也可能是逐元素乘</td>
-            <td><code>matmul(a, b)</code></td>
-          </tr>
-          <tr>
-            <td>把 <code>a!</code> 当阶乘</td>
-            <td>一次对 <code>operator!</code> 的调用，无法表达失败和大小</td>
-            <td><code>factorial(n)</code>，并且注意它会溢出</td>
-          </tr>
-        </tbody>
-      </table>
-      <p>
-        把这张表和 <a href="/zhcn/docs/17.operatoroverloading/03.valuearithmetic/">第17.3章</a>
-        区分开的，就是 <a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">第17.2章</a>
-        那四个问题：如果这个操作会分配、会失败，或者在不同库里含义不同，
-        那它就不是算术操作，也就不该得到算术标点。
-      </p>
-
-    </section>
-    <section>
-      <h2>6. <code>operator new</code> 与 <code>operator delete</code></h2>
-      <p>
-        类级分配函数是这一类里的最后一个成员，它单独占一页，因为这是唯一一种
-        不仅误导而且危险的场合：它改变了这个类型每个对象的分配策略，
-        在调用点看不见，无法被类型系统报告，并且把一个 ABI 决定焊进了你的头文件。
-        见 <a href="/zhcn/docs/18.virtual/07.operatornew/">第18.7章</a>。
-      </p>
-
-    </section>
-    <section>
-      <h2>7. 经验法则</h2>
-      <ul>
-        <li>永远不要重载 <code>&amp;&amp;</code>、<code>||</code>、<code>,</code> 或
-          <code>&amp;</code>。没有例外，而 <code>&amp;</code> 是四者中最糟的：
-          它撕毁了 C 从 1972 年保持到今天的承诺，而修补它的代价，
-          是标准库多了一个叫 <code>std::addressof</code> 的编译器内建
+        <li>永远不要重载 <code>,</code>。函数调用无法给它的实参排序，
+          而排序正是逗号运算符唯一要做的事。</li>
+        <li>永远不要重载一元 <code>&amp;</code>。它是 C 用来指代对象五十年的那个操作，
+          而补救办法 —— <code>std::addressof</code> —— 是编译器魔法，
+          现在每个模板都得调用它
           （<a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/#operatoramp">第3节</a>）。</li>
-        <li><code>explicit operator bool</code> 是唯一值得写的转换运算符。
-          其余的一律用命名函数（<code>to_integer()</code>、<code>as_string()</code>）。</li>
-        <li>不要写 <code>operator&lt;&lt;</code> 或 <code>operator&gt;&gt;</code>。
-          用 <code>print</code>、<code>scan</code> 以及它们的定制点。</li>
-        <li>如果标点的日常含义不是这个操作的含义，这个操作就要有一个名字。</li>
-        <li>永远不要在类级别写 <code>operator new</code> / <code>operator delete</code>
+        <li>两个操作数都已经是值时，重载 <code>&amp;&amp;</code> 和 <code>||</code> 没问题，
+          因为短路求值没有东西可跳过；右操作数带副作用时，那就是 bug。
+          向量扩展的包装是标准的"可以"，被守卫的解引用是标准的"不可以"。</li>
+        <li>不要在类级别写 <code>operator new</code> / <code>operator delete</code>
           （<a href="/zhcn/docs/18.virtual/07.operatornew/">第18.7章</a>）。</li>
+        <li>其余的都要逐个判断，用
+          <a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">第17.2章</a> 的四个问题。</li>
       </ul>
 
     </section>

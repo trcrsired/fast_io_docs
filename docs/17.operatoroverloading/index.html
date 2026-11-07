@@ -123,16 +123,24 @@
               <code>append</code> (<a href="/docs/17.operatoroverloading/02.prefernamed/">Ch17.2</a>)</td>
           </tr>
           <tr>
-            <td><code>&lt;&lt;</code>, <code>&gt;&gt;</code></td>
-            <td>no</td>
-            <td>iostreams are not an error channel; use <code>print</code> and
-              <code>scan</code> (<a href="/docs/17.operatoroverloading/08.neveroverload/">Ch17.8</a>)</td>
+            <td><code>,</code></td>
+            <td>never</td>
+            <td>a function call cannot sequence its arguments, and sequencing is the only thing the
+              comma operator is for (<a href="/docs/17.operatoroverloading/08.neveroverload/">Ch17.8</a>)</td>
           </tr>
           <tr>
-            <td><code>&amp;&amp;</code>, <code>||</code>, <code>,</code>, <code>&amp;</code></td>
+            <td><code>&amp;</code> (unary, address-of)</td>
             <td>never</td>
-            <td>each one silently breaks a language rule (short-circuit, sequencing,
-              address-of)</td>
+            <td>it is how C has named an object for fifty years, and the repair cost the standard
+              library <code>std::addressof</code>
+              (<a href="/docs/17.operatoroverloading/08.neveroverload/#operatoramp">Ch17.8 &sect;3</a>)</td>
+          </tr>
+          <tr>
+            <td><code>&amp;&amp;</code>, <code>||</code></td>
+            <td>only when both operands are already values</td>
+            <td>masks and lane vectors have nothing to short-circuit, so element-wise conjunction is
+              the honest spelling; on a lazily evaluated right operand it is a bug
+              (<a href="/docs/17.operatoroverloading/08.neveroverload/">Ch17.8</a>)</td>
           </tr>
           <tr>
             <td><code>operator T()</code></td>
@@ -186,10 +194,11 @@
           Dereference</a> &mdash; <code>[]</code>, <code>()</code>, <code>*</code>,
           <code>-&gt;</code>, the inserting <code>operator[]</code> trap, and proxy
           references.</li>
-        <li><a href="/docs/17.operatoroverloading/08.neveroverload/">Ch17.8: Operators That
-          Should Not Exist</a> &mdash; streams, conversions, <code>&amp;&amp;</code>,
-          <code>||</code>, <code>,</code>, <code>&amp;</code>, and <code>operator/</code> on
-          paths.</li>
+        <li><a href="/docs/17.operatoroverloading/08.neveroverload/">Ch17.8: Operator
+          Overloadings That Should Not Exist</a> &mdash; the two that have no defensible use
+          (<code>,</code> and <code>&amp;</code>, the second of which cost the standard library
+          <code>std::addressof</code>), and what <code>&amp;&amp;</code> and <code>||</code>
+          actually cost, which depends on the operands.</li>
         <li><a href="/docs/17.operatoroverloading/09.rules/">Ch17.9: Rules and a Checklist</a>
           &mdash; the whole chapter as decisions you can grep for in review.</li>
       </ul>

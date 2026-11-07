@@ -3,179 +3,144 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch17.8: Operators That Should Not Exist - C++ Tutorial with fast_io</title>
+  <title>Ch17.8: Operator Overloadings That Should Not Exist - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch17.8: Operators That Should Not Exist</h1>
+    <h1>Ch17.8: Operator Overloadings That Should Not Exist</h1>
     <p class="lang-switch"><a href="/zhcn/docs/17.operatoroverloading/08.neveroverload/">中文（简体）</a></p>
     <section>
-      <h2>1. The Five That Are Always Wrong</h2>
+      <h2>1. Exactly Two Have No Defensible Use</h2>
 
       <p>
-        Five operators are wrong in every program, for reasons that do not depend on style.
-        Each one is not a matter of taste: overloading it changes what the language promises
-        about that expression.
+        Of the whole operator set, exactly two overloadings are wrong in every program, for reasons
+        that do not depend on style. Each one removes a guarantee the language makes about that
+        expression, and each one removes it silently.
       </p>
-
       <table>
         <thead>
           <tr>
-            <th>Operator</th>
-            <th>What overloading it destroys</th>
+            <th>Overloading</th>
+            <th>What it removes</th>
+            <th>Is there a case where it is right?</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><code>&amp;&amp;</code></td>
-            <td><strong>Short-circuit evaluation.</strong> <code>a &amp;&amp; b</code> becomes a
-              function call, so <code>b</code> is computed even when <code>a</code> is false.
-              Every "check the pointer, then dereference it" idiom silently stops working.</td>
-          </tr>
-          <tr>
-            <td><code>||</code></td>
-            <td>The same, on the other side.</td>
-          </tr>
-          <tr>
             <td><code>,</code></td>
-            <td><strong>Sequencing.</strong> The built-in comma operator evaluates left to right
-              and discards the left result; an overloaded one is an ordinary function call whose
-              arguments are evaluated in unspecified order.</td>
+            <td><strong>Sequencing.</strong> The built-in comma evaluates the left operand, then
+              the right one after it, and discards the left result. An overloaded comma is a
+              function call, so its operands are function arguments and their order is
+              unspecified (<a href="/docs/17.operatoroverloading/08.neveroverload/#comma">&sect;2</a>).</td>
+            <td>no</td>
           </tr>
           <tr>
             <td><code>&amp;</code> (unary, address-of)</td>
-            <td><strong>Address-of.</strong> A feature C has had for half a century, and the one
-              the language should never have handed out
+            <td><strong>Address-of.</strong> The one operation by which C has named an object for
+              fifty years, and the reason the standard library needed a compiler intrinsic called
+              <code>std::addressof</code>
               (<a href="/docs/17.operatoroverloading/08.neveroverload/#operatoramp">&sect;3</a>).</td>
-          </tr>
-          <tr>
-            <td><code>operator T()</code></td>
-            <td><strong>Local reasoning about conversions.</strong> Any implicit conversion
-              anywhere in the program can call it. The one exception is
-              <code>explicit operator bool</code>, which is checked at the point of use.</td>
+            <td>no</td>
           </tr>
         </tbody>
       </table>
+      <p>
+        Everything else is a judgement call, and this chapter has been the record of that
+        judgement: <code>+</code> and <code>*</code> on value types
+        (<a href="/docs/17.operatoroverloading/03.valuearithmetic/">Ch17.3</a>),
+        <code>==</code> and <code>&lt;=&gt;</code>
+        (<a href="/docs/17.operatoroverloading/04.comparisons/">Ch17.4</a>),
+        <code>++</code> and <code>--</code>
+        (<a href="/docs/17.operatoroverloading/05.increment/">Ch17.5</a>),
+        <code>[]</code>, <code>*</code>, <code>-&gt;</code> and <code>()</code>
+        (<a href="/docs/17.operatoroverloading/07.subscriptcall/">Ch17.7</a>). Two of the
+        remaining operators deserve a page of their own because they are neither banned nor safe:
+        <code>&amp;&amp;</code> and <code>||</code> are perfectly reasonable on some types and a
+        correctness bug on others, and the difference is not a matter of taste
+        (&sect;4).
+      </p>
 
     </section>
     <section>
-      <h2>2. <code>&amp;&amp;</code> Measured</h2>
+      <h2 id="comma">2. <code>,</code>: the Operator That Cannot Be Overloaded Correctly</h2>
 
       <p>
-        The short-circuit claim is not theoretical, and it is easy to demonstrate: make the right
-        operand a function that announces itself, then compare the built-in operator with the
-        user-defined one.
+        The built-in comma operator does two things at once, and the second one is the important
+        one. It evaluates the left operand, then <em>sequenced after it</em> evaluates the right
+        operand, then discards the left result. That is the only reason the comma appears in real
+        code: <code>for (i = 0, j = n; ...)</code> is two statements jammed into one clause, with a
+        guarantee about their order.
       </p>
-
-      <pre><code class="language-cpp">
+      <p>
+        An overloaded comma is a function call, and a function call gives you neither half of that.
+        The operands become function arguments, so they are unsequenced with respect to each other,
+        and "discard the left value" is gone as well: the operator returns whatever it likes.
+      </p>
+<pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 
-/* explicit operator bool: usable in a boolean context, invisible everywhere else */
-struct handle_flag
+/* the comma operator, overloaded: `a , b` becomes operator,(a, b) */
+struct operand
 {
-	bool open{};
-
-	[[nodiscard]] constexpr explicit operator bool() const noexcept
-	{
-		return open;
-	}
+	int tag{};
 };
 
-/* the right operand: proves whether it was evaluated */
-[[nodiscard]] inline bool right() throws
+[[nodiscard]] inline operand operator,(operand a, operand b) throws
 {
-	::fast_io::io::print("  right() was evaluated\n");
-	return true;
-}
-
-struct short_circuit
-{
-	bool value{};
-
-	[[nodiscard]] constexpr explicit operator bool() const noexcept
-	{
-		return value;
-	}
-};
-
-namespace bad
-{
-struct gate
-{
-	bool value{};
-};
-
-/* a user-defined operator&amp;&amp;: both operands are evaluated before the call */
-[[nodiscard]] inline bool operator&amp;&amp;(gate, bool b) noexcept
-{
+	::fast_io::io::print("  operator, ran\n");
 	return b;
 }
+
+[[nodiscard]] operand make(int t) throws
+{
+	::fast_io::io::print("  make(", t, ")\n");
+	return operand{t};
 }
 
 int main()
 {
 	try
 	{
-		handle_flag const f{};
-		::fast_io::io::println("static_cast&lt;bool&gt;(f) = ", static_cast&lt;bool&gt;(f), "   !f = ", !f,
-							   "   (f + 1 would not compile)");
+		::fast_io::io::println("built-in comma: two int values, sequenced left to right");
+		(::fast_io::io::print("  left\n"), ::fast_io::io::print("  right\n"));
 
-		::fast_io::io::println("builtin &amp;&amp; with a false left operand:");
-		bool const r1{static_cast&lt;bool&gt;(short_circuit{false}) &amp;&amp; right()};
-		::fast_io::io::println("  result = ", r1);
-
-		::fast_io::io::println("user-defined operator&amp;&amp; with a false left operand:");
-		bool const r2{bad::gate{false} &amp;&amp; right()};
-		::fast_io::io::println("  result = ", r2);
+		::fast_io::io::println("overloaded comma: the operands are function arguments");
+		auto const r = (make(0), make(1));
+		::fast_io::io::println("  result tag = ", r.tag);
 	}
 	catch throws (::std::error e)
 	{
-		::fast_io::io::print("error: ");
-		::fast_io::io::println(e);
+		::fast_io::io::perrln("error: ", e);
 	}
 }
 </code></pre>
-      <pre><code class="language-text">
-static_cast&lt;bool&gt;(f) = 0   !f = 1   (f + 1 would not compile)
-builtin &amp;&amp; with a false left operand:
-  result = 0
-user-defined operator&amp;&amp; with a false left operand:
-  right() was evaluated
-  result = 1
+<pre><code class="language-text">
+built-in comma: two int values, sequenced left to right
+  left
+  right
+overloaded comma: the operands are function arguments
+  make(0)
+  make(1)
+  operator, ran
+  result tag = 1
 </code></pre>
       <p>
-        In the built-in case the transcript has no line from <code>right()</code> &mdash; it was
-        never called. In the user-defined case <code>right()</code> was evaluated before the
-        operator ran, because an operator is a function and a function's arguments are evaluated
-        before the call. If your type needs "and" semantics, write
-        <code>a &amp;&amp; b</code> with <code>explicit operator bool</code> and let the language
-        do it, or write a named function
-        (<code>both(a, b)</code>, <code>a.and_then(b)</code>) and let the name say that both sides
-        run.
+        The built-in part of the transcript is guaranteed: <code>left</code> completes before
+        <code>right</code> begins. The overloaded part is not. Both <code>make()</code> calls happen
+        before <code>operator,</code> runs, and the compiler is free to make them in either order
+        &mdash; this one chose <code>make(0)</code> first, and nothing in the program says it has
+        to. A reader who sees <code>a, b</code> and knows the built-in rule will read a sequencing
+        guarantee that the type has just deleted.
       </p>
       <p>
-        The <code>explicit operator bool</code> in the same program is the conversion that
-        <em>is</em> worth having: it works in <code>if</code>, <code>while</code>, <code>!</code>,
-        and <code>&amp;&amp;</code>, and it does not participate in anything else. That is a
-        compile-time guarantee, not a convention:
-      </p>
-      <pre><code class="language-cpp">
-handle_flag f;
-int x{f + 1};
-</code></pre>
-      <pre><code class="language-text">
-error: no match for ‘operator+’ (operand types are ‘handle_flag’ and ‘int’)
-</code></pre>
-      <p>
-        Compare that with the 1998 alternative, <code>operator bool()</code> without
-        <code>explicit</code>: it converts to <code>int</code>, so <code>f + 1</code> compiles,
-        so does <code>f &lt; g</code> and <code>f &amp;&amp; x</code> and
-        <code>if (f == true)</code>, and the type's meaning dissolves. <code>explicit</code> is
-        the difference between a type that behaves like a boolean and a type that turns into an
-        integer when you are not looking.
+        There is no repair and no idiom that needs it. If you want two things to happen in order,
+        write two statements. If you want a builder, give it a name that shows the accumulation
+        (<code>add(a).add(b)</code>). The comma operator was inherited from C and overloaded for a
+        few list-literal libraries; the cost is paid by every reader of every comma expression, in
+        the form of a question they should never have to ask.
       </p>
 
     </section>
@@ -306,126 +271,190 @@ s.v                         7
       </p>
 
     </section>
+    </section>
+
+    </section>
     <section>
-      <h2>4. <code>&lt;&lt;</code> and <code>&gt;&gt;</code>: the Stream Operators</h2>
+      <h2>4. <code>&amp;&amp;</code> and <code>||</code>: Not Wrong, but Know What They Cost</h2>
 
       <p>
-        These deserve their own paragraph because they are the most overused operators in C++ and
-        because <a href="/docs/18.virtual/05.rtti/">Ch18.5</a> already establishes that iostreams
-        cannot be used: they rely on virtual inheritance, on cross-DLL <code>type_info</code>
-        identity, and on exception handling that most platforms do not have. What remains worth
-        saying is why the operator form is wrong even where iostreams work.
+        These two are not in the previous table, and they should not be. Overloading them is
+        ordinary practice in exactly the libraries that have to model operations on values rather
+        than on control flow: a mask, a lane vector, a bitset. It is also a real correctness bug in
+        a different kind of code. Being precise about which kind is worth a section.
       </p>
+      <p>
+        <strong>What is lost:</strong> the right operand not being evaluated. With the built-in
+        operator, <code>a &amp;&amp; b</code> does not evaluate <code>b</code> at all when
+        <code>a</code> is false. With an overloaded one, <code>b</code> is a function argument, so
+        it is evaluated before the call. If <code>b</code> is an expression whose evaluation is the
+        point &mdash; a pointer dereference guarded by a null check, a call that must not happen
+        &mdash; the guard no longer guards, and nothing reports it:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+/* explicit operator bool: usable in a boolean context, invisible everywhere else */
+struct handle_flag
+{
+	bool open{};
+
+	[[nodiscard]] constexpr explicit operator bool() const noexcept
+	{
+		return open;
+	}
+};
+
+/* the right operand: proves whether it was evaluated */
+[[nodiscard]] inline bool right() throws
+{
+	::fast_io::io::print("  right() was evaluated\n");
+	return true;
+}
+
+struct short_circuit
+{
+	bool value{};
+
+	[[nodiscard]] constexpr explicit operator bool() const noexcept
+	{
+		return value;
+	}
+};
+
+namespace bad
+{
+struct gate
+{
+	bool value{};
+};
+
+/* a user-defined operator&amp;&amp;: both operands are evaluated before the call */
+[[nodiscard]] inline bool operator&amp;&amp;(gate, bool b) noexcept
+{
+	return b;
+}
+}
+
+int main()
+{
+	try
+	{
+		handle_flag const f{};
+		::fast_io::io::println("static_cast&lt;bool&gt;(f) = ", static_cast&lt;bool&gt;(f), "   !f = ", !f,
+							   "   (f + 1 would not compile)");
+
+		::fast_io::io::println("builtin &amp;&amp; with a false left operand:");
+		bool const r1{static_cast&lt;bool&gt;(short_circuit{false}) &amp;&amp; right()};
+		::fast_io::io::println("  result = ", r1);
+
+		::fast_io::io::println("user-defined operator&amp;&amp; with a false left operand:");
+		bool const r2{bad::gate{false} &amp;&amp; right()};
+		::fast_io::io::println("  result = ", r2);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error: ");
+		::fast_io::io::println(e);
+	}
+}
+</code></pre>
+<pre><code class="language-text">
+static_cast&lt;bool&gt;(f) = 0   !f = 1   (f + 1 would not compile)
+builtin &amp;&amp; with a false left operand:
+  result = 0
+user-defined operator&amp;&amp; with a false left operand:
+  right() was evaluated
+  result = 1
+</code></pre>
+      <p>
+        In the built-in case the transcript has no line from <code>right()</code>: it was never
+        called. In the user-defined case it ran before the operator did. Where the right operand is
+        an expression that must be skippable, this overload is a bug &mdash; not a style question.
+      </p>
+      <p>
+        <strong>What is not lost:</strong> anything, when both operands are already values.
+        Short-circuit evaluation exists to skip an evaluation; if there is nothing to skip, there is
+        nothing to lose. A hardware mask has no control flow in it: the left operand is a register,
+        the right operand is a register, and "and" is an instruction. That is the case where
+        overloading <code>&amp;&amp;</code> is right &mdash; a wrapper around the compiler's vector
+        extension types, where <code>&amp;&amp;</code> is element-wise conjunction and where
+        <code>&amp;</code> would be the wrong spelling, because it reads as bitwise-and on an
+        interface whose meaning is per-lane truth:
+      </p>
+<pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;cstdint&gt;
+
+/* the compiler's vector extensions: four 32-bit lanes in one register */
+typedef ::std::int_least32_t lanes4 __attribute__((__vector_size__(16)));
+
+struct mask4
+{
+	lanes4 lane{};
+
+	/* element-wise "and". Both operands are already values, so there is no
+	   right-hand side that short-circuiting could have skipped. */
+	[[nodiscard]] friend mask4 operator&amp;&amp;(mask4 a, mask4 b) noexcept
+	{
+		return mask4{a.lane &amp; b.lane};
+	}
+};
+
+int main()
+{
+	try
+	{
+		mask4 const a{lanes4{-1, -1, 0, 0}};
+		mask4 const b{lanes4{-1, 0, -1, 0}};
+		mask4 const both{a &amp;&amp; b};
+		::fast_io::io::println("a       ", a.lane[0], " ", a.lane[1], " ", a.lane[2], " ", a.lane[3]);
+		::fast_io::io::println("b       ", b.lane[0], " ", b.lane[1], " ", b.lane[2], " ", b.lane[3]);
+		::fast_io::io::println("a &amp;&amp; b  ", both.lane[0], " ", both.lane[1], " ", both.lane[2], " ", both.lane[3]);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::perrln("error: ", e);
+	}
+}
+</code></pre>
+<pre><code class="language-text">
+a       -1 -1 0 0
+b       -1 0 -1 0
+a &amp;&amp; b  -1 0 0 0
+</code></pre>
+      <p>
+        Three lanes decided independently, one expression, no branch, no temporary, and no operand
+        that could have been skipped. That <code>&amp;&amp;</code> is not a broken
+        <code>&amp;&amp;</code>; it is the only spelling that keeps the expression readable as a
+        logical operation over lanes, which is the same test as everywhere else in this chapter
+        applied to a type where the meaning of <code>&amp;&amp;</code> is the meaning the hardware
+        already has.
+      </p>
+      <p>
+        So the rule for these two is about the operands, not about the operator: overload them when
+        both sides are values (masks, bitsets, lane vectors, computed bools), and do not overload
+        them when the right side is an expression whose evaluation you would be forcing.
+      </p>
+
+    </section>
+    <section>
+      <h2>5. Rules of Thumb</h2>
       <ul>
-        <li><strong><code>&lt;&lt;</code> means two different things.</strong> For integers it is
-          a bit shift; for streams it is "format this value into the stream and return the
-          stream". The same glyph, two unrelated operations, chosen by whether the left operand is
-          a stream.</li>
-        <li><strong>It has no error channel.</strong> Failure is recorded in the stream's state
-          bits, so <code>std::cout &lt;&lt; a &lt;&lt; b</code> cannot fail where you can see it;
-          you must remember to check <code>std::cout.fail()</code> later, and nobody does.</li>
-        <li><strong>It hides direction.</strong> <code>a &gt;&gt; b</code> reads like a
-          comparison and is actually "read from <code>a</code> into <code>b</code>", with the
-          arrows pointing the wrong way for most readers.</li>
-        <li><strong>It is not extensible in one place.</strong> Formatting policy (encoding,
-          width, base, locale, buffering) has to be threaded through a global stream object,
-          because the operator has no place for it.</li>
-      </ul>
-      <p>
-        fast_io's answer is a pair of named functions and a customization point:
-        <code>::fast_io::io::print(...)</code> and <code>::fast_io::io::scan(...)</code> for the
-        call, and <code>print_define</code> / <code>scan_define</code> for the type's
-        participation (<a href="/docs/15.genericprogramming/11.printscan/">Ch15.11</a>). The
-        format is an argument, the failure is a <code>throws</code> contract, and the type is
-        printed by an overload found in its own namespace instead of by a global operator.
-      </p>
-
-    </section>
-    <section>
-      <h2>5. The Clever Operators</h2>
-      <p>
-        Then there is a category that is not wrong by rule but wrong in practice: punctuation
-        that stands for an operation the glyph does not mean.
-      </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Written</th>
-            <th>Actually means</th>
-            <th>Write instead</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>p1 / p2</code> on paths</td>
-            <td>join two paths with a separator, allocating a new string</td>
-            <td><code>join(p1, p2)</code></td>
-          </tr>
-          <tr>
-            <td><code>a | b</code> on flags or sets</td>
-            <td>union, or bitwise-or, or pipe a value into a transform &mdash; three meanings</td>
-            <td><code>set_union</code>, <code>with_flag</code></td>
-          </tr>
-          <tr>
-            <td><code>a &amp; b</code></td>
-            <td>similarity score, in some libraries</td>
-            <td><code>similarity(a, b)</code></td>
-          </tr>
-          <tr>
-            <td><code>a ^ b</code></td>
-            <td>symmetric difference, in some libraries</td>
-            <td><code>symmetric_difference(a, b)</code></td>
-          </tr>
-          <tr>
-            <td><code>a * b</code> on matrices</td>
-            <td>a multiply that allocates, or a Hadamard product, depending on the library</td>
-            <td><code>matmul(a, b)</code></td>
-          </tr>
-          <tr>
-            <td><code>a!</code> as factorial</td>
-            <td>a call to <code>operator!</code>, which cannot express failure or size</td>
-            <td><code>factorial(n)</code>, and note that it overflows</td>
-          </tr>
-        </tbody>
-      </table>
-      <p>
-        The rule that separates this table from <a href="/docs/17.operatoroverloading/03.valuearithmetic/">Ch17.3</a>
-        is the four-question test from
-        <a href="/docs/17.operatoroverloading/02.prefernamed/">Ch17.2</a>: if the operation can
-        allocate, can fail, or means different things in different libraries, then it is not an
-        arithmetic operation and it does not get arithmetic punctuation.
-      </p>
-
-    </section>
-    <section>
-      <h2>6. <code>operator new</code> and <code>operator delete</code></h2>
-      <p>
-        Class-level allocation functions are the last member of this category, and they get a
-        whole page because they are the one case where the operator is not just misleading but
-        actively dangerous: it changes the allocation policy of every object of the type, is
-        invisible at the call site, cannot be reported by the type system, and bakes an ABI
-        decision into your header. See
-        <a href="/docs/18.virtual/07.operatornew/">Ch18.7</a>.
-      </p>
-
-    </section>
-    <section>
-      <h2>7. Rules of Thumb</h2>
-      <ul>
-        <li>Never overload <code>&amp;&amp;</code>, <code>||</code>, <code>,</code>, or
-          <code>&amp;</code>. There is no exception, and <code>&amp;</code> is the worst of the
-          four: it breaks a promise C has kept since 1972, and the repair cost the standard
-          library a compiler intrinsic called <code>std::addressof</code>
+        <li>Never overload <code>,</code>. A function call cannot sequence its arguments, and
+          sequencing is the only thing the comma operator is for.</li>
+        <li>Never overload unary <code>&amp;</code>. It is the operation C has used to name an
+          object for fifty years, and the repair &mdash; <code>std::addressof</code> &mdash; is
+          compiler magic that every template now has to call
           (<a href="/docs/17.operatoroverloading/08.neveroverload/#operatoramp">&sect;3</a>).</li>
-        <li><code>explicit operator bool</code> is the only conversion operator worth writing.
-          Everything else gets a named function (<code>to_integer()</code>,
-          <code>as_string()</code>).</li>
-        <li>No <code>operator&lt;&lt;</code> or <code>operator&gt;&gt;</code>. Use
-          <code>print</code>, <code>scan</code>, and their customization points.</li>
-        <li>If the glyph's everyday meaning is not the operation's meaning, the operation gets a
-          name.</li>
-        <li>Never <code>operator new</code> / <code>operator delete</code> at class level
+        <li><code>&amp;&amp;</code> and <code>||</code> are fine when both operands are already
+          values, so that short-circuiting has nothing to skip; they are a bug when the right
+          operand is an expression with side effects. The vector-extension wrapper is the canonical
+          yes, the guarded dereference the canonical no.</li>
+        <li>No class-level <code>operator new</code> / <code>operator delete</code>
           (<a href="/docs/18.virtual/07.operatornew/">Ch18.7</a>).</li>
+        <li>Everything else is judgement, case by case, with the four questions from
+          <a href="/docs/17.operatoroverloading/02.prefernamed/">Ch17.2</a>.</li>
       </ul>
 
     </section>
