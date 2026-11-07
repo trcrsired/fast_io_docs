@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch19: Exceptions and Herbceptions - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch19: Exceptions and Herbceptions</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/19.exceptionsandherbceptions/">中文（简体）</a></p>
+    <section>
+      <h2>What This Chapter Is For</h2>
+
+      <p>
+        You have been throwing and catching since
+        <a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>, and every page since then has
+        used the same two statements. What you have not seen is the table behind the error value:
+        the thing that decides what a code <em>means</em>, what it prints, and which
+        <code>::std::errc</code> it corresponds to. This chapter is about that table, and about the
+        other exception mechanism C++ has, which you must be able to read and must not use.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Mechanism</th>
+            <th>What it costs</th>
+            <th>What it costs in this book</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Herbceptions</td>
+            <td>Two words on the return path plus one failure bit &mdash; the same shape as
+              returning an error code</td>
+            <td>The only mechanism used, everywhere</td>
+          </tr>
+          <tr>
+            <td>Legacy C++ exceptions</td>
+            <td>A heap allocation per throw, a two-phase stack walk, frame tables in every
+              function, a personality routine, RTTI for handler matching</td>
+            <td>Read-only. Removed from every build by flag
+              (<a href="/docs/19.exceptionsandherbceptions/04.banflags/">Ch19.4</a>)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        The short version of the second row: legacy exceptions are not merely slow (about a
+        microsecond per throw, measured in
+        <a href="/docs/19.exceptionsandherbceptions/02.legacyexceptions/">Ch19.2</a>). They are
+        <strong>unavailable</strong> on most targets you will ship to &mdash; freestanding, kernels,
+        bootloaders, embedded boards, WebAssembly &mdash; because the unwinder, the loader
+        registration and the <code>__cxa_*</code> runtime they depend on do not exist there.
+      </p>
+
+    </section>
+    <section>
+      <h2>How to Read This Chapter</h2>
+
+      <p>
+        Read <a href="/docs/19.exceptionsandherbceptions/01.customdomains/"
+        >19.1</a> only when you are writing a library that has a code space of its own. Read it
+        <em>carefully</em> anyway, because it starts with the recommendation that saves the most
+        work: the domains in the runtime are meant to be reused, and one of them covers nearly
+        everything.
+      </p>
+      <p>
+        Read <a href="/docs/19.exceptionsandherbceptions/02.legacyexceptions/">19.2</a> and
+        <a href="/docs/19.exceptionsandherbceptions/03.interop/">19.3</a> as recognition training
+        for the code you will inherit, and as the two directions of the bridge you will need on the
+        day a dependency hands you a <code>std::runtime_error</code>.
+        <a href="/docs/19.exceptionsandherbceptions/04.banflags/">19.4</a> is four lines to copy
+        into your build right now.
+      </p>
+
+      <ul>
+        <li><a href="/docs/19.exceptionsandherbceptions/01.customdomains/">Ch19.1: Defining and
+          Overriding Error Domains</a> &mdash; the five hooks of
+          <code>::std::error_domain_singleton</code>, the one that is mandatory, the
+          <code>error_domain&lt;T&gt;</code> specialization, a complete CSV domain, and how to
+          replace a shipped domain when the environment demands it</li>
+        <li><a href="/docs/19.exceptionsandherbceptions/02.legacyexceptions/">Ch19.2: C++ Legacy
+          Exceptions</a> &mdash; how the old mechanism works, what one throw costs measured, the
+          runtime symbols it needs, and the environments where it simply does not exist</li>
+        <li><a href="/docs/19.exceptionsandherbceptions/03.interop/">Ch19.3: Crossing the
+          Boundary</a> &mdash; legacy to herbceptions is automatic, herbceptions to legacy is
+          <code>throw_legacy_exception()</code>, and what is lost on the way</li>
+        <li><a href="/docs/19.exceptionsandherbceptions/04.banflags/">Ch19.4: Ban Legacy Exceptions
+          With Your Build Flags</a> &mdash; <code>-fno-exceptions -fno-rtti -fno-unwind-tables
+          -fno-asynchronous-unwind-tables -fno-ident</code>, and what each one deletes</li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/18.virtual/08.gui/" class="prev-button">&larr; Ch18.8: Qt, MFC, and Why GUIs Are Where C++ Went Wrong</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/19.exceptionsandherbceptions/01.customdomains/" class="next-button">Ch19.1: Defining and Overriding Error Domains &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

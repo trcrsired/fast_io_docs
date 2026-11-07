@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第19.4章：用构建选项禁止遗留异常 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第19.4章：用构建选项禁止遗留异常</h1>
+    <p class="lang-switch"><a href="/docs/19.exceptionsandherbceptions/04.banflags/">English</a></p>
+
+    <section>
+      <h2>1. 选项清单</h2>
+      <p>
+        在文档里写"我们不使用遗留异常"什么也不会改变：半年后有人会引入一个会抛出的头文件，unwinder 又回到了链接里，而在某个无法展开栈的目标上构建失败之前，没人会注意到。让它变成机械性的。你编译的每一个翻译单元，始终加上：
+      </p>
+      <pre><code class="language-text">
+-fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-ident
+</code></pre>
+      <p>
+        每一个各删掉了什么：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>选项</th>
+            <th>它让什么变得不可能</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>-fno-exceptions</code></td>
+            <td>
+              <code>throw</code>、<code>try</code>、<code>catch</code> 在构建里任何位置都无法使用，随之消失的还有整套 <code>__cxa_*</code> 运行时和 personality routine。赫布异常照常工作：<code>throws</code> 和 <code>catch throws</code> 是另一套机制，不受影响
+            </td>
+          </tr>
+          <tr>
+            <td><code>-fno-rtti</code></td>
+            <td>
+              <code>typeid</code>、<code>dynamic_cast</code>，以及遗留异常处理块匹配所依赖的那些类型信息对象。赫布异常不使用 RTTI，所以 <code>throws</code> 通道上没有任何东西受影响
+            </td>
+          </tr>
+          <tr>
+            <td><code>-fno-unwind-tables</code></td>
+            <td>栈遍历器所需的 <code>.eh_frame</code> 帧表</td>
+          </tr>
+          <tr>
+            <td><code>-fno-asynchronous-unwind-tables</code></td>
+            <td>
+              同样这些表的异步形式，调试器和性能分析器也会用到它们
+            </td>
+          </tr>
+          <tr>
+            <td><code>-fno-ident</code></td>
+            <td>
+              编译器写在 <code>.comment</code> 里的标识字符串，它们泄露构建机器的细节，在二进制里纯粹是噪音
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        这些不是风格问题。每一条都删掉一个机制，而一旦有人试图使用它，构建就会大声失败。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 它究竟删掉了什么</h2>
+      <p>
+        一个小程序，一个赫布异常，编译两次：一次用默认选项，一次用上面那份清单。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int divide(int a, int b) throws
+{
+	if (b == 0)
+	{
+		throw throws ::std::errc::invalid_argument;
+	}
+	return a / b;
+}
+
+int main()
+{
+	int result{};
+	try
+	{
+		result = divide(84, 2);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error ", e, "\n");
+		return 1;
+	}
+	::fast_io::io::print("84/2 = ", result, "\n");
+}
+
+</code></pre>
+      <pre><code class="language-text">
+84/2 = 42
+</code></pre>
+      <p>
+        输出相同，二进制更小，而差值恰好就是程序从未使用的那套机制的机器码：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>默认选项</th>
+            <th>禁令清单</th>
+            <th>它是什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>5,869 bytes of <code>.text</code></td>
+            <td>4,859 bytes</td>
+            <td>代码，包括 personality routine 能触达的部分</td>
+          </tr>
+          <tr>
+            <td><code>.eh_frame</code> 644 bytes</td>
+            <td>128 bytes</td>
+            <td>unwinder 遍历的那些帧表</td>
+          </tr>
+          <tr>
+            <td><code>.eh_frame_hdr</code> 116 bytes</td>
+            <td>44 bytes</td>
+            <td>对那些帧表做二分查找的索引</td>
+          </tr>
+          <tr>
+            <td><code>.gcc_except_table</code> 16 bytes</td>
+            <td>消失</td>
+            <td>语言异常表：区间、landing pad、处理块类型</td>
+          </tr>
+          <tr>
+            <td>13 FDEs</td>
+            <td>4 FDEs</td>
+            <td>到底有多少函数带有展开信息</td>
+          </tr>
+          <tr>
+            <td><code>.comment</code> 111 bytes</td>
+            <td>69 bytes</td>
+            <td>编译器版本字符串</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        剩下的四个 FDE 来自 C 运行时的启动对象，而不是你的代码，所以这已经是最低值了。在没有加载器的目标上，没有任何东西可供注册它们，而这正是重点：这些选项让你的程序所提出的要求，与它要运行的那些平台实际具备的东西对齐。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 你想要的那条诊断</h2>
+      <p>
+        有了禁令清单，遗留异常会在引入它的那一行变成编译错误，而不是在某个无法展开栈的目标上变成一次莫名其妙的运行时失败：
+      </p>
+      <pre><code class="language-text">
+legacy_demo.cc: In function 'int main()':
+legacy_demo.cc:13:78: error: exception handling disabled, use '-fexceptions' to enable
+   13 |                                 throw ::std::runtime_error("division by zero");
+      |                                                                              ^
+</code></pre>
+      </section>
+
+    <section>
+      <h2>4. 放进构建，而不是放进维基</h2>
+      <p>
+        用普通的 makefile：
+      </p>
+      <pre><code class="language-makefile">
+CXXFLAGS += -std=c++26 -fherbceptions \
+            -fno-exceptions -fno-rtti -fno-unwind-tables \
+            -fno-asynchronous-unwind-tables -fno-ident
+LDFLAGS  += -lherbceptions
+</code></pre>
+      <p>
+        用 CMake，并且应用到项目里的每一个目标，而不只是可执行文件：
+      </p>
+      <pre><code class="language-cmake">
+add_compile_options(
+  -fherbceptions
+  -fno-exceptions -fno-rtti
+  -fno-unwind-tables -fno-asynchronous-unwind-tables
+  -fno-ident)
+</code></pre>
+      <p>
+        <code>add_compile_options</code> 故意是全局的：一个没有加这些选项编译出来的静态库，能把那套行为重新带进用这些选项编译出来的可执行文件，而失败随后会在一个看起来毫不相关的目标上、在链接时冒出来。一份清单，所有目标，包括测试和基准。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 你放弃了什么，以及为什么那不是损失</h2>
+      <ul>
+        <li>
+          <strong>会抛出的第三方库。</strong>你根本无法用这些选项编译它们，而这正是诚实的结果：它们不能运行在你需要运行的地方。如果你的某个依赖发布了使用遗留异常的二进制块，它会把 unwinder 拖进你的链接 —— 那是一个应当移除、而不是应当包装的依赖。
+        </li>
+        <li>
+          <strong><code>typeid</code> 和 <code>dynamic_cast</code>。</strong>两者在 <a href="/zhcn/docs/18.virtual/05.rtti/">第18.5章</a> 就已经被排除：用函数指针表做类型擦除能完成同样的工作，不产生任何类型信息对象，也没有运行时搜索。
+        </li>
+        <li>
+          <strong>关于错误，什么都没放弃。</strong>本书里的每一次失败都走 <code>throws</code> 通道（<a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>），它不需要上面任何一个机制。这正是整份禁令清单得以存在的原因。
+        </li>
+      </ul>
+      <p>
+        如果你只从本章拿走一行，就拿这份选项清单。用它的项目无法再漂回遗留异常，而每一个没有 unwinder、没有加载器、没有 C++ 运行时的目标，都仍然是你能够构建的目标。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/19.exceptionsandherbceptions/03.interop/" class="prev-button">&larr; 第19.3章：跨越边界</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/20.freestanding/" class="next-button">第20章：Freestanding &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

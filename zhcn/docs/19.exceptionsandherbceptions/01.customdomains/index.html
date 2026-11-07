@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第19.1章：定义与覆盖错误域 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第19.1章：定义与覆盖错误域</h1>
+    <p class="lang-switch"><a href="/docs/19.exceptionsandherbceptions/01.customdomains/">English</a></p>
+
+    <section>
+      <h2>1. 先说清楚：你几乎肯定不需要自己的错误域</h2>
+      <p>
+        你已经会抛出和捕获赫布异常（<a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>）：每个错误都是两个字 <code>{domain, code}</code>，而 domain 是指向一张函数表的指针，那张表知道 code 是什么意思。这一页讲的就是那张表本身，第一条规则也是最省事的一条：
+      </p>
+      <p>
+        <strong>用一个已经存在的错误域。</strong>错误域并不是"某个库的错误类型"。它是一个<em>错误码空间</em>，而一个错误码空间就足以支撑整个程序。运行时自带九个，它们合起来几乎覆盖了普通程序能失败的一切：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>错误域类型</th>
+            <th>错误码空间</th>
+            <th>适用场景</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::std::errc</code></td>
+            <td>POSIX <code>errno</code> 值</td>
+            <td>处处适用。这是平台层的默认语言</td>
+          </tr>
+          <tr>
+            <td><code>::std::parse_errc</code></td>
+            <td><code>ok</code>, <code>end_of_file</code>, <code>partial</code>,
+              <code>invalid</code>, <code>overflow</code></td>
+            <td>任意格式的文本到数值的转换</td>
+          </tr>
+          <tr>
+            <td><code>::std::http_errc</code></td>
+            <td>HTTP status codes, the wire value itself</td>
+            <td>客户端与服务器</td>
+          </tr>
+          <tr>
+            <td><code>::std::cmath_errc</code></td>
+            <td><code>FE_INVALID</code>, <code>FE_DIVBYZERO</code>,
+              <code>FE_INEXACT</code>, <code>FE_OVERFLOW</code>, <code>FE_UNDERFLOW</code></td>
+            <td>数学，答案是一个值加一个标志的场合</td>
+          </tr>
+          <tr>
+            <td><code>::std::tls_alert</code></td>
+            <td>TLS alert level and description</td>
+            <td>任何 TLS 连接</td>
+          </tr>
+          <tr>
+            <td><code>::std::nt_errc</code></td>
+            <td>NTSTATUS <code>STATUS_*</code></td>
+            <td>Windows 内核与原生 API</td>
+          </tr>
+          <tr>
+            <td><code>::std::win32_errc</code></td>
+            <td>Win32 <code>GetLastError</code> <code>ERROR_*</code></td>
+            <td>Win32 API</td>
+          </tr>
+          <tr>
+            <td><code>::std::wine_errc</code></td>
+            <td>Wine's own host <code>errno</code> space</td>
+            <td>Wine 的 Unix 一侧，那里的值与宿主 libc 的并不相同</td>
+          </tr>
+          <tr>
+            <td><code>::std::com_errc</code></td>
+            <td><code>HRESULT</code></td>
+            <td>COM 以及建在它之上的一切</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        这套设计之所以成立，靠的是下面那张表里的第四个函数：每个错误域都必须能回答"<em>这是哪一个 <code>::std::errc</code>？</em>"。正是这一条义务让错误处理可以互通。调用者不必知道是哪个库产生的失败，因为任何错误域的失败都可以和 <code>::std::errc::no_space_on_device</code> 比较，也都可以按 POSIX 的名字和消息打印出来。这与旧的 C++ <code>std::error_code</code> 世界正好相反：在那里每个库都发明一个 <code>std::error_category</code>，任意两个都无法比较。
+      </p>
+      <p>
+        所以说：新建错误域是给<em>拥有真实错误码空间的库作者</em>用的 —— 一个协议、一种文件格式、一台设备。如果你的代码像其他所有人一样返回 <code>::std::errc::invalid_argument</code> 和 <code>::std::errc::value_too_large</code>，那就结束了，这一页对你也就讲完了。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 错误域到底是什么</h2>
+      <p>
+        <code>::std::error_domain_singleton</code> 是一个装着五个函数指针的结构体。整个 ABI 就这么多：两字错误里带着一个指向这种结构的指针，外加一个错误码。
+      </p>
+      <pre><code class="language-cpp">
+struct error_domain_singleton
+{
+	void (*do_cleanup)(::std::size_t) noexcept = nullptr;
+	bool (*do_equivalent)(::std::size_t, ::std::error_domain_singleton const *,
+		::std::size_t) noexcept = nullptr;
+	void (*do_query_information)(::std::size_t, ::std::error_query_information,
+		::std::error_reporter_encoding, void *,
+		::std::error_reporter_io_cookie_function) noexcept = nullptr;
+	::std::errc (*do_to_errc)(::std::size_t) noexcept = nullptr;
+	void (*do_throw_legacy_exception)(::std::size_t,
+		::std::legacy_exception_abi) = nullptr;
+};
+</code></pre>
+      <p>
+        五个之中可以有四个留成 <code>nullptr</code>。有一个不行。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>钩子</th>
+            <th>它必须做什么</th>
+            <th>留成 <code>nullptr</code> 时</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>do_to_errc</code></td>
+            <td>把你的错误码转换成最接近的 <code>::std::errc</code></td>
+            <td>
+              <strong>必需。</strong>如果某个错误域没有 <code>do_to_errc</code>，编译器会拒绝以它为基础的 <code>throw throws</code>；而 <code>e.to_errc()</code> 正是其他所有库从你的失败里恢复的手段
+            </td>
+          </tr>
+          <tr>
+            <td><code>do_query_information</code></td>
+            <td>
+              回答关于某个错误码的三个问题之一：<code>name</code>、<code>message</code> 或 <code>name_message</code>
+            </td>
+            <td>
+              打印这个错误时什么都不打印。值本身仍然可用，只是你读不出它
+            </td>
+          </tr>
+          <tr>
+            <td><code>do_equivalent</code></td>
+            <td>说出你的错误码和另一个错误域的错误码是否表示同一种失败</td>
+            <td>
+              <code>e.equivalent(other)</code> 什么也不比较。改为比较 <code>to_errc()</code>，这也是随运行时提供的错误域的默认做法
+            </td>
+          </tr>
+          <tr>
+            <td><code>do_cleanup</code></td>
+            <td>释放错误码拥有的任何东西</td>
+            <td>
+              你的错误码不拥有任何东西。只要错误码能塞进 <code>::std::size_t</code>，这一项就该留空 —— 本章所有情形都是这样
+            </td>
+          </tr>
+          <tr>
+            <td><code>do_throw_legacy_exception</code></td>
+            <td>把错误码作为平台自身的原生 C++ 异常类型重新抛出</td>
+            <td>
+              运行时改为把这两个字装进 <code>::std::cxx_std_error_legacy_exception</code>（<a href="/zhcn/docs/19.exceptionsandherbceptions/03.interop/">第19.3章</a>）
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        注意这个结构体里<em>没有</em>什么：没有名字、没有消息字符串、没有 <code>what()</code>、没有基类、没有类型。错误码就是一个整数，表就是常量数据，所以一个错误域不带来任何分配、不带来 RTTI、不带来每个错误一个对象。之所以存在查询信息的钩子，是因为文本总得在某个地方生成，而它是惰性生成的，直接写进调用者的输出缓冲区，用调用者的编码。
+      </p>
+      <p>
+        最后这一点解释了为什么查询钩子接收一个 <code>encoding</code> 和一个回调，而不是返回 <code>char const *</code>：同一段文本可以按 UTF-8、UTF-16、UTF-32、GB18030 或 EBCDIC 打印进任何提出要求的流，而表只写一遍。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 特化：<code>error_domain&lt;T&gt;</code></h2>
+      <p>
+        用户从不直接碰这个单例。<code>throw throws value</code> 只向 <code>::std::error_domain&lt;T&gt;</code> 问两个问题：用哪个单例，错误码是什么。在错误类型旁边特化一次即可：
+      </p>
+      <pre><code class="language-cpp">
+namespace std
+{
+template &lt;&gt;
+class error_domain&lt;::csv_errc&gt;
+{
+public:
+	static inline constexpr ::std::error_domain_singleton const *domain() noexcept;
+	static inline constexpr ::std::size_t code(::csv_errc e) noexcept;
+};
+} // namespace std
+</code></pre>
+      <p>
+        两个函数都必须是 <code>static</code>、<code>inline</code>、<code>constexpr</code> 且 <code>noexcept</code>：<code>domain()</code> 会被常量求值器拦截，所以 <code>constexpr</code> 函数里的 <code>throw throws</code> 也能用；而它每次抛出都会被调用，所以它不能做任何事。
+      </p>
+      <p>
+        还有一个成员你<em>可以</em>提供，但也仅此一个：<code>static T from_std_error(::std::error const &amp;)</code>。如果它存在，<code>::std::herbception_cast&lt;T&gt;(e)</code> 就会用它把捕获到的 <code>::std::error</code> 转回你的枚举。当从 <code>errc</code> 的转换是有损的、而你想要回原始错误码时，就提供它。另外，当一个单例被多个类型共享时，错误域可以声明一个 <code>domain_alias_type</code>，此时 <code>is_code_of&lt;T&gt;()</code> 和 <code>==</code> 会比较这个别名而不是类型本身。第一个错误域两者都不需要。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 你自己的一门错误域</h2>
+      <p>
+        全部内容就是这样：一个带四种失败的 CSV 读取器。一个类型、两张文本表、一个单例、一个特化，别的什么都没有。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+enum class csv_errc : ::std::uint_least32_t
+{
+	ok = 0,
+	unterminated_quote = 1,
+	field_too_long = 2,
+	too_many_fields = 3
+};
+
+namespace csv_details
+{
+inline constexpr ::fast_io::string_view names[]{
+	"csv:ok",
+	"csv:unterminated_quote",
+	"csv:field_too_long",
+	"csv:too_many_fields"};
+inline constexpr ::fast_io::string_view messages[]{
+	"the record parsed",
+	"a quoted field reached the end of the record",
+	"a field is longer than the declared limit",
+	"the record has more fields than the header"};
+
+inline constexpr ::std::error_domain_singleton singleton{
+	.do_equivalent = [](::std::size_t code, ::std::error_domain_singleton const *other,
+						::std::size_t other_code) noexcept -&gt; bool {
+		return singleton.do_to_errc(code) == other-&gt;do_to_errc(other_code);
+	},
+	.do_query_information = [](::std::size_t code, ::std::error_query_information query,
+							   ::std::error_reporter_encoding, void *cookie,
+							   ::std::error_reporter_io_cookie_function report) noexcept {
+		if (code &gt;= ::std::size(names))
+		{
+			return;
+		}
+		::std::io_scatter_t const pieces[3]{
+			{names[code].data(), names[code].size()},
+			{static_cast&lt;void const *&gt;(": "), 2},
+			{messages[code].data(), messages[code].size()}};
+		switch (query)
+		{
+		case ::std::error_query_information::name:
+			report(cookie, pieces, 1);
+			break;
+		case ::std::error_query_information::message:
+			report(cookie, pieces + 2, 1);
+			break;
+		default:
+			report(cookie, pieces, 3);
+			break;
+		}
+	},
+	.do_to_errc = [](::std::size_t code) noexcept -&gt; ::std::errc {
+		switch (static_cast&lt;csv_errc&gt;(code))
+		{
+		case csv_errc::unterminated_quote:
+			return ::std::errc::invalid_argument;
+		case csv_errc::field_too_long:
+		case csv_errc::too_many_fields:
+			return ::std::errc::value_too_large;
+		default:
+			return ::std::errc{};
+		}
+	}};
+} // namespace csv_details
+
+namespace std
+{
+template &lt;&gt;
+class error_domain&lt;::csv_errc&gt;
+{
+public:
+	static inline constexpr ::std::error_domain_singleton const *domain() noexcept
+	{
+		return __builtin_addressof(::csv_details::singleton);
+	}
+	static inline constexpr ::std::size_t code(::csv_errc e) noexcept
+	{
+		return static_cast&lt;::std::size_t&gt;(static_cast&lt;::std::uint_least32_t&gt;(e));
+	}
+};
+} // namespace std
+
+int main()
+{
+	try
+	{
+		throw throws csv_errc::unterminated_quote;
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("name         ", ::fast_io::mnp::name(e), "\n"
+			"message      ", ::fast_io::mnp::message(e), "\n"
+			"name_message ", e, "\n"
+			"as posix     ", ::fast_io::mnp::posix_equivalent_name_message(e), "\n"
+			"equivalent   ", ::fast_io::mnp::boolalpha(e.equivalent(::std::errc::invalid_argument)), "\n"
+			"is struct    ", ::fast_io::mnp::boolalpha(e.is_code_of&lt;::std::errc&gt;()), "\n");
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+name         csv:unterminated_quote
+message      a quoted field reached the end of the record
+name_message csv:unterminated_quote: a quoted field reached the end of the record
+as posix     [posix](22)Invalid argument
+equivalent   true
+is struct    false
+</code></pre>
+      <p>
+        最后两行要一起读。<code>equivalent</code> 是 <code>true</code>，因为 <code>do_equivalent</code> 向两边的 <code>do_to_errc</code> 都问了一遍；而 <code>is_code_of&lt;::std::errc&gt;()</code> 是 <code>false</code>，因为错误域仍然是你自己的：<code>equivalent</code> 讲的是含义，身份讲的是那个指针。两个答案都有用，而且它们是两个不同的问题。
+      </p>
+      <p>
+        <code>boolalpha</code> 不是装饰：不加它，<code>println</code> 打印 <code>bool</code> 会给出 <code>0</code> 和 <code>1</code>。
+      </p>
+      <p>
+        <code>report(cookie, pieces, 3)</code> 这句调用就是整个打印协议。cookie 是调用者输出的不透明句柄；scatter 是 <code>{指针, 长度}</code> 对，所以不会构造任何临时字符串，也不涉及假定有结尾 NUL 的 <code>char const *</code>。<code>name_message</code> 给三段，<code>name</code> 和 <code>message</code> 各给一段 —— 契约仅此而已，而同一份代码于是可以打印到控制台、文件、套接字或缓冲区。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 替换随运行时提供的错误域</h2>
+      <p>
+        有时现成的表对你的环境来说是错的：一个有自己的错误编号的 freestanding 运行时、一块 <code>errno</code> 值与宿主不同的裸机板子、一个想证明错误路径确实走过了的测试框架、一个必须把消息文本换成自己语言的平台。预定义的错误域藏在几行 <code>extern "C"</code> 入口后面，而在 ELF 上它们是<strong>弱符号</strong> —— 对我们的运行时执行 <code>nm -D</code> 会看到 <code>W</code>。在你自己二进制里定义同一个符号，被使用的就是你的那份：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+/* one environment, one table: the default posix domain does not apply here */
+namespace
+{
+inline constexpr ::fast_io::string_view host_messages[]{
+	"no error",
+	"operation not permitted",
+	"no such file or directory"};
+
+inline constexpr ::std::error_domain_singleton host_posix{
+	.do_query_information = [](::std::size_t code, ::std::error_query_information,
+							   ::std::error_reporter_encoding, void *cookie,
+							   ::std::error_reporter_io_cookie_function report) noexcept {
+		if (code &gt;= ::std::size(host_messages))
+		{
+			return;
+		}
+		::std::io_scatter_t const piece{host_messages[code].data(), host_messages[code].size()};
+		report(cookie, __builtin_addressof(piece), 1);
+	},
+	.do_to_errc = [](::std::size_t code) noexcept -&gt; ::std::errc {
+		return static_cast&lt;::std::errc&gt;(code);
+	}};
+} // namespace
+
+extern "C" ::std::error_domain_singleton const *__cxa_error_domain_posix() noexcept
+{
+	return __builtin_addressof(host_posix);
+}
+
+int main()
+{
+	try
+	{
+		throw throws ::std::errc::no_such_file_or_directory;
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("message ", ::fast_io::mnp::message(e), "\n");
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+message no such file or directory
+</code></pre>
+      <p>
+        别的什么都没变：程序照样抛 <code>::std::errc</code>，编译器照样发出一段两字的通道。移动的只是指针背后的那张表。这就是把行为放进表而不是放进类型的好处：环境需要时，可以替换掉整个环境的错误模型，而不必改一行报错的代码。
+      </p>
+      <p>
+        当环境确实不同时才这么做；不要为了给普通程序的措辞"定制"而这么做 —— 随运行时提供的错误域带着平台自己的语言写成的平台自己的消息，而这几乎总是正确答案。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Windows：一个运行时，两套 C++ ABI</h2>
+      <p>
+        同样的表驱动设计，也是 Windows 运行时只是一个普通的 <code>herbceptions.dll</code>、两套工具链都能链接它的原因。它的导出表里只有 C 名字：
+      </p>
+      <pre><code class="language-text">
+__cxa_error_code_msvc_exception_ptr
+__cxa_error_code_msvc_exception_ptr_cast
+__cxa_error_code_msvc_exception_ptr_unbox
+__cxa_error_domain_cmath
+__cxa_error_domain_com
+__cxa_error_domain_http
+__cxa_error_domain_msvc_exception_ptr
+__cxa_error_domain_nt
+__cxa_error_domain_parse
+__cxa_error_domain_posix
+__cxa_error_domain_tls
+__cxa_error_domain_win32
+__cxa_error_domain_wine
+__cxa_error_query_information_clone
+__cxa_error_query_information_create
+__cxa_error_query_information_free
+</code></pre>
+      <p>
+        接口里没有经过名字修饰的 C++ 名字、没有 <code>std::string</code>、没有 <code>std::exception</code>：<code>::std::error</code> 就是两个字，所以边界也就是两个字。用 MinGW-GCC 构建的二进制和用 MSVC 构建的二进制可以链接同一个 DLL，并互相把错误抛进对方的代码。这恰恰是 Itanium/MSVC 的分裂对 <code>std::exception</code> 做不到的事 —— 也正因为如此，运行时还带着 <code>::std::legacy_exception_abi</code>，取值有 <code>itanium</code>、<code>microsoft</code> 和 <code>platform</code>，好让遗留异常的桥知道自己在往哪套 ABI 上搭（<a href="/zhcn/docs/19.exceptionsandherbceptions/03.interop/">第19.3章</a>）。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 添加错误域之前的检查清单</h2>
+      <ul>
+        <li><code>::std::errc</code> 能表达它吗？能，就用 <code>::std::errc</code>，结束。</li>
+        <li>
+          是解析吗？有 <code>::std::parse_errc</code>。HTTP？有 <code>::std::http_errc</code>。数学？有 <code>::std::cmath_errc</code>。TLS？有 <code>::std::tls_alert</code>。
+        </li>
+        <li>
+          你写的库是否拥有别人没有的错误码空间 —— 一个协议、一种格式、一台设备？那就整个库共用一个错误域，不是每个类一个，也不是每个函数一个。
+        </li>
+        <li>
+          先实现 <code>do_to_errc</code>，并让它完备：每个错误码都必须映射到某个合理的值，因为世界其他地方看到的就是那个映射。
+        </li>
+        <li>
+          错误码保持稠密整数，表保持 <code>constexpr</code>。一个内部带堆分配的错误域，就是一个在报告失败的途中自己也会失败的错误域。
+        </li>
+        <li>除非错误码真的拥有内存，否则把 <code>do_cleanup</code> 留成 null。</li>
+        <li>
+          测试 <code>e.equivalent(::std::errc::...)</code> 的回答是否和你声称的一致，并测试你发布的每一种编码下打印都正常。
+        </li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/19.exceptionsandherbceptions/" class="prev-button">&larr; 第19章：异常与赫布异常</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/19.exceptionsandherbceptions/02.legacyexceptions/" class="next-button">第19.2章：C++ 遗留异常 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

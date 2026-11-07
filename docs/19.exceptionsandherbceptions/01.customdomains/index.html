@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch19.1: Defining and Overriding Error Domains - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch19.1: Defining and Overriding Error Domains</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/19.exceptionsandherbceptions/01.customdomains/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. First: You Almost Certainly Do Not Need a Domain of Your Own</h2>
+      <p>
+        You already know how to throw and catch a herbception
+        (<a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>): every error is two words,
+        <code>{domain, code}</code>, and the domain is a pointer to a table of functions that
+        knows what the code means. This page is about the table itself, and the first rule is the
+        one that saves the most work:
+      </p>
+      <p>
+        <strong>Use a domain that already exists.</strong> A domain is not "the error type of one
+        library". It is a <em>code space</em>, and one code space is enough for an entire program.
+        The runtime ships nine of them, and between them they cover essentially everything a
+        normal program can fail at:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Domain type</th>
+            <th>Code space</th>
+            <th>Where it applies</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::std::errc</code></td>
+            <td>POSIX <code>errno</code> values</td>
+            <td>Everywhere. This is the default tongue of the platform layer</td>
+          </tr>
+          <tr>
+            <td><code>::std::parse_errc</code></td>
+            <td><code>ok</code>, <code>end_of_file</code>, <code>partial</code>,
+              <code>invalid</code>, <code>overflow</code></td>
+            <td>Text-to-value conversion, in every format</td>
+          </tr>
+          <tr>
+            <td><code>::std::http_errc</code></td>
+            <td>HTTP status codes, the wire value itself</td>
+            <td>Clients and servers</td>
+          </tr>
+          <tr>
+            <td><code>::std::cmath_errc</code></td>
+            <td><code>FE_INVALID</code>, <code>FE_DIVBYZERO</code>,
+              <code>FE_INEXACT</code>, <code>FE_OVERFLOW</code>, <code>FE_UNDERFLOW</code></td>
+            <td>Maths, where the answer is a value and a flag together</td>
+          </tr>
+          <tr>
+            <td><code>::std::tls_alert</code></td>
+            <td>TLS alert level and description</td>
+            <td>Any TLS connection</td>
+          </tr>
+          <tr>
+            <td><code>::std::nt_errc</code></td>
+            <td>NTSTATUS <code>STATUS_*</code></td>
+            <td>Windows kernels and native APIs</td>
+          </tr>
+          <tr>
+            <td><code>::std::win32_errc</code></td>
+            <td>Win32 <code>GetLastError</code> <code>ERROR_*</code></td>
+            <td>Win32 API</td>
+          </tr>
+          <tr>
+            <td><code>::std::wine_errc</code></td>
+            <td>Wine's own host <code>errno</code> space</td>
+            <td>Wine's Unix side, where the values are not the host libc's</td>
+          </tr>
+          <tr>
+            <td><code>::std::com_errc</code></td>
+            <td><code>HRESULT</code></td>
+            <td>COM and everything built on it</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The reason this works is the fourth function in the table below: every domain must be able
+        to answer "<em>which <code>::std::errc</code> is this?</em>" That single obligation is what
+        makes error handling interoperable. The caller does not need to know which library produced
+        the failure, because a failure from any domain can be compared against
+        <code>::std::errc::no_space_on_device</code> and can be printed as a POSIX name and
+        message. This is the opposite of the old C++ <code>std::error_code</code> world, where every
+        library invented a <code>std::error_category</code> and no two of them could be compared.
+      </p>
+      <p>
+        So: a new domain is for an <em>author of a library that owns a real code space</em> &mdash;
+        a protocol, a file format, a device. If your code returns
+        <code>::std::errc::invalid_argument</code> and <code>::std::errc::value_too_large</code>
+        like everybody else, you are done, and the page is over for you.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. What a Domain Actually Is</h2>
+      <p>
+        <code>::std::error_domain_singleton</code> is a struct of five function pointers. That is
+        the whole ABI: the two-word error carries a pointer to one of these, and a code.
+      </p>
+      <pre><code class="language-cpp">
+struct error_domain_singleton
+{
+	void (*do_cleanup)(::std::size_t) noexcept = nullptr;
+	bool (*do_equivalent)(::std::size_t, ::std::error_domain_singleton const *,
+		::std::size_t) noexcept = nullptr;
+	void (*do_query_information)(::std::size_t, ::std::error_query_information,
+		::std::error_reporter_encoding, void *,
+		::std::error_reporter_io_cookie_function) noexcept = nullptr;
+	::std::errc (*do_to_errc)(::std::size_t) noexcept = nullptr;
+	void (*do_throw_legacy_exception)(::std::size_t,
+		::std::legacy_exception_abi) = nullptr;
+};
+</code></pre>
+      <p>
+        Four of the five may be left <code>nullptr</code>. One may not.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Hook</th>
+            <th>What it must do</th>
+            <th>If it is <code>nullptr</code></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>do_to_errc</code></td>
+            <td>Translate your code into the nearest <code>::std::errc</code></td>
+            <td><strong>Mandatory.</strong> The compiler rejects a
+              <code>throw throws</code> whose domain has no <code>do_to_errc</code>, and
+              <code>e.to_errc()</code> is how every other library recovers your failure</td>
+          </tr>
+          <tr>
+            <td><code>do_query_information</code></td>
+            <td>Answer one of three questions about a code: <code>name</code>,
+              <code>message</code> or <code>name_message</code></td>
+            <td>Printing the error prints nothing. The value still works; you just cannot read
+              it</td>
+          </tr>
+          <tr>
+            <td><code>do_equivalent</code></td>
+            <td>Say whether your code and another domain's code mean the same failure</td>
+            <td><code>e.equivalent(other)</code> compares nothing. Compare
+              <code>to_errc()</code> instead, which is the default in the shipped domains</td>
+          </tr>
+          <tr>
+            <td><code>do_cleanup</code></td>
+            <td>Free whatever the code owns</td>
+            <td>Your codes own nothing. This is what you want whenever the code fits in
+              <code>::std::size_t</code>, which is every case in this chapter</td>
+          </tr>
+          <tr>
+            <td><code>do_throw_legacy_exception</code></td>
+            <td>Re-throw the code as a native C++ exception of the platform's own type</td>
+            <td>The runtime boxes the two words into
+              <code>::std::cxx_std_error_legacy_exception</code> instead
+              (<a href="/docs/19.exceptionsandherbceptions/03.interop/">Ch19.3</a>)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Note what is <em>not</em> in that struct: no name, no message string, no
+        <code>what()</code>, no base class, no type. A code is an integer and the table is
+        constant data, so a domain costs no allocation, no RTTI and no per-error object. The
+        information hook exists because text has to be produced somewhere, and it produces it
+        lazily, straight into the caller's output buffer, in the caller's encoding.
+      </p>
+      <p>
+        That last part is why the query hook takes an <code>encoding</code> and a callback rather
+        than returning a <code>char const *</code>: the same code can be printed as UTF-8, UTF-16,
+        UTF-32, GB18030 or EBCDIC into whatever stream asked, and the table is written once.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Specialization: <code>error_domain&lt;T&gt;</code></h2>
+      <p>
+        Users never touch the singleton directly. <code>throw throws value</code> asks two
+        questions of <code>::std::error_domain&lt;T&gt;</code>: which singleton, and what code.
+        Specialize it once, next to the error type:
+      </p>
+      <pre><code class="language-cpp">
+namespace std
+{
+template &lt;&gt;
+class error_domain&lt;::csv_errc&gt;
+{
+public:
+	static inline constexpr ::std::error_domain_singleton const *domain() noexcept;
+	static inline constexpr ::std::size_t code(::csv_errc e) noexcept;
+};
+} // namespace std
+</code></pre>
+      <p>
+        Both functions must be <code>static</code>, <code>inline</code>, <code>constexpr</code> and
+        <code>noexcept</code>: <code>domain()</code> is intercepted by the constant evaluator, so a
+        <code>throw throws</code> inside a <code>constexpr</code> function works, and it is called
+        on every throw, so it must not do anything.
+      </p>
+      <p>
+        There is one more member you <em>may</em> provide, and no more:
+        <code>static T from_std_error(::std::error const &amp;)</code>. If it exists,
+        <code>::std::herbception_cast&lt;T&gt;(e)</code> uses it to turn a caught
+        <code>::std::error</code> back into your enum. Provide it when the translation from
+        <code>errc</code> is lossy and you want the original code back. Also, a domain may name a
+        <code>domain_alias_type</code> when several types share one singleton &mdash; then
+        <code>is_code_of&lt;T&gt;()</code> and <code>==</code> compare against the alias instead of
+        the type. Neither is needed for a first domain.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. A Domain of Your Own</h2>
+      <p>
+        Here is the whole thing: a CSV reader with four failures. The type, two tables of text, one
+        singleton, one specialization, and nothing else.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+enum class csv_errc : ::std::uint_least32_t
+{
+	ok = 0,
+	unterminated_quote = 1,
+	field_too_long = 2,
+	too_many_fields = 3
+};
+
+namespace csv_details
+{
+inline constexpr ::fast_io::string_view names[]{
+	"csv:ok",
+	"csv:unterminated_quote",
+	"csv:field_too_long",
+	"csv:too_many_fields"};
+inline constexpr ::fast_io::string_view messages[]{
+	"the record parsed",
+	"a quoted field reached the end of the record",
+	"a field is longer than the declared limit",
+	"the record has more fields than the header"};
+
+inline constexpr ::std::error_domain_singleton singleton{
+	.do_equivalent = [](::std::size_t code, ::std::error_domain_singleton const *other,
+						::std::size_t other_code) noexcept -&gt; bool {
+		return singleton.do_to_errc(code) == other-&gt;do_to_errc(other_code);
+	},
+	.do_query_information = [](::std::size_t code, ::std::error_query_information query,
+							   ::std::error_reporter_encoding, void *cookie,
+							   ::std::error_reporter_io_cookie_function report) noexcept {
+		if (code &gt;= ::std::size(names))
+		{
+			return;
+		}
+		::std::io_scatter_t const pieces[3]{
+			{names[code].data(), names[code].size()},
+			{static_cast&lt;void const *&gt;(": "), 2},
+			{messages[code].data(), messages[code].size()}};
+		switch (query)
+		{
+		case ::std::error_query_information::name:
+			report(cookie, pieces, 1);
+			break;
+		case ::std::error_query_information::message:
+			report(cookie, pieces + 2, 1);
+			break;
+		default:
+			report(cookie, pieces, 3);
+			break;
+		}
+	},
+	.do_to_errc = [](::std::size_t code) noexcept -&gt; ::std::errc {
+		switch (static_cast&lt;csv_errc&gt;(code))
+		{
+		case csv_errc::unterminated_quote:
+			return ::std::errc::invalid_argument;
+		case csv_errc::field_too_long:
+		case csv_errc::too_many_fields:
+			return ::std::errc::value_too_large;
+		default:
+			return ::std::errc{};
+		}
+	}};
+} // namespace csv_details
+
+namespace std
+{
+template &lt;&gt;
+class error_domain&lt;::csv_errc&gt;
+{
+public:
+	static inline constexpr ::std::error_domain_singleton const *domain() noexcept
+	{
+		return __builtin_addressof(::csv_details::singleton);
+	}
+	static inline constexpr ::std::size_t code(::csv_errc e) noexcept
+	{
+		return static_cast&lt;::std::size_t&gt;(static_cast&lt;::std::uint_least32_t&gt;(e));
+	}
+};
+} // namespace std
+
+int main()
+{
+	try
+	{
+		throw throws csv_errc::unterminated_quote;
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("name         ", ::fast_io::mnp::name(e), "\n"
+			"message      ", ::fast_io::mnp::message(e), "\n"
+			"name_message ", e, "\n"
+			"as posix     ", ::fast_io::mnp::posix_equivalent_name_message(e), "\n"
+			"equivalent   ", ::fast_io::mnp::boolalpha(e.equivalent(::std::errc::invalid_argument)), "\n"
+			"is struct    ", ::fast_io::mnp::boolalpha(e.is_code_of&lt;::std::errc&gt;()), "\n");
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+name         csv:unterminated_quote
+message      a quoted field reached the end of the record
+name_message csv:unterminated_quote: a quoted field reached the end of the record
+as posix     [posix](22)Invalid argument
+equivalent   true
+is struct    false
+</code></pre>
+      <p>
+        Read the last two lines together. <code>equivalent</code> is <code>true</code> because
+        <code>do_equivalent</code> asked <code>do_to_errc</code> about both sides, and
+        <code>is_code_of&lt;::std::errc&gt;()</code> is <code>false</code> because the domain is
+        still yours: <code>equivalent</code> is about meaning, identity is about the pointer. Both
+        answers are useful, and they are different questions.
+      </p>
+      <p>
+        The <code>boolalpha</code> is not decoration: <code>println</code> of a <code>bool</code>
+        prints <code>0</code> and <code>1</code> unless you say otherwise.
+      </p>
+      <p>
+        The <code>report(cookie, pieces, 3)</code> call is the whole printing protocol. The cookie
+        is an opaque handle to the caller's output; the scatters are
+        <code>{pointer, length}</code> pairs, so no temporary string is built and no
+        <code>char const *</code> with an assumed NUL is involved. Give three pieces for
+        <code>name_message</code>, and one each for <code>name</code> and <code>message</code>
+        &mdash; that is the entire contract, and the same code then prints to a console, a file, a
+        socket or a buffer.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Replacing a Shipped Domain</h2>
+      <p>
+        Sometimes the shipped table is wrong for your environment: a freestanding runtime with its
+        own error numbering, a bare-metal board whose <code>errno</code> values are not the host's,
+        a test harness that wants to prove the error path was taken, a platform where the message
+        text must be replaced by your own language. The predefined domains live behind five-line
+        <code>extern "C"</code> entry points, and on ELF they are <strong>weak symbols</strong>
+        &mdash; <code>nm -D</code> on our runtime shows them as <code>W</code>. Define the same
+        symbol in your own binary and yours is the one that is used:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+
+/* one environment, one table: the default posix domain does not apply here */
+namespace
+{
+inline constexpr ::fast_io::string_view host_messages[]{
+	"no error",
+	"operation not permitted",
+	"no such file or directory"};
+
+inline constexpr ::std::error_domain_singleton host_posix{
+	.do_query_information = [](::std::size_t code, ::std::error_query_information,
+							   ::std::error_reporter_encoding, void *cookie,
+							   ::std::error_reporter_io_cookie_function report) noexcept {
+		if (code &gt;= ::std::size(host_messages))
+		{
+			return;
+		}
+		::std::io_scatter_t const piece{host_messages[code].data(), host_messages[code].size()};
+		report(cookie, __builtin_addressof(piece), 1);
+	},
+	.do_to_errc = [](::std::size_t code) noexcept -&gt; ::std::errc {
+		return static_cast&lt;::std::errc&gt;(code);
+	}};
+} // namespace
+
+extern "C" ::std::error_domain_singleton const *__cxa_error_domain_posix() noexcept
+{
+	return __builtin_addressof(host_posix);
+}
+
+int main()
+{
+	try
+	{
+		throw throws ::std::errc::no_such_file_or_directory;
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("message ", ::fast_io::mnp::message(e), "\n");
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+message no such file or directory
+</code></pre>
+      <p>
+        Nothing else changed: the program still throws <code>::std::errc</code>, and the compiler
+        still emits a two-word channel. Only the table behind the pointer moved. That is the
+        advantage of putting the behaviour in a table instead of in the type: a portal can replace
+        the environment's error model without touching a single line of the code that reports
+        errors.
+      </p>
+      <p>
+        Do this when the environment genuinely differs, and do not do it to "customise the
+        wording" of an ordinary program &mdash; the shipped domains carry the platform's own
+        messages in the platform's own language, which is almost always the right answer.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Windows: One Runtime for Two C++ ABIs</h2>
+      <p>
+        The same table-based design is why the Windows runtime is a plain
+        <code>herbceptions.dll</code> that both toolchains can link. Its export table is C names
+        only:
+      </p>
+      <pre><code class="language-text">
+__cxa_error_code_msvc_exception_ptr
+__cxa_error_code_msvc_exception_ptr_cast
+__cxa_error_code_msvc_exception_ptr_unbox
+__cxa_error_domain_cmath
+__cxa_error_domain_com
+__cxa_error_domain_http
+__cxa_error_domain_msvc_exception_ptr
+__cxa_error_domain_nt
+__cxa_error_domain_parse
+__cxa_error_domain_posix
+__cxa_error_domain_tls
+__cxa_error_domain_win32
+__cxa_error_domain_wine
+__cxa_error_query_information_clone
+__cxa_error_query_information_create
+__cxa_error_query_information_free
+</code></pre>
+      <p>
+        No mangled C++ names, no <code>std::string</code>, no <code>std::exception</code> in the
+        interface: <code>::std::error</code> is two words, so the boundary is two words. A
+        MinGW-GCC-built binary and an MSVC-built binary can both link the same DLL and throw into
+        each other's code. That is exactly what the Itanium/MSVC split cannot do for
+        <code>std::exception</code> &mdash; which is why the runtime also carries
+        <code>::std::legacy_exception_abi</code>, with <code>itanium</code>,
+        <code>microsoft</code> and <code>platform</code> values, so a legacy-exception bridge knows
+        which ABI it is bridging to (<a href="/docs/19.exceptionsandherbceptions/03.interop/">Ch19.3</a>).
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Checklist Before You Add a Domain</h2>
+      <ul>
+        <li>Can <code>::std::errc</code> express it? Then use <code>::std::errc</code> and stop.</li>
+        <li>Is it parsing? <code>::std::parse_errc</code> exists. HTTP?
+          <code>::std::http_errc</code>. Maths? <code>::std::cmath_errc</code>. TLS?
+          <code>::std::tls_alert</code>.</li>
+        <li>Are you writing a library with a code space nobody else has &mdash; a protocol, a
+          format, a device? Then one domain for the whole library, not one per class and not one
+          per function.</li>
+        <li>Implement <code>do_to_errc</code> first and make it total: every code must map to
+          something sensible, because that mapping is what the rest of the world sees.</li>
+        <li>Keep the codes dense integers and keep the tables <code>constexpr</code>. A domain
+          with a heap allocation in it is a domain that can fail while reporting a failure.</li>
+        <li>Leave <code>do_cleanup</code> null unless the code really owns memory.</li>
+        <li>Test that <code>e.equivalent(::std::errc::...)</code> answers the way you claim, and
+          that printing works in every encoding you ship.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/19.exceptionsandherbceptions/" class="prev-button">&larr; Ch19: Exceptions and Herbceptions</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/19.exceptionsandherbceptions/02.legacyexceptions/" class="next-button">Ch19.2: C++ Legacy Exceptions &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

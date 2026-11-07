@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch19.4: Ban Legacy Exceptions With Your Build Flags - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch19.4: Ban Legacy Exceptions With Your Build Flags</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/19.exceptionsandherbceptions/04.banflags/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Flags</h2>
+      <p>
+        Saying "we do not use legacy exceptions" in a document changes nothing: in six months
+        somebody will include a header that throws, the unwinder will come back into the link, and
+        nobody will notice until a target that cannot unwind fails to build. Make it mechanical.
+        Every translation unit you compile, always:
+      </p>
+      <pre><code class="language-text">
+-fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-ident
+</code></pre>
+      <p>
+        What each one removes:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>What it makes impossible</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>-fno-exceptions</code></td>
+            <td><code>throw</code>, <code>try</code>, <code>catch</code> anywhere in the build,
+              and with them the whole <code>__cxa_*</code> runtime and the personality routine.
+              Herbceptions still work: <code>throws</code> and <code>catch throws</code> are a
+              different mechanism and are unaffected</td>
+          </tr>
+          <tr>
+            <td><code>-fno-rtti</code></td>
+            <td><code>typeid</code>, <code>dynamic_cast</code>, and the type-info objects that
+              legacy handler matching is built from. Herbceptions do not use RTTI, so nothing on
+              the <code>throws</code> channel is affected</td>
+          </tr>
+          <tr>
+            <td><code>-fno-unwind-tables</code></td>
+            <td>The <code>.eh_frame</code> frame tables that a stack walker needs</td>
+          </tr>
+          <tr>
+            <td><code>-fno-asynchronous-unwind-tables</code></td>
+            <td>The same tables in their asynchronous form, which debuggers and profilers also
+              use</td>
+          </tr>
+          <tr>
+            <td><code>-fno-ident</code></td>
+            <td>The compiler's identifying strings in <code>.comment</code>, which leak build
+              machine details and are pure noise in a binary</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        These are not stylistic. Each one deletes a mechanism, and the build fails loudly the
+        moment somebody tries to use it.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. What It Actually Removes</h2>
+      <p>
+        One small program, one herbception, compiled twice: once with the default flags, once with
+        the list above.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int divide(int a, int b) throws
+{
+	if (b == 0)
+	{
+		throw throws ::std::errc::invalid_argument;
+	}
+	return a / b;
+}
+
+int main()
+{
+	int result{};
+	try
+	{
+		result = divide(84, 2);
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("error ", e, "\n");
+		return 1;
+	}
+	::fast_io::io::print("84/2 = ", result, "\n");
+}
+
+</code></pre>
+      <pre><code class="language-text">
+84/2 = 42
+</code></pre>
+      <p>
+        Same output, smaller binary, and the difference is exactly the machinery of a feature the
+        program never used:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>With default flags</th>
+            <th>With the ban list</th>
+            <th>What it is</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>5,869 bytes of <code>.text</code></td>
+            <td>4,859 bytes</td>
+            <td>Code, including the personality-routine reachable parts</td>
+          </tr>
+          <tr>
+            <td><code>.eh_frame</code> 644 bytes</td>
+            <td>128 bytes</td>
+            <td>The frame tables the unwinder walks</td>
+          </tr>
+          <tr>
+            <td><code>.eh_frame_hdr</code> 116 bytes</td>
+            <td>44 bytes</td>
+            <td>The binary-search index into those tables</td>
+          </tr>
+          <tr>
+            <td><code>.gcc_except_table</code> 16 bytes</td>
+            <td>gone</td>
+            <td>The language exception table: ranges, landing pads, handler types</td>
+          </tr>
+          <tr>
+            <td>13 FDEs</td>
+            <td>4 FDEs</td>
+            <td>How many functions carry unwind information at all</td>
+          </tr>
+          <tr>
+            <td><code>.comment</code> 111 bytes</td>
+            <td>69 bytes</td>
+            <td>Compiler version strings</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The four remaining FDEs come from the C runtime startup objects, not from your code, so
+        this is the floor. On a target without a loader there is nothing to register them with, and
+        that is the point: the flags make your program's requirements match the platforms it has to
+        run on.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Diagnostic You Want</h2>
+      <p>
+        With the ban list in place, a legacy exception is a compile error at the line that
+        introduces it, not a mysterious runtime failure on a target that cannot unwind:
+      </p>
+      <pre><code class="language-text">
+legacy_demo.cc: In function 'int main()':
+legacy_demo.cc:13:78: error: exception handling disabled, use '-fexceptions' to enable
+   13 |                                 throw ::std::runtime_error("division by zero");
+      |                                                                              ^
+</code></pre>
+      </section>
+
+    <section>
+      <h2>4. Put It in the Build, Not in a Wiki</h2>
+      <p>
+        With a plain makefile:
+      </p>
+      <pre><code class="language-makefile">
+CXXFLAGS += -std=c++26 -fherbceptions \
+            -fno-exceptions -fno-rtti -fno-unwind-tables \
+            -fno-asynchronous-unwind-tables -fno-ident
+LDFLAGS  += -lherbceptions
+</code></pre>
+      <p>
+        With CMake, applied to every target in the project and not only to the executable:
+      </p>
+      <pre><code class="language-cmake">
+add_compile_options(
+  -fherbceptions
+  -fno-exceptions -fno-rtti
+  -fno-unwind-tables -fno-asynchronous-unwind-tables
+  -fno-ident)
+</code></pre>
+      <p>
+        <code>add_compile_options</code> is deliberately global: a static library compiled without
+        the flags can reintroduce the behaviour into an executable compiled with them, and the
+        failure then shows up at link time in a target that looks unrelated. One list, every
+        target, including tests and benchmarks.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. What You Give Up, and Why It Is Not a Loss</h2>
+      <ul>
+        <li>
+          <strong>Third-party libraries that throw.</strong> You cannot compile them with these
+          flags at all, which is the honest outcome: they do not run where you need to run. If a
+          dependency of yours ships a legacy-EH binary blob, it will drag the unwinder into your
+          link, and that is a dependency to remove rather than to wrap.
+        </li>
+        <li>
+          <strong><code>typeid</code> and <code>dynamic_cast</code>.</strong> Both were already
+          ruled out in <a href="/docs/18.virtual/05.rtti/">Ch18.5</a>: type erasure over a
+          function-pointer table does the job, with no type-info objects and no runtime search.
+        </li>
+        <li>
+          <strong>Nothing about errors.</strong> Every failure in this book travels on the
+          <code>throws</code> channel
+          (<a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>), which does not need any of
+          the five mechanisms above. That is why the whole ban list is possible at all.
+        </li>
+      </ul>
+      <p>
+        If you take one line from this chapter, take the flag list. A project that compiles with it
+        cannot drift back into legacy exceptions, and every target that has no unwinder, no loader
+        and no C++ runtime stays a target you can build for.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/19.exceptionsandherbceptions/03.interop/" class="prev-button">&larr; Ch19.3: Crossing the Boundary</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/20.freestanding/" class="next-button">Ch20: Freestanding &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

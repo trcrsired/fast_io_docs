@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第19章：异常与赫布异常 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第19章：异常与赫布异常</h1>
+    <p class="lang-switch"><a href="/docs/19.exceptionsandherbceptions/">English</a></p>
+    <section>
+      <h2>本章讲什么</h2>
+
+      <p>
+        你从 <a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a> 起就一直在抛和接，之后每一页都只用那两条语句。你还没见过的是错误值背后的那张表：它决定一个错误码<em>意味着</em>什么、打印出什么、对应哪一个 <code>::std::errc</code>。本章讲那张表，也讲 C++ 的另一种异常机制 —— 你必须读得懂，但绝不能使用。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>机制</th>
+            <th>它的代价</th>
+            <th>在本书里的地位</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>赫布异常</td>
+            <td>
+              返回路径上的两个字加一个失败位 —— 和返回错误码是同一个形状
+            </td>
+            <td>唯一使用的机制，处处如此</td>
+          </tr>
+          <tr>
+            <td>C++ 遗留异常</td>
+            <td>
+              每次抛出一次堆分配、两阶段栈遍历、每个函数都要有帧表、一个 personality routine、处理匹配需要 RTTI
+            </td>
+            <td>
+              只读。通过编译选项从每个构建里移除（<a href="/zhcn/docs/19.exceptionsandherbceptions/04.banflags/">第19.4章</a>）
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        第二行的简要版本：遗留异常不只是慢（每次抛出约一微秒，在 <a href="/zhcn/docs/19.exceptionsandherbceptions/02.legacyexceptions/">第19.2章</a> 中测量过）。在你大多数要发布到的目标上，它们根本<strong>不存在</strong> —— freestanding、内核、引导程序、嵌入式板子、WebAssembly —— 因为它们依赖的 unwinder、加载器注册以及 <code>__cxa_*</code> 运行时在那些地方都没有。
+      </p>
+
+    </section>
+    <section>
+      <h2>本章怎么读</h2>
+
+      <p>
+        只有当你写的库拥有自己的错误码空间时才去读 <a href="/zhcn/docs/19.exceptionsandherbceptions/01.customdomains/" >19.1</a>。但仍然要<em>仔细</em>读，因为它开篇就是那条最省事的建议：运行时里的错误域本来就是拿来复用的，其中一个几乎覆盖了一切。
+      </p>
+      <p>
+        把 <a href="/zhcn/docs/19.exceptionsandherbceptions/02.legacyexceptions/">19.2</a> 和 <a href="/zhcn/docs/19.exceptionsandherbceptions/03.interop/">19.3</a> 当作识别训练来读：你将来要维护这种代码，而当某个依赖把 <code>std::runtime_error</code> 递到你手上时，你需要那座桥的两个方向。<a href="/zhcn/docs/19.exceptionsandherbceptions/04.banflags/">19.4</a> 则是现在就该抄进构建里的四行。
+      </p>
+
+      <ul>
+        <li>
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/01.customdomains/">第19.1章：定义与覆盖错误域</a> &mdash; <code>::std::error_domain_singleton</code> 的五个钩子、其中唯一必需的那个、<code>error_domain&lt;T&gt;</code> 特化、一个完整的 CSV 错误域，以及环境需要时如何替换随运行时提供的错误域
+        </li>
+        <li>
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/02.legacyexceptions/">第19.2章：C++ 遗留异常</a> &mdash; 老机制怎么工作、一次抛出实测要多少代价、它需要哪些运行时符号，以及它在哪些环境里根本不存在
+        </li>
+        <li>
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/03.interop/">第19.3章：跨越边界</a> &mdash; 遗留异常到赫布异常是自动的，赫布异常到遗留异常要调用 <code>throw_legacy_exception()</code>，以及路上丢掉了什么
+        </li>
+        <li>
+          <a href="/zhcn/docs/19.exceptionsandherbceptions/04.banflags/">第19.4章：用构建选项禁止遗留异常</a> &mdash; <code>-fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-ident</code>，以及每一个各删掉了什么
+        </li>
+      </ul>
+
+    </section>
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/18.virtual/08.gui/" class="prev-button">&larr; 第18.8章：Qt、MFC，以及 GUI 为何是 C++ 走错的地方</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/19.exceptionsandherbceptions/01.customdomains/" class="next-button">第19.1章：定义与覆盖错误域 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

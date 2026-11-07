@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch19.3: Crossing the Boundary - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch19.3: Crossing the Boundary</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/19.exceptionsandherbceptions/03.interop/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Legacy to Herbceptions: Automatic</h2>
+      <p>
+        You will call libraries that report failures by throwing, and you cannot change them.
+        Nothing needs to be written for that direction: a legacy exception that reaches a
+        <code>throws</code> region &mdash; a call inside a <code>catch throws</code> handler, or a
+        call from a function annotated <code>throws</code> &mdash; is converted into a
+        <code>::std::error</code> for you, with no source change and no wrapper:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;stdexcept&gt;
+
+/* a library we do not own: noexcept(false) is the legacy spelling of
+   "this function may throw", and it is the only contract it can state */
+void legacy_parser(int value) noexcept(false)
+{
+	if (value &lt; 0)
+	{
+		throw ::std::runtime_error("negative input");
+	}
+}
+
+/* our code: failures travel on the throws channel */
+int parse(int value) throws
+{
+	legacy_parser(value);
+	return value;
+}
+
+int main()
+{
+	try
+	{
+		::fast_io::io::print("parse(7)  = ", parse(7), "\n");
+		int const bad{-1};
+		::fast_io::io::print("parse(-1) = ", parse(bad), "\n");
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("caught ", e, "\n");
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+parse(7)  = 7
+caught [itanium_exception](St13runtime_error)negative input
+
+</code></pre>
+      <p>
+        <code>parse</code> is a <code>throws</code> function and never mentions exceptions. The
+        legacy library throws one anyway, and it arrives at the caller as a two-word value in the
+        platform's exception domain &mdash; <code>itanium_exception</code> here, i.e. "this is a
+        boxed C++ exception object". The message text is the runtime's rendering of the thrown
+        object: <code>(St13runtime_error)</code> is the mangled type name and
+        <code>negative input</code> is <code>what()</code>.
+      </p>
+      <p>
+        Note what this conversion is <em>not</em>: it is not a catch clause you have to write, and
+        it does not cost you a legacy try block. The unwind still happens inside the legacy
+        library; what crosses into your code is only the result. That is the whole point of the
+        design &mdash; the boundary is paid once, by whoever touches the legacy library, and is
+        invisible to everyone above it.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Rethrowing a Herbception</h2>
+      <p>
+        Inside a handler, a bare <code>throw throws;</code> re-raises the same error with no copy
+        and no new information, exactly like the legacy <code>throw;</code>. This is how you add
+        context, or decide that certain codes are not yours to swallow:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int read_value(int value) throws
+{
+	try
+	{
+		if (value &lt; 0)
+		{
+			throw throws ::std::errc::invalid_argument;
+		}
+		return value;
+	}
+	catch throws (::std::error e)
+	{
+		if (e.equivalent(::std::errc::invalid_argument))
+		{
+			throw throws;
+		}
+		return -1;
+	}
+}
+
+int main()
+{
+	try
+	{
+		::fast_io::io::print("read_value(5)  = ", read_value(5), "\n");
+		::fast_io::io::print("read_value(-1) = ", read_value(-1), "\n");
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("caught ", e, "\n");
+	}
+}
+
+</code></pre>
+      <pre><code class="language-text">
+read_value(5)  = 5
+caught [posix](22)Invalid argument
+
+</code></pre>
+      <p>
+        The transcript is worth reading carefully. The first line printed, the second threw, and
+        the text <code>read_value(-1) = </code> never appeared &mdash; because <code>print</code>
+        evaluates its arguments before it writes anything, so a failure while formatting means no
+        partial output. That is a property of a single <code>print</code> call, and one more reason
+        to write one call per line instead of assembling a line from many writes.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Herbceptions to Legacy: You Must Ask</h2>
+      <p>
+        The reverse direction is <em>not</em> automatic, and it must not be. Converting a
+        herbception into a C++ exception means paying for the unwinder, the heap allocation and the
+        RTTI that <a href="/docs/19.exceptionsandherbceptions/02.legacyexceptions/">Ch19.2</a>
+        measured &mdash; a cost that would silently appear in code that never asked for it. So the
+        language makes you write it:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;stdexcept&gt;
+
+int main()
+{
+	try
+	{
+		try
+		{
+			throw throws ::std::errc::value_too_large;
+		}
+		catch throws (::std::error e)
+		{
+			/* a handler cannot call a throwing function: no second channel */
+			e.throw_legacy_exception();
+		}
+	}
+	catch (::std::exception const &amp;ex)
+	{
+		::fast_io::io::print("legacy side ", ::fast_io::mnp::os_c_str(ex.what()), "\n");
+	}
+}
+
+</code></pre>
+      <pre><code class="language-text">
+legacy side [posix](75)Value too large for defined data type
+</code></pre>
+      <p>
+        <code>e.throw_legacy_exception()</code> is <code>[[noreturn]]</code>: it either re-throws
+        the error as the platform's native exception type (when the domain implements
+        <code>do_throw_legacy_exception</code>) or boxes it into
+        <code>::std::cxx_std_error_legacy_exception</code>, which derives from
+        <code>::std::exception</code> and caches its message at construction. That is the box you
+        caught: <code>what()</code> returned <code>[posix](75)Value too large for defined data
+        type</code> &mdash; the domain name, the code and the message, produced by the same
+        <code>do_query_information</code> hook that prints errors everywhere else.
+      </p>
+      <p>
+        Two things are lost on the way and you should know both. A code that <em>owns memory</em>
+        (a domain with a non-null <code>do_cleanup</code>) cannot be boxed by copying &mdash; two
+        copies would free the same thing &mdash; so it is first <strong>demoted</strong> through
+        <code>do_to_errc</code> into the POSIX domain, which owns nothing. And the whole point of a
+        domain &mdash; a code space with a name &mdash; collapses into a message string and a
+        <code>what()</code>. That is what the legacy mechanism can carry, so that is what survives.
+      </p>
+      <p>
+        There is also a faster sibling, <code>throw_legacy_exception_no_what()</code>, which skips
+        the message query and therefore performs no allocation at throw time. Use it when the
+        legacy code only catches to clean up and never reads the text.
+      </p>
+      <p>
+        And there is a rule about the handler you are in: keep it simple. A
+        <code>catch throws (::std::error e)</code> handler has no second channel, so it should
+        convert and leave, not do work that can fail.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Toolchain Status</h2>
+      <p>
+        The automatic direction is implemented in both of our compilers. The explicit direction is
+        implemented in our Clang; our GCC still reports:
+      </p>
+      <pre><code class="language-text">
+back.cc: In function 'int main()':
+back.cc:20:37: sorry, unimplemented: herbceptions error-channel lowering is not implemented yet
+   20 |                 ::fast_io::io::print("legacy side ", ::fast_io::mnp::os_c_str(ex.what()), "\n");
+      |                 ~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+</code></pre>
+      <p>
+        If you must hand a herbception to legacy code today, build that translation unit with our
+        Clang (<a href="/docs/01.compile/04.clang/">Ch1.4</a>). Everything else on this page works
+        with either compiler.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/19.exceptionsandherbceptions/02.legacyexceptions/" class="prev-button">&larr; Ch19.2: C++ Legacy Exceptions</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/19.exceptionsandherbceptions/04.banflags/" class="next-button">Ch19.4: Ban Legacy Exceptions &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

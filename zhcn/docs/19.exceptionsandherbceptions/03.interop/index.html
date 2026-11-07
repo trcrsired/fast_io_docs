@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第19.3章：跨越边界 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第19.3章：跨越边界</h1>
+    <p class="lang-switch"><a href="/docs/19.exceptionsandherbceptions/03.interop/">English</a></p>
+
+    <section>
+      <h2>1. 遗留异常到赫布异常：自动转换</h2>
+      <p>
+        你会调用那些靠抛出报告失败的库，而你改不了它们。这个方向不需要你写任何东西：一个遗留异常只要进入 <code>throws</code> 区域 —— <code>catch throws</code> 处理块里的调用，或来自标注了 <code>throws</code> 的函数的调用 —— 就会被自动转换成一个 <code>::std::error</code>，不改源码、不加包装：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;stdexcept&gt;
+
+/* a library we do not own: noexcept(false) is the legacy spelling of
+   "this function may throw", and it is the only contract it can state */
+void legacy_parser(int value) noexcept(false)
+{
+	if (value &lt; 0)
+	{
+		throw ::std::runtime_error("negative input");
+	}
+}
+
+/* our code: failures travel on the throws channel */
+int parse(int value) throws
+{
+	legacy_parser(value);
+	return value;
+}
+
+int main()
+{
+	try
+	{
+		::fast_io::io::print("parse(7)  = ", parse(7), "\n");
+		int const bad{-1};
+		::fast_io::io::print("parse(-1) = ", parse(bad), "\n");
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("caught ", e, "\n");
+	}
+}
+</code></pre>
+      <pre><code class="language-text">
+parse(7)  = 7
+caught [itanium_exception](St13runtime_error)negative input
+
+</code></pre>
+      <p>
+        <code>parse</code> 是一个 <code>throws</code> 函数，它从不提及异常。那个遗留库照样抛了，而它作为平台异常错误域里的两字值抵达调用者 —— 这里是 <code>itanium_exception</code>，也就是"这是一个装箱的 C++ 异常对象"。消息文本是运行时对被抛出对象的呈现：<code>(St13runtime_error)</code> 是修饰过的类型名，<code>negative input</code> 是 <code>what()</code>。
+      </p>
+      <p>
+        注意这个转换<em>不是</em>什么：它不是你必须写的 catch 子句，也不要求你付出一个遗留 try 块。展开仍然发生在遗留库内部；进入你代码的只是结果。这正是这套设计的要点 —— 边界只被跨它的人付一次代价，对上面所有人都不可见。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 重新抛出赫布异常</h2>
+      <p>
+        在处理块内部，裸写的 <code>throw throws;</code> 会重新抛出同一个错误，不拷贝、不添加任何信息，和遗留的 <code>throw;</code> 完全一样。当你需要补充上下文，或者判断某些错误码不该由你吞掉时，就用它：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int read_value(int value) throws
+{
+	try
+	{
+		if (value &lt; 0)
+		{
+			throw throws ::std::errc::invalid_argument;
+		}
+		return value;
+	}
+	catch throws (::std::error e)
+	{
+		if (e.equivalent(::std::errc::invalid_argument))
+		{
+			throw throws;
+		}
+		return -1;
+	}
+}
+
+int main()
+{
+	try
+	{
+		::fast_io::io::print("read_value(5)  = ", read_value(5), "\n");
+		::fast_io::io::print("read_value(-1) = ", read_value(-1), "\n");
+	}
+	catch throws (::std::error e)
+	{
+		::fast_io::io::print("caught ", e, "\n");
+	}
+}
+
+</code></pre>
+      <pre><code class="language-text">
+read_value(5)  = 5
+caught [posix](22)Invalid argument
+
+</code></pre>
+      <p>
+        这份输出值得细读。第一行打印了，第二行抛出了，而 <code>read_value(-1) = </code> 这段文本从未出现 —— 因为 <code>print</code> 在写出任何东西之前先求值它的实参，所以在格式化途中失败就意味着没有任何部分输出。这是单次 <code>print</code> 调用的性质，也是"一行一个调用、不要用多次写入拼一行"的又一个理由。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 赫布异常到遗留异常：必须你主动要求</h2>
+      <p>
+        反方向<em>不</em>自动，而且绝不该自动。把一个赫布异常转换成 C++ 异常，意味着付出 <a href="/zhcn/docs/19.exceptionsandherbceptions/02.legacyexceptions/">第19.2章</a> 测量过的 unwinder、堆分配和 RTTI 的代价 —— 这个代价如果悄悄出现在从未要求它的代码里，那就糟了。所以语言要求你自己写出来：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;stdexcept&gt;
+
+int main()
+{
+	try
+	{
+		try
+		{
+			throw throws ::std::errc::value_too_large;
+		}
+		catch throws (::std::error e)
+		{
+			/* a handler cannot call a throwing function: no second channel */
+			e.throw_legacy_exception();
+		}
+	}
+	catch (::std::exception const &amp;ex)
+	{
+		::fast_io::io::print("legacy side ", ::fast_io::mnp::os_c_str(ex.what()), "\n");
+	}
+}
+
+</code></pre>
+      <pre><code class="language-text">
+legacy side [posix](75)Value too large for defined data type
+</code></pre>
+      <p>
+        <code>e.throw_legacy_exception()</code> 是 <code>[[noreturn]]</code> 的：它要么把这个错误作为平台原生异常类型重新抛出（当错误域实现了 <code>do_throw_legacy_exception</code> 时），要么把它装进 <code>::std::cxx_std_error_legacy_exception</code> —— 后者派生自 <code>::std::exception</code>，并在构造时缓存消息。你捕获到的就是这个盒子：<code>what()</code> 返回了 <code>[posix](75)Value too large for defined data type</code> —— 错误域名、错误码和消息，全都由那个在别处打印错误时用的同一个 <code>do_query_information</code> 钩子产生。
+      </p>
+      <p>
+        路上会丢掉两样东西，两样你都该知道。<em>拥有内存</em>的错误码（也就是 <code>do_cleanup</code> 非空的错误域）不能靠拷贝装箱 —— 两份拷贝会释放同一个东西 —— 所以它会先通过 <code>do_to_errc</code> 被<strong>降级</strong>到什么都不拥有的 POSIX 错误域。而错误域的全部意义 —— 一个带名字的错误码空间 —— 会坍缩成一段消息字符串和一个 <code>what()</code>。遗留机制只能携带这些，所以活下来的也就只有这些。
+      </p>
+      <p>
+        还有一个更快的兄弟函数 <code>throw_legacy_exception_no_what()</code>，它跳过消息查询，因此抛出时不做任何分配。当遗留代码只是捕获来清理、从不读那段文本时，就用它。
+      </p>
+      <p>
+        还有一条关于你所处处理块的规则：让它保持简单。<code>catch throws (::std::error e)</code> 处理块没有第二条通道，所以它只该做转换然后离开，不要做会失败的工作。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 工具链现状</h2>
+      <p>
+        自动方向在我们的两个编译器里都已实现。显式方向在我们的 Clang 里已实现；我们的 GCC 仍然报：
+      </p>
+      <pre><code class="language-text">
+back.cc: In function 'int main()':
+back.cc:20:37: sorry, unimplemented: herbceptions error-channel lowering is not implemented yet
+   20 |                 ::fast_io::io::print("legacy side ", ::fast_io::mnp::os_c_str(ex.what()), "\n");
+      |                 ~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+</code></pre>
+      <p>
+        如果你今天就必须把赫布异常交给遗留代码，就用我们的 Clang 编译那个翻译单元（<a href="/zhcn/docs/01.compile/04.clang/">第1.4章</a>）。本页其他内容用两个编译器都可以。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/19.exceptionsandherbceptions/02.legacyexceptions/" class="prev-button">&larr; 第19.2章：C++ 遗留异常</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/19.exceptionsandherbceptions/04.banflags/" class="next-button">第19.4章：用构建选项禁止遗留异常 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
