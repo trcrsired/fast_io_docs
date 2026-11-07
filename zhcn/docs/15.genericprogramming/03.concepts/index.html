@@ -196,7 +196,214 @@ template &lt;byte_like T&gt;
 
     </section>
     <section>
-      <h2>6. 概念在哪里被检查</h2>
+      <h2>6. 概念重载：每个类别一个重载</h2>
+
+      <p>
+        写概念最常见的理由，是搭一小族重载，每类类型一个，而每个重载都可以假定它的概念已经保证了什么：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;::std::integral T&gt;
+[[nodiscard]] inline ::std::string_view classify(T) noexcept
+{
+	return "integral";
+}
+
+template &lt;::std::floating_point T&gt;
+[[nodiscard]] inline ::std::string_view classify(T) noexcept
+{
+	return "floating point";
+}
+</code></pre>
+      <p>
+        <code>classify(1)</code> 选第一个，<code>classify(2.5)</code> 选第二个，而
+        <code>classify(widget{})</code> 是命名了两个候选的编译错误 —— 这正是重点：
+        这个集合是封闭的，集合之外的类型会被拒绝，而不是悄悄落到某个泛型分支上。
+      </p>
+      <p>
+        本页现在必须警告你，因为概念重载集是 C++ 里最脆的分派机制。下面两节是警告，最后一节是
+        该写什么。
+      </p>
+
+    </section>
+    <section>
+      <h2>7. 约束是重载解析最后才看的东西</h2>
+
+      <p>
+        重载解析按固定顺序给候选排序，约束排在<strong>最后</strong>：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>步骤</th>
+            <th>规则</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>更好的转换序列胜出（精确匹配 &gt; 提升 &gt; 转换 &gt; 省略号）</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>然后：转换相同的情况下，非模板胜过模板</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>然后：更特化的模板胜出</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>然后，<em>最后才是</em>：约束更强的模板胜出</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        所以除非前面一切都已经打平，约束根本不起作用。两个实测后果，任何一个在真实代码库里
+        发生都要耗掉一个下午。
+      </p>
+      <h3>你忘掉的一个普通重载直接赢</h3>
+      <pre><code class="language-cpp">
+[[nodiscard]] inline ::std::string_view priority(int) noexcept
+{
+	return "plain int overload";
+}
+
+template &lt;::std::integral T&gt;
+[[nodiscard]] inline ::std::string_view priority(T) noexcept
+{
+	return "integral template";
+}
+</code></pre>
+      <pre><code class="language-text">
+priority(1)=plain int overload
+priority(char)=integral template
+</code></pre>
+      <p>
+        对 <code>1</code> 两者都是精确匹配，于是走第 2 步，非模板赢 ——
+        <code>integral</code> 这个约束连票都没投上。对 <code>char</code> 而言非模板需要一次提升，
+        所以模板的精确匹配在第 1 步就赢了。
+      </p>
+      <h3>更特化的模板也会赢</h3>
+      <pre><code class="language-cpp">
+[[nodiscard]] inline ::std::string_view ranks(long) noexcept
+{
+	return "long overload";
+}
+
+template &lt;byte_like T&gt;
+[[nodiscard]] inline ::std::string_view ranks(T) noexcept
+{
+	return "byte template";
+}
+</code></pre>
+      <pre><code class="language-text">
+ranks(char)=byte template
+</code></pre>
+      <p>
+        这里模板赢了，仍然是在第 1 步：精确匹配胜过需要转换的非模板。把实参类型反过来，答案就翻转。
+        一句话总结问题所在：<strong>实际跑的是哪个重载，取决于你没有写出来的那些转换</strong>，
+        而约束救不了你，因为它最后才被考虑。
+      </p>
+
+    </section>
+    <section>
+      <h2>8. 该写什么：唯一的调度器</h2>
+
+      <p>
+        如果选择发生在一个固定的类别集合之间，就不要把它表达成重载集。把类型分类一次，得到一个
+        <code>constexpr</code> 值（<a href="/zhcn/docs/15.genericprogramming/04.nttp/">第15.4章</a>），
+        让一个函数用 <code>if constexpr</code> 在它上面分支
+        （<a href="/zhcn/docs/15.genericprogramming/08.ifconstexpr/">第15.8章</a>）：
+      </p>
+      <pre><code class="language-cpp">
+enum class kind
+{
+	integral,
+	floating,
+	named,
+	unknown
+};
+
+template &lt;typename T&gt;
+inline constexpr kind kind_of = []() constexpr {
+	if constexpr (::std::integral&lt;T&gt;)
+	{
+		return kind::integral;
+	}
+	else if constexpr (::std::floating_point&lt;T&gt;)
+	{
+		return kind::floating;
+	}
+	else if constexpr (requires(T const &amp;t) { t.name(); })
+	{
+		return kind::named;
+	}
+	else
+	{
+		return kind::unknown;
+	}
+}();
+</code></pre>
+      <p>
+        三件事同时变好了。分支的顺序就是作者写的顺序，而不是标准里某个埋着的平局规则。
+        什么都不匹配的类型会走 <code>unknown</code> 分支 —— 这是有意为之 ——
+        而不是编译错误或悄悄发生的转换。而且这个选择是一个值，所以可以打印、可以放进表、
+        可以用 <code>static_assert</code> 检查：
+      </p>
+      <pre><code class="language-cpp">
+static_assert(kind_of&lt;int&gt; == kind::integral);
+static_assert(kind_of&lt;::std::float64_t&gt; == kind::floating);
+</code></pre>
+
+    </section>
+    <section>
+      <h2>9. 标签类型：让这套重载根本无法被搞混</h2>
+
+      <p>
+        调度器最终还是得调用点什么，而诱惑是把它又做成一个重载集。不要这样：给每个分支一个
+        自己的<strong>标签类型</strong>，并把标签作为第一个实参传进去。标签是一个什么都不能隐式转换
+        过去的独立类型，于是重载解析恰好只有一个精确匹配的候选，没有任何转换需要排序：
+      </p>
+      <pre><code class="language-cpp">
+template &lt;kind k&gt;
+struct kind_tag
+{
+};
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(kind_tag&lt;kind::integral&gt;, T) noexcept
+{
+	return "integral";
+}
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(kind_tag&lt;kind::named&gt;, T const &amp;value) noexcept
+{
+	return value.name();
+}
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(T const &amp;value) noexcept
+{
+	return describe(kind_tag&lt;kind_of&lt;T&gt;&gt;{}, value);
+}
+</code></pre>
+      <p>
+        这正是 fast_io 到处都在用的形状：<code>::fast_io::io_reserve_type&lt;char, T&gt;</code>
+        就是这样一种标签，每个打印或扫描定制都把它当第一个形参
+        （<a href="/zhcn/docs/15.genericprogramming/11.printscan/">第15.11章</a>）。
+        标签让调用没有歧义，把函数需要的类型信息作为<em>类型</em>携带，而且新增一个类别时不可能
+        悄悄劫持已有的调用 —— <code>kind_tag&lt;kind::integral&gt;</code> 与
+        <code>kind_tag&lt;kind::named&gt;</code> 之间没有任何转换。
+      </p>
+      <p>
+        同一个技巧在运行期也成立，用值标签：一个命名操作的 <code>enum class</code> 形参，
+        比三个只有约束不同的重载要好，因为调用者明确说出它要什么，而不是指望重载集同意。
+      </p>
+
+    </section>
+    <section>
+      <h2>10. 概念在哪里被检查</h2>
 
       <p>
         概念出现在四个地方，全部在编译期：
@@ -213,11 +420,13 @@ template &lt;byte_like T&gt;
           <code>requires { t.size(); }</code> 直接写在函数体里，不起名字。</li>
       </ul>
       <p>
-        下面整个程序打印四个答案，而且不实例化任何你没要求它实例化的东西：
+        下面整个程序把一个文件里全展示了 —— 重载集、两个优先级惊喜、调度器，以及标签：
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 #include &lt;concepts&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
 #include &lt;string_view&gt;
 
 struct widget
@@ -225,32 +434,130 @@ struct widget
 	[[nodiscard]] ::std::string_view name() const noexcept { return "widget"; }
 };
 
-template &lt;typename T&gt;
-concept named = requires(T const t) {
-	{ t.name() } -&gt; ::std::convertible_to&lt;::std::string_view&gt;;
+struct plain
+{
+	int value{};
 };
+
+// ---- concept overloads: one overload per category
+template &lt;::std::integral T&gt;
+[[nodiscard]] inline ::std::string_view classify(T) noexcept
+{
+	return "integral";
+}
+
+template &lt;::std::floating_point T&gt;
+[[nodiscard]] inline ::std::string_view classify(T) noexcept
+{
+	return "floating point";
+}
+
+// ---- constraints are the LAST tie-break: a plain overload silently wins
+[[nodiscard]] inline ::std::string_view priority(int) noexcept
+{
+	return "plain int overload";
+}
+
+template &lt;::std::integral T&gt;
+[[nodiscard]] inline ::std::string_view priority(T) noexcept
+{
+	return "integral template";
+}
+
+// ---- a better conversion rank outranks the non-template preference
+[[nodiscard]] inline ::std::string_view ranks(long) noexcept
+{
+	return "long overload";
+}
 
 template &lt;typename T&gt;
 concept byte_like = ::std::integral&lt;T&gt; &amp;&amp; (sizeof(T) == 1);
 
-template &lt;named T&gt;
-[[nodiscard]] inline ::std::string_view show(T const &amp;t) noexcept
+template &lt;byte_like T&gt;
+[[nodiscard]] inline ::std::string_view ranks(T) noexcept
 {
-	return t.name();
+	return "byte template";
 }
 
-template &lt;byte_like T&gt;
-[[nodiscard]] inline ::std::string_view kind(T) noexcept
+// ---- the recommended shape: classify once, dispatch with if constexpr, key with a tag
+enum class kind
 {
-	return "byte";
+	integral,
+	floating,
+	named,
+	unknown
+};
+
+template &lt;typename T&gt;
+inline constexpr kind kind_of = []() constexpr {
+	if constexpr (::std::integral&lt;T&gt;)
+	{
+		return kind::integral;
+	}
+	else if constexpr (::std::floating_point&lt;T&gt;)
+	{
+		return kind::floating;
+	}
+	else if constexpr (requires(T const &amp;t) { t.name(); })
+	{
+		return kind::named;
+	}
+	else
+	{
+		return kind::unknown;
+	}
+}();
+
+template &lt;kind k&gt;
+struct kind_tag
+{
+};
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(kind_tag&lt;kind::integral&gt;, T) noexcept
+{
+	return "integral";
+}
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(kind_tag&lt;kind::floating&gt;, T) noexcept
+{
+	return "floating point";
+}
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(kind_tag&lt;kind::named&gt;, T const &amp;value) noexcept
+{
+	return value.name();
+}
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(kind_tag&lt;kind::unknown&gt;, T) noexcept
+{
+	return "something else";
+}
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(T const &amp;value) noexcept
+{
+	return describe(kind_tag&lt;kind_of&lt;T&gt;&gt;{}, value);
 }
 
 int main()
 {
 	try
 	{
-		::fast_io::io::println(show(widget{}));
-		::fast_io::io::println(kind(static_cast&lt;char&gt;(1)));
+		::fast_io::io::println("classify(1)=", classify(1));
+		::fast_io::io::println("classify(2.5)=", classify(2.5));
+
+		::fast_io::io::println("priority(1)=", priority(1));
+		::fast_io::io::println("priority(char)=", priority(static_cast&lt;char&gt;(1)));
+		::fast_io::io::println("ranks(char)=", ranks(static_cast&lt;char&gt;(1)));
+
+		::fast_io::io::println("describe(1)=", describe(1));
+		::fast_io::io::println("describe(2.5)=", describe(2.5));
+		::fast_io::io::println("describe(widget)=", describe(widget{}));
+		::fast_io::io::println("describe(plain)=", describe(plain{}));
 	}
 	catch throws (::std::error e)
 	{
@@ -260,13 +567,20 @@ int main()
 </code></pre>
       <p>输出：</p>
       <pre><code class="language-text">
-widget
-byte
+classify(1)=integral
+classify(2.5)=floating point
+priority(1)=plain int overload
+priority(char)=integral template
+ranks(char)=byte template
+describe(1)=integral
+describe(2.5)=floating point
+describe(widget)=widget
+describe(plain)=something else
 </code></pre>
 
     </section>
     <section>
-      <h2>7. 概念做不到的事</h2>
+      <h2>11. 概念做不到的事</h2>
 
       <p>
         概念是编译期谓词。它不能决定运行期的任何事，不能让一个变量这一轮装 <code>widget</code>、
@@ -281,7 +595,7 @@ byte
 
     </section>
     <section>
-      <h2>8. 经验法则</h2>
+      <h2>12. 经验法则</h2>
 
       <ul>
         <li>概念用两次就起名字；只用一次就写内联 <code>requires</code>。</li>
@@ -289,6 +603,12 @@ byte
         <li>算法依赖 <code>noexcept</code> 时，就把 <code>noexcept</code> 写进概念；本书的比较器与
           分配器总是如此。</li>
         <li>不要约束用不到的东西。一个要求五个成员、只用两个的概念，只会毫无理由地拒绝类型。</li>
+        <li><strong>不要用概念重载来搭分派。</strong>约束是重载解析最后才看的东西，
+          所以不相关的重载、一次转换、或更特化的模板都可能替你赢下来。</li>
+        <li>把类型分类成一个 <code>constexpr</code> 值，用 <code>if constexpr</code> 分派；
+          那样是确定的、可排序的、可 grep 的。</li>
+        <li>给每个分支一个自己的标签类型当第一个形参。标签不会被转换搞混，也正是 fast_io 的
+          <code>io_reserve_type</code> 的工作方式。</li>
         <li>记住概念并不减少膨胀：它只是更早地拒绝错误实参。膨胀是
           <a href="/zhcn/docs/15.genericprogramming/09.bloat/">第15.9章</a>的事。</li>
       </ul>

@@ -205,7 +205,230 @@ template &lt;byte_like T&gt;
 
     </section>
     <section>
-      <h2>6. Where the Concept Is Checked</h2>
+      <h2>6. Concept Overloads: One Overload per Category</h2>
+
+      <p>
+        The usual reason to write a concept is to build a small family of overloads, one per
+        kind of type, each of which can assume what its concept guarantees:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;::std::integral T&gt;
+[[nodiscard]] inline ::std::string_view classify(T) noexcept
+{
+	return "integral";
+}
+
+template &lt;::std::floating_point T&gt;
+[[nodiscard]] inline ::std::string_view classify(T) noexcept
+{
+	return "floating point";
+}
+</code></pre>
+      <p>
+        <code>classify(1)</code> selects the first, <code>classify(2.5)</code> the second, and
+        <code>classify(widget{})</code> is a compile error naming both candidates &mdash;
+        which is the point: the set is closed, and a type outside it is rejected instead of
+        silently taking some generic branch.
+      </p>
+      <p>
+        This page now has to warn you about it, because a concept overload set is the most
+        fragile dispatch mechanism C++ has. The next two sections are the warning, and the
+        last is what to write instead.
+      </p>
+
+    </section>
+    <section>
+      <h2>7. Constraints Are the Last Thing Overload Resolution Looks At</h2>
+
+      <p>
+        Overload resolution ranks candidates in a fixed order. Constraints are
+        <strong>last</strong>:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Step</th>
+            <th>Rule</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>better conversion sequence wins (exact match beats promotion beats
+              conversion beats ellipsis)</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>then: a non-template beats a template, on equal conversions</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>then: the more specialised template wins</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>then, <em>last of all</em>: the more constrained template wins</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        So a constraint decides nothing until everything else has tied. Two measured
+        consequences, both of which cost an afternoon when they happen in a real code base.
+      </p>
+      <h3>A plain overload you forgot about wins outright</h3>
+      <pre><code class="language-cpp">
+[[nodiscard]] inline ::std::string_view priority(int) noexcept
+{
+	return "plain int overload";
+}
+
+template &lt;::std::integral T&gt;
+[[nodiscard]] inline ::std::string_view priority(T) noexcept
+{
+	return "integral template";
+}
+</code></pre>
+      <pre><code class="language-text">
+priority(1)=plain int overload
+priority(char)=integral template
+</code></pre>
+      <p>
+        Both are exact matches for <code>1</code>, so step 2 applies and the non-template
+        wins &mdash; the <code>integral</code> constraint never got a vote. For
+        <code>char</code> the non-template would need a promotion, so the template's exact
+        match wins at step 1.
+      </p>
+      <h3>A more specialised template also wins</h3>
+      <pre><code class="language-cpp">
+[[nodiscard]] inline ::std::string_view ranks(long) noexcept
+{
+	return "long overload";
+}
+
+template &lt;byte_like T&gt;
+[[nodiscard]] inline ::std::string_view ranks(T) noexcept
+{
+	return "byte template";
+}
+</code></pre>
+      <pre><code class="language-text">
+ranks(char)=byte template
+</code></pre>
+      <p>
+        Here the template wins, again at step 1: an exact match beats a non-template that
+        needs a conversion. Reverse the argument types and the answer flips. That is the
+        problem in one sentence: <strong>which overload runs depends on conversions you did
+        not write</strong>, and a constraint cannot save you, because it is consulted last.
+      </p>
+
+    </section>
+    <section>
+      <h2>8. What to Write Instead: One Dispatcher</h2>
+
+      <p>
+        If the choice is between a fixed set of categories, do not express it as an overload
+        set at all. Classify the type once, as a <code>constexpr</code> value
+        (<a href="/docs/15.genericprogramming/04.nttp/">Ch15.4</a>), and have a single
+        function switch on it with <code>if constexpr</code>
+        (<a href="/docs/15.genericprogramming/08.ifconstexpr/">Ch15.8</a>):
+      </p>
+      <pre><code class="language-cpp">
+enum class kind
+{
+	integral,
+	floating,
+	named,
+	unknown
+};
+
+template &lt;typename T&gt;
+inline constexpr kind kind_of = []() constexpr {
+	if constexpr (::std::integral&lt;T&gt;)
+	{
+		return kind::integral;
+	}
+	else if constexpr (::std::floating_point&lt;T&gt;)
+	{
+		return kind::floating;
+	}
+	else if constexpr (requires(T const &amp;t) { t.name(); })
+	{
+		return kind::named;
+	}
+	else
+	{
+		return kind::unknown;
+	}
+}();
+</code></pre>
+      <p>
+        Three things improved at once. The order of the branches is the order the author
+        wrote, not a tie-break rule buried in the standard. A type that matches nothing gets
+        the <code>unknown</code> branch, deliberately, instead of a compile error or a silent
+        conversion. And the selection is a value, so it can be printed, put in a table, or
+        tested with <code>static_assert</code>:
+      </p>
+      <pre><code class="language-cpp">
+static_assert(kind_of&lt;int&gt; == kind::integral);
+static_assert(kind_of&lt;::std::float64_t&gt; == kind::floating);
+</code></pre>
+
+    </section>
+    <section>
+      <h2>9. Tag Types: Make the Overload Set Impossible to Confuse</h2>
+
+      <p>
+        The dispatcher still has to call something, and the temptation is to make that
+        something an overload set again. Do not: give each branch its own <strong>tag
+        type</strong>, and pass the tag as the first argument. A tag is a distinct type that
+        nothing converts to, so overload resolution has exactly one exact-match candidate and
+        no conversions to rank:
+      </p>
+      <pre><code class="language-cpp">
+template &lt;kind k&gt;
+struct kind_tag
+{
+};
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(kind_tag&lt;kind::integral&gt;, T) noexcept
+{
+	return "integral";
+}
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(kind_tag&lt;kind::named&gt;, T const &amp;value) noexcept
+{
+	return value.name();
+}
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(T const &amp;value) noexcept
+{
+	return describe(kind_tag&lt;kind_of&lt;T&gt;&gt;{}, value);
+}
+</code></pre>
+      <p>
+        This is the shape fast_io uses everywhere: <code>::fast_io::io_reserve_type&lt;char, T&gt;</code>
+        is exactly such a tag, and every printing or scanning customisation takes it as its
+        first parameter
+        (<a href="/docs/15.genericprogramming/11.printscan/">Ch15.11</a>). The tag makes the
+        call unambiguous, carries the type information the function needs as a
+        <em>type</em>, and means that adding a new category cannot silently capture an
+        existing call &mdash; there is no conversion between
+        <code>kind_tag&lt;kind::integral&gt;</code> and
+        <code>kind_tag&lt;kind::named&gt;</code>.
+      </p>
+      <p>
+        The same trick works at run time with a value tag: an
+        <code>enum class</code> parameter that names the operation is better than three
+        overloads that differ only in their constraints, because the caller says what it
+        wants instead of hoping the overload set agrees.
+      </p>
+
+    </section>
+    <section>
+      <h2>10. Where the Concept Is Checked</h2>
 
       <p>
         Concepts appear in four places, all of them compile time:
@@ -222,12 +445,14 @@ template &lt;byte_like T&gt;
           <code>requires { t.size(); }</code> inside a function body, with no name attached.</li>
       </ul>
       <p>
-        The whole program below prints four answers and never instantiates anything it was
-        not asked for:
+        The whole program below shows all of it &mdash; the overload set, the two priority
+        surprises, the dispatcher and the tags &mdash; in one file:
       </p>
       <pre><code class="language-cpp">
 #include &lt;fast_io.h&gt;
 #include &lt;concepts&gt;
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
 #include &lt;string_view&gt;
 
 struct widget
@@ -235,32 +460,130 @@ struct widget
 	[[nodiscard]] ::std::string_view name() const noexcept { return "widget"; }
 };
 
-template &lt;typename T&gt;
-concept named = requires(T const t) {
-	{ t.name() } -&gt; ::std::convertible_to&lt;::std::string_view&gt;;
+struct plain
+{
+	int value{};
 };
+
+// ---- concept overloads: one overload per category
+template &lt;::std::integral T&gt;
+[[nodiscard]] inline ::std::string_view classify(T) noexcept
+{
+	return "integral";
+}
+
+template &lt;::std::floating_point T&gt;
+[[nodiscard]] inline ::std::string_view classify(T) noexcept
+{
+	return "floating point";
+}
+
+// ---- constraints are the LAST tie-break: a plain overload silently wins
+[[nodiscard]] inline ::std::string_view priority(int) noexcept
+{
+	return "plain int overload";
+}
+
+template &lt;::std::integral T&gt;
+[[nodiscard]] inline ::std::string_view priority(T) noexcept
+{
+	return "integral template";
+}
+
+// ---- a better conversion rank outranks the non-template preference
+[[nodiscard]] inline ::std::string_view ranks(long) noexcept
+{
+	return "long overload";
+}
 
 template &lt;typename T&gt;
 concept byte_like = ::std::integral&lt;T&gt; &amp;&amp; (sizeof(T) == 1);
 
-template &lt;named T&gt;
-[[nodiscard]] inline ::std::string_view show(T const &amp;t) noexcept
+template &lt;byte_like T&gt;
+[[nodiscard]] inline ::std::string_view ranks(T) noexcept
 {
-	return t.name();
+	return "byte template";
 }
 
-template &lt;byte_like T&gt;
-[[nodiscard]] inline ::std::string_view kind(T) noexcept
+// ---- the recommended shape: classify once, dispatch with if constexpr, key with a tag
+enum class kind
 {
-	return "byte";
+	integral,
+	floating,
+	named,
+	unknown
+};
+
+template &lt;typename T&gt;
+inline constexpr kind kind_of = []() constexpr {
+	if constexpr (::std::integral&lt;T&gt;)
+	{
+		return kind::integral;
+	}
+	else if constexpr (::std::floating_point&lt;T&gt;)
+	{
+		return kind::floating;
+	}
+	else if constexpr (requires(T const &amp;t) { t.name(); })
+	{
+		return kind::named;
+	}
+	else
+	{
+		return kind::unknown;
+	}
+}();
+
+template &lt;kind k&gt;
+struct kind_tag
+{
+};
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(kind_tag&lt;kind::integral&gt;, T) noexcept
+{
+	return "integral";
+}
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(kind_tag&lt;kind::floating&gt;, T) noexcept
+{
+	return "floating point";
+}
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(kind_tag&lt;kind::named&gt;, T const &amp;value) noexcept
+{
+	return value.name();
+}
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(kind_tag&lt;kind::unknown&gt;, T) noexcept
+{
+	return "something else";
+}
+
+template &lt;typename T&gt;
+[[nodiscard]] inline ::std::string_view describe(T const &amp;value) noexcept
+{
+	return describe(kind_tag&lt;kind_of&lt;T&gt;&gt;{}, value);
 }
 
 int main()
 {
 	try
 	{
-		::fast_io::io::println(show(widget{}));
-		::fast_io::io::println(kind(static_cast&lt;char&gt;(1)));
+		::fast_io::io::println("classify(1)=", classify(1));
+		::fast_io::io::println("classify(2.5)=", classify(2.5));
+
+		::fast_io::io::println("priority(1)=", priority(1));
+		::fast_io::io::println("priority(char)=", priority(static_cast&lt;char&gt;(1)));
+		::fast_io::io::println("ranks(char)=", ranks(static_cast&lt;char&gt;(1)));
+
+		::fast_io::io::println("describe(1)=", describe(1));
+		::fast_io::io::println("describe(2.5)=", describe(2.5));
+		::fast_io::io::println("describe(widget)=", describe(widget{}));
+		::fast_io::io::println("describe(plain)=", describe(plain{}));
 	}
 	catch throws (::std::error e)
 	{
@@ -270,13 +593,20 @@ int main()
 </code></pre>
       <p>Output:</p>
       <pre><code class="language-text">
-widget
-byte
+classify(1)=integral
+classify(2.5)=floating point
+priority(1)=plain int overload
+priority(char)=integral template
+ranks(char)=byte template
+describe(1)=integral
+describe(2.5)=floating point
+describe(widget)=widget
+describe(plain)=something else
 </code></pre>
 
     </section>
     <section>
-      <h2>7. What Concepts Cannot Do</h2>
+      <h2>11. What Concepts Cannot Do</h2>
 
       <p>
         A concept is a compile-time predicate. It cannot decide anything at run time, it
@@ -286,14 +616,14 @@ byte
       <p>
         The two things people reach for instead are inheritance with <code>virtual</code>
         (<a href="/docs/18.virtual/">Chapter 18</a>) and type erasure
-        (<a href="/docs/15.genericprogramming/10.typeerasure/">Ch15.10</a>). This chapter uses the
-        second one, because it keeps every call statically bound except the one that has to
-        be dynamic.
+        (<a href="/docs/15.genericprogramming/10.typeerasure/">Ch15.10</a>). This chapter uses
+        the second one, because it keeps every call statically bound except the one that has
+        to be dynamic.
       </p>
 
     </section>
     <section>
-      <h2>8. Rules of Thumb</h2>
+      <h2>12. Rules of Thumb</h2>
 
       <ul>
         <li>Name a concept when it is used twice; use an inline
@@ -304,6 +634,14 @@ byte
           book's comparators and allocators always do.</li>
         <li>Do not constrain what you do not use. A concept that demands five members and
           uses two rejects types for no reason.</li>
+        <li><strong>Do not build a dispatch out of concept overloads.</strong> Constraints are
+          the last thing overload resolution consults, so an unrelated overload, a
+          conversion or a more specialised template can win instead.</li>
+        <li>Classify the type once into a <code>constexpr</code> value and dispatch with
+          <code>if constexpr</code>; that is deterministic, orderable and greppable.</li>
+        <li>Give each branch its own tag type as the first parameter. A tag cannot be
+          confused by a conversion, and it is how fast_io's
+          <code>io_reserve_type</code> works.</li>
         <li>Remember that a concept does not reduce bloat: it only rejects bad arguments
           earlier. Bloat is <a href="/docs/15.genericprogramming/09.bloat/">Ch15.9</a>.</li>
       </ul>
