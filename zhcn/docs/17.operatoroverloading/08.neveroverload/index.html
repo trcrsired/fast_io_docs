@@ -58,19 +58,43 @@
         （<a href="/zhcn/docs/17.operatoroverloading/07.subscriptcall/">第17.7章</a>）。
         <code>&amp;&amp;</code> 和 <code>||</code> 就是普通的重载，没有任何特殊风险。
       </p>
+      <h3>标准库自己的假重载</h3>
       <p>
-        然后标准库自己在最显眼的地方展示了本章所说的那种失败。
-        <code>&lt;&lt;</code> 和 <code>&gt;&gt;</code> 是移位运算符。
-        移位与输入输出毫无关系，而这两个运算符还是被拿走了，
+        委员会不只是没能阻止这件事，它还亲自在 <code>&lt;iostream&gt;</code> 和
+        <code>&lt;string&gt;</code> 里给出了最假的例子。
+        这两个现在都修不好了，而且它们改变的是含义，不是提供便利。
+      </p>
+      <p>
+        <strong>为 I/O 用的 <code>&lt;&lt;</code> 和 <code>&gt;&gt;</code>。</strong>
+        它们是移位运算符。移位与输入输出毫无关系，而这两个运算符还是被拿走了，
         于是 <code>a &lt;&lt; 2</code> 和 <code>os &lt;&lt; 2</code> 是同样的词法记号，
-        却没有任何共同之处。这就是"重载改变了运算符本身的含义"的教科书例子，
-        也是 C++ 甩不掉的设计错误之一：现在每一个读移位表达式的人、
-        每一个读打印表达式的人，都得先弄清自己看的是哪一个。
+        却没有任何共同之处 —— 这就是"重载改变了运算符本身的含义"的教科书例子。
+        现在每一个读移位表达式的人、每一个读打印表达式的人，都得先弄清眼前是哪一个；
+        那个表示"先移 <code>a</code> 再移 <code>b</code>"的结合性，
+        在一个记号之后变成了"先打印 <code>a</code> 再打印 <code>b</code>"。
         不要模仿它，也不要用它 —— iostream 是糟糕而且有害的，
         fast_io 存在的意义就是让打印叫 <code>print</code>、读取叫 <code>scan</code>
         （<a href="/zhcn/docs/11.io/#io-fails">第11章第0节</a>）。
-        任何看起来像 <code>os &lt;&lt; x &lt;&lt; y</code> 的东西，
-        都不该出现在你写的程序里。
+      </p>
+      <p>
+        <strong><code>basic_string</code> 上的 <code>+</code>。</strong>
+        一个看起来像算术、实际上在分配的运算符。
+        每个 <code>+</code> 得到的结果都必须装下整个前缀，所以一条链上每一步都要把前缀再拷一遍：
+        四段 4,000 字符的拼接依次拷贝 8,000、12,000、16,000 个字符 ——
+        为了得到 16,000 个字符的结果共拷贝 36,000 次 ——
+        拷贝总量随项数的平方增长，而这个表达式看起来和四个整数相加没有任何区别。
+        那些"偷走临时对象"的右值重载也救不了它：缓冲区照样得增长，
+        增长点之后的内容照样要再拷一遍 —— 正因为如此才有一整族这样的重载，而代价还在。
+        <code>::fast_io::concat_fast_io</code> 只做一遍 ——
+        先把每一段的总长度算出来，只 reserve 一次，每一段只写一次，
+        同样的结果只写 16,000 个字符
+        （<a href="/zhcn/docs/17.operatoroverloading/02.prefernamed/">第17.2章</a>）。
+        而且它会做格式化：<code>concat_fast_io(name, ::fast_io::mnp::os_c_str(path), count)</code>
+        把整数 <code>count</code> 直接写进目标缓冲区，
+        而 <code>+</code> 只能拼接字符串，所以每一个非字符串参数都得先变成一个临时字符串 ——
+        每个参数都多一次分配、多一次拷贝。
+        分配和拷贝都不是算术，一个读起来免费的运算符不该是平方级的，
+        而一个连数字都无法格式化的拼接，缺的正是它存在的理由。
       </p>
 
     </section>
@@ -254,10 +278,21 @@ s.v                         7
         而语言本该让它们写 <code>&amp;x</code>；也是由每个读者付出的 ——
         他必须知道 <code>&amp;x</code> 不等于 <code>x</code> 的地址，
         除非 <code>x</code> 的类型是某个拒绝了这项特性的人写的。
-        而且这份代价付得不均匀：你能不能用到 <code>std::addressof</code>，
-        取决于你的标准库，也取决于你是不是 freestanding。
-        <a href="/zhcn/docs/20.freestanding/">第20章</a> 会接着讲这件事，
-        因为在那里答案并不是"总是有"。
+      </p>
+      <p>
+        而补丁在最需要它的地方并不存在。一个不是 freestanding 的标准特性就不存在：
+        freestanding 不是边角情况，它是编译器运行时、引导程序、嵌入式目标，
+        以及出厂软件里的一半。
+        <code>std::addressof</code> 在 C++23 之前都不要求在 freestanding 里提供，
+        所以有大量工具链在那种环境下根本没有提供它 —— 而你自己写不出来：
+        它需要编译器魔法（<code>__builtin_addressof</code>），而且是
+        <code>constexpr</code> 的。
+        于是在 freestanding C++ 里根本没有办法取得一个对象的地址：
+        <code>&amp;x</code> 可能在撒谎，而你没有别的东西可写。
+        C 从 1972 年起，<code>&amp;x</code> 就是 <code>x</code> 的地址。
+        C++ 让一个特性打破了那个保证，然后用五十年也没能把逃生门到处都装上。
+        <a href="/zhcn/docs/20.freestanding/">第20章</a> 就是按这个证明标准写的，
+        因为这本书用的就是这个标准。
       </p>
       <p>
         当年为什么允许？历史上的答案是 COM。在微软的对象模型里，

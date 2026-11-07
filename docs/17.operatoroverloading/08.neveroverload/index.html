@@ -60,18 +60,42 @@
         <code>&amp;&amp;</code> and <code>||</code> are ordinary overloads too, with no special
         hazard at all.
       </p>
+      <h3>The standard library's own false overloadings</h3>
       <p>
-        The standard library itself then demonstrates the failure this chapter is about, in its most
-        visible place. <code>&lt;&lt;</code> and <code>&gt;&gt;</code> are the shift operators.
-        Shifting has nothing to do with input or output, and the operators were taken for it anyway,
-        so <code>a &lt;&lt; 2</code> and <code>os &lt;&lt; 2</code> are the same tokens with nothing
-        whatsoever in common. That is the textbook example of an overload that changed what the
-        operator means, and it is one of the design mistakes C++ is stuck with: every reader of a
-        shift expression and every reader of a print expression now has to work out which one they
-        are looking at. Do not imitate it, and do not use it &mdash; iostreams are bad and harmful,
-        and fast_io exists so that printing is <code>print</code> and reading is
-        <code>scan</code> (<a href="/docs/11.io/#io-fails">Ch11 &sect;0</a>). Anything that
-        looks like <code>os &lt;&lt; x &lt;&lt; y</code> is not in a program you should be writing.
+        The committee did not merely fail to prevent this; it shipped the falsest examples itself,
+        in <code>&lt;iostream&gt;</code> and <code>&lt;string&gt;</code>. Neither can be repaired
+        now, and both are a change of meaning rather than a convenience.
+      </p>
+      <p>
+        <strong><code>&lt;&lt;</code> and <code>&gt;&gt;</code> for I/O.</strong> These are the
+        shift operators. Shifting has nothing to do with input or output, and the operators were
+        taken anyway, so <code>a &lt;&lt; 2</code> and <code>os &lt;&lt; 2</code> are the same
+        tokens with nothing whatsoever in common &mdash; the textbook case of an overload that
+        changed what the operator means. Every reader of a shift expression and every reader of a
+        print expression now has to work out which one is in front of them, and the associativity
+        that means "shift by <code>a</code> then by <code>b</code>" means "print <code>a</code>
+        then print <code>b</code>" one token later. Do not imitate it and do not use it: iostreams
+        are bad and harmful, and fast_io exists so that printing is <code>print</code> and reading
+        is <code>scan</code> (<a href="/docs/11.io/#io-fails">Ch11 &sect;0</a>).
+      </p>
+      <p>
+        <strong><code>+</code> on <code>basic_string</code>.</strong> An operator that reads as
+        arithmetic and allocates. Every <code>+</code> produces a string that has to hold the whole
+        prefix, so a chain copies the prefix again at every step: four 4,000-character pieces copy
+        8,000, then 12,000, then 16,000 characters &mdash; 36,000 copies to produce a
+        16,000-character result &mdash; and the total grows with the square of the number of terms
+        while the expression stays indistinguishable from adding four integers. The rvalue overloads
+        that steal the temporary do not rescue it: the buffer still has to grow, and everything
+        after the growth point is copied again — which is why there is a whole family of those
+        overloads, and the cost is still there. <code>::fast_io::concat_fast_io</code> does the thing once &mdash; it computes
+        the total size of every piece, reserves once, and writes each piece once, 16,000 characters
+        for the same result (<a href="/docs/17.operatoroverloading/02.prefernamed/">Ch17.2</a>).
+        And it formats: <code>concat_fast_io(name, ::fast_io::mnp::os_c_str(path), count)</code>
+        writes the integer <code>count</code> straight into the destination buffer, while
+        <code>+</code> can only join strings, so every non-string argument needs a temporary string
+        first &mdash; another allocation and another copy, for each one. Allocation and copying are
+        not arithmetic, an operator that reads as free must not be quadratic, and a concatenation
+        that cannot format a number is missing the job it exists for.
       </p>
 
     </section>
@@ -255,10 +279,21 @@ s.v                         7
         template in the world, which must now write <code>::std::addressof(x)</code> where the
         language should have let it write <code>&amp;x</code>; and by every reader who has to know
         that <code>&amp;x</code> is not the address of <code>x</code> unless <code>x</code>'s type
-        was written by somebody who declined a feature. And it is paid unevenly: whether
-        <code>std::addressof</code> is even available to you depends on your standard library and
-        on whether you are freestanding at all. <a href="/docs/20.freestanding/">Chapter 20</a>
-        takes that up, because the answer there is not "always".
+        was written by somebody who declined a feature.
+      </p>
+      <p>
+        And the repair does not exist where it is needed most. A standard feature that is not
+        freestanding does not exist: freestanding is not a corner case, it is the compiler runtime,
+        the bootloader, the embedded target and half of what ships.
+        <code>std::addressof</code> was not required in freestanding before C++23, so plenty of
+        toolchains do not provide it there at all &mdash; and you cannot write it yourself, because
+        it needs compiler magic (<code>__builtin_addressof</code>) and it is
+        <code>constexpr</code>. So in freestanding C++ there was no way to take the address of an
+        object: <code>&amp;x</code> could be a lie and there was nothing else to write. C has had
+        <code>&amp;x</code> mean the address of <code>x</code> since 1972. C++ let one feature
+        break that guarantee and then spent fifty years not providing the escape hatch everywhere.
+        <a href="/docs/20.freestanding/">Chapter 20</a> is written to that standard of proof,
+        because it is the one this book uses.
       </p>
       <p>
         Why was it allowed? The historical answer is COM. In the Microsoft object model a smart
@@ -280,9 +315,6 @@ s.v                         7
         <code>&amp;x</code> to mean something else has an interface problem that a named function
         solves.
       </p>
-
-    </section>
-    </section>
 
     </section>
     <section>
