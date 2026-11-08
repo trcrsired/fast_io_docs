@@ -14,83 +14,36 @@
     <p class="lang-switch"><a href="/docs/20.freestanding/">English</a></p>
 
     <section>
-      <h2>为什么这一章是回报</h2>
+      <h2>为什么有这一章</h2>
       <p>
-        到目前为止每一章都假设你下面有一个操作系统：<code>malloc</code> 后面有一个堆、<code>print</code> 后面有一个控制台、一个 unwinder、一个加载器、一个 C 库。这一章把这些全部拿走，然后问：还剩什么。答案是：本书教给你的一切，减去那些从来没人认为是好设计的部分。
+        前面的每一章都假设你下面有一个操作系统：<code>malloc</code> 后面有一个堆，<code>print</code>
+        后面有一个控制台，还有一个 unwinder、一个加载器和一个 C 库。这一章把这些全部拿走，然后问：还剩什么。
       </p>
       <p>
-        标准对这两类实现的定义很短，而且是这里一切的依据：<a href="https://en.cppreference.com/cpp/freestanding">cppreference &mdash; freestanding</a>。继续往下读之前先看一遍那一页，因为本章剩下的内容讲的就是那一页和编译器实际提供的东西之间的差距。
+        答案不是"更小的 C++"。它是被拿走了操作系统服务的 C++。真正有意思的问题是：你被教导去依赖的那些东西里，
+        哪些其实是语言，哪些其实是操作系统。
       </p>
-      <table>
-        <thead>
-          <tr><th>类别</th><th>它承诺什么</th><th>你会在哪里遇到它</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>宿主实现（hosted）</strong></td>
-            <td>
-              <code>__STDC_HOSTED__</code> 为 <code>1</code>。程序有 <code>main</code>，可以有多个线程，并且拥有整个标准库。
-            </td>
-            <td>桌面、服务器、手机、普通的应用程序构建</td>
-          </tr>
-          <tr>
-            <td><strong>独立实现（freestanding）</strong></td>
-            <td>
-              <code>__STDC_HOSTED__</code> 为 <code>0</code>。程序是否有 <code>main</code> 由实现定义，线程由实现定义，标准库收缩为一份头文件清单 —— 而这份清单，C++ 让它空着空了三十年。
-            </td>
-            <td>内核、引导程序、固件、嵌入式板子、WebAssembly 模块</td>
-          </tr>
-        </tbody>
-      </table>
       <p>
-        独立实现不是"更小的 C++"。它是把操作系统拿走的 C++，而有趣的问题不是"编译器还能不能编译" —— 当然能 —— 而是"你被教导去依赖的那些东西里，哪些其实是操作系统，哪些才是语言"。
+        这一章刻意写得很短：三页，讲问题、讲库、讲一场演讲。
       </p>
     </section>
 
     <section>
-      <h2>本章按顺序读什么</h2>
+      <h2>三页内容</h2>
       <ol>
         <li>
-          <a href="/zhcn/docs/20.freestanding/01.whathosted/">20.1 独立实现与宿主实现是什么</a> &mdash; 标准的定义、<code>__STDC_HOSTED__</code>，以及为什么在桌面上加 <code>-ffreestanding</code> 并不等于一个独立环境。
+          <a href="/zhcn/docs/20.freestanding/01.problem/">20.1 问题：C++ 不是为独立实现设计的</a>
+          &mdash; 以 Linus Torvalds 2004 年那封邮件开场，讲标准对独立实现的定义、为什么
+          <code>-ffreestanding</code> 不等于一套独立工具链，以及异常、RTTI、<code>new</code>、
+          <code>thread_local</code>、启动代码和浮点各自要向运行时要什么。
         </li>
         <li>
-          <a href="/zhcn/docs/20.freestanding/02.cvscpp/">20.2 C 独立实现与 C++ 独立实现</a> &mdash; C 在 1989 年就有了可用的独立模式。C++ 只有一个承诺。
+          <a href="/zhcn/docs/20.freestanding/02.fastio/">20.2 fast_io 的独立实现能力</a>
+          &mdash; 头文件分层、把分配器放进容器类型、赫布异常、把设备做成类型参数，以及没有宿主运行时的检查清单。
         </li>
         <li>
-          <a href="/zhcn/docs/20.freestanding/03.cpp03/">20.3 C++03 独立实现的谎言</a> &mdash; 一个要求异常、RTTI 和 <code>new</code> 的独立模式，甚至连 <code>std::addressof</code> 都没有。
-        </li>
-        <li>
-          <a href="/zhcn/docs/20.freestanding/04.linus/">20.4 Linus Torvalds 为何称之为"愚蠢透顶的主意"</a> &mdash; 2004 年那封邮件，以及它的四条论断里哪几条成立。
-        </li>
-        <li>
-          <a href="/zhcn/docs/20.freestanding/05.crosscompiler/">20.5 辩护者从不做的一件事：自己构建交叉编译器</a> &mdash; 这些论证总是来自手里只有宿主工具链的人。
-        </li>
-        <li>
-          <a href="/zhcn/docs/20.freestanding/06.stillmissing/">20.6 今天仍然缺什么</a> &mdash; 头文件清单、C++26 的窟窿，以及 <code>std::array</code>。
-        </li>
-        <li>
-          <a href="/zhcn/docs/20.freestanding/07.newdelete/">20.7 默认堆存储：<code>new</code> 与 <code>delete</code></a> &mdash; 一个全局堆不足以支撑内核，这里实测。
-        </li>
-        <li>
-          <a href="/zhcn/docs/20.freestanding/08.rtti/">20.8 RTTI 与 <code>dynamic_cast</code></a> &mdash; 你链接不到的那些表和 vtable。
-        </li>
-        <li>
-          <a href="/zhcn/docs/20.freestanding/09.legacyexceptions/">20.9 遗留异常在这里根本不存在</a> &mdash; 一个需要操作系统的机制。
-        </li>
-        <li>
-          <a href="/zhcn/docs/20.freestanding/10.herbceptions/">20.10 赫布异常：这里唯一存在的错误处理</a> &mdash; 同一个机制，一个链接符号，以及 <code>[domain](code)</code>。
-        </li>
-        <li>
-          <a href="/zhcn/docs/20.freestanding/11.tlsfloatstartup/">20.11 线程局部存储、浮点与程序启动</a> &mdash; 没人列出来的那三个特性。
-        </li>
-        <li>
-          <a href="/zhcn/docs/20.freestanding/12.utilityheaders/">20.12 <code>std::move</code>、<code>std::addressof</code> 与工具头文件</a> &mdash; 你绕不过去的缺失。
-        </li>
-        <li>
-          <a href="/zhcn/docs/20.freestanding/13.fastio/">20.13 fast_io 是一个独立实现的 I/O 库</a> &mdash; 一个未定义符号为零的程序。
-        </li>
-        <li>
-          <a href="/zhcn/docs/20.freestanding/14.video/">20.14 观看：Freestanding C++ 的过去、现在与未来</a> &mdash; Ben Saks，CppCon 2019。
+          <a href="/zhcn/docs/20.freestanding/03.video/">20.3 观看：Freestanding C++ 的过去、现在与未来</a>
+          &mdash; Ben Saks，CppCon 2019，以及该听什么。
         </li>
       </ol>
     </section>
@@ -98,13 +51,21 @@
     <section>
       <h2>一句话版本</h2>
       <p>
-        C++ 是作为宿主语言设计的，并且花了三十年坚持认为独立模式只是一个边角情形 —— 而世界上部署量最大的那些代码，内核、固件、引导程序、GPU，如果不把语言自己的特性关掉、把一半库扔出去，就根本用不了它。这就是 Linus Torvalds 在 2004 年提出的批评，它是对的，而本章讲的是今天要站在正确的一边需要做什么：不要遗留异常、不要 RTTI、不要隐藏的全局堆、不要宿主库 —— 以及一个不假设这些东西存在的 I/O 库。
+        C++ 是作为宿主语言设计的。它的独立模式只是一个更短的头文件清单，而不是一门更小的语言，所以那些需要堆、unwinder、
+        RTTI、线程指针或启动代码的特性仍然留在语法里，只是在裸机上链接失败。
+      </p>
+      <p>
+        因此一个独立 C++ 程序要做四件事：禁止遗留异常和 RTTI，自己提供启动代码和堆，永远不用全局
+        <code>operator new</code>，并且使用一个把分配来源和 I/O 设备做成类型参数的库。这就是 fast_io
+        的用途，也是本书所有内容都以它为基础的原因。
       </p>
     </section>
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/19.exceptionsandherbceptions/10.video/" class="prev-button">&larr; 第19.10章：De-fragmenting C++</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/20.freestanding/01.whathosted/" class="next-button">第20.1章：独立实现与宿主实现是什么 &rarr;</a>
+      <a href="/zhcn/docs/19.exceptionsandherbceptions/10.video/" class="prev-button">&larr; 第19.10章：De-fragmenting C++</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/20.freestanding/01.problem/" class="next-button">第20.1章：问题：C++ 不是为独立实现设计的 &rarr;</a>
     </div>
   </main>
 </body>

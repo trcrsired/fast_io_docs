@@ -14,127 +14,57 @@
     <p class="lang-switch"><a href="/zhcn/docs/20.freestanding/">中文（简体）</a></p>
 
     <section>
-      <h2>Why This Chapter Is the Payoff</h2>
+      <h2>Why This Chapter Exists</h2>
       <p>
-        Every chapter so far assumed an operating system underneath you: a heap behind
+        Every chapter before this one assumed an operating system underneath you: a heap behind
         <code>malloc</code>, a console behind <code>print</code>, an unwinder, a loader, a C
-        library. This chapter removes all of it and asks what is left. The answer is: everything
-        this book taught you, minus the parts that were never anyone's idea of a good design.
+        library. This chapter removes all of it and asks what is left.
       </p>
       <p>
-        The standard's own definition of the two kinds of implementation is short, and it is the
-        reference for everything here:
-        <a href="https://en.cppreference.com/cpp/freestanding">cppreference &mdash; freestanding</a>.
-        Read it once before continuing, because the rest of this chapter is about the gap between
-        that page and what a compiler actually ships.
+        The answer is not "a smaller C++". It is C++ with the operating-system services taken away,
+        and the interesting question is which of the things you were taught to rely on were
+        actually the language and which were the operating system.
       </p>
-      <table>
-        <thead>
-          <tr><th>Kind</th><th>What it promises</th><th>Where you meet it</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Hosted</strong></td>
-            <td>
-              <code>__STDC_HOSTED__</code> is <code>1</code>. A program has a
-              <code>main</code>, may have several threads, and gets the whole standard library.
-            </td>
-            <td>Desktop, server, phone, a normal application build</td>
-          </tr>
-          <tr>
-            <td><strong>Freestanding</strong></td>
-            <td>
-              <code>__STDC_HOSTED__</code> is <code>0</code>. Whether a program has
-              <code>main</code> at all is implementation-defined, threads are
-              implementation-defined, and the standard library shrinks to a list of headers &mdash;
-              a list that C++ left mostly empty for thirty years.
-            </td>
-            <td>Kernel, bootloader, firmware, an embedded board, a WebAssembly module</td>
-          </tr>
-        </tbody>
-      </table>
       <p>
-        A freestanding implementation is not a smaller C++. It is C++ with the operating system
-        taken away, and the interesting question is not "can the compiler still compile" &mdash;
-        of course it can &mdash; but "which of the things you were taught to rely on were actually
-        the operating system, and which were the language".
+        The chapter is deliberately short. Three pages: the problem, the library, and the talk.
       </p>
     </section>
 
     <section>
-      <h2>What This Chapter Reads, in Order</h2>
+      <h2>The Three Pages</h2>
       <ol>
         <li>
-          <a href="/docs/20.freestanding/01.whathosted/">20.1 What Freestanding and Hosted Implementations Are</a>
-          &mdash; the standard's definition, <code>__STDC_HOSTED__</code>, and why
-          <code>-ffreestanding</code> on your desktop is not a freestanding environment.
+          <a href="/docs/20.freestanding/01.problem/">20.1 The Problem: C++ Was Not Designed for Freestanding</a>
+          &mdash; Linus Torvalds's 2004 message as the opening argument, the standard's definition
+          of a freestanding implementation, why <code>-ffreestanding</code> is not a freestanding
+          toolchain, and the runtime bill for exceptions, RTTI, <code>new</code>,
+          <code>thread_local</code>, startup, and floating point.
         </li>
         <li>
-          <a href="/docs/20.freestanding/02.cvscpp/">20.2 C Freestanding vs C++ Freestanding</a>
-          &mdash; C had a usable freestanding mode in 1989. C++ had a promise.
+          <a href="/docs/20.freestanding/02.fastio/">20.2 fast_io in a Freestanding Environment</a>
+          &mdash; the header split, containers whose allocator is part of the type, herbceptions,
+          devices as type parameters, and the checklist for a program with no hosted runtime.
         </li>
         <li>
-          <a href="/docs/20.freestanding/03.cpp03/">20.3 The C++03 Freestanding Lie</a>
-          &mdash; a freestanding mode that required exceptions, RTTI and <code>new</code>, and did
-          not even have <code>std::addressof</code>.
-        </li>
-        <li>
-          <a href="/docs/20.freestanding/04.linus/">20.4 Why Linus Torvalds Called It a "BLOODY STUPID IDEA"</a>
-          &mdash; the 2004 message, and which of its four claims hold.
-        </li>
-        <li>
-          <a href="/docs/20.freestanding/05.crosscompiler/">20.5 What the Defense Never Does: Build a Cross Compiler</a>
-          &mdash; the argument always comes from someone with a hosted toolchain.
-        </li>
-        <li>
-          <a href="/docs/20.freestanding/06.stillmissing/">20.6 What Is Still Missing Today</a>
-          &mdash; the header list, the C++26 hole, and <code>std::array</code>.
-        </li>
-        <li>
-          <a href="/docs/20.freestanding/07.newdelete/">20.7 Default Heap Storage: <code>new</code> and <code>delete</code></a>
-          &mdash; one global heap that is not enough for a kernel, measured.
-        </li>
-        <li>
-          <a href="/docs/20.freestanding/08.rtti/">20.8 RTTI and <code>dynamic_cast</code></a>
-          &mdash; the tables and the vtables you cannot link.
-        </li>
-        <li>
-          <a href="/docs/20.freestanding/09.legacyexceptions/">20.9 Legacy Exceptions Cannot Exist Here</a>
-          &mdash; the mechanism that needs an operating system.
-        </li>
-        <li>
-          <a href="/docs/20.freestanding/10.herbceptions/">20.10 Herbceptions: the Only Error Handling That Exists Here</a>
-          &mdash; the same mechanism, one linker symbol, and <code>[domain](code)</code>.
-        </li>
-        <li>
-          <a href="/docs/20.freestanding/11.tlsfloatstartup/">20.11 Thread-Local Storage, Floating Point, and Startup</a>
-          &mdash; the three features nobody lists.
-        </li>
-        <li>
-          <a href="/docs/20.freestanding/12.utilityheaders/">20.12 <code>std::move</code>, <code>std::addressof</code>, and the Utility Headers</a>
-          &mdash; the absence you cannot code around.
-        </li>
-        <li>
-          <a href="/docs/20.freestanding/13.fastio/">20.13 fast_io Is a Freestanding I/O Library</a>
-          &mdash; a program with zero undefined symbols.
-        </li>
-        <li>
-          <a href="/docs/20.freestanding/14.video/">20.14 Watch: Freestanding C++ &mdash; Past, Present, and Future</a>
-          &mdash; Ben Saks, CppCon 2019.
+          <a href="/docs/20.freestanding/03.video/">20.3 Watch: Freestanding C++ &mdash; Past, Present, and Future</a>
+          &mdash; Ben Saks, CppCon 2019, and what to listen for.
         </li>
       </ol>
     </section>
 
     <section>
-      <h2>The One-Sentence Version</h2>
+      <h2>The Short Version</h2>
       <p>
-        C++ was designed as a hosted language and spent thirty years insisting that freestanding
-        was a corner case, while the code that runs on the most devices in the world &mdash;
-        kernels, firmware, bootloaders, GPUs &mdash; could not use it without switching off the
-        language's own features and half its library. That is the criticism Linus Torvalds made in
-        2004, it was correct, and this chapter is about what it takes to be on the right side of
-        it today: no legacy exceptions, no RTTI, no hidden global heap, no hosted library &mdash;
-        and an I/O library that does not assume any of them.
+        C++ was designed as a hosted language. Its freestanding mode was defined as a shorter list
+        of headers, not as a smaller language, so the features that need a heap, an unwinder, RTTI,
+        a thread pointer, or start-up code remained in the grammar and simply failed at link time
+        on a bare target.
+      </p>
+      <p>
+        A freestanding C++ program therefore does four things: it bans legacy exceptions and RTTI,
+        it supplies its own startup and heap, it never uses the global <code>operator new</code>,
+        and it uses a library whose allocation source and I/O device are type parameters. That is
+        what fast_io is for, and it is why the rest of this book uses it for everything.
       </p>
     </section>
 
@@ -142,7 +72,7 @@
     <div class="page-navigation">
       <a href="/docs/19.exceptionsandherbceptions/10.video/" class="prev-button">&larr; Ch19.10: De-fragmenting C++</a>
       <a href="/" class="main-button">&uarr; Main Page</a>
-      <a href="/docs/20.freestanding/01.whathosted/" class="next-button">Ch20.1: What Freestanding and Hosted Implementations Are &rarr;</a>
+      <a href="/docs/20.freestanding/01.problem/" class="next-button">Ch20.1: The Problem: C++ Was Not Designed for Freestanding &rarr;</a>
     </div>
   </main>
 </body>

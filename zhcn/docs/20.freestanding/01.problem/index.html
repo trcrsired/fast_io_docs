@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第20.1章：问题：C++ 不是为独立实现设计的 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第20.1章：问题：C++ 不是为独立实现设计的</h1>
+    <p class="lang-switch"><a href="/docs/20.freestanding/01.problem/">English</a></p>
+
+    <section>
+      <h2>1. 那封仍然在开启争论的邮件</h2>
+      <p>
+        2004 年 1 月 19 日，Linus Torvalds 回复了一个关于编译 C++ 内核模块的问题。这封回信是每一次
+        "C++ 能不能写内核"争论里被引用得最多的一段：
+      </p>
+      <blockquote>
+        <p>
+          In fact, in Linux we did try C++ once already, back in 1992.
+        </p>
+        <p>
+          It sucks. Trust me - writing kernel code in C++ is a BLOODY STUPID IDEA.
+        </p>
+        <p>
+          The fact is, C++ compilers are not trustworthy. They were even worse in 1992, but some
+          fundamental facts haven't changed:
+        </p>
+        <ul>
+          <li>
+            the whole C++ exception handling thing is fundamentally broken. It's
+            <em>especially</em> broken for kernels.
+          </li>
+          <li>
+            any compiler or language that likes to hide things like memory allocations behind your
+            back just isn't a good choice for a kernel.
+          </li>
+          <li>
+            you can write object-oriented code (useful for filesystems etc) in C,
+            <em>without</em> the crap that is C++.
+          </li>
+        </ul>
+      </blockquote>
+      <p>
+        语气是 2004 年的语气。真正值得检查的是那三条论断，所以我们逐条对照独立实现的实际运行时代价。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 两类实现，一个宏</h2>
+      <p>
+        标准定义了两类实现。是哪一类由实现定义，预定义宏 <code>__STDC_HOSTED__</code> 告诉你答案：
+        宿主实现为 <code>1</code>，独立实现为 <code>0</code>。在独立实现里，执行可以在没有操作系统的情况下发生；
+        程序是否必须定义 <code>main</code>、能否拥有多个线程，都由实现定义。标准库收缩成一份头文件清单。
+      </p>
+      <p>
+        这就是全部契约，而问题出在它<em>没有</em>说的部分。C++03 要求 C 头文件，再加上
+        <code>&lt;new&gt;</code>、<code>&lt;typeinfo&gt;</code> 和 <code>&lt;exception&gt;</code>
+        的一部分——这些头文件之所以存在，是因为语言有 <code>new</code>、RTTI 和异常，而这些特性需要堆、
+        类型信息对象和 unwinder。标准要求了一份独立目标根本无法实现的库。
+      </p>
+      <p>
+        语言本身并没有缩小。<code>throw</code>、<code>try</code>、<code>catch</code>、
+        <code>typeid</code>、<code>dynamic_cast</code>、<code>new</code>、<code>delete</code>、
+        <code>thread_local</code>、动态初始化和浮点全都留在语法里。于是一个符合标准的独立 C++03 程序，
+        可以包含在它被编译的机器上永远链接不起来的构造。实践中，每一个嵌入式和内核构建都用编译选项把这些特性关掉，
+        按标准的字面意义就不再符合标准。
+      </p>
+      <p>
+        <a href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p1105r0.html">P1105R0</a>
+        给这个结果命了名："符合标准的 C++ 工具链不适合面向内核和嵌入式领域。实践中，内核和嵌入式开发者几乎总是使用
+        让工具链不符合标准的编译选项。这意味着符合标准的 C++ 给更底层的语言留下了空间。"
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>-ffreestanding</code> 不是一套独立工具链</h2>
+      <p>
+        这个选项只改三件事：<code>__STDC_HOSTED__</code> 变成 <code>0</code>，假定宿主 C 库存在的内建函数被关掉，
+        <code>main</code> 不再特殊。它不改头文件搜索路径、库、启动文件和链接脚本。一套宿主编译器加上
+        <code>-ffreestanding</code>，仍然指向宿主头文件和宿主 C 库。
+      </p>
+      <p>
+        这种错配通常会立刻暴露。libstdc++ 用这个宏给自己的宿主头文件设了闸门：
+      </p>
+      <pre><code class="language-text">$ g++ -std=c++26 -ffreestanding -c t.cc
+.../bits/requires_hosted.h:34:4: error: #error "This header is not available in freestanding mode."</code></pre>
+      <p>
+        在裸机上，甚至连一个可以被拒绝的宿主头文件都没有。一套面向 <code>aarch64-none-elf</code>
+        的编译器没有为该目标安装 C++ 库，所以第一个头文件就失败了：
+      </p>
+      <pre><code class="language-text">$ clang++ -std=c++26 --target=aarch64-none-elf -ffreestanding -c bare.cc
+bare.cc:1:10: fatal error: 'cstddef' file not found
+    1 | #include &lt;cstddef&gt;</code></pre>
+      <p>
+        所以 freestanding 是一套<strong>安装</strong>的属性，不是一条命令行的属性。要拥有它，你需要为目标构建的编译器、
+        一个只包含目标头文件和库的 sysroot、一个 C 库或你自己的 <code>memcpy</code>、一个 C++ 子集、启动代码和链接脚本，
+        以及编译器运行时（<code>libgcc</code> 或 <code>compiler-rt</code>）。编译选项是最简单的部分。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 运行时代价，逐项拆开</h2>
+      <p>
+        这才是那三条论断真正指向的东西。宿主程序免费得到的每一个语言特性，在裸机上都对应一块基础设施：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>构造</th>
+            <th>运行时需要什么</th>
+            <th>独立构建怎么做</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>throw</code> / <code>catch</code></td>
+            <td>
+              在 Itanium ABI 上为异常对象分配堆（Microsoft ABI 上是一大块栈帧）、一个 unwinder、
+              <code>.eh_frame</code> 和 <code>.gcc_except_table</code>、一个 personality routine，
+              以及用于匹配处理块的 RTTI
+            </td>
+            <td><code>-fno-exceptions</code></td>
+          </tr>
+          <tr>
+            <td><code>new</code> / <code>delete</code></td>
+            <td>
+              一个带唯一失败策略的全局堆；虚析构函数还会引入 <code>::operator delete</code>
+            </td>
+            <td>没有默认堆，或者手写 <code>operator new</code></td>
+          </tr>
+          <tr>
+            <td><code>typeid</code>、<code>dynamic_cast</code></td>
+            <td>
+              每个多态类一个 <code>type_info</code> 对象和一张额外的 vtable，以及
+              <code>__dynamic_cast</code>
+            </td>
+            <td><code>-fno-rtti</code></td>
+          </tr>
+          <tr>
+            <td><code>thread_local</code></td>
+            <td>
+              线程指针、每个模块一份 TLS 镜像、负责布局的加载器，以及每次线程切换时的重载
+            </td>
+            <td>关掉，或者换成内核自己管理的 per-CPU 数据</td>
+          </tr>
+          <tr>
+            <td>动态初始化</td>
+            <td>遍历 <code>.init_array</code> 的启动代码</td>
+            <td>自己的 crt0，或者改用 <code>constexpr</code> / <code>constinit</code></td>
+          </tr>
+          <tr>
+            <td>浮点</td>
+            <td>FPU、传递浮点值的 ABI，以及上下文保存策略</td>
+            <td><code>-mgeneral-regs-only</code>、<code>-mno-sse</code>，或者显式的启用区域</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        异常这一行就是 Torvalds 所说的"对内核尤其坏"，理由值得说清楚。在 Itanium ABI 上，一次遗留
+        <code>throw</code> 会为异常对象分配堆（Microsoft ABI 则使用一大块栈帧），所以失败路径要么分配，
+        要么预留栈。它会遍历栈，所以延迟随栈深度增长。而 unwinder、帧表和 personality routine
+        恰恰是内核必须自己提供的那一层。一次 <code>throw</code> 用
+        <code>-nostdlib</code> 链接，会在这些运行时入口上失败：
+      </p>
+      <pre><code class="language-text">undefined reference to `__cxa_allocate_exception'
+undefined reference to `__cxa_throw'
+undefined reference to `__cxa_begin_catch'
+undefined reference to `__cxa_end_catch'
+undefined reference to `_Unwind_Resume'
+undefined reference to `__gxx_personality_v0'
+undefined reference to `typeinfo for char const*'</code></pre>
+      <p>
+        其中没有一个能由用户程序可移植地提供。写它们意味着为你的目标写一个 C++ 运行时，与编译器的 ABI 兼容，
+        并且要在每个编译器版本上维护它。
+      </p>
+      <p>
+        <code>new</code> 那一行对应第二条论断。一次分配就会引入 <code>operator new</code> 的未定义引用；
+        失败策略、对齐和数组 cookie 都在链接时选定，并作用于进程里的每一个库。内核本来就没有"一个"堆：
+        它有按 zone、按 NUMA 节点、按 DMA 约束划分的池，选哪一个来源是语义决策，单个全局量表达不了。
+        Placement <code>new</code> 是例外：在已经拥有的内存里构造对象，完全不需要运行时。
+      </p>
+      <p>
+        第三条论断最经不起时间考验。"你可以在 C 里写面向对象代码"说的是运行时开销，不是语法。现代 C++ 保留了那些
+        不依赖运行时就能组织代码的部分——<code>constexpr</code>、模板、concepts、确定性析构——而赫布异常又加上了
+        一条不分配、不展开的错误通道。C 始终没有得到的，恰恰是这些零开销抽象。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 哪些变了，哪些没变</h2>
+      <p>
+        头文件清单确实在改善。C++23 让 <code>&lt;utility&gt;</code>、<code>&lt;tuple&gt;</code> 和
+        <code>&lt;ratio&gt;</code> 完全独立，并为 <code>&lt;memory&gt;</code>、<code>&lt;iterator&gt;</code>、
+        <code>&lt;ranges&gt;</code> 和 <code>&lt;functional&gt;</code> 增加了部分支持。C++26 又加入了
+        <code>&lt;array&gt;</code>、<code>&lt;string&gt;</code>、<code>&lt;cmath&gt;</code>、
+        <code>&lt;charconv&gt;</code>、<code>&lt;system_error&gt;</code>、<code>&lt;random&gt;</code>
+        等，其中许多只是部分独立。方向是真实的。
+      </p>
+      <p>
+        有两件事没变。第一，一个头文件进入了标准，不代表你板子上的工具链就提供它；要按工具链、按目标验证。
+        第二，那些接口<em>本身</em>就是隐藏的堆加抛出的异常的容器——<code>vector</code>、<code>list</code>、
+        <code>deque</code>、<code>map</code>——永远不会成为独立的，因为依赖是设计的一部分，不是标准里少了一段话。
+      </p>
+      <p>
+        于是剩下本书遵循的两条规则。第一，禁止需要操作系统的机制：<code>-fno-exceptions -fno-rtti</code>，
+        可恢复错误用 <code>throws</code>。第二，把分配来源和 I/O 设备做成类型的一部分，这样函数不可能从没有给它的堆里分配，
+        也不可能往不存在的控制台写。第二条规则就是 fast_io 的设计中心，也是下一页的内容。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/20.freestanding/" class="prev-button">&larr; 第20章：Freestanding</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/20.freestanding/02.fastio/" class="next-button">第20.2章：fast_io 的独立实现能力 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

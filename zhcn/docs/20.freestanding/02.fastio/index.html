@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第20.2章：fast_io 的独立实现能力 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第20.2章：fast_io 的独立实现能力</h1>
+    <p class="lang-switch"><a href="/docs/20.freestanding/02.fastio/">English</a></p>
+
+    <section>
+      <h2>1. 依赖操作系统的部分都是类型参数</h2>
+      <p>
+        fast_io 是一个不假定下面有操作系统的 I/O 库。依赖操作系统的部分不是先编进库、再用选项关掉，
+        而是类型参数，或者由目标提供的符号。这就是"格式化代码是 header-only"和"这个库没有隐藏的堆、隐藏的控制台、
+        隐藏的错误运行时"之间的区别。
+      </p>
+      <p>
+        这个分层直接体现在伞形头文件上：
+      </p>
+      <ul>
+        <li>
+          <code>&lt;fast_io_freestanding.h&gt;</code> &mdash; 核心、格式化、扫描、缓冲区、序列化和缓冲区设备。
+          没有文件、控制台或进程。
+        </li>
+        <li>
+          <code>&lt;fast_io_hosted.h&gt;</code> &mdash; 增加原生设备、文件、控制台、进程、线程和文件系统，
+          并且只在平台是宿主实现时启用。
+        </li>
+        <li>
+          <code>&lt;fast_io.h&gt;</code> &mdash; 包含宿主层，再加上遗留的 <code>&lt;iostream&gt;</code> 桥。
+        </li>
+      </ul>
+      <p>
+        独立程序包含 <code>fast_io_freestanding.h</code>（或者更小的 <code>fast_io_core.h</code>
+        加上实际用到的单元），绝不包含 <code>fast_io.h</code>，因为那是在要求目标上并不存在的设备。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 容器把分配器带在类型里</h2>
+      <p>
+        <code>::fast_io::containers::vector&lt;T, Alloc&gt;</code> 始终可用。便利别名
+        <code>::fast_io::vector&lt;T&gt;</code> 会选择平台的默认堆，因此只在有宿主平台时存在。这个条件写在头文件里，
+        不是写在文档里：
+      </p>
+      <pre><code class="language-cpp">#if ((__STDC_HOSTED__ == 1 &amp;&amp; (!defined(_GLIBCXX_HOSTED) || _GLIBCXX_HOSTED == 1) &amp;&amp; \
+	  !defined(_LIBCPP_FREESTANDING)) ||                                             \
+	 defined(FAST_IO_ENABLE_HOSTED_FEATURES))
+
+namespace fast_io
+{
+template &lt;typename T, typename Alloc = ::fast_io::native_global_allocator&gt;
+using vector = ::fast_io::containers::vector&lt;T, Alloc&gt;;</code></pre>
+      <p>
+        在独立目标上，<code>::fast_io::vector</code> 不存在。没有静默回退到隐藏堆的路径，因为没有名字可以回退。
+        你写 <code>::fast_io::containers::vector&lt;int, my_allocator&gt;</code>，分配器是容器类型的一部分。
+      </p>
+      <p>
+        默认分配器也由同一条边界选择。平台是宿主实现时，它是 <code>c_malloc_allocator</code>（或者 NT 堆、mimalloc）；
+        是独立实现时，它是 <code>freestanding_global_allocator</code>。这个类在 fast_io 里只有<strong>声明</strong>，
+        它的三个函数在库中没有任何定义：
+      </p>
+      <pre><code class="language-cpp">class freestanding_global_allocator
+{
+public:
+  static ::fast_io::allocation_least_result
+  allocate_aligned_conditional_zero_at_least_die(
+      ::std::size_t alignment, ::std::size_t n, bool zero) noexcept;
+
+  static ::fast_io::allocation_least_result
+  allocate_aligned_conditional_zero_at_least_try(
+      ::std::size_t alignment, ::std::size_t n, bool zero)
+      FAST_IO_HERBCEPTIONS_THROWS;
+
+  static void deallocate_aligned_n(
+      void* p, ::std::size_t alignment, ::std::size_t n) noexcept;
+};</code></pre>
+      <p>
+        这就是完整的独立分配器契约。你为你的目标实现它——一个 bump arena、一个 slab、一个 per-CPU 池——然后每一个
+        fast_io 容器、每一个需要临时内存的格式化例程都只用它，不会用别的。一个不提供堆就无法链接的库，
+        才是一个不可能在你背后分配的库。
+      </p>
+      <p>
+        最小的可用 arena 长这样。它故意是单线程的：在板子上你知道哪个核在跑，而锁又是另一个运行时依赖。
+      </p>
+      <pre><code class="language-cpp">#include &lt;fast_io_core.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+template &lt;::std::size_t extent&gt;
+class arena
+{
+public:
+  alignas(::std::max_align_t) static inline ::std::byte storage[extent]{};
+  static inline ::std::size_t used{};
+
+  static ::fast_io::allocation_least_result
+  allocate_aligned_conditional_zero_at_least_die(
+      ::std::size_t alignment, ::std::size_t n, bool) noexcept
+  {
+    ::std::size_t const start{(used + alignment - 1u) / alignment * alignment};
+    if (start + n &gt; extent) { ::fast_io::fast_terminate(); }
+    used = start + n;
+    return {storage + start, n};
+  }
+
+  static void deallocate_aligned_n(
+      void*, ::std::size_t, ::std::size_t) noexcept {}
+};
+
+using heap_a = ::fast_io::generic_allocator_adapter&lt;arena&lt;4096&gt;&gt;;
+
+int main()
+{
+  ::fast_io::containers::vector&lt;int, heap_a&gt; v;
+  v.push_back(42);
+  return v[0];
+}</code></pre>
+      <p>
+        失败策略就在你实现的函数名里。<code>_die</code> 版本在 arena 耗尽时调用 <code>fast_terminate()</code>；
+        <code>_try</code> 版本通过 <code>throws</code> 通道报告 <code>::std::errc::not_enough_memory</code>。
+        选哪一个是对每个容器类型做的编译期决策，不是全局开关。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 错误处理：赫布异常</h2>
+      <p>
+        赫布异常是返回路径上的一个错误值：一个域指针和一个错误码，再加上调用约定里的失败位。没有任何东西被展开，
+        所以不需要栈遍历器、帧表或 personality routine。一次遗留 <code>throw</code> 这些全都要，差距不是一点：
+      </p>
+      <table>
+        <thead>
+          <tr><th></th><th>遗留异常</th><th>赫布异常</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>链接符号</td><td>大约十个运行时入口</td><td>一个错误域数据符号</td></tr>
+          <tr><td>失败时分配堆</td><td>是，为异常对象</td><td>否</td></tr>
+          <tr><td>遍历栈</td><td>是</td><td>否</td></tr>
+          <tr><td>帧表、personality routine</td><td>是</td><td>否</td></tr>
+          <tr><td>RTTI</td><td>是，用于匹配处理块</td><td>否</td></tr>
+          <tr><td>能在板子、内核、GPU 上工作</td><td>否</td><td>是</td></tr>
+        </tbody>
+      </table>
+      <p>
+        <a href="/zhcn/docs/19.exceptionsandherbceptions/07.banflags/">19.7</a> 里的构建选项不会破坏它们。
+        <code>-fno-exceptions</code> 移除的是遗留机制，而赫布异常继续工作，因为它从来没用过那套机制。
+        一个独立构建可以、也应该在全程使用 <code>throws</code> 的同时加上
+        <code>-fno-exceptions -fno-rtti</code>。
+      </p>
+      <p>
+        剩下的代价是消息文本。独立运行时可以用 <code>LIBHERBCEPTIONS_FREESTANDING</code> 构建，
+        它默认打开 <code>__HERBCEPTIONS_NO_MESSAGES</code>；此时每个域只报告 <code>[domain](code)</code>，
+        不再分配和复制字符串。消息表根本不会被碰到，flash 的节省就来自这里。一个内核对它实际会报告的那二十个错误码
+        想要描述文本，可以用自己的实现覆盖这个域（<a href="/zhcn/docs/19.exceptionsandherbceptions/01.customdomains/">19.1</a>）。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 没有控制台的 I/O</h2>
+      <p>
+        设备也是一个类型。<code>::fast_io::basic_obuffer_view&lt;char&gt;</code> 写入调用者提供的缓冲区，
+        <code>print_freestanding</code> 写入任何满足接口的输出流。格式化引擎不知道、也不关心目标是 UART、
+        帧缓冲、环形缓冲区还是一个文件。
+      </p>
+      <pre><code class="language-cpp">int render(int value) throws
+{
+  char buffer[64];
+  ::fast_io::containers::vector&lt;int, heap_a&gt; v;
+  v.push_back(value);
+
+  ::fast_io::basic_obuffer_view&lt;char&gt; out{buffer, buffer + sizeof(buffer)};
+  ::fast_io::operations::print_freestanding&lt;false&gt;(out, "v[0] = ", v[0], "\n");
+  return static_cast&lt;int&gt;(out.size());
+}
+
+int main()
+{
+  try { return render(12345); }
+  catch throws (::std::error) { return -1; }
+}</code></pre>
+      <p>
+        这个翻译单元只包含 <code>fast_io_core.h</code> 和 vector。它不碰文件、控制台或 locale。在真实板子上，
+        你写一个实现 UART 或帧缓冲写入操作的设备类型，把它交给同一个 <code>print_freestanding</code>，
+        格式化代码一行都不用改。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 检查清单</h2>
+      <table>
+        <thead>
+          <tr><th>裸机上的问题</th><th>fast_io 提供的答案</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>一个隐藏的全局堆</td>
+            <td>分配器是类型参数；宿主环境下 <code>fast_io::vector</code> 根本不存在</td>
+          </tr>
+          <tr>
+            <td>错误处理需要操作系统</td>
+            <td>返回路径上的赫布异常，失败策略由分配器决定</td>
+          </tr>
+          <tr>
+            <td>消息表消耗 flash</td>
+            <td><code>LIBHERBCEPTIONS_FREESTANDING</code> 只报告 <code>[domain](code)</code></td>
+          </tr>
+          <tr>
+            <td>库假定存在控制台</td>
+            <td>设备是类型：缓冲区视图、UART、帧缓冲，或者你自己的流</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        按顺序给出实践规则：
+      </p>
+      <ol>
+        <li>包含 <code>fast_io_freestanding.h</code>，或者 <code>fast_io_core.h</code> 加上你用到的单元。裸机上不要包含 <code>fast_io.h</code>。</li>
+        <li>永远不要写 <code>new</code>。使用 <code>containers::vector&lt;T, Alloc&gt;</code>，分配器由你提供。</li>
+        <li>实现 <code>freestanding_global_allocator</code>，或者给每个容器传入明确的分配器。</li>
+        <li>可恢复错误用 <code>throws</code>，破坏的不变式用 <code>fast_terminate()</code>。</li>
+        <li>补上目标没有的 C 库片段（<code>memcpy</code>、<code>memset</code>、<code>memmove</code>）和编译器运行时（<code>libgcc</code> 或 <code>compiler-rt</code>）。</li>
+        <li>写启动代码，清零 <code>.bss</code>、复制 <code>.data</code>、遍历 <code>.init_array</code>；或者干脆不要动态初始化。</li>
+        <li>用 <code>nm -u</code> 验证。独立程序不应该有意外的未定义符号。</li>
+      </ol>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/20.freestanding/01.problem/" class="prev-button">&larr; 第20.1章：问题：C++ 不是为独立实现设计的</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/20.freestanding/03.video/" class="next-button">第20.3章：观看：Freestanding C++ 的过去、现在与未来 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

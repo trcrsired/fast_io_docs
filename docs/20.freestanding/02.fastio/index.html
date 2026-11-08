@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch20.2: fast_io in a Freestanding Environment - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch20.2: fast_io in a Freestanding Environment</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/20.freestanding/02.fastio/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The OS-Dependent Pieces Are Type Parameters</h2>
+      <p>
+        fast_io is an I/O library that does not assume an operating system underneath it. The
+        operating-system-dependent pieces are not compiled into the library and then switched off
+        by a flag: they are type parameters or symbols the target supplies. That is the difference
+        between "the formatting code is header-only" and "the library has no hidden heap, no hidden
+        console, and no hidden error runtime".
+      </p>
+      <p>
+        The split is visible in the umbrella headers:
+      </p>
+      <ul>
+        <li>
+          <code>&lt;fast_io_freestanding.h&gt;</code> &mdash; the core, formatting, scanning,
+          buffers, serialisation and the buffer devices. No files, consoles or processes.
+        </li>
+        <li>
+          <code>&lt;fast_io_hosted.h&gt;</code> &mdash; adds the native devices, files, consoles,
+          processes, threads and the filesystem, and only when the platform is hosted.
+        </li>
+        <li>
+          <code>&lt;fast_io.h&gt;</code> &mdash; includes the hosted layer plus the legacy
+          <code>&lt;iostream&gt;</code> bridge.
+        </li>
+      </ul>
+      <p>
+        A freestanding program includes <code>fast_io_freestanding.h</code> (or the smaller
+        <code>fast_io_core.h</code> plus the units it actually uses). It never includes
+        <code>fast_io.h</code>, because that asks for devices that do not exist on the target.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Containers Carry Their Allocator</h2>
+      <p>
+        <code>::fast_io::containers::vector&lt;T, Alloc&gt;</code> is always available. The
+        convenience alias <code>::fast_io::vector&lt;T&gt;</code>, which picks the platform's
+        default heap, exists only when there is a hosted platform. The condition is in the header,
+        not in the documentation:
+      </p>
+      <pre><code class="language-cpp">#if ((__STDC_HOSTED__ == 1 &amp;&amp; (!defined(_GLIBCXX_HOSTED) || _GLIBCXX_HOSTED == 1) &amp;&amp; \
+	  !defined(_LIBCPP_FREESTANDING)) ||                                             \
+	 defined(FAST_IO_ENABLE_HOSTED_FEATURES))
+
+namespace fast_io
+{
+template &lt;typename T, typename Alloc = ::fast_io::native_global_allocator&gt;
+using vector = ::fast_io::containers::vector&lt;T, Alloc&gt;;</code></pre>
+      <p>
+        On a freestanding target, <code>::fast_io::vector</code> does not exist. There is no silent
+        fallback to a hidden heap, because there is no name to fall back to. You write
+        <code>::fast_io::containers::vector&lt;int, my_allocator&gt;</code>, and the allocator is
+        part of the container's type.
+      </p>
+      <p>
+        The default allocator is selected by the same boundary. When the platform is hosted it is
+        <code>c_malloc_allocator</code> (or the NT heap, or mimalloc); when it is freestanding it is
+        <code>freestanding_global_allocator</code>. That class is only <strong>declared</strong> in
+        fast_io. Its three functions have no definition anywhere in the library:
+      </p>
+      <pre><code class="language-cpp">class freestanding_global_allocator
+{
+public:
+  static ::fast_io::allocation_least_result
+  allocate_aligned_conditional_zero_at_least_die(
+      ::std::size_t alignment, ::std::size_t n, bool zero) noexcept;
+
+  static ::fast_io::allocation_least_result
+  allocate_aligned_conditional_zero_at_least_try(
+      ::std::size_t alignment, ::std::size_t n, bool zero)
+      FAST_IO_HERBCEPTIONS_THROWS;
+
+  static void deallocate_aligned_n(
+      void* p, ::std::size_t alignment, ::std::size_t n) noexcept;
+};</code></pre>
+      <p>
+        That is the whole freestanding allocator contract. You implement it for your target &mdash;
+        a bump arena, a slab, a per-CPU pool &mdash; and every fast_io container and every
+        formatting routine that needs scratch memory uses exactly that, and nothing else. A library
+        that cannot link without you providing a heap is a library that cannot allocate behind your
+        back.
+      </p>
+      <p>
+        The smallest useful arena looks like this. It is deliberately single-threaded: on a board
+        you know which core is running, and a lock is another runtime dependency.
+      </p>
+      <pre><code class="language-cpp">#include &lt;fast_io_core.h&gt;
+#include &lt;fast_io_dsal/vector.h&gt;
+
+template &lt;::std::size_t extent&gt;
+class arena
+{
+public:
+  alignas(::std::max_align_t) static inline ::std::byte storage[extent]{};
+  static inline ::std::size_t used{};
+
+  static ::fast_io::allocation_least_result
+  allocate_aligned_conditional_zero_at_least_die(
+      ::std::size_t alignment, ::std::size_t n, bool) noexcept
+  {
+    ::std::size_t const start{(used + alignment - 1u) / alignment * alignment};
+    if (start + n &gt; extent) { ::fast_io::fast_terminate(); }
+    used = start + n;
+    return {storage + start, n};
+  }
+
+  static void deallocate_aligned_n(
+      void*, ::std::size_t, ::std::size_t) noexcept {}
+};
+
+using heap_a = ::fast_io::generic_allocator_adapter&lt;arena&lt;4096&gt;&gt;;
+
+int main()
+{
+  ::fast_io::containers::vector&lt;int, heap_a&gt; v;
+  v.push_back(42);
+  return v[0];
+}</code></pre>
+      <p>
+        The failure policy is in the name of the function you implement. The
+        <code>_die</code> flavour calls <code>fast_terminate()</code> when the arena is exhausted;
+        the <code>_try</code> flavour reports <code>::std::errc::not_enough_memory</code> on the
+        <code>throws</code> channel. Choosing one is a compile-time decision per container type,
+        not a global switch.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Error Handling: Herbceptions</h2>
+      <p>
+        A herbception is an error value on the return path: a domain pointer and a code, plus a
+        failure bit in the calling convention. Nothing is unwound, so nothing needs a stack walker,
+        frame tables or a personality routine. A legacy <code>throw</code> needs all of them, and
+        the comparison is not close:
+      </p>
+      <table>
+        <thead>
+          <tr><th></th><th>Legacy exceptions</th><th>Herbceptions</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Linker symbols</td><td>Around ten runtime entries</td><td>One data symbol for the error domain</td></tr>
+          <tr><td>Heap at failure time</td><td>Yes, for the exception object</td><td>No</td></tr>
+          <tr><td>Stack walk</td><td>Yes</td><td>No</td></tr>
+          <tr><td>Frame tables, personality routine</td><td>Yes</td><td>No</td></tr>
+          <tr><td>RTTI</td><td>Yes, for handler matching</td><td>No</td></tr>
+          <tr><td>Works on a board, in a kernel, on a GPU</td><td>No</td><td>Yes</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The build flag from <a href="/docs/19.exceptionsandherbceptions/07.banflags/">19.7</a> does
+        not break them. <code>-fno-exceptions</code> removes the legacy mechanism, and the
+        herbception mechanism keeps working because it never used it. A freestanding build can and
+        should have <code>-fno-exceptions -fno-rtti</code> in it while using <code>throws</code>
+        everywhere.
+      </p>
+      <p>
+        The remaining cost is the message text. A freestanding runtime can be built with
+        <code>LIBHERBCEPTIONS_FREESTANDING</code>, which defaults
+        <code>__HERBCEPTIONS_NO_MESSAGES</code> on; every domain then reports only
+        <code>[domain](code)</code> instead of allocating and copying a string. The table is never
+        touched, which is where the flash savings come from. A kernel that wants text for the twenty
+        codes it actually reports can override the domain with its own implementation
+        (<a href="/docs/19.exceptionsandherbceptions/01.customdomains/">19.1</a>).
+      </p>
+    </section>
+
+    <section>
+      <h2>4. I/O Without a Console</h2>
+      <p>
+        The device is a type too. <code>::fast_io::basic_obuffer_view&lt;char&gt;</code> writes
+        into a caller-supplied buffer, and <code>print_freestanding</code> writes into any output
+        stream that satisfies the interface. The formatting engine does not know or care whether
+        the destination is a UART, a framebuffer, a ring buffer or a file.
+      </p>
+      <pre><code class="language-cpp">int render(int value) throws
+{
+  char buffer[64];
+  ::fast_io::containers::vector&lt;int, heap_a&gt; v;
+  v.push_back(value);
+
+  ::fast_io::basic_obuffer_view&lt;char&gt; out{buffer, buffer + sizeof(buffer)};
+  ::fast_io::operations::print_freestanding&lt;false&gt;(out, "v[0] = ", v[0], "\n");
+  return static_cast&lt;int&gt;(out.size());
+}
+
+int main()
+{
+  try { return render(12345); }
+  catch throws (::std::error) { return -1; }
+}</code></pre>
+      <p>
+        This translation unit includes only <code>fast_io_core.h</code> and the vector. It never
+        touches a file, a console or a locale. For a real board, you write a device type with the
+        write operation your UART or framebuffer needs and pass it to the same
+        <code>print_freestanding</code>; none of the formatting code changes.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. The Checklist</h2>
+      <table>
+        <thead>
+          <tr><th>Problem on a bare target</th><th>What fast_io gives you</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>One hidden global heap</td>
+            <td>The allocator is a type parameter, and <code>fast_io::vector</code> does not exist when hosted</td>
+          </tr>
+          <tr>
+            <td>Error handling needs an OS</td>
+            <td>Herbceptions on the return path, with the failure policy chosen by the allocator</td>
+          </tr>
+          <tr>
+            <td>Message tables cost flash</td>
+            <td><code>LIBHERBCEPTIONS_FREESTANDING</code> reports <code>[domain](code)</code></td>
+          </tr>
+          <tr>
+            <td>The library assumes a console</td>
+            <td>The device is a type: a buffer view, a UART, a framebuffer, or your own stream</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The practical rules, in order:
+      </p>
+      <ol>
+        <li>Include <code>fast_io_freestanding.h</code>, or <code>fast_io_core.h</code> plus the units you use. Do not include <code>fast_io.h</code> on a bare target.</li>
+        <li>Never write <code>new</code>. Use <code>containers::vector&lt;T, Alloc&gt;</code> with an allocator you supplied.</li>
+        <li>Provide <code>freestanding_global_allocator</code>, or pass a specific allocator to every container.</li>
+        <li>Use <code>throws</code> for recoverable errors and <code>fast_terminate()</code> for broken invariants.</li>
+        <li>Supply the C library pieces the target does not have (<code>memcpy</code>, <code>memset</code>, <code>memmove</code>) and the compiler runtime (<code>libgcc</code> or <code>compiler-rt</code>).</li>
+        <li>Write start-up code that zeroes <code>.bss</code>, copies <code>.data</code>, and walks <code>.init_array</code>, or have no dynamic initialisers at all.</li>
+        <li>Verify with <code>nm -u</code>. A freestanding program should have no unexpected undefined symbols.</li>
+      </ol>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/20.freestanding/01.problem/" class="prev-button">&larr; Ch20.1: The Problem: C++ Was Not Designed for Freestanding</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/20.freestanding/03.video/" class="next-button">Ch20.3: Watch: Freestanding C++ &mdash; Past, Present, and Future &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

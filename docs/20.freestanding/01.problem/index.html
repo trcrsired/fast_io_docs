@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch20.1: The Problem: C++ Was Not Designed for Freestanding - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch20.1: The Problem: C++ Was Not Designed for Freestanding</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/20.freestanding/01.problem/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Message That Still Starts the Argument</h2>
+      <p>
+        On 19 January 2004, Linus Torvalds answered a question about compiling a C++ kernel module.
+        The reply is the most-quoted message in every discussion of C++ in kernels:
+      </p>
+      <blockquote>
+        <p>
+          In fact, in Linux we did try C++ once already, back in 1992.
+        </p>
+        <p>
+          It sucks. Trust me - writing kernel code in C++ is a BLOODY STUPID IDEA.
+        </p>
+        <p>
+          The fact is, C++ compilers are not trustworthy. They were even worse in 1992, but some
+          fundamental facts haven't changed:
+        </p>
+        <ul>
+          <li>
+            the whole C++ exception handling thing is fundamentally broken. It's
+            <em>especially</em> broken for kernels.
+          </li>
+          <li>
+            any compiler or language that likes to hide things like memory allocations behind your
+            back just isn't a good choice for a kernel.
+          </li>
+          <li>
+            you can write object-oriented code (useful for filesystems etc) in C,
+            <em>without</em> the crap that is C++.
+          </li>
+        </ul>
+      </blockquote>
+      <p>
+        The tone is from 2004. The three bullets are the argument, so check them one at a time
+        against what a freestanding build actually requires.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Two Implementations, One Macro</h2>
+      <p>
+        The standard defines two kinds of implementation. The kind is implementation-defined, and
+        the predefined macro <code>__STDC_HOSTED__</code> tells you which one you have:
+        <code>1</code> for hosted, <code>0</code> for freestanding. In a freestanding
+        implementation, execution may happen without an operating system; whether a program must
+        define <code>main</code>, and whether it can have more than one thread, are both
+        implementation-defined. The standard library shrinks to a set of headers.
+      </p>
+      <p>
+        That is the whole contract, and the gap is in what it does <em>not</em> say. C++03 required
+        the C headers plus parts of <code>&lt;new&gt;</code>, <code>&lt;typeinfo&gt;</code> and
+        <code>&lt;exception&gt;</code> &mdash; headers that exist because the language has
+        <code>new</code>, RTTI and exceptions, and those features need a heap, type-information
+        objects and an unwinder. The standard required a library that a freestanding target could
+        not implement.
+      </p>
+      <p>
+        The language itself did not shrink. <code>throw</code>, <code>try</code>,
+        <code>catch</code>, <code>typeid</code>, <code>dynamic_cast</code>, <code>new</code>,
+        <code>delete</code>, <code>thread_local</code>, dynamic initialisation and floating point
+        all remained in the grammar. A conforming freestanding C++03 program could therefore
+        contain constructs that could never link on the machine it was compiled for. In practice,
+        every embedded and kernel build turned those features off with flags and became
+        non-conforming by the letter of the standard.
+      </p>
+      <p>
+        <a href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p1105r0.html">P1105R0</a>
+        named the result: "Conforming C++ toolchains are ill-suited to target kernel and embedded
+        domains. In practice, kernel and embedded developers almost always use compiler switches
+        that make the toolchain non-conforming. This means that conforming C++ has left room for a
+        lower-level language."
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>-ffreestanding</code> Is Not a Freestanding Toolchain</h2>
+      <p>
+        The flag changes exactly three things: <code>__STDC_HOSTED__</code> becomes
+        <code>0</code>, builtins that assume a hosted C library are turned off, and
+        <code>main</code> stops being special. It does not change the include paths, the library,
+        the start files or the linker script. A hosted compiler with <code>-ffreestanding</code>
+        still points at the host's headers and the host's C library.
+      </p>
+      <p>
+        The mismatch usually appears immediately. libstdc++ gates its hosted headers on the macro:
+      </p>
+      <pre><code class="language-text">$ g++ -std=c++26 -ffreestanding -c t.cc
+.../bits/requires_hosted.h:34:4: error: #error "This header is not available in freestanding mode."</code></pre>
+      <p>
+        On a bare target there is not even a hosted header to reject. A compiler aimed at
+        <code>aarch64-none-elf</code> has no C++ library for that target installed, so the first
+        header fails:
+      </p>
+      <pre><code class="language-text">$ clang++ -std=c++26 --target=aarch64-none-elf -ffreestanding -c bare.cc
+bare.cc:1:10: fatal error: 'cstddef' file not found
+    1 | #include &lt;cstddef&gt;</code></pre>
+      <p>
+        Freestanding is therefore a property of an <strong>installation</strong>, not of a command
+        line. To have one you need a compiler built for the target, a sysroot that contains only
+        that target's headers and libraries, a C library or your own <code>memcpy</code>, a C++
+        subset, start-up code and a linker script, and the compiler runtime
+        (<code>libgcc</code> or <code>compiler-rt</code>). The switches are the easy part.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The Runtime Bill, Feature by Feature</h2>
+      <p>
+        This is what the three bullets are really about. Every language feature that a hosted
+        program gets for free is a piece of infrastructure on a bare target:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Construct</th>
+            <th>What it needs at run time</th>
+            <th>What a freestanding build does</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>throw</code> / <code>catch</code></td>
+            <td>
+              Heap for the exception object on the Itanium ABI (a large stack frame on the
+              Microsoft ABI), an unwinder, <code>.eh_frame</code> and <code>.gcc_except_table</code>,
+              a personality routine, and RTTI for handler matching
+            </td>
+            <td><code>-fno-exceptions</code></td>
+          </tr>
+          <tr>
+            <td><code>new</code> / <code>delete</code></td>
+            <td>
+              One global heap with one failure policy; a virtual destructor also pulls in
+              <code>::operator delete</code>
+            </td>
+            <td>No default heap, or a hand-written <code>operator new</code></td>
+          </tr>
+          <tr>
+            <td><code>typeid</code>, <code>dynamic_cast</code></td>
+            <td>
+              A <code>type_info</code> object and a second vtable per polymorphic class, plus
+              <code>__dynamic_cast</code>
+            </td>
+            <td><code>-fno-rtti</code></td>
+          </tr>
+          <tr>
+            <td><code>thread_local</code></td>
+            <td>
+              A thread pointer, a TLS image per module, a loader to lay it out, and a reload on
+              every thread switch
+            </td>
+            <td>Disabled, or replaced by per-CPU data the kernel owns</td>
+          </tr>
+          <tr>
+            <td>Dynamic initialisation</td>
+            <td>Start-up code that walks <code>.init_array</code></td>
+            <td>Your own crt0, or <code>constexpr</code> / <code>constinit</code> instead</td>
+          </tr>
+          <tr>
+            <td>Floating point</td>
+            <td>An FPU, an ABI for passing FP values, and a context-save policy</td>
+            <td><code>-mgeneral-regs-only</code>, <code>-mno-sse</code>, or explicit regions</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The exception row is the one Torvalds called "especially broken for kernels", and the
+        reasons are worth spelling out. A legacy <code>throw</code> allocates the exception object
+        on the Itanium ABI (the Microsoft ABI uses a large stack frame instead), so the failure
+        path allocates or reserves stack. It walks the stack, so its latency grows with stack
+        depth. And the unwinder, frame tables and personality routine are exactly the layer a
+        kernel would have to provide for itself. A <code>-nostdlib</code> link of a single
+        <code>throw</code> fails on the runtime entry points:
+      </p>
+      <pre><code class="language-text">undefined reference to `__cxa_allocate_exception'
+undefined reference to `__cxa_throw'
+undefined reference to `__cxa_begin_catch'
+undefined reference to `__cxa_end_catch'
+undefined reference to `_Unwind_Resume'
+undefined reference to `__gxx_personality_v0'
+undefined reference to `typeinfo for char const*'</code></pre>
+      <p>
+        None of those can be supplied portably by a user program. Writing them means writing a C++
+        runtime for your target, ABI-compatible with the compiler, and maintaining it against every
+        compiler release.
+      </p>
+      <p>
+        The <code>new</code> row is the second bullet. A single allocation adds an undefined
+        reference to <code>operator new</code>; the policy for failure, alignment and array cookies
+        is chosen at link time and applies to every library in the process. A kernel does not have
+        "a" heap anyway: it has per-zone, per-NUMA-node and DMA-constrained pools, and choosing one
+        is a semantic decision that a single global cannot express. Placement <code>new</code> is
+        the exception: constructing an object in memory you already own needs no runtime at all.
+      </p>
+      <p>
+        The third bullet has aged the worst. "You can write OO code in C" was a claim about runtime
+        cost, not about syntax. Modern C++ keeps the parts that structure code without a runtime
+        &mdash; <code>constexpr</code>, templates, concepts, deterministic destruction &mdash; and
+        herbceptions add an error channel that does not allocate or unwind. What C never got is
+        exactly those zero-cost abstractions.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. What Has Changed, and What Has Not</h2>
+      <p>
+        The header list has improved. C++23 made <code>&lt;utility&gt;</code>,
+        <code>&lt;tuple&gt;</code> and <code>&lt;ratio&gt;</code> fully freestanding and added
+        partial support for <code>&lt;memory&gt;</code>, <code>&lt;iterator&gt;</code>,
+        <code>&lt;ranges&gt;</code> and <code>&lt;functional&gt;</code>. C++26 adds
+        <code>&lt;array&gt;</code>, <code>&lt;string&gt;</code>, <code>&lt;cmath&gt;</code>,
+        <code>&lt;charconv&gt;</code>, <code>&lt;system_error&gt;</code>, <code>&lt;random&gt;</code>
+        and others, many of them partial. The direction is real.
+      </p>
+      <p>
+        Two things have not changed. First, a header being in the standard does not mean your board's
+        toolchain ships it; verify per toolchain, per target. Second, the containers whose interface
+        <em>is</em> a hidden heap and a thrown exception &mdash; <code>vector</code>,
+        <code>list</code>, <code>deque</code>, <code>map</code> &mdash; will never be freestanding,
+        because the dependency is the design, not a missing paragraph in the standard.
+      </p>
+      <p>
+        That leaves the two rules this book follows. Ban the mechanisms that need an operating
+        system: <code>-fno-exceptions -fno-rtti</code>, and use <code>throws</code> for recoverable
+        errors. Then make the allocation source and the I/O device part of the type, so a function
+        cannot allocate from a heap it was not given and cannot write to a console that is not
+        there. The second rule is what fast_io is built around, and it is the next page.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/20.freestanding/" class="prev-button">&larr; Ch20: Freestanding</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/20.freestanding/02.fastio/" class="next-button">Ch20.2: fast_io in a Freestanding Environment &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
