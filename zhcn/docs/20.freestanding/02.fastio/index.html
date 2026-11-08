@@ -148,10 +148,18 @@ int main()
         </tbody>
       </table>
       <p>
-        重点不是赫布异常更快。重点是遗留机制本身就是一个独立的运行时——unwinder、异常表解析器、
+        首要的一点不是速度：遗留机制本身就是一个独立的运行时——unwinder、异常表解析器、
         personality routine、RTTI、分配器——而这个运行时恰恰是内核无法提供的
         （<a href="/zhcn/docs/20.freestanding/01.problem/">20.1</a>）。赫布异常之所以是答案，
         是因为它移除了这个运行时，而不是因为它优化了它。
+      </p>
+      <p>
+        速度是随之而来的结果。在错误路径上，赫布异常比遗留 <code>throw</code> 快几个数量级：
+        没有堆分配、没有栈遍历、没有帧表查找。
+        <a href="/zhcn/docs/19.exceptionsandherbceptions/08.issues/">19.8</a> 实测每次遗留抛出
+        934,540 ps，每次赫布异常 885 ps，大约一千倍。在正常路径上，赫布异常只在返回路径上增加少量工作——
+        携带并检查失败位——这与返回错误码大致同一量级，而且通常小于那种必须在每一层同时传递状态和输出值的
+        错误码管线。
       </p>
       <p>
         <a href="/zhcn/docs/19.exceptionsandherbceptions/07.banflags/">19.7</a> 里的构建选项不会破坏它们。

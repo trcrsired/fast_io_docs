@@ -163,11 +163,21 @@ int main()
         </tbody>
       </table>
       <p>
-        The point is not that herbceptions are faster. The point is that the legacy mechanism is a
-        separate runtime &mdash; unwinder, exception-table parser, personality routine, RTTI,
-        allocator &mdash; and that runtime is exactly what a kernel cannot provide
+        The first point is not speed: the legacy mechanism is a separate runtime &mdash; unwinder,
+        exception-table parser, personality routine, RTTI, allocator &mdash; and that runtime is
+        exactly what a kernel cannot provide
         (<a href="/docs/20.freestanding/01.problem/">20.1</a>). Herbceptions are the solution
         because they remove the runtime, not because they optimize it.
+      </p>
+      <p>
+        The speed follows from that. On the error path, a herbception is orders of magnitude cheaper
+        than a legacy <code>throw</code>: no heap allocation, no stack walk, no frame-table search.
+        <a href="/docs/19.exceptionsandherbceptions/08.issues/">19.8</a> measured 934,540 ps per
+        legacy throw against 885 ps per herbception, about a thousand times. On the happy path, a
+        herbception adds a small amount of work to the return path &mdash; carrying and testing the
+        failure bit &mdash; which is in the same range as returning an error code, and usually less
+        than the error-code plumbing that has to carry a separate status and output value through
+        every layer.
       </p>
       <p>
         The build flag from <a href="/docs/19.exceptionsandherbceptions/07.banflags/">19.7</a> does
