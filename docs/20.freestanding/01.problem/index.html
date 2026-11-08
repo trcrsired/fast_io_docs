@@ -85,6 +85,15 @@
         that make the toolchain non-conforming. This means that conforming C++ has left room for a
         lower-level language."
       </p>
+      <p>
+        The inversion is easiest to see in two examples. C freestanding does not require
+        <code>malloc</code> or <code>free</code>; C++ freestanding required <code>&lt;new&gt;</code>
+        and the global allocation functions until C++26 made the default heap optional. And C
+        freestanding does not require the floating-point environment in <code>&lt;math.h&gt;</code>
+        or <code>&lt;fenv.h&gt;</code>; C++ required the floating-point types even on a board with
+        no FPU, or in a kernel that refuses to touch the one it has. C++'s freestanding mode demanded
+        more runtime than C's, not less.
+      </p>
     </section>
 
     <section>
@@ -212,12 +221,65 @@ undefined reference to `typeinfo for char const*'</code></pre>
         cost, not about syntax. Modern C++ keeps the parts that structure code without a runtime
         &mdash; <code>constexpr</code>, templates, concepts, deterministic destruction &mdash; and
         herbceptions add an error channel that does not allocate or unwind. What C never got is
-        exactly those zero-cost abstractions.
+        exactly those abstractions that need no runtime.
       </p>
     </section>
 
     <section>
-      <h2>5. What Has Changed, and What Has Not</h2>
+      <h2>5. The Features That Need No Runtime</h2>
+      <p>
+        The runtime bill is only half the problem. The other half is features that need no runtime
+        at all and were still missing from freestanding mode. They are the features that make
+        generic code possible, and their absence is easy to miss because the code compiles on a
+        hosted toolchain.
+      </p>
+      <ul>
+        <li>
+          <strong><code>std::addressof</code> (C++23).</strong> <code>&lt;memory&gt;</code> was not
+          a freestanding header before C++23, so <code>std::addressof</code> was not guaranteed. It
+          cannot be written by hand: it has to defeat a user-defined <code>operator&amp;</code>,
+          which needs <code>__builtin_addressof</code>, and it is <code>constexpr</code>. So a
+          freestanding C++ program had a language feature &mdash; taking the address of an object
+          &mdash; that any class could silently redefine, with no portable escape hatch. C has had
+          <code>&amp;x</code> mean "the address of <code>x</code>" since 1972.
+        </li>
+        <li>
+          <strong>Iterator traits and iterator concepts (C++23).</strong>
+          <code>&lt;iterator&gt;</code> was not freestanding before C++23. A freestanding program
+          had no guaranteed <code>std::iterator_traits</code>, no <code>std::input_iterator</code>,
+          and no <code>std::contiguous_iterator</code>. Generic code could not ask whether an
+          iterator is input, forward, random-access or contiguous, so it could not select the right
+          algorithm &mdash; or even write a correct <code>distance</code> for an unknown iterator
+          type. The traits need no runtime; they were simply not on the list.
+        </li>
+        <li>
+          <strong><code>std::array</code> and <code>&lt;algorithm&gt;</code> (C++26).</strong>
+          A fixed-size array with no allocation and no exceptions is the least demanding container
+          in the library, and <code>&lt;algorithm&gt;</code> is mostly loops. Both were not
+          freestanding before C++26. If the simplest container with no runtime dependency and the
+          algorithms that operate on it are missing, the problem is not the target; it is the list.
+        </li>
+        <li>
+          <strong><code>std::vector</code>, the "default container".</strong> The common advice to
+          use <code>vector</code> by default assumes a hosted implementation. Its growth calls the
+          global allocator, its failure mode is a thrown <code>bad_alloc</code>, and its interface
+          is specified in terms of exceptions. It cannot be freestanding, and neither can
+          <code>std::string</code> before C++26 (and then only partially) or the node-based
+          containers. The most recommended container in the language is exactly the one a
+          freestanding program cannot use.
+        </li>
+      </ul>
+      <p>
+        The pattern is the same in every bullet: the feature costs nothing at run time, but the
+        standard did not require its header, so a conforming freestanding implementation could omit
+        it. The code then compiled on the developer's desktop and failed on the board. That is the
+        part of the problem that a cross compiler cannot fix, because the header is missing from the
+        standard, not from the installation.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. What Has Changed, and What Has Not</h2>
       <p>
         The header list has improved. C++23 made <code>&lt;utility&gt;</code>,
         <code>&lt;tuple&gt;</code> and <code>&lt;ratio&gt;</code> fully freestanding and added
@@ -234,6 +296,10 @@ undefined reference to `typeinfo for char const*'</code></pre>
         <code>list</code>, <code>deque</code>, <code>map</code> &mdash; will never be freestanding,
         because the dependency is the design, not a missing paragraph in the standard.
       </p>
+    </section>
+
+    <section>
+      <h2>7. The Two Rules</h2>
       <p>
         That leaves the two rules this book follows. Ban the mechanisms that need an operating
         system: <code>-fno-exceptions -fno-rtti</code>, and use <code>throws</code> for recoverable

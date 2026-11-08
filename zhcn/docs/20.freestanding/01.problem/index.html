@@ -75,6 +75,13 @@
         给这个结果命了名："符合标准的 C++ 工具链不适合面向内核和嵌入式领域。实践中，内核和嵌入式开发者几乎总是使用
         让工具链不符合标准的编译选项。这意味着符合标准的 C++ 给更底层的语言留下了空间。"
       </p>
+      <p>
+        这种倒置用两个例子就能看清。C 的独立实现不要求 <code>malloc</code> 和 <code>free</code>；
+        C++ 的独立实现直到 C++26 把默认堆变成可选之前，都要求 <code>&lt;new&gt;</code> 和全局分配函数。
+        C 的独立实现不要求 <code>&lt;math.h&gt;</code> 或 <code>&lt;fenv.h&gt;</code> 里的浮点环境；
+        C++ 却要求浮点类型，即使板子上没有 FPU，或者内核拒绝碰它已有的 FPU。C++ 的独立模式向运行时要得比 C 更多，
+        而不是更少。
+      </p>
     </section>
 
     <section>
@@ -187,12 +194,53 @@ undefined reference to `typeinfo for char const*'</code></pre>
       <p>
         第三条论断最经不起时间考验。"你可以在 C 里写面向对象代码"说的是运行时开销，不是语法。现代 C++ 保留了那些
         不依赖运行时就能组织代码的部分——<code>constexpr</code>、模板、concepts、确定性析构——而赫布异常又加上了
-        一条不分配、不展开的错误通道。C 始终没有得到的，恰恰是这些零开销抽象。
+        一条不分配、不展开的错误通道。C 始终没有得到的，恰恰是这些不需要运行时的抽象。
       </p>
     </section>
 
     <section>
-      <h2>5. 哪些变了，哪些没变</h2>
+      <h2>5. 缺失的无需运行时特性</h2>
+      <p>
+        运行时代价只是问题的一半。另一半是那些<em>根本不需要运行时</em>、却仍然不在独立模式里的特性。
+        它们正是让泛型代码成为可能的特性，而它们的缺失很容易被忽略，因为代码在宿主工具链上照样能编译。
+      </p>
+      <ul>
+        <li>
+          <strong><code>std::addressof</code>（C++23）。</strong>在 C++23 之前，<code>&lt;memory&gt;</code>
+          不是独立头文件，所以 <code>std::addressof</code> 没有保证。它无法手写：它必须绕过用户定义的
+          <code>operator&amp;</code>，这需要 <code>__builtin_addressof</code>，而且它必须是
+          <code>constexpr</code>。于是一个独立 C++ 程序拥有一个语言特性——取对象的地址——任何类都可以悄悄改写它，
+          却没有可移植的逃生口。C 从 1972 年起，<code>&amp;x</code> 就一直是"<code>x</code> 的地址"。
+        </li>
+        <li>
+          <strong>迭代器 traits 与迭代器 concepts（C++23）。</strong>在 C++23 之前，
+          <code>&lt;iterator&gt;</code> 不是独立头文件。独立程序没有保证可用的 <code>std::iterator_traits</code>，
+          没有 <code>std::input_iterator</code>，也没有 <code>std::contiguous_iterator</code>。泛型代码无法询问
+          一个迭代器是输入、前向、随机访问还是连续的，因此既不能选择正确的算法，甚至不能为一个未知迭代器类型写出正确的
+          <code>distance</code>。这些 traits 不需要运行时；它们只是不在清单上。
+        </li>
+        <li>
+          <strong><code>std::array</code> 与 <code>&lt;algorithm&gt;</code>（C++26）。</strong>
+          一个不分配、不抛异常的固定大小数组，是标准库里要求最低的容器；而 <code>&lt;algorithm&gt;</code>
+          大多就是循环。两者在 C++26 之前都不是独立的。如果最简单的、无需运行时依赖的容器和操作它的算法都缺失，
+          那问题就不在目标上，而在清单上。
+        </li>
+        <li>
+          <strong><code>std::vector</code>，所谓的"默认容器"。</strong>"默认用 <code>vector</code>"
+          这条常见建议假定了一个宿主实现。它的增长会调用全局分配器，失败模式是抛出 <code>bad_alloc</code>，
+          接口是按异常规定的。它不可能成为独立的；<code>std::string</code> 在 C++26 之前也不可能（之后也只是部分），
+          节点式容器同样不可能。语言里最被推荐的容器，恰恰是独立程序用不了的那一个。
+        </li>
+      </ul>
+      <p>
+        每一条的模式都一样：特性在运行期不花任何代价，但标准没有要求它的头文件，所以一个符合标准的独立实现可以把它省掉。
+        代码于是在开发者的桌面上编译通过，在板子上失败。这部分问题不是交叉编译器能修的，因为头文件缺在标准里，
+        不是缺在安装里。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 哪些变了，哪些没变</h2>
       <p>
         头文件清单确实在改善。C++23 让 <code>&lt;utility&gt;</code>、<code>&lt;tuple&gt;</code> 和
         <code>&lt;ratio&gt;</code> 完全独立，并为 <code>&lt;memory&gt;</code>、<code>&lt;iterator&gt;</code>、
@@ -206,6 +254,10 @@ undefined reference to `typeinfo for char const*'</code></pre>
         第二，那些接口<em>本身</em>就是隐藏的堆加抛出的异常的容器——<code>vector</code>、<code>list</code>、
         <code>deque</code>、<code>map</code>——永远不会成为独立的，因为依赖是设计的一部分，不是标准里少了一段话。
       </p>
+    </section>
+
+    <section>
+      <h2>7. 两条规则</h2>
       <p>
         于是剩下本书遵循的两条规则。第一，禁止需要操作系统的机制：<code>-fno-exceptions -fno-rtti</code>，
         可恢复错误用 <code>throws</code>。第二，把分配来源和 I/O 设备做成类型的一部分，这样函数不可能从没有给它的堆里分配，
