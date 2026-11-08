@@ -46,8 +46,9 @@
         </ul>
       </blockquote>
       <p>
-        The tone is from 2004. The three bullets are the argument, so check them one at a time
-        against what a freestanding build actually requires.
+        The tone is from 2004. The three bullets are the argument, but the deeper problem is
+        structural: C++ was designed as a hosted language, and freestanding has been a subtraction
+        from it ever since. Check the bullets against what a freestanding build actually requires.
       </p>
     </section>
 
@@ -306,6 +307,40 @@ undefined reference to `typeinfo for char const*'</code></pre>
         errors. Then make the allocation source and the I/O device part of the type, so a function
         cannot allocate from a heap it was not given and cannot write to a console that is not
         there. The second rule is what fast_io is built around, and it is the next page.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. The Root Cause: C++ Is Hosted by Default</h2>
+      <p>
+        The individual gaps on this page are symptoms. The cause is that C++ was designed as a
+        hosted language, and freestanding was added as a subtraction from it. The standard does not
+        define a freestanding language with its own requirements; it defines a hosted language and
+        then says that a freestanding implementation has a shorter list of headers. Every feature is
+        therefore designed for the hosted case first and retrofitted to freestanding later, if at
+        all.
+      </p>
+      <p>
+        This is why the proposals read as a list of things to make optional &mdash; exceptions,
+        RTTI, the default heap, thread-local storage, floating point, startup &mdash; rather than a
+        design of what a freestanding program actually needs. It is why C++23 added
+        <code>&lt;utility&gt;</code> and iterator traits, C++26 added <code>&lt;array&gt;</code> and
+        <code>&lt;algorithm&gt;</code>, and the containers are still excluded. The direction is
+        always "remove the hosted dependency", never "start from the target and add what fits".
+      </p>
+      <p>
+        The same assumption appears in ordinary discussion. When people say "C++", they mean hosted
+        C++: a heap, an operating system, a standard library, exceptions, threads, a console.
+        Arguments about whether C++ is suitable for a kernel are usually made from that world, with
+        the hosted toolchain installed and the host's headers on the search path. They describe what
+        C++ does on a desktop and call it a property of the language.
+      </p>
+      <p>
+        The assumptions are usually implicit: RAII is free, exceptions are rare, allocation is
+        invisible, the standard library is always there, and someone else provides the runtime. On a
+        freestanding target each of those is a dependency you have to supply or remove. That is why
+        this chapter keeps coming back to object files and undefined symbols: they are the only
+        claims that do not depend on which world the person making the argument is sitting in.
       </p>
     </section>
 
