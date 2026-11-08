@@ -148,6 +148,12 @@ int main()
         </tbody>
       </table>
       <p>
+        重点不是赫布异常更快。重点是遗留机制本身就是一个独立的运行时——unwinder、异常表解析器、
+        personality routine、RTTI、分配器——而这个运行时恰恰是内核无法提供的
+        （<a href="/zhcn/docs/20.freestanding/01.problem/">20.1</a>）。赫布异常之所以是答案，
+        是因为它移除了这个运行时，而不是因为它优化了它。
+      </p>
+      <p>
         <a href="/zhcn/docs/19.exceptionsandherbceptions/07.banflags/">19.7</a> 里的构建选项不会破坏它们。
         <code>-fno-exceptions</code> 移除的是遗留机制，而赫布异常继续工作，因为它从来没用过那套机制。
         一个独立构建可以、也应该在全程使用 <code>throws</code> 的同时加上

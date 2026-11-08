@@ -210,6 +210,23 @@ undefined reference to `typeinfo for char const*'</code></pre>
         compiler release.
       </p>
       <p>
+        The OSDev wiki has a page that shows what "implement them yourself" actually means:
+        <a href="https://wiki.osdev.org/C%2B%2B_Exception_Support">C++ Exception Support</a>. It is
+        not a small shim. You need a stack unwinder for your target's frame layout, a parser for the
+        language-specific data area in <code>.gcc_except_table</code>, a personality routine that
+        understands the C++ ABI, RTTI for matching handlers, and the <code>__cxa_*</code> entry
+        points that tie them together. That is a second runtime, and it has to be correct before
+        anything that throws can be trusted.
+      </p>
+      <p>
+        Even when it works, it is not free. The frame tables (<code>.eh_frame</code>,
+        <code>.gcc_except_table</code>) grow with the size and complexity of the program, not with
+        the number of <code>throw</code> sites, so every function contributes. On the Itanium ABI
+        the thrown object is heap-allocated at failure time. That is the combination a kernel cannot
+        accept: code size, an allocation on the error path, and a runtime that is hard enough to
+        implement that most projects never finish it.
+      </p>
+      <p>
         The <code>new</code> row is the second bullet. A single allocation adds an undefined
         reference to <code>operator new</code>; the policy for failure, alignment and array cookies
         is chosen at link time and applies to every library in the process. A kernel does not have

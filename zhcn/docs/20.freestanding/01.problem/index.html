@@ -187,6 +187,19 @@ undefined reference to `typeinfo for char const*'</code></pre>
         并且要在每个编译器版本上维护它。
       </p>
       <p>
+        OSDev wiki 上有一页专门讲这件事：<a href="https://wiki.osdev.org/C%2B%2B_Exception_Support">C++
+        Exception Support</a>。它不是一个小的兼容层。你需要为目标帧布局实现栈展开器、解析
+        <code>.gcc_except_table</code> 里语言相关的数据区、理解 C++ ABI 的 personality routine、
+        用于匹配处理块的 RTTI，以及把它们串起来的 <code>__cxa_*</code> 入口。这就是第二个运行时，
+        而且必须先证明它正确，任何会抛出的代码才谈得上可信。
+      </p>
+      <p>
+        即使写出来了，也不是没有代价。帧表（<code>.eh_frame</code>、<code>.gcc_except_table</code>）
+        随程序规模和复杂度增长，而不是随 <code>throw</code> 点的数量增长，所以每个函数都在贡献。
+        在 Itanium ABI 上，抛出的对象还要在失败路径上分配堆。这正是内核不能接受的组合：代码体积、
+        错误路径上的分配，以及一个难到大多数项目根本写不完的运行时。
+      </p>
+      <p>
         <code>new</code> 那一行对应第二条论断。一次分配就会引入 <code>operator new</code> 的未定义引用；
         失败策略、对齐和数组 cookie 都在链接时选定，并作用于进程里的每一个库。内核本来就没有"一个"堆：
         它有按 zone、按 NUMA 节点、按 DMA 约束划分的池，选哪一个来源是语义决策，单个全局量表达不了。
