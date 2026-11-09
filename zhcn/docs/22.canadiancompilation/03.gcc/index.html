@@ -92,15 +92,15 @@
         C++ 程序，它将要运行的宿主需要完整的 C++ 系统根。build&rarr;host 交叉编译器负责产出链接到该宿主
         C++ 运行时的编译器二进制。因此构建顺序是：
       </p>
-      <pre><code class="language-text">1. build -> host 交叉工具链     （构建宿主编译器的编译器）
-2. build -> target 编译器       （只在 host != target 时需要；构建目标库）
-3. host -> target 工具链        （最终产物；configure --host=HOST --target=TARGET）</code></pre>
+      <pre><code class="language-text">1. build -> host cross toolchain     (the compiler that builds the host compiler)
+2. build -> target compiler          (only if host != target; builds target libs)
+3. host -> target toolchain          (the product; configure --host=HOST --target=TARGET)</code></pre>
       <p>
         <a href="https://github.com/trcrsired/toolchainbuildscripts">toolchainbuildscripts</a>
         里的参考脚本正是这个顺序。三元组列表就是一组 <code>(build, host, target)</code> 行，
         <code>build_common.sh</code> 会先构建前置项：
       </p>
-      <pre><code class="language-sh"># 摘自 gcc/build_common.sh
+      <pre><code class="language-sh"># from gcc/build_common.sh
 if [[ ${BUILD_GCC_TRIPLET} != ${HOST_GCC_TRIPLET} ]]; then
     # canadian
     build_toolchain $BUILD_GCC_TRIPLET $HOST_GCC_TRIPLET
@@ -132,8 +132,8 @@ HOST=aarch64-linux-gnu
 TARGET=$HOST
 
 ROOT=$HOME/toolchains/gnu
-CROSS=$ROOT/$BUILD/$HOST          # 运行在 BUILD 上，目标 HOST
-FINAL=$ROOT/$HOST/$TARGET         # 运行在 HOST 上，目标 TARGET
+CROSS=$ROOT/$BUILD/$HOST          # runs on BUILD, targets HOST
+FINAL=$ROOT/$HOST/$TARGET         # runs on HOST, targets TARGET
 SRC=$HOME/toolchains_build
 export PATH=$CROSS/bin:$PATH</code></pre>
 
@@ -169,7 +169,7 @@ make install-strip-gcc install-strip-target-libgcc</code></pre>
       </p>
 
       <h3>第三步：内核头文件和 libc 装进系统根</h3>
-      <pre><code class="language-sh"># Linux UAPI 头文件
+      <pre><code class="language-sh"># Linux UAPI headers
 make -C $SRC/linux headers_install ARCH=arm64 \
   INSTALL_HDR_PATH=$CROSS/$TARGET
 
@@ -230,12 +230,12 @@ make install-strip</code></pre>
       </p>
 
       <h3>第六步：宿主 GCC</h3>
-      <pre><code class="language-sh"># 最终产物需要自己的一份目标 sysroot
+      <pre><code class="language-sh"># the product needs its own copy of the target sysroot
 mkdir -p $FINAL/$TARGET
 cp -a $CROSS/$TARGET/. $FINAL/$TARGET/
 
-# 构建期间 GCC 可能会在 $FINAL/$TARGET/sys-include 找目标头文件；
-# 参考脚本会创建这个临时符号链接。
+# GCC may look for target headers in $FINAL/$TARGET/sys-include during
+# the build; the reference scripts create this temporary symlink.
 mkdir -p $FINAL/$TARGET
 ln -sfn $CROSS/$TARGET/include $FINAL/$TARGET/sys-include
 
@@ -302,10 +302,10 @@ rm -f $FINAL/$TARGET/sys-include</code></pre>
         如果宿主和目标不同，加上 build&rarr;target 编译器，并显式设置 <code>CC_FOR_TARGET</code>。
         普通加拿大交叉编译里这是第二个交叉工具链；反向编译里它是本地编译器，因为构建等于目标。
       </p>
-      <pre><code class="language-sh"># build -> target 交叉工具链，安装到 $ROOT/$BUILD/$TARGET
+      <pre><code class="language-sh"># build -> target cross toolchain, installed at $ROOT/$BUILD/$TARGET
 build_toolchain $BUILD $TARGET
 
-# 加拿大交叉编译的最终产物
+# the Canadian cross product
 export CC=$HOST-gcc
 export CXX=$HOST-g++
 export CC_FOR_TARGET=$TARGET-gcc
@@ -370,10 +370,10 @@ $FINAL/bin/gcc -dumpmachine
 # aarch64-linux-gnu
 
 $FINAL/bin/gcc -print-sysroot
-# 空，或者 $FINAL/$TARGET，取决于 GCC 的配置方式
+# empty or $FINAL/$TARGET, depending on how GCC was configured
 $FINAL/bin/gcc -print-search-dirs
 $FINAL/bin/gcc -v -E -x c /dev/null
-# include 条目必须在 $FINAL/$TARGET 下</code></pre>
+# the include entries must be under $FINAL/$TARGET</code></pre>
       <p>
         然后编译一个最简单的程序，用 <code>-Wl,--verbose</code> 看链接行。它应该在
         <code>$FINAL/$TARGET</code> 里找到 <code>crt1.o</code> 和 <code>libc.so</code>。如果它找到的是
@@ -390,7 +390,7 @@ $FINAL/bin/gcc -v -E -x c /dev/null
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
       <a href="/zhcn/docs/22.canadiancompilation/02.sysroot/" class="prev-button">&larr; 第22.2章：系统根</a>
-      <a href="/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
       <a href="/zhcn/docs/22.canadiancompilation/04.llvm/" class="next-button">第22.4章：LLVM &rarr;</a>
     </div>
   </main>

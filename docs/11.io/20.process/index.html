@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch11.20: Processes and Pipes - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch11.20: Processes and Pipes</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/11.io/20.process/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Why Processes Belong in the I/O Chapter</h2>
+      <p>
+        A new process does not get new kinds of I/O. It gets three inherited handles
+        &mdash; standard input, standard output and standard error &mdash; plus whatever
+        additional handles you choose to pass to it. That is the same file-shaped model
+        the rest of this chapter has been using. Starting a process is therefore not a
+        separate subsystem; it is a redirection problem with a lifetime attached.
+      </p>
+      <p>
+        <code>fast_io</code> exposes that model through <code>native_process</code> and
+        <code>native_pipe</code>. The names are platform-neutral: on POSIX they resolve
+        to the <code>fork</code>/<code>exec</code> implementation, on Windows to
+        <code>CreateProcess</code> or the NT process API. The code you write does not
+        change.
+      </p>
+      <p>
+        This page is about the shape of the API, not about every platform flag. The rule
+        is the same one used everywhere else in this book: keep the child's handles
+        explicit, close the ends you do not use, and let <code>transmit</code> drain a
+        pipe instead of writing another read/write loop.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. <code>native_process</code>: Spawn, Wait, Detach</h2>
+      <p>
+        The constructor takes the executable, its arguments, its environment, its
+        standard-I/O redirection, and a <code>process_mode</code> bitmask. Every argument
+        has a default, so the smallest useful program is a path and a <code>wait</code>:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    ::fast_io::native_process child{
+        "child.exe",
+        ::fast_io::native_process_args{},
+        {},
+        {.in = ::fast_io::in(), .out = ::fast_io::out(), .err = ::fast_io::err()},
+        ::fast_io::process_mode::none};
+
+    auto status{::fast_io::wait(child)};
+
+#if defined(_WIN32)
+    ::fast_io::io::println("exit code: ", ::fast_io::wait_status_to_int(status));
+#else
+    if (WIFEXITED(status.wait_loc))
+    {
+        ::fast_io::io::println("exit code: ", WEXITSTATUS(status.wait_loc));
+    }
+#endif
+}
+</code></pre>
+      <p>
+        <code>native_process</code> is move-only and owns the child handle. Its destructor
+        waits for the child if nobody has waited yet, so a forgotten process does not
+        become an unbounded zombie. <code>wait</code> consumes that ownership and returns
+        the platform's wait status. On POSIX the status is the raw
+        <code>waitpid</code> value, which is why the example uses <code>WIFEXITED</code>
+        and <code>WEXITSTATUS</code>; on Windows the same field is already the exit code.
+      </p>
+      <p>
+        There are two ways to give up the wait. <code>detach(child)</code> releases the
+        handle and lets the child keep running; <code>kill(child, status)</code> asks the
+        platform to terminate it. <code>kill</code> is deliberately platform-shaped: on
+        POSIX it sends a signal, so pass a <code>posix_wait_status</code> containing the
+        signal number; on Windows it terminates the process with the supplied exit code.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Arguments and Environment</h2>
+      <p>
+        <code>native_process_args</code> is variadic and accepts anything
+        <code>fast_io</code> can print. It handles the platform string conversion, so you
+        do not build a <code>char*</code> array or a UTF-16 command line by hand:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::native_process child{
+    "child.exe",
+    ::fast_io::native_process_args{
+        "plain", 42, 3.5, u8"utf-8", L"wide", U"utf-32"},
+    ::fast_io::native_process_envs{
+        "MODE=test", "LEVEL=2"},
+    {.in = ::fast_io::in(), .out = ::fast_io::out(), .err = ::fast_io::err()}};
+</code></pre>
+      <p>
+        By default the executable path is prepended to the argument list as
+        <code>argv[0]</code>. If you need to choose <code>argv[0]</code> yourself, pass
+        the <code>args_with_argv0</code> tag:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::native_process child{
+    "child.exe",
+    ::fast_io::args_with_argv0,
+    ::fast_io::native_process_args{"my-name", "--verbose"}};
+</code></pre>
+      <p>
+        An empty <code>native_process_envs</code> means &ldquo;inherit the parent's
+        environment&rdquo;. A non-empty one is the complete environment for the child,
+        not an addition to the parent's. If you want to extend the parent's environment,
+        read what you need from the parent and pass the full set explicitly.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Redirection: The Three Standard Handles</h2>
+      <p>
+        The fourth constructor argument is a <code>native_process_io</code> with three
+        fields: <code>in</code>, <code>out</code> and <code>err</code>. Each field accepts
+        a <code>fast_io</code> device, a pipe, or <code>posix_dev_null()</code>. The last
+        one is the platform-independent spelling for &ldquo;discard this stream&rdquo;,
+        even on Windows.
+      </p>
+      <pre><code class="language-cpp">
+// Child inherits the terminal for stdout/stderr, and reads nothing.
+::fast_io::native_process quiet{
+    "child.exe",
+    {},
+    {},
+    {.in = ::fast_io::posix_dev_null(),
+     .out = ::fast_io::out(),
+     .err = ::fast_io::err()}};
+</code></pre>
+      <p>
+        Redirection is established in the child before the program starts. The parent
+        keeps its own handles; the child receives duplicates. This is why redirecting
+        <code>stdout</code> to a file does not close the parent's terminal, and why a
+        pipe can be read by the parent after the child exits.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. <code>native_pipe</code> and <code>iobuf_pipe</code></h2>
+      <p>
+        A pipe is a unidirectional byte stream with two ends. <code>native_pipe</code> is
+        the unbuffered pair of native handles: <code>in()</code> is the read end and
+        <code>out()</code> is the write end. <code>iobuf_pipe</code> wraps that pair in
+        the same buffered I/O object used by <code>iobuf_file</code>; its
+        <code>.handle</code> member is the underlying <code>native_pipe</code>.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Buffered</th>
+            <th>Use it for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::native_pipe</code></td>
+            <td>No</td>
+            <td>Byte movement with <code>transmit</code>, or when you need the raw handles
+              for <code>poll</code>/<code>select</code>.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::iobuf_pipe</code></td>
+            <td>Yes</td>
+            <td><code>print</code>, <code>scan</code>, and line-oriented protocols.
+              <code>scan</code> requires a buffered input, so this is the type to use when
+              the pipe carries values rather than raw bytes.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The pipe object owns the whole pair, including the write end. When the read side
+        sees end-of-file, that means <em>every</em> write end in every process has been
+        closed. If the parent keeps its copy of the write end open, the read side will
+        wait forever. This is the single most common pipe bug.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Capturing a Child's Output</h2>
+      <p>
+        The following program gives the child a null stdin, a pipe for stdout, and the
+        parent's stderr. It closes the parent's copy of the pipe's write end, then uses
+        <code>transmit</code> to drain the read end until the child exits and the pipe
+        reaches end-of-file:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    ::fast_io::iobuf_pipe child_out;
+
+    ::fast_io::native_process child{
+        "child.exe",
+        ::fast_io::native_process_args{},
+        {},
+        {.in = ::fast_io::posix_dev_null(),
+         .out = child_out.handle,
+         .err = ::fast_io::err()},
+        ::fast_io::process_mode::none};
+
+    // The parent must not keep the write end open.
+    child_out.handle.out().close();
+
+    // Byte movement, not formatting: no temporary vector, no read/write loop.
+    ::fast_io::io::transmit(child_out, ::fast_io::out());
+
+    auto status{::fast_io::wait(child)};
+    ::fast_io::io::println(::fast_io::err(), "child finished");
+}
+</code></pre>
+      <p>
+        If you need both stdout and stderr, do not drain them one after the other unless
+        you know the child's output is small. A child that fills the stderr pipe while
+        the parent is blocked reading stdout will deadlock. Either drain both
+        concurrently with threads or coroutines, redirect one of them to a file or
+        <code>posix_dev_null()</code>, or use <code>poll</code> on the two read ends.
+        Chapter 23 shows the asynchronous version of the same idea.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Pipes Are Not Message Queues</h2>
+      <p>
+        A pipe preserves bytes, not boundaries. Two writes may be read as one chunk, and
+        one write may be read in pieces. On POSIX, a write of at most
+        <code>PIPE_BUF</code> bytes is atomic with respect to other writers; larger writes
+        are not. A protocol that needs records must define a length prefix, a delimiter,
+        or a fixed-size header, and then use <code>print</code>/<code>scan</code> or an
+        explicit framing layer on top.
+      </p>
+      <p>
+        EOF is also a property of the write ends, not of a message. If a process forks
+        another child, every inherited write end must be closed before the reader can see
+        EOF. This is a feature when you use it deliberately and a hang when you forget
+        it.
+      </p>
+      <p>
+        On POSIX, writing to a pipe with no reader can raise <code>SIGPIPE</code>. A
+        long-running server should decide whether to ignore that signal or handle it as a
+        normal write error, and should not discover the default disposition by crashing.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Lifetime, Failure and Platform Notes</h2>
+      <ul>
+        <li>
+          <strong>Ownership.</strong> <code>native_process</code> is move-only. Moving it
+          transfers the child handle; copying would create two owners and two waits.
+        </li>
+        <li>
+          <strong>Destructor.</strong> It waits for the child. Call <code>wait</code> when
+          you need the status, and <code>detach</code> when you deliberately want the child
+          to outlive the object.
+        </li>
+        <li>
+          <strong>Failure.</strong> Construction and <code>wait</code> report errors as
+          herbceptions. The same <code>catch throws(::std::error)</code> pattern used
+          throughout this chapter applies.
+        </li>
+        <li>
+          <strong>POSIX modes.</strong> <code>process_mode::new_session</code> calls
+          <code>setsid</code>; <code>process_mode::posix_vfork</code> uses
+          <code>vfork</code> and restricts what the child may do before <code>exec</code>;
+          <code>process_mode::follow</code> controls whether a symlink is followed.
+        </li>
+        <li>
+          <strong>Windows modes.</strong> <code>process_mode::alloc_new_console</code>
+          gives the child its own console; <code>kill</code> terminates it with the given
+          exit code.
+        </li>
+        <li>
+          <strong>Path spelling.</strong> Use <code>::fast_io::mnp::os_c_str</code> when a
+          path comes from <code>argv</code>, so the native encoding is used on each
+          platform.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Key takeaways</h2>
+      <ul>
+        <li><code>native_process</code> owns a child process, is move-only, and waits in
+          its destructor; <code>wait</code>, <code>detach</code> and <code>kill</code> are
+          the three lifetime decisions.</li>
+        <li><code>native_process_args</code> and <code>native_process_envs</code> accept
+          printable values and perform the platform string conversion; an empty
+          environment means inherit, a non-empty one replaces it.</li>
+        <li><code>native_process_io</code> redirects <code>in</code>, <code>out</code> and
+          <code>err</code>; <code>posix_dev_null()</code> discards a stream portably.</li>
+        <li>Use <code>iobuf_pipe</code> when the pipe carries formatted values, and
+          <code>native_pipe</code> when it carries raw bytes for <code>transmit</code>.</li>
+        <li>Close the parent's copy of every unused write end, or the reader will never
+          see EOF.</li>
+        <li>Drain multiple pipes concurrently; sequential drains can deadlock when the
+          child fills the pipe you are not reading.</li>
+        <li>A pipe is a byte stream with no message boundaries. Bytes use
+          <code>transmit</code>; structured data uses <code>print</code>/<code>scan</code>
+          with framing.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/11.io/19.temp/" class="prev-button">&larr; Ch11.19: Temporary Files</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/12.random/" class="next-button">Ch12: random &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

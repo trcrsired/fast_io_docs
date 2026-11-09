@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第11.20章: 进程与管道 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第11.20章: 进程与管道</h1>
+    <p class="lang-switch"><a href="/docs/11.io/20.process/">English</a></p>
+
+    <section>
+      <h2>1. 为什么进程属于 I/O 这一章</h2>
+      <p>
+        新进程并不会得到新的 I/O 种类。它得到三个继承来的句柄——标准输入、标准输出和标准错误——
+        以及你选择额外传进去的句柄。这和本章一直在用的“文件形状”模型是同一个模型。
+        所以启动进程不是一个独立的子系统，而是一个带生命周期的重定向问题。
+      </p>
+      <p>
+        <code>fast_io</code> 通过 <code>native_process</code> 和 <code>native_pipe</code>
+        暴露这个模型。名字是平台中立的：在 POSIX 上它们落到 <code>fork</code>/<code>exec</code>
+        实现，在 Windows 上落到 <code>CreateProcess</code> 或 NT 进程 API。你写的代码不变。
+      </p>
+      <p>
+        本页讲的是 API 的形状，不是每个平台的全部标志。规则和本书其他地方一样：
+        把子进程的句柄显式写出来，关掉不用的那一端，并且用 <code>transmit</code>
+        排空管道，而不是再手写一个 read/write 循环。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. <code>native_process</code>：创建、等待、分离</h2>
+      <p>
+        构造函数接收可执行文件、参数、环境、标准 I/O 重定向，以及一个
+        <code>process_mode</code> 位掩码。每个参数都有默认值，所以最小可用的程序就是
+        一个路径加一次 <code>wait</code>：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    ::fast_io::native_process child{
+        "child.exe",
+        ::fast_io::native_process_args{},
+        {},
+        {.in = ::fast_io::in(), .out = ::fast_io::out(), .err = ::fast_io::err()},
+        ::fast_io::process_mode::none};
+
+    auto status{::fast_io::wait(child)};
+
+#if defined(_WIN32)
+    ::fast_io::io::println("exit code: ", ::fast_io::wait_status_to_int(status));
+#else
+    if (WIFEXITED(status.wait_loc))
+    {
+        ::fast_io::io::println("exit code: ", WEXITSTATUS(status.wait_loc));
+    }
+#endif
+}
+</code></pre>
+      <p>
+        <code>native_process</code> 只能移动，拥有子进程句柄。如果没人等待，它的析构函数会等待子进程，
+        所以忘记处理的进程不会变成无限增长的僵尸进程。<code>wait</code> 消耗这份所有权并返回平台的等待状态。
+        在 POSIX 上这个状态是原始的 <code>waitpid</code> 值，所以示例用
+        <code>WIFEXITED</code> 和 <code>WEXITSTATUS</code>；在 Windows 上同一个字段已经是退出码。
+      </p>
+      <p>
+        有两种放弃等待的方式。<code>detach(child)</code> 释放句柄，让子进程继续运行；
+        <code>kill(child, status)</code> 请求平台终止它。<code>kill</code> 刻意保持平台形状：
+        在 POSIX 上它发送信号，所以传入装有信号编号的 <code>posix_wait_status</code>；
+        在 Windows 上它用给定的退出码终止进程。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 参数与环境</h2>
+      <p>
+        <code>native_process_args</code> 是可变参数的，接受任何 <code>fast_io</code>
+        能打印的东西。它负责平台字符串转换，所以你不需要手写 <code>char*</code> 数组
+        或 UTF-16 命令行：
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::native_process child{
+    "child.exe",
+    ::fast_io::native_process_args{
+        "plain", 42, 3.5, u8"utf-8", L"wide", U"utf-32"},
+    ::fast_io::native_process_envs{
+        "MODE=test", "LEVEL=2"},
+    {.in = ::fast_io::in(), .out = ::fast_io::out(), .err = ::fast_io::err()}};
+</code></pre>
+      <p>
+        默认情况下，可执行文件路径会作为 <code>argv[0]</code> 前置到参数表里。
+        如果你需要自己决定 <code>argv[0]</code>，传入 <code>args_with_argv0</code> 标签：
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::native_process child{
+    "child.exe",
+    ::fast_io::args_with_argv0,
+    ::fast_io::native_process_args{"my-name", "--verbose"}};
+</code></pre>
+      <p>
+        空的 <code>native_process_envs</code> 表示“继承父进程的环境”。
+        非空则它是子进程的完整环境，而不是在父环境上追加。如果你想扩展父环境，
+        需要先从父进程读出需要的内容，再显式传入完整集合。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 重定向：三个标准句柄</h2>
+      <p>
+        构造函数的第四个参数是一个 <code>native_process_io</code>，有三个字段：
+        <code>in</code>、<code>out</code> 和 <code>err</code>。每个字段接受一个
+        <code>fast_io</code> 设备、一个管道，或者 <code>posix_dev_null()</code>。
+        最后一个即使在 Windows 上也是“丢弃这个流”的平台无关写法。
+      </p>
+      <pre><code class="language-cpp">
+// Child inherits the terminal for stdout/stderr, and reads nothing.
+::fast_io::native_process quiet{
+    "child.exe",
+    {},
+    {},
+    {.in = ::fast_io::posix_dev_null(),
+     .out = ::fast_io::out(),
+     .err = ::fast_io::err()}};
+</code></pre>
+      <p>
+        重定向是在程序启动之前、在子进程里建立的。父进程保留自己的句柄；子进程收到的是副本。
+        这就是为什么把 <code>stdout</code> 重定向到文件不会关闭父进程的终端，
+        也是为什么子进程退出后父进程仍然可以从管道里读数据。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. <code>native_pipe</code> 与 <code>iobuf_pipe</code></h2>
+      <p>
+        管道是带两个端的单向字节流。<code>native_pipe</code> 是不带缓冲的原生句柄对：
+        <code>in()</code> 是读端，<code>out()</code> 是写端。<code>iobuf_pipe</code>
+        把这对句柄包进和 <code>iobuf_file</code> 相同的带缓冲 I/O 对象里；
+        它的 <code>.handle</code> 成员就是底层的 <code>native_pipe</code>。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>带缓冲</th>
+            <th>用来做什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::native_pipe</code></td>
+            <td>否</td>
+            <td>配合 <code>transmit</code> 搬字节，或需要原始句柄做
+              <code>poll</code>/<code>select</code> 时。</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::iobuf_pipe</code></td>
+            <td>是</td>
+            <td><code>print</code>、<code>scan</code> 和面向行的协议。
+              <code>scan</code> 要求带缓冲的输入，所以管道传的是“值”而不是原始字节时用它。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        管道对象拥有整对句柄，包括写端。读端看到文件结束时，意思是<em>所有</em>进程里的
+        <em>每一个</em>写端都已关闭。如果父进程保留着自己的写端副本，读端就会永远等下去。
+        这是最常见的管道 bug。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 捕获子进程的输出</h2>
+      <p>
+        下面的程序给子进程空的标准输入、一个 stdout 管道，以及父进程的 stderr。
+        它关闭父进程这一侧的写端，然后用 <code>transmit</code> 排空读端，
+        直到子进程退出、管道到达文件结束：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+int main()
+{
+    ::fast_io::iobuf_pipe child_out;
+
+    ::fast_io::native_process child{
+        "child.exe",
+        ::fast_io::native_process_args{},
+        {},
+        {.in = ::fast_io::posix_dev_null(),
+         .out = child_out.handle,
+         .err = ::fast_io::err()},
+        ::fast_io::process_mode::none};
+
+    // The parent must not keep the write end open.
+    child_out.handle.out().close();
+
+    // Byte movement, not formatting: no temporary vector, no read/write loop.
+    ::fast_io::io::transmit(child_out, ::fast_io::out());
+
+    auto status{::fast_io::wait(child)};
+    ::fast_io::io::println(::fast_io::err(), "child finished");
+}
+</code></pre>
+      <p>
+        如果你需要同时处理 stdout 和 stderr，不要在一个输出很小、你并不确定的情况下
+        依次排空它们。子进程把 stderr 管道写满、而父进程阻塞在读 stdout 上时，就会死锁。
+        要么用线程或协程并发排空两者，要么把其中一个重定向到文件或
+        <code>posix_dev_null()</code>，要么对两个读端使用 <code>poll</code>。
+        第23章展示了同一件事的异步版本。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 管道不是消息队列</h2>
+      <p>
+        管道保留的是字节，不是边界。两次写可能被一次读出来，一次写也可能被分成几段读。
+        在 POSIX 上，一次不超过 <code>PIPE_BUF</code> 字节的写相对于其他写者是原子的；
+        更大的写不是。需要记录边界的协议必须定义长度前缀、分隔符或固定大小的头部，
+        然后在上面用 <code>print</code>/<code>scan</code> 或显式的分帧层。
+      </p>
+      <p>
+        文件结束也是写端的属性，不是某条消息的属性。如果一个进程又 fork 了子进程，
+        所有继承出去的写端都必须关闭，读者才能看到文件结束。你有意利用它是特性，
+        忘记它就是挂起。
+      </p>
+      <p>
+        在 POSIX 上，向没有读者的管道写可能触发 <code>SIGPIPE</code>。
+        长期运行的服务应该决定是忽略这个信号，还是把它当作普通的写错误处理，
+        而不是靠崩溃来发现默认处置。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 生命周期、失败与平台说明</h2>
+      <ul>
+        <li>
+          <strong>所有权。</strong> <code>native_process</code> 只能移动。移动会转移子进程句柄；
+          复制会产生两个所有者、两次等待。
+        </li>
+        <li>
+          <strong>析构。</strong> 它会等待子进程。需要状态时调用 <code>wait</code>；
+          有意让子进程比对象活得更久时调用 <code>detach</code>。
+        </li>
+        <li>
+          <strong>失败。</strong> 构造和 <code>wait</code> 通过 herbception 报告错误。
+          本章一直使用的 <code>catch throws(::std::error)</code> 模式同样适用。
+        </li>
+        <li>
+          <strong>POSIX 模式。</strong> <code>process_mode::new_session</code> 调用
+          <code>setsid</code>；<code>process_mode::posix_vfork</code> 使用
+          <code>vfork</code>，并限制子进程在 <code>exec</code> 之前能做什么；
+          <code>process_mode::follow</code> 控制是否跟随符号链接。
+        </li>
+        <li>
+          <strong>Windows 模式。</strong> <code>process_mode::alloc_new_console</code>
+          给子进程一个自己的控制台；<code>kill</code> 用给定退出码终止它。
+        </li>
+        <li>
+          <strong>路径写法。</strong> 路径来自 <code>argv</code> 时使用
+          <code>::fast_io::mnp::os_c_str</code>，这样每个平台都会使用自己的原生编码。
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>native_process</code> 拥有子进程，只能移动，析构时会等待；
+          <code>wait</code>、<code>detach</code> 和 <code>kill</code> 是三个生命周期决策。</li>
+        <li><code>native_process_args</code> 和 <code>native_process_envs</code>
+          接受可打印的值并做平台字符串转换；空环境表示继承，非空环境会替换它。</li>
+        <li><code>native_process_io</code> 重定向 <code>in</code>、<code>out</code> 和
+          <code>err</code>；<code>posix_dev_null()</code> 可移植地丢弃一个流。</li>
+        <li>管道传格式化值时用 <code>iobuf_pipe</code>，传原始字节给
+          <code>transmit</code> 时用 <code>native_pipe</code>。</li>
+        <li>关闭父进程持有的每一个不用的写端，否则读者永远看不到文件结束。</li>
+        <li>并发排空多个管道；依次排空时，子进程写满你还没读的那个管道就会死锁。</li>
+        <li>管道是没有消息边界的字节流。字节用 <code>transmit</code>；
+          结构化数据用带分帧的 <code>print</code>/<code>scan</code>。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/11.io/19.temp/" class="prev-button">&larr; 第11.19章: 临时文件</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/12.random/" class="next-button">第12章: random &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

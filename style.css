@@ -1,67 +1,291 @@
 /* Default (light mode) */
+:root {
+  color-scheme: light dark;
+  --page-bg: #ffffff;
+  --page-fg: #1f2328;
+  --muted: #59636e;
+  --link: #0550ae;
+  --border: #d0d7de;
+  --code-bg: #f6f8fa;
+  --callout-bg: #fff8c5;
+  --warning-bg: #ffebe9;
+  --important-bg: #ddf4ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page-bg: #0d1117;
+    --page-fg: #e6edf3;
+    --muted: #9da7b3;
+    --link: #79c0ff;
+    --border: #30363d;
+    --code-bg: #161b22;
+    --callout-bg: #2d2a1f;
+    --warning-bg: #3d1a1a;
+    --important-bg: #0c2d48;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--page-bg);
+}
+
 body {
-  background-color: #ffffff;
-  color: #000000;
-  font-family: sans-serif;
-  margin: 0;
-  padding: 1rem;
+  background-color: var(--page-bg);
+  color: var(--page-fg);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.65;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1rem 1.25rem 3rem;
+  overflow-wrap: break-word;
+}
+
+main {
+  display: block;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  line-height: 1.25;
+  margin: 1.6em 0 0.6em;
+}
+
+h1 {
+  font-size: 2rem;
+  margin-top: 0.4em;
+}
+
+h2 {
+  font-size: 1.4rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+h3 {
+  font-size: 1.15rem;
+}
+
+p,
+ul,
+ol,
+dl,
+blockquote,
+table,
+pre {
+  margin: 0.85rem 0;
+}
+
+/* The old stylesheet removed bullets globally. Keep navigation clean,
+   but restore normal markers inside tutorial prose. */
+ul,
+ol {
+  padding-left: 1.6rem;
+}
+
+li {
+  list-style: revert;
+  margin: 0.3rem 0;
+}
+
+li > ul,
+li > ol {
+  margin-top: 0.2rem;
+  margin-bottom: 0.2rem;
 }
 
 nav a {
-  display: block;       /* Each link takes a full line */
-  margin: 0.5rem 0;     /* Add vertical spacing between links */
+  display: block;
+  margin: 0.5rem 0;
   text-decoration: none;
-  color: #0066cc;
+  color: var(--link);
+}
+
+nav ul {
+  padding-left: 0;
+  margin: 0.25rem 0 1rem;
+}
+
+nav li {
+  list-style: none;
+}
+
+a {
+  color: var(--link);
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 3px solid var(--link);
+  outline-offset: 3px;
+}
+
+code,
+kbd,
+samp {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.92em;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.08em 0.3em;
+  overflow-wrap: anywhere;
+}
+
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  line-height: 1.45;
+  tab-size: 4;
+  -webkit-overflow-scrolling: touch;
+}
+
+pre code {
+  display: block;
+  min-width: max-content;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  font-size: 0.9rem;
+  overflow-wrap: normal;
+  white-space: pre;
+}
+
+blockquote {
+  padding: 0.55rem 1rem;
+  border-left: 4px solid var(--link);
+  background: var(--code-bg);
+  color: var(--muted);
+}
+
+table {
+  border-collapse: collapse;
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+}
+
+th,
+td {
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.65rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--code-bg);
+  font-weight: 600;
+}
+
+.note,
+.warning,
+.important,
+.tip {
+  margin: 1rem 0;
+  padding: 0.7rem 1rem;
+  border-left: 4px solid #d4a72c;
+  background: var(--callout-bg);
+  border-radius: 0 4px 4px 0;
+}
+
+.warning {
+  border-left-color: #cf222e;
+  background: var(--warning-bg);
+}
+
+.important {
+  border-left-color: #0969da;
+  background: var(--important-bg);
+}
+
+.tip {
+  border-left-color: #1a7f37;
+  background: var(--callout-bg);
+}
+
+.note > :first-child,
+.warning > :first-child,
+.important > :first-child,
+.tip > :first-child {
+  margin-top: 0;
+}
+
+.note > :last-child,
+.warning > :last-child,
+.important > :last-child,
+.tip > :last-child {
+  margin-bottom: 0;
 }
 
 footer {
   margin-top: 2rem;
   font-size: 0.9rem;
-  color: #555;
-}
-
-/* Dark mode */
-@media (prefers-color-scheme: dark) {
-  body {
-    background-color: #000000;
-    color: #ffffff;
-  }
-
-  nav a {
-    color: #66ccff;
-  }
-
-  footer {
-    color: #aaa;
-  }
+  color: var(--muted);
 }
 
 .page-navigation {
-  margin-top: 2rem;
+  margin-top: 2.5rem;
   display: flex;
-  justify-content: space-between; /* pushes prev left, next right */
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.prev-button,
+.next-button,
+.main-button {
+  display: inline-block;
+  padding: 0.6rem 1.1rem;
+  border-radius: 4px;
+  font-weight: 600;
+  text-decoration: none;
 }
 
 .prev-button,
 .next-button {
-  display: inline-block;
-  padding: 0.6rem 1.2rem;
-  background-color: #0066cc;
+  background-color: #0969da;
   color: #fff;
-  text-decoration: none;
-  border-radius: 4px;
-  font-weight: bold;
+}
+
+.main-button {
+  background: var(--code-bg);
+  color: var(--link);
+  border: 1px solid var(--border);
 }
 
 .prev-button:hover,
 .next-button:hover {
-  background-color: #004c99;
+  background-color: #0550ae;
+  text-decoration: none;
+}
+
+.main-button:hover {
+  text-decoration: none;
+  border-color: var(--link);
 }
 
 .video-container {
   position: relative;
-  width: 100%;          /* take full width of text content area */
-  padding-bottom: 56.25%; /* 16:9 aspect ratio (height = 9/16 of width) */
+  width: 100%;
+  padding-bottom: 56.25%;
   height: 0;
   overflow: hidden;
 }
@@ -70,26 +294,8 @@ footer {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;          /* scale to container width */
-  height: 100%;         /* scale height accordingly */
-}
-
-li {
-  margin: 0.3rem 0;
-  list-style: none;   /* removes default bullets */
-}
-
-li::before {
-  content: none;      /* no folder icon */
-}
-
-li a::before {
-  content: none;      /* no file icon */
-}
-
-li a {
-  text-decoration: none;
-  color: #0066cc;
+  width: 100%;
+  height: 100%;
 }
 
 .screenshots img {
@@ -97,14 +303,13 @@ li a {
   height: auto;
   max-width: 100%;
   display: block;
-  border-radius: 8px; /* optional */
+  border-radius: 8px;
 }
 
 .screenshots figure {
   margin: 0 0 1.5rem 0;
 }
 
-/* Language switch link (中文 / English) */
 .lang-switch {
   margin: 0.2rem 0 1rem 0;
   font-size: 0.9rem;
@@ -112,25 +317,59 @@ li a {
 
 .lang-switch a {
   text-decoration: none;
-  border: 1px solid #0066cc;
+  border: 1px solid var(--link);
   border-radius: 4px;
   padding: 0.15rem 0.5rem;
-  color: #0066cc;
+  color: var(--link);
 }
 
 .lang-switch a:hover {
-  background-color: #0066cc;
-  color: #fff;
+  background: var(--link);
+  color: var(--page-bg);
+  text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  .lang-switch a {
-    border-color: #66ccff;
-    color: #66ccff;
+@media (max-width: 600px) {
+  body {
+    padding: 0.75rem 0.8rem 2rem;
   }
 
-  .lang-switch a:hover {
-    background-color: #66ccff;
+  h1 {
+    font-size: 1.6rem;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+  }
+
+  .page-navigation {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .prev-button,
+  .next-button,
+  .main-button {
+    text-align: center;
+  }
+}
+
+@media print {
+  body {
+    max-width: none;
     color: #000;
+    background: #fff;
+  }
+
+  .page-navigation,
+  .lang-switch,
+  script {
+    display: none;
+  }
+
+  pre,
+  table,
+  blockquote {
+    break-inside: avoid;
   }
 }

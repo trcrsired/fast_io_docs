@@ -306,8 +306,105 @@ int main()
     </section>
 
     <section>
+      <h2>7. print, scan and transmit: Let fast_io Own the Buffer</h2>
+
+      <p>
+        Ch11.4 showed the raw operations: <code>read_some</code>, <code>read_all</code>,
+        <code>write_some</code>, <code>write_all</code>, <code>pread_*</code>,
+        <code>pwrite_*</code>, and the scatter variants. They are the layer a device
+        implementation is built on. They are not the layer application code should use.
+      </p>
+      <p>
+        In application code, reach for the three high-level operations instead:
+        <code>print</code> for formatted output, <code>scan</code> for formatted input, and
+        <code>transmit</code> for moving raw bytes from an input device to an output device.
+        They handle short reads, short writes, interrupted syscalls and buffer refills for you.
+        Reimplementing that logic at every call site is how programs acquire bugs that only
+        appear when a pipe is full, a socket is slow, or a file is larger than one buffer.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Input device</th>
+            <th>Output device</th>
+            <th>What it does</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>scan</code></td>
+            <td>Buffered only</td>
+            <td>&mdash;</td>
+            <td>Parses formatted values. It needs lookahead and pushback, so an unbuffered
+              input device is rejected.</td>
+          </tr>
+          <tr>
+            <td><code>print</code></td>
+            <td>&mdash;</td>
+            <td>Buffered or unbuffered</td>
+            <td>Formats values. A buffered device batches the writes; an unbuffered device
+              writes through.</td>
+          </tr>
+          <tr>
+            <td><code>transmit</code></td>
+            <td>Buffered or unbuffered</td>
+            <td>Buffered or unbuffered</td>
+            <td>Moves bytes without formatting. It stages partial reads and writes, and can
+              use a kernel copy path when the platform provides one.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        The asymmetry around <code>scan</code> is not an accident. Formatted input has to look
+        at the next character before it can decide whether the current token has ended, so it
+        requires an input buffer it owns. An unbuffered file such as
+        <code>::fast_io::native_file</code> has no such buffer; wrap it in
+        <code>::fast_io::ibuf_file</code> or <code>::fast_io::iobuf_file</code> before scanning.
+        Output needs no lookahead, which is why <code>print</code> works on both buffered and
+        unbuffered devices. <code>transmit</code> is byte-oriented in both directions, so it works
+        on both sides without formatting.
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::io;
+
+    ::fast_io::ibuf_file in("input.bin");
+    ::fast_io::obuf_file out("output.bin");
+
+    // Bytes, not values: no format string, no temporary container.
+    transmit(in, out);
+}
+</code></pre>
+
+      <p>
+        This is where the buffered/unbuffered choice pays off. <code>print</code> and
+        <code>transmit</code> do not force you to choose a buffered type just to get correct
+        behaviour; they adapt to the device. Where the platform has a kernel copy primitive
+        such as <code>sendfile</code>, <code>splice</code>, <code>copy_file_range</code> or a
+        memory map, <code>transmit</code> can use it instead of copying through user space.
+        Where it does not, it falls back to a bounded internal buffer. In both cases the
+        application does not allocate a per-transfer buffer, and it does not get to forget a
+        partial write.
+      </p>
+      <p>
+        The raw operations are still the right tool when you are implementing a new device or
+        a layer below fast_io, or when a protocol requires exact control over one syscall.
+        Above that layer the rule is simple: <strong>scan for input, print for output, transmit
+        for byte movement</strong>. Let fast_io own the buffer.
+      </p>
+    </section>
+
+    <section>
       <h2>Key takeaways</h2>
       <ul>
+        <li>In application code, prefer <code>print</code>, <code>scan</code> and <code>transmit</code> over raw <code>read</code>/<code>write</code>. <code>scan</code> requires buffered input; <code>print</code> and <code>transmit</code> work with both buffered and unbuffered devices.</li>
         <li><code>::fast_io::native_file</code> is <strong>unbuffered</strong>: every read or write is a syscall. Fast for large bulk transfers, catastrophically slow for many small operations.</li>
         <li><code>::fast_io::iobuf_file</code> (and <code>ibuf_file</code> / <code>obuf_file</code>) are <strong>buffered</strong>: they batch small operations in a user-space buffer and flush with a single syscall when full &mdash; orders of magnitude faster for small I/O.</li>
         <li>Use <code>ibuf_file</code> for input-only, <code>obuf_file</code> for output-only, <code>iobuf_file</code> for bidirectional I/O.</li>

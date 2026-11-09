@@ -12,6 +12,8 @@
   <main>
     <h1>第11.10.4章: fast_io 中的协议支持</h1>
     <p class="lang-switch"><a href="/docs/11.io/10.socket/04.protocolsupport/">English</a></p>
+    <section>
+      <h2>socket 层支持什么</h2>
     <p>
       与主要聚焦 TCP 和 UDP 的 Boost.Asio 不同，<code>fast_io</code> 的 socket API 通过操作系统的原生 socket 接口支持广泛的协议：
     </p>
@@ -29,6 +31,18 @@
     <p>
       对 TCP 与 UDP，<code>fast_io</code> 提供 <code>tcp_connect()</code>、<code>tcp_listen()</code> 以及 DNS 解析这样的便捷函数。对其他协议，你可以直接从操作系统的 socket 句柄构造 socket 文件。
     </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>socket API 只是操作系统 socket 接口的薄包装；协议清单来自操作系统，不是 fast_io 自己维护的列表。</li>
+        <li>TCP 和 UDP 有便捷函数；其他协议直接从原生 socket 句柄构造。</li>
+        <li>协议支持是平台属性，依赖蓝牙、原始套接字或 Unix 域套接字之前先确认目标系统。</li>
+        <li>原始套接字和部分协议族需要提升权限。</li>
+      </ul>
+    </section>
+
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
       <a href="/zhcn/docs/11.io/10.socket/03.modernprotocols/" class="prev-button">&larr; 第11.10.3章: 现代协议</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/11.io/11.cstyle/" class="next-button">第11.11章: C 风格 I/O &rarr;</a>

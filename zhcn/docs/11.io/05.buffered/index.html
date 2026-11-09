@@ -280,8 +280,96 @@ int main()
     </section>
 
     <section>
+      <h2>7. print、scan 与 transmit：把缓冲区交给 fast_io</h2>
+
+      <p>
+        第11.4章展示了底层操作：<code>read_some</code>、<code>read_all</code>、
+        <code>write_some</code>、<code>write_all</code>、<code>pread_*</code>、
+        <code>pwrite_*</code>，以及 scatter 变体。它们是实现设备的那一层，
+        不是应用程序代码应该直接使用的那一层。
+      </p>
+      <p>
+        在应用代码里，应该使用三个高层操作：格式化输出用 <code>print</code>，
+        格式化输入用 <code>scan</code>，把原始字节从输入设备搬到输出设备用
+        <code>transmit</code>。短读、短写、被中断的系统调用和缓冲区填充都由它们处理。
+        如果每个调用点都自己重写这套逻辑，程序就会长出只在管道满、socket 慢、
+        或文件大于一个缓冲区时才出现的 bug。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>操作</th>
+            <th>输入设备</th>
+            <th>输出设备</th>
+            <th>做什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>scan</code></td>
+            <td>仅带缓冲</td>
+            <td>&mdash;</td>
+            <td>解析格式化值。它需要向前看和回退，所以不接受不带缓冲的输入设备。</td>
+          </tr>
+          <tr>
+            <td><code>print</code></td>
+            <td>&mdash;</td>
+            <td>带缓冲或不带缓冲</td>
+            <td>格式化值。带缓冲的设备会批量写出，不带缓冲的设备直接写透。</td>
+          </tr>
+          <tr>
+            <td><code>transmit</code></td>
+            <td>带缓冲或不带缓冲</td>
+            <td>带缓冲或不带缓冲</td>
+            <td>不格式化，只搬字节。它会处理不完整的读写，并在平台支持时使用内核复制路径。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        <code>scan</code> 的这个不对称不是偶然。格式化输入必须先看下一个字符，
+        才能判断当前 token 是否结束，所以它需要一个自己拥有的输入缓冲区。
+        <code>::fast_io::native_file</code> 这类不带缓冲的文件没有这样的缓冲区；
+        先把它包进 <code>::fast_io::ibuf_file</code> 或 <code>::fast_io::iobuf_file</code>
+        再 scan。输出不需要向前看，所以 <code>print</code> 对带缓冲和不带缓冲的设备都成立。
+        <code>transmit</code> 在两个方向上都是面向字节的，因此两边都不需要格式化。
+      </p>
+
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::io;
+
+    ::fast_io::ibuf_file in("input.bin");
+    ::fast_io::obuf_file out("output.bin");
+
+    // Bytes, not values: no format string, no temporary container.
+    transmit(in, out);
+}
+</code></pre>
+
+      <p>
+        这正是带缓冲/不带缓冲这个选择发挥作用的地方。<code>print</code> 和
+        <code>transmit</code> 不会强迫你为了正确性去选一个带缓冲的类型；它们会适配设备。
+        如果平台提供 <code>sendfile</code>、<code>splice</code>、<code>copy_file_range</code>
+        或内存映射这样的内核复制原语，<code>transmit</code> 可以用它，而不必经过用户态复制。
+        如果没有，它就退回一个有界内部缓冲区。两种情况下，应用都不需要为每次传输分配缓冲区，
+        也不会忘记处理不完整的写。
+      </p>
+      <p>
+        底层操作仍然是正确的工具：在实现新设备、实现 fast_io 下面的一层，
+        或协议要求精确控制某一次系统调用时使用它们。在这一层之上，规则很简单：
+        <strong>输入用 scan，输出用 print，字节移动用 transmit</strong>。把缓冲区交给 fast_io。
+      </p>
+    </section>
+
+    <section>
       <h2>要点</h2>
       <ul>
+        <li>应用代码应优先用 <code>print</code>、<code>scan</code> 和 <code>transmit</code>，而不是直接调 <code>read</code>/<code>write</code>。<code>scan</code> 需要带缓冲的输入；<code>print</code> 和 <code>transmit</code> 对带缓冲和不带缓冲的设备都成立。</li>
         <li><code>::fast_io::native_file</code> <strong>不带缓冲</strong>：每次读写都是一次系统调用。大批量传输时快，大量小操作时慢得灾难性。</li>
         <li><code>::fast_io::iobuf_file</code>（以及 <code>ibuf_file</code> / <code>obuf_file</code>）<strong>带缓冲</strong>：在用户态缓冲区里把小的操作攒起来，满了用一次系统调用刷出 &mdash; 对小规模 I/O 快上数量级。</li>
         <li>仅输入用 <code>ibuf_file</code>，仅输出用 <code>obuf_file</code>，双向 I/O 用 <code>iobuf_file</code>。</li>

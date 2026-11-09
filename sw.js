@@ -1,4 +1,4 @@
-const CACHE_NAME = "fast_io-docs-v82.4";
+const CACHE_NAME = "fast_io-docs-v82.5";
 const urlsToCache = [
   "/",
   "/style.css",
@@ -8,7 +8,8 @@ const urlsToCache = [
   "/icons/logo.webp",
   "/docs/00.intro/",
   "/docs/00.intro/01.fastio/",
-  // "/docs/api/",
+  "/docs/api/",
+  "/zhcn/docs/api/",
   // Chinese (zh-CN) translation
   "/zhcn/",
   "/zhcn/docs/00.intro/01.fastio/",
@@ -180,6 +181,7 @@ const urlsToCache = [
   "/zhcn/docs/11.io/17.layers/",
   "/zhcn/docs/11.io/18.filesystem/",
   "/zhcn/docs/11.io/19.temp/",
+  "/zhcn/docs/11.io/20.process/",
   "/zhcn/docs/11.io/",
   "/zhcn/docs/12.random/01.engines/",
   "/zhcn/docs/12.random/02.distributions/",
@@ -348,7 +350,6 @@ const urlsToCache = [
   "/zhcn/docs/25.fineprint/02.bindings/",
   "/zhcn/docs/25.fineprint/03.storage/",
   "/zhcn/docs/25.fineprint/04.edges/",
-  "/zhcn/docs/api/",
   "/zhcn/",
   "/docs/01.compile/",
   "/docs/01.compile/01.pwastore/",
@@ -522,6 +523,7 @@ const urlsToCache = [
   '/docs/11.io/17.layers/',
   '/docs/11.io/18.filesystem/',
   '/docs/11.io/19.temp/',
+  '/docs/11.io/20.process/',
   '/docs/12.random/',
   '/docs/12.random/01.engines/',
   '/docs/12.random/02.distributions/',
