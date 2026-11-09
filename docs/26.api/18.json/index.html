@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.18: JSON - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.18: JSON</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/18.json/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. A Reader, Not a Serializer</h2>
+      <p>
+        <code>fast_io.json</code> is a JSON reader. It provides a streaming handler interface, a
+        DOM built over the same parser, and a no-heap fixed-arena flavour. It does not provide a
+        JSON writer; write the output with <code>print</code> if you need one.
+      </p>
+      <p>
+        The module exports the namespace <code>fast_io::json</code>. The parser is a single-pass
+        recursive descent over one buffer. String views point into that buffer or into the
+        decode arena, so the source must outlive the document.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Parser Policy and Limits</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>json_policy::none</code></td>
+            <td>Reject numbers with a fraction or exponent. No floating-point conversion is
+              emitted.</td>
+          </tr>
+          <tr>
+            <td><code>json_policy::floating_point</code></td>
+            <td>Accept real numbers.</td>
+          </tr>
+          <tr>
+            <td><code>default_json_policy</code></td>
+            <td><code>floating_point</code>.</td>
+          </tr>
+          <tr>
+            <td><code>max_depth</code></td>
+            <td>512; deeper documents are rejected.</td>
+          </tr>
+          <tr>
+            <td><code>max_nodes</code></td>
+            <td>Node/member index ceiling, below the 32-bit index space.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The policy is a template parameter, not a runtime flag. A kernel or a no-FPU target can
+        instantiate <code>json_policy::none</code> and never link a decimal converter.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Streaming Handler</h2>
+      <p>
+        A handler is duck-typed. Every member returns <code>void</code> and reports failure
+        through <code>throws</code>:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Called for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>on_null()</code></td><td><code>null</code>.</td></tr>
+          <tr><td><code>on_bool(bool)</code></td><td><code>true</code> or <code>false</code>.</td></tr>
+          <tr><td><code>on_uint64(uint64)</code></td><td>Non-negative integer.</td></tr>
+          <tr><td><code>on_int64(int64)</code></td><td>Negative integer.</td></tr>
+          <tr><td><code>on_float64(float64)</code></td><td>Real number.</td></tr>
+          <tr><td><code>on_string(u8string_view)</code></td><td>Decoded string.</td></tr>
+          <tr><td><code>on_array_begin()</code></td><td>Start of an array.</td></tr>
+          <tr><td><code>on_array_end(n)</code></td><td>End of an array with <code>n</code> elements.</td></tr>
+          <tr><td><code>on_object_begin()</code></td><td>Start of an object.</td></tr>
+          <tr><td><code>on_object_end(n)</code></td><td>End of an object with <code>n</code> members.</td></tr>
+          <tr><td><code>on_key(u8string_view)</code></td><td>Decoded object key.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Because every callback is <code>void</code> and failures are herbceptions, the fast path
+        carries no error slot and no per-callback branch. The handler can stop early by throwing
+        its own error.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The DOM</h2>
+      <p>
+        <code>json::document</code> is <code>basic_document&lt;native_global_allocator&gt;</code>.
+        It owns two flat containers (values and members) and a decode arena. The tree is built in
+        one pass; there is no finalisation step.
+      </p>
+      <pre><code class="language-cpp">
+import fast_io.json;
+
+int main()
+{
+    auto docs{::fast_io::json::parse(u8R"({"name":"fast_io","count":3})")};
+    auto const &root{docs.root()};
+    auto const *name{root.object_at(root, u8"name")};
+}
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>root()</code></td><td>The root value.</td></tr>
+          <tr><td><code>operator[](i)</code></td><td>Checked access to a value node.</td></tr>
+          <tr><td><code>index_unchecked(i)</code></td><td>Unchecked access after a proven bound.</td></tr>
+          <tr><td><code>first_child(v)</code></td><td>First child of an array or first member of an object.</td></tr>
+          <tr><td><code>next_sibling(v)</code>, <code>next_member(m)</code></td><td>Walk the chain.</td></tr>
+          <tr><td><code>array_at(arr, n)</code></td><td>Nth element of an array, or <code>nullptr</code>.</td></tr>
+          <tr><td><code>object_find(obj, key)</code></td><td>Member by key, or <code>nullptr</code>.</td></tr>
+          <tr><td><code>object_at(obj, key)</code></td><td>Value by key, or <code>nullptr</code>.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        <code>value</code> exposes <code>kind</code>, <code>as_bool()</code>,
+        <code>as_uint64()</code>, <code>as_int64()</code>, <code>as_float64()</code> and
+        <code>as_string()</code>. The accessor does not convert between kinds; check
+        <code>kind</code> first.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Entry Points</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>parse&lt;policy&gt;(source)</code></td>
+            <td>Return a <code>document</code>; the source must outlive it.</td>
+          </tr>
+          <tr>
+            <td><code>parse_file&lt;policy&gt;(path)</code></td>
+            <td>Map a file and return a <code>loaded_document</code> that owns the mapping and the
+              document.</td>
+          </tr>
+          <tr>
+            <td><code>parse_into&lt;policy&gt;(source, handler)</code></td>
+            <td>Stream into a caller handler; returns bytes consumed.</td>
+          </tr>
+          <tr>
+            <td><code>parse_into(source, handler, fixed_arena)</code></td>
+            <td>Constexpr/no-heap form with a caller-owned arena.</td>
+          </tr>
+          <tr>
+            <td><code>parse_callback(source, handler, cb)</code></td>
+            <td>Noexcept callback form; <code>cb</code> gets the error handle, success has
+              <code>domain == nullptr</code>.</td>
+          </tr>
+          <tr>
+            <td><code>parse_async(source, handler)</code></td>
+            <td>Coroutine awaiter over the streaming handler.</td>
+          </tr>
+          <tr>
+            <td><code>parse_document_async(source)</code></td>
+            <td>Coroutine awaiter that yields a <code>document</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>parse_callback</code> transfers ownership of the error handle to the callback; call
+        <code>dispose_error</code> if you do not consume it. The source and handler must outlive
+        the callback, not the other way around.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Errors and Offsets</h2>
+      <p>
+        Parsing reports three error kinds through the herbception channel:
+        <code>parse_errc::invalid</code> (malformed), <code>parse_errc::end_of_file</code>
+        (truncated) and <code>parse_errc::overflow</code> (depth or node limit). The exception
+        value does not carry a position, so a retained <code>json::parser</code> exposes
+        <code>error_offset</code> after the failure.
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::json::parser p{source, &amp;arena};
+try
+{
+    ::fast_io::json::parse_document(p, handler);
+}
+catch throws(::std::error e)
+{
+    println("failed at byte ", p.error_offset);
+}
+</code></pre>
+      <p>
+        <code>parse_callback</code> and the async awaiter follow the same rule: the callback
+        receives the error handle, and a failed awaiter rethrows from <code>await_resume()</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Lifetime Rules</h2>
+      <ul>
+        <li>String views point into the source buffer or the decode arena; the source must outlive
+          the document.</li>
+        <li><code>parse_file</code> owns the mapping and the document together, so their
+          destruction order is correct.</li>
+        <li>A handler passed to <code>parse_into</code> must outlive the call, not the returned
+          document (there is no document).</li>
+        <li>A document's node indices are 32-bit; check <code>kind</code> and chain bounds before
+          dereferencing.</li>
+        <li>Do not keep a <code>u8string_view</code> from a document after the source is gone.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li><code>fast_io.json</code> is a reader with streaming, DOM and no-heap forms.</li>
+        <li><code>json_policy::none</code> removes floating-point support at compile time.</li>
+        <li>Handlers are duck-typed and report failure through herbceptions.</li>
+        <li>The DOM is a flat two-container tree with checked and unchecked access.</li>
+        <li><code>parse_file</code> owns the mapping; <code>parse</code> requires the source to
+          outlive the document.</li>
+        <li>Errors are invalid, end-of-file or overflow; <code>parser.error_offset</code> gives the
+          byte position.</li>
+        <li>The parser bounds depth and node count; it does not provide a JSON writer.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/17.random/" class="prev-button">&larr; Ch26.17: Random and Entropy</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

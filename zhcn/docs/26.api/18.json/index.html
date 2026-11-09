@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.18章：JSON - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.18章：JSON</h1>
+    <p class="lang-switch"><a href="/docs/26.api/18.json/">English</a></p>
+
+    <section>
+      <h2>1. 读取器，不是序列化器</h2>
+      <p>
+        <code>fast_io.json</code> 是 JSON 读取器。它提供流式 handler 接口、
+        建立在同一 parser 上的 DOM，以及无堆的固定 arena 形式。它不提供 JSON writer；
+        需要输出时用 <code>print</code> 写。
+      </p>
+      <p>
+        模块导出 <code>fast_io::json</code> 命名空间。parser 是单遍递归下降，
+        读一块缓冲区。字符串视图指向该缓冲区或解码 arena，
+        所以 source 必须比 document 活得久。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Parser 策略与限制</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>名字</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>json_policy::none</code></td>
+            <td>拒绝带小数或指数的数字。不生成浮点转换代码。</td>
+          </tr>
+          <tr>
+            <td><code>json_policy::floating_point</code></td>
+            <td>接受实数。</td>
+          </tr>
+          <tr>
+            <td><code>default_json_policy</code></td>
+            <td><code>floating_point</code>。</td>
+          </tr>
+          <tr>
+            <td><code>max_depth</code></td>
+            <td>512；更深的文档会被拒绝。</td>
+          </tr>
+          <tr>
+            <td><code>max_nodes</code></td>
+            <td>节点/成员索引上限，低于 32 位索引空间。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        策略是模板参数，不是运行期标志。内核或不支持 FPU 的目标可以实例化
+        <code>json_policy::none</code>，永远不会链接十进制转换器。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 流式 Handler</h2>
+      <p>
+        Handler 是 duck-typed 的。每个成员返回 <code>void</code>，并通过
+        <code>throws</code> 报告失败：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>成员</th>
+            <th>调用时机</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>on_null()</code></td><td><code>null</code>。</td></tr>
+          <tr><td><code>on_bool(bool)</code></td><td><code>true</code> 或 <code>false</code>。</td></tr>
+          <tr><td><code>on_uint64(uint64)</code></td><td>非负整数。</td></tr>
+          <tr><td><code>on_int64(int64)</code></td><td>负整数。</td></tr>
+          <tr><td><code>on_float64(float64)</code></td><td>实数。</td></tr>
+          <tr><td><code>on_string(u8string_view)</code></td><td>解码后的字符串。</td></tr>
+          <tr><td><code>on_array_begin()</code></td><td>数组开始。</td></tr>
+          <tr><td><code>on_array_end(n)</code></td><td>有 <code>n</code> 个元素的数组结束。</td></tr>
+          <tr><td><code>on_object_begin()</code></td><td>对象开始。</td></tr>
+          <tr><td><code>on_object_end(n)</code></td><td>有 <code>n</code> 个成员的对象结束。</td></tr>
+          <tr><td><code>on_key(u8string_view)</code></td><td>解码后的对象键。</td></tr>
+        </tbody>
+      </table>
+      <p>
+        因为每个回调都是 <code>void</code>，失败走 herbception，快路径不携带错误槽，
+        也没有逐回调分支。Handler 可以抛自己的错误来提前停止。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. DOM</h2>
+      <p>
+        <code>json::document</code> 是 <code>basic_document&lt;native_global_allocator&gt;</code>。
+        它拥有两个扁平容器（values 和 members）以及一个解码 arena。树一遍建成，没有收尾步骤。
+      </p>
+      <pre><code class="language-cpp">
+import fast_io.json;
+
+int main()
+{
+    auto docs{::fast_io::json::parse(u8R"({"name":"fast_io","count":3})")};
+    auto const &root{docs.root()};
+    auto const *name{root.object_at(root, u8"name")};
+}
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>成员</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>root()</code></td><td>根值。</td></tr>
+          <tr><td><code>operator[](i)</code></td><td>带检查的值节点访问。</td></tr>
+          <tr><td><code>index_unchecked(i)</code></td><td>已证明边界后的无检查访问。</td></tr>
+          <tr><td><code>first_child(v)</code></td><td>数组的第一个子节点，或对象的第一个成员。</td></tr>
+          <tr><td><code>next_sibling(v)</code>、<code>next_member(m)</code></td><td>遍历链。</td></tr>
+          <tr><td><code>array_at(arr, n)</code></td><td>数组第 n 个元素，或 <code>nullptr</code>。</td></tr>
+          <tr><td><code>object_find(obj, key)</code></td><td>按键找成员，或 <code>nullptr</code>。</td></tr>
+          <tr><td><code>object_at(obj, key)</code></td><td>按键找值，或 <code>nullptr</code>。</td></tr>
+        </tbody>
+      </table>
+      <p>
+        <code>value</code> 暴露 <code>kind</code>、<code>as_bool()</code>、
+        <code>as_uint64()</code>、<code>as_int64()</code>、<code>as_float64()</code> 和
+        <code>as_string()</code>。访问器不做类型转换；先检查 <code>kind</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 入口</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>入口</th>
+            <th>用途</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>parse&lt;policy&gt;(source)</code></td>
+            <td>返回 <code>document</code>；source 必须比它活得久。</td>
+          </tr>
+          <tr>
+            <td><code>parse_file&lt;policy&gt;(path)</code></td>
+            <td>映射文件并返回拥有映射和 document 的 <code>loaded_document</code>。</td>
+          </tr>
+          <tr>
+            <td><code>parse_into&lt;policy&gt;(source, handler)</code></td>
+            <td>流式写入调用者 handler；返回消费的字节数。</td>
+          </tr>
+          <tr>
+            <td><code>parse_into(source, handler, fixed_arena)</code></td>
+            <td>constexpr/无堆形式，arena 由调用者拥有。</td>
+          </tr>
+          <tr>
+            <td><code>parse_callback(source, handler, cb)</code></td>
+            <td>noexcept 回调形式；<code>cb</code> 收到错误句柄，成功时
+              <code>domain == nullptr</code>。</td>
+          </tr>
+          <tr>
+            <td><code>parse_async(source, handler)</code></td>
+            <td>流式 handler 上的协程 awaiter。</td>
+          </tr>
+          <tr>
+            <td><code>parse_document_async(source)</code></td>
+            <td>产出 <code>document</code> 的协程 awaiter。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>parse_callback</code> 把错误句柄所有权转给回调；不消费就调用
+        <code>dispose_error</code>。source 和 handler 必须比回调活得久，
+        不是反过来。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 错误与偏移</h2>
+      <p>
+        解析通过 herbception 通道报告三种错误：
+        <code>parse_errc::invalid</code>（畸形）、<code>parse_errc::end_of_file</code>
+        （截断）和 <code>parse_errc::overflow</code>（深度或节点限制）。
+        异常值不携带位置，所以保留的 <code>json::parser</code> 在失败后暴露
+        <code>error_offset</code>。
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::json::parser p{source, &amp;arena};
+try
+{
+    ::fast_io::json::parse_document(p, handler);
+}
+catch throws(::std::error e)
+{
+    println("failed at byte ", p.error_offset);
+}
+</code></pre>
+      <p>
+        <code>parse_callback</code> 和异步 awaiter 遵循同一规则：回调收到错误句柄，
+        失败的 awaiter 从 <code>await_resume()</code> 重新抛出。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 生命周期规则</h2>
+      <ul>
+        <li>字符串视图指向 source 缓冲区或解码 arena；source 必须比 document 活得久。</li>
+        <li><code>parse_file</code> 同时拥有映射和 document，所以销毁顺序正确。</li>
+        <li><code>parse_into</code> 的 handler 必须比调用活得久，不是比返回的 document
+          （没有 document）。</li>
+        <li>document 的节点索引是 32 位；解引用前检查 <code>kind</code> 和链边界。</li>
+        <li>source 消失后不要保留 document 的 <code>u8string_view</code>。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>fast_io.json</code> 是读取器，提供流式、DOM 和无堆形式。</li>
+        <li><code>json_policy::none</code> 在编译期移除浮点支持。</li>
+        <li>Handler 是 duck-typed 的，通过 herbception 报告失败。</li>
+        <li>DOM 是扁平的 two-container 树，有带检查和带检查的访问。</li>
+        <li><code>parse_file</code> 拥有映射；<code>parse</code> 要求 source 比 document
+          活得久。</li>
+        <li>错误是 invalid、end-of-file 或 overflow；<code>parser.error_offset</code>
+          给出字节位置。</li>
+        <li>Parser 限制深度和节点数；它不提供 JSON writer。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/17.random/" class="prev-button">&larr; 第26.17章：随机与熵</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>
