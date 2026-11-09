@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.14章：网络 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.14章：网络</h1>
+    <p class="lang-switch"><a href="/docs/26.api/14.networking/">English</a></p>
+
+    <section>
+      <h2>1. socket 是设备</h2>
+      <p>
+        fast_io 没有独立的 socket 流层次。socket 是设备，同样的
+        <code>print</code>、<code>scan</code>、<code>read</code>、<code>write</code> 和
+        <code>transmit</code> 操作都适用。网络层只负责创建句柄和转换地址。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>角色</th>
+            <th>模块</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>native_socket_file</code></td>
+            <td>拥有的原生 socket 句柄；不带缓冲。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>iobuf_socket_file</code></td>
+            <td>带缓冲 socket；格式化 TCP I/O 的常规类型。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>native_dns_file</code></td>
+            <td>拥有某个主机名的 DNS 结果集。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>ip</code>、<code>ipv4</code>、<code>ipv6</code></td>
+            <td>地址与端口值类型。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>net_service</code></td>
+            <td>RAII 网络子系统守卫（Windows 上 WSA；POSIX 上 SIGPIPE 策略）。</td>
+            <td>头文件侧</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        在 POSIX 上 socket 就是文件描述符，所以 <code>native_socket_file</code> 和
+        <code>native_file</code> 是同一类型，<code>iobuf_socket_file</code> 和
+        <code>iobuf_file</code> 也是同一类型。在 Windows 上 socket 是独立句柄，
+        所以 socket 类型是分开的。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. TCP 辅助</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>条目</th>
+            <th>签名</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>tcp_connect</code></td>
+            <td><code>tcp_connect(ip, open_mode = {})</code></td>
+            <td>创建已连接的 TCP socket。</td>
+          </tr>
+          <tr>
+            <td><code>tcp_connect</code></td>
+            <td><code>tcp_connect(ipv4, open_mode = {})</code>、
+              <code>tcp_connect(ipv6, open_mode = {})</code></td>
+            <td>指定地址族的形式。</td>
+          </tr>
+          <tr>
+            <td><code>tcp_listen</code></td>
+            <td><code>tcp_listen(std::uint_least16_t port, open_mode = {})</code></td>
+            <td>端口上的双栈 listener。</td>
+          </tr>
+          <tr>
+            <td><code>tcp_listen</code></td>
+            <td><code>tcp_listen(ipv4, open_mode = {})</code>、
+              <code>tcp_listen(ipv6, open_mode = {})</code></td>
+            <td>把 listener 绑定到特定地址。</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+auto listener{::fast_io::tcp_listen(8080u16)};
+::fast_io::native_socket_file conn{::fast_io::posix_accept(listener)};
+::fast_io::iobuf_socket_file buf_conn{::fast_io::io::transmit(conn)};
+</code></pre>
+      <p>
+        <code>tcp_listen</code> 让 socket 保持监听模式；<code>tcp_connect</code>
+        返回一个工厂，交给拥有 socket 文件。异步层用
+        <code>open_mode::no_block</code> 选择非阻塞 socket。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. DNS</h2>
+      <p>
+        <code>native_dns_file</code> 拥有解析结果。可以迭代所有地址，
+        或者调用 <code>to_ip(dns, port)</code> 取第一个结果并附加端口。
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::native_dns_file dns{u8"example.com"};
+::fast_io::iobuf_socket_file sock{
+    ::fast_io::tcp_connect(::fast_io::to_ip(dns, 80u16))};
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>条目</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>native_dns_file(host)</code></td>
+            <td>解析 UTF-8 主机名。</td>
+          </tr>
+          <tr>
+            <td><code>to_ip(dns, port)</code></td>
+            <td>第一个解析地址加给定端口。</td>
+          </tr>
+          <tr>
+            <td><code>to_ip_address(dns)</code></td>
+            <td>第一个解析地址，不带端口。</td>
+          </tr>
+          <tr>
+            <td><code>begin(dns)</code> / <code>end(dns)</code></td>
+            <td>迭代所有解析条目。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        解析器不会无限重试，也不会在背后替你挑“最好”的地址。
+        主机同时有 IPv4 和 IPv6 记录时，迭代结果集。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. socket 自由函数</h2>
+      <p>
+        底层操作镜像 POSIX 名字，并作用于 socket observer：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>操作</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>posix_connect(sock, addr, len)</code></td><td>连接对端。</td></tr>
+          <tr><td><code>posix_bind(sock, addr, len)</code></td><td>绑定本地地址。</td></tr>
+          <tr><td><code>posix_listen(sock, backlog)</code></td><td>让已绑定 socket 进入监听模式。</td></tr>
+          <tr><td><code>posix_accept(listener)</code></td><td>接受一个连接。</td></tr>
+          <tr><td><code>posix_recvfrom</code>、<code>posix_sendto</code></td><td>数据报收发。</td></tr>
+          <tr><td><code>posix_setsockopt</code>、<code>posix_getpeername</code></td><td>socket 选项和对端地址。</td></tr>
+        </tbody>
+      </table>
+      <p>
+        这些是头文件侧。上面的 TCP 辅助是可移植路径；自由函数用于需要原始地址或选项的协议工作。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. <code>net_service</code></h2>
+      <p>
+        在 Windows 上，任何 socket 操作之前必须先初始化网络子系统。
+        <code>net_service</code> 在构造函数里执行 <code>WSAStartup</code>，
+        析构函数里执行 <code>WSACleanup</code>。在 POSIX 上它是空操作对象，
+        为了可移植性保留。
+      </p>
+      <p>
+        在 POSIX 上，<code>net_service</code> 还控制 SIGPIPE 策略。
+        默认忽略 SIGPIPE，这样写已关闭的对端会返回错误，而不是终止进程。
+        <code>posix_no_ignore_sigpipe</code> 标志保留默认处置。
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::net_service net_svc;
+</code></pre>
+      <p>
+        在 <code>main</code> 开头创建一个，并让它活到程序的网络生命周期结束。
+        不要在短命的 worker 作用域里创建它。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 协议支持</h2>
+      <p>
+        socket API 是操作系统 socket 接口的薄包装。受支持的协议清单是 OS 清单，
+        不是 fast_io 清单：
+      </p>
+      <ul>
+        <li>TCP 和 UDP。</li>
+        <li>POSIX 上的 Unix 域 socket。</li>
+        <li>OS 支持时的蓝牙 socket。</li>
+        <li>原始 socket（通常需要提升权限）。</li>
+        <li>OS socket API 暴露的其他 family。</li>
+      </ul>
+      <p>
+        TCP 和 UDP 有便捷辅助。其他 family 从原生 socket 句柄和原始地址结构构造。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 模块与头文件边界</h2>
+      <p>
+        <code>fast_io</code> 模块导出 <code>native_socket_file</code>、
+        <code>iobuf_socket_file</code>、<code>native_dns_file</code>、<code>to_ip</code>、
+        <code>to_ip_address</code>、<code>ip</code>、<code>ipv4</code>、<code>ipv6</code>
+        和地址类型。<code>net_service</code>、<code>tcp_connect</code>、
+        <code>tcp_listen</code> 和原始 <code>posix_*</code> socket 自由函数目前在头文件侧。
+      </p>
+      <div class="note">
+        <strong>不要混用 socket 和文件拥有者。</strong> accepted socket 是原生句柄。
+        用 <code>native_socket_file</code> 包装就是转移所有权；
+        再次包装同一个句柄会双重关闭。
+      </div>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>socket 是设备；<code>print</code>、<code>scan</code> 和 <code>transmit</code>
+          原样适用。</li>
+        <li><code>native_socket_file</code> 不带缓冲；<code>iobuf_socket_file</code>
+          是格式化 TCP 类型。</li>
+        <li><code>tcp_connect</code> 和 <code>tcp_listen</code> 是可移植 TCP 辅助。</li>
+        <li><code>native_dns_file</code> 拥有解析结果；<code>to_ip</code> 选一个并附加端口。</li>
+        <li><code>net_service</code> 是 RAII 网络守卫和 POSIX SIGPIPE 策略对象。</li>
+        <li>协议集合是 OS socket 集合；原始 socket 和部分 family 需要权限。</li>
+        <li><code>net_service</code>、TCP 辅助和原始 socket 函数在头文件侧；
+          socket、DNS 和地址类型由模块导出。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/13.serialization/" class="prev-button">&larr; 第26.13章：序列化与二进制格式</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>

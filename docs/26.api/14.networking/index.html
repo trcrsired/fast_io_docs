@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.14: Networking - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.14: Networking</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/14.networking/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Sockets Are Devices</h2>
+      <p>
+        fast_io does not have a separate socket stream hierarchy. A socket is a device, and the
+        same <code>print</code>, <code>scan</code>, <code>read</code>, <code>write</code> and
+        <code>transmit</code> operations apply. The networking layer only creates the handle and
+        translates addresses.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Role</th>
+            <th>Module</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>native_socket_file</code></td>
+            <td>Owning native socket handle; unbuffered.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>iobuf_socket_file</code></td>
+            <td>Buffered socket; the normal type for formatted TCP I/O.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>native_dns_file</code></td>
+            <td>Owning DNS result set for a host name.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>ip</code>, <code>ipv4</code>, <code>ipv6</code></td>
+            <td>Address and port value types.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>net_service</code></td>
+            <td>RAII network subsystem guard (WSA on Windows; SIGPIPE policy on POSIX).</td>
+            <td>header-side</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        On POSIX, a socket is a file descriptor, so <code>native_socket_file</code> is the same
+        type as <code>native_file</code> and <code>iobuf_socket_file</code> is the same type as
+        <code>iobuf_file</code>. On Windows, sockets are separate handles, so the socket types are
+        distinct.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. TCP Helpers</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Signature</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>tcp_connect</code></td>
+            <td><code>tcp_connect(ip, open_mode = {})</code></td>
+            <td>Create a connected TCP socket.</td>
+          </tr>
+          <tr>
+            <td><code>tcp_connect</code></td>
+            <td><code>tcp_connect(ipv4, open_mode = {})</code>,
+              <code>tcp_connect(ipv6, open_mode = {})</code></td>
+            <td>Address-family-specific forms.</td>
+          </tr>
+          <tr>
+            <td><code>tcp_listen</code></td>
+            <td><code>tcp_listen(std::uint_least16_t port, open_mode = {})</code></td>
+            <td>Dual-stack listener on a port.</td>
+          </tr>
+          <tr>
+            <td><code>tcp_listen</code></td>
+            <td><code>tcp_listen(ipv4, open_mode = {})</code>,
+              <code>tcp_listen(ipv6, open_mode = {})</code></td>
+            <td>Bind a listener to a specific address.</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+auto listener{::fast_io::tcp_listen(8080u16)};
+::fast_io::native_socket_file conn{::fast_io::posix_accept(listener)};
+::fast_io::iobuf_socket_file buf_conn{::fast_io::io::transmit(conn)};
+</code></pre>
+      <p>
+        <code>tcp_listen</code> keeps the socket in listening mode; <code>tcp_connect</code>
+        returns a factory that becomes an owning socket file. <code>open_mode::no_block</code>
+        selects a non-blocking socket for the async layer.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. DNS</h2>
+      <p>
+        <code>native_dns_file</code> owns the resolver result. Iterate it for every address, or
+        call <code>to_ip(dns, port)</code> for the first result with a port attached.
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::native_dns_file dns{u8"example.com"};
+::fast_io::iobuf_socket_file sock{
+    ::fast_io::tcp_connect(::fast_io::to_ip(dns, 80u16))};
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>native_dns_file(host)</code></td>
+            <td>Resolve a UTF-8 host name.</td>
+          </tr>
+          <tr>
+            <td><code>to_ip(dns, port)</code></td>
+            <td>First resolved address with the given port.</td>
+          </tr>
+          <tr>
+            <td><code>to_ip_address(dns)</code></td>
+            <td>First resolved address without a port.</td>
+          </tr>
+          <tr>
+            <td><code>begin(dns)</code> / <code>end(dns)</code></td>
+            <td>Iterate all resolver entries.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The resolver does not retry forever and does not pick a “best” address behind your back.
+        Iterate the result set when the host has both IPv4 and IPv6 records.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Socket Free Functions</h2>
+      <p>
+        The lower-level operations mirror the POSIX names and work on socket observers:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>posix_connect(sock, addr, len)</code></td><td>Connect to a peer.</td></tr>
+          <tr><td><code>posix_bind(sock, addr, len)</code></td><td>Bind a local address.</td></tr>
+          <tr><td><code>posix_listen(sock, backlog)</code></td><td>Put a bound socket into listening mode.</td></tr>
+          <tr><td><code>posix_accept(listener)</code></td><td>Accept one connection.</td></tr>
+          <tr><td><code>posix_recvfrom</code>, <code>posix_sendto</code></td><td>Datagram send/receive.</td></tr>
+          <tr><td><code>posix_setsockopt</code>, <code>posix_getpeername</code></td><td>Socket options and peer address.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        These are header-side. The TCP helpers above are the portable path; the free functions
+        are for protocol work that needs the raw address or option.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. <code>net_service</code></h2>
+      <p>
+        On Windows, the networking subsystem must be initialized before any socket operation.
+        <code>net_service</code> performs <code>WSAStartup</code> in its constructor and
+        <code>WSACleanup</code> in its destructor. On POSIX it is a no-op object, kept for
+        portability exercises.
+      </p>
+      <p>
+        On POSIX, <code>net_service</code> also controls the SIGPIPE policy. By default it ignores
+        SIGPIPE so a write to a closed peer returns an error instead of terminating the process.
+        The <code>posix_no_ignore_sigpipe</code> flag preserves the default disposition.
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::net_service net_svc;
+</code></pre>
+      <p>
+        Create one at the start of <code>main</code> and keep it alive for the program's network
+        lifetime. Do not create it inside a short-lived worker scope.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Protocol Support</h2>
+      <p>
+        The socket API is a thin wrapper over the OS socket interface. The supported protocol
+        list is the OS list, not a fast_io list:
+      </p>
+      <ul>
+        <li>TCP and UDP.</li>
+        <li>Unix domain sockets on POSIX.</li>
+        <li>Bluetooth sockets where the OS supports them.</li>
+        <li>Raw sockets (usually requiring elevated privileges).</li>
+        <li>Any other family exposed by the OS socket API.</li>
+      </ul>
+      <p>
+        TCP and UDP have convenience helpers. Other families are constructed from native socket
+        handles and the raw address structures.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Module and Header Boundary</h2>
+      <p>
+        The <code>fast_io</code> module exports <code>native_socket_file</code>,
+        <code>iobuf_socket_file</code>, <code>native_dns_file</code>, <code>to_ip</code>,
+        <code>to_ip_address</code>, <code>ip</code>, <code>ipv4</code>, <code>ipv6</code> and the
+        address types. <code>net_service</code>, <code>tcp_connect</code>,
+        <code>tcp_listen</code> and the raw <code>posix_*</code> socket free functions are
+        header-side today.
+      </p>
+      <div class="note">
+        <strong>Do not mix socket and file owners.</strong> An accepted socket is a native handle.
+        Wrapping it in <code>native_socket_file</code> transfers ownership; wrapping the same
+        handle again will double-close it.
+      </div>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>A socket is a device; <code>print</code>, <code>scan</code> and <code>transmit</code>
+          apply unchanged.</li>
+        <li><code>native_socket_file</code> is unbuffered; <code>iobuf_socket_file</code> is the
+          formatted TCP type.</li>
+        <li><code>tcp_connect</code> and <code>tcp_listen</code> are the portable TCP helpers.</li>
+        <li><code>native_dns_file</code> owns resolver results; <code>to_ip</code> picks one with a
+          port.</li>
+        <li><code>net_service</code> is an RAII network guard and POSIX SIGPIPE policy object.</li>
+        <li>The protocol set is the OS socket set; raw sockets and some families need
+          privileges.</li>
+        <li><code>net_service</code>, TCP helpers and raw socket functions are header-side; the
+          socket, DNS and address types are module-exported.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/13.serialization/" class="prev-button">&larr; Ch26.13: Serialization and Binary Formats</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>
