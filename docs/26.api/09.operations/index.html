@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.9: I/O Operations - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.9: I/O Operations</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/09.operations/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Layer Below print, scan and transmit</h2>
+      <p>
+        The raw operations move characters or bytes and report how much moved. They do not
+        format, parse or choose a buffer. They are what a device implementation is built on, and
+        they are the escape hatch when a protocol needs exact control over one read, one write or
+        one offset.
+      </p>
+      <p>
+        Application code normally uses <code>print</code>, <code>scan</code> and
+        <code>transmit</code>. Those three handle formatting, buffered input lookahead and the
+        zero-copy staging. The operations on this page are for the layer underneath, or for the
+        rare case where the application really does need a raw byte window.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Read Operations</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Return</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>read_some(in, char* buf, count)</code></td>
+            <td><code>std::size_t</code></td>
+            <td>Read at most <code>count</code> characters. Returns how many were read;
+              <code>0</code> means EOF.</td>
+          </tr>
+          <tr>
+            <td><code>read_all(in, char* buf, count)</code></td>
+            <td><code>void</code></td>
+            <td>Read exactly <code>count</code> characters or fail.</td>
+          </tr>
+          <tr>
+            <td><code>read_some_bytes(in, std::byte* buf, count)</code></td>
+            <td><code>std::size_t</code></td>
+            <td>The byte-addressed form; returns bytes read.</td>
+          </tr>
+          <tr>
+            <td><code>read_all_bytes(in, std::byte* buf, count)</code></td>
+            <td><code>void</code></td>
+            <td>Read exactly <code>count</code> bytes or fail.</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+char buf[4096];
+auto const n{::fast_io::operations::read_some(in, buf, sizeof(buf))};
+if (n == 0)
+{
+    // end of input
+}
+</code></pre>
+      <p>
+        <code>read_some</code> is the primitive. It may return less than requested even when
+        more data will arrive later. <code>read_all</code> is the convenience form that keeps
+        reading until the requested count is satisfied.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Write Operations</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Return</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>write_some(out, char const* buf, count)</code></td>
+            <td><code>std::size_t</code></td>
+            <td>Write at most <code>count</code> characters; returns how many were accepted.</td>
+          </tr>
+          <tr>
+            <td><code>write_all(out, char const* buf, count)</code></td>
+            <td><code>void</code></td>
+            <td>Write every character or fail.</td>
+          </tr>
+          <tr>
+            <td><code>write_some_bytes(out, std::byte const* buf, count)</code></td>
+            <td><code>std::size_t</code></td>
+            <td>The byte-addressed form; returns bytes written.</td>
+          </tr>
+          <tr>
+            <td><code>write_all_bytes(out, std::byte const* buf, count)</code></td>
+            <td><code>void</code></td>
+            <td>Write every byte or fail.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        A short write is normal on pipes and sockets. <code>write_all</code> loops until the
+        whole buffer is accepted; <code>write_some</code> lets the caller decide what to do with
+        the unsent suffix.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Positioned Operations</h2>
+      <p>
+        <code>pread_*</code> and <code>pwrite_*</code> take an explicit
+        <code>::fast_io::intfpos_t</code> offset. They do not consume the device's own position;
+        this is the same distinction as POSIX <code>pread</code>/<code>pwrite</code>. Use them
+        when several readers or writers share one file or when you are patching a record at a
+        known offset.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Return</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>pread_some(in, char* buf, count, off)</code></td>
+            <td><code>std::size_t</code></td>
+            <td>Read at <code>off</code> without advancing the stream position.</td>
+          </tr>
+          <tr>
+            <td><code>pread_all(in, char* buf, count, off)</code></td>
+            <td><code>void</code></td>
+            <td>Read exactly <code>count</code> characters at <code>off</code>.</td>
+          </tr>
+          <tr>
+            <td><code>pwrite_some(out, char const* buf, count, off)</code></td>
+            <td><code>std::size_t</code></td>
+            <td>Write at <code>off</code> without advancing the stream position.</td>
+          </tr>
+          <tr>
+            <td><code>pwrite_all(out, char const* buf, count, off)</code></td>
+            <td><code>void</code></td>
+            <td>Write every character at <code>off</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The <code>*_bytes</code> forms take <code>std::byte*</code> and an offset in the same
+        way. A pipe or socket is not seekable, so passing an offset there is a failure, not a
+        silent fallback.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Scatter Operations</h2>
+      <p>
+        Scatter/gather operations take an array of <code>::fast_io::io_scatter_t</code> entries
+        instead of one contiguous buffer. Each entry is a base pointer plus a length. This avoids
+        copying a set of buffers into one contiguous block just to write them.
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::io_scatter_t parts[2]{
+    {header.data(), header.size()},
+    {body.data(), body.size()}};
+
+::fast_io::operations::scatter_write_all(out, parts, 2);
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>Family</th>
+            <th>Forms</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Read</td>
+            <td><code>scatter_read_some</code>, <code>scatter_read_all</code>,
+              <code>scatter_read_some_bytes</code>, <code>scatter_read_all_bytes</code></td>
+          </tr>
+          <tr>
+            <td>Write</td>
+            <td><code>scatter_write_some</code>, <code>scatter_write_all</code>,
+              <code>scatter_write_some_bytes</code>, <code>scatter_write_all_bytes</code></td>
+          </tr>
+          <tr>
+            <td>Positioned read</td>
+            <td><code>scatter_pread_some</code>, <code>scatter_pread_all</code>,
+              <code>scatter_pread_some_bytes</code>, <code>scatter_pread_all_bytes</code></td>
+          </tr>
+          <tr>
+            <td>Positioned write</td>
+            <td><code>scatter_pwrite_some</code>, <code>scatter_pwrite_all</code>,
+              <code>scatter_pwrite_some_bytes</code>, <code>scatter_pwrite_all_bytes</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The <code>*_some</code> forms return <code>io_scatter_status_t</code>, which identifies
+        the position in the scatter array and the position inside that entry. The
+        <code>*_all</code> forms return <code>void</code> and fail if the whole scatter is not
+        transferred.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Seek, Flush and Single Characters</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>io_stream_seek_bytes(stream, off, seekdir)</code></td>
+            <td>Seek a bidirectional stream; returns the new position.</td>
+          </tr>
+          <tr>
+            <td><code>input_stream_seek_bytes</code>, <code>output_stream_seek_bytes</code></td>
+            <td>Direction-specific seek. Header-side.</td>
+          </tr>
+          <tr>
+            <td><code>input_stream_buffer_flush</code>, <code>output_stream_buffer_flush</code>,
+              <code>io_stream_buffer_flush</code></td>
+            <td>Flush buffered data. Header-side.</td>
+          </tr>
+          <tr>
+            <td><code>char_put(out, ch)</code></td>
+            <td>Write one character. Header-side.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>seekdir</code> is <code>beg</code>, <code>cur</code> or <code>end</code>. A
+        buffered stream flushes or adjusts its buffer before the seek, so the position you get
+        back is the one the device will use, not the stale buffer cursor.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Failure and Partial Progress</h2>
+      <p>
+        All of these operations report device failures as herbceptions. The difference between
+        <code>some</code> and <code>all</code> is the partial-progress policy:
+      </p>
+      <ul>
+        <li><code>*_some</code> returns the amount transferred; a short count is not an error.</li>
+        <li><code>*_all</code> keeps going until the requested amount is transferred or fails.</li>
+        <li><code>read_some</code> returning <code>0</code> means EOF, not failure.</li>
+        <li>A non-seekable device plus a positioned operation is a failure.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>8. Module Export Boundary</h2>
+      <p>
+        The <code>fast_io</code> module exports the read, write, pread, pwrite and scatter
+        families, plus <code>io_stream_seek_bytes</code>. The direction-specific seek forms,
+        buffer-flush operations, <code>char_put</code> and some reference accessors are
+        header-side today. Use <code>#include &lt;fast_io.h&gt;</code> for those.
+      </p>
+      <div class="note">
+        <strong>Do not build application code here.</strong>
+        Use <code>print</code>, <code>scan</code> and <code>transmit</code> unless you are
+        implementing a device or a layer below fast_io. The raw operations move the buffer
+        bookkeeping back into your code.
+      </div>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li><code>read_some</code>/<code>write_some</code> report partial progress;
+          <code>read_all</code>/<code>write_all</code> complete or fail.</li>
+        <li>The <code>*_bytes</code> forms use <code>std::byte*</code> and byte counts.</li>
+        <li><code>pread</code>/<code>pwrite</code> use an explicit offset and do not consume the
+          stream position.</li>
+        <li>Scatter operations take <code>io_scatter_t</code> arrays; the <code>*_some</code>
+          forms return an <code>io_scatter_status_t</code>.</li>
+        <li><code>seekdir</code> is <code>beg</code>/<code>cur</code>/<code>end</code>; a
+          positioned operation on a non-seekable device fails.</li>
+        <li>The module exports the main read/write/pread/pwrite/scatter families and
+          <code>io_stream_seek_bytes</code>; flush, <code>char_put</code> and direction-specific
+          seeks are header-side.</li>
+        <li>Application code should use <code>print</code>, <code>scan</code> and
+          <code>transmit</code> instead.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/08.charcategory/" class="prev-button">&larr; Ch26.8: char_category</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

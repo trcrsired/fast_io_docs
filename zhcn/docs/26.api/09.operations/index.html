@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.9章：I/O 操作 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.9章：I/O 操作</h1>
+    <p class="lang-switch"><a href="/docs/26.api/09.operations/">English</a></p>
+
+    <section>
+      <h2>1. print、scan、transmit 下面的那一层</h2>
+      <p>
+        原始操作搬字符或字节，并报告搬了多少。它们不格式化、不解析、不选择缓冲区。
+        设备实现建立在它们之上；协议需要对一次读、一次写或一个偏移做精确控制时，
+        它们也是逃生口。
+      </p>
+      <p>
+        应用代码通常用 <code>print</code>、<code>scan</code> 和 <code>transmit</code>。
+        这三者处理格式化、带缓冲输入的向前看，以及零复制 staging。
+        本页的操作属于下面那一层，或者属于应用确实需要原始字节窗口的少数情况。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 读操作</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>操作</th>
+            <th>返回</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>read_some(in, char* buf, count)</code></td>
+            <td><code>std::size_t</code></td>
+            <td>最多读 <code>count</code> 个字符。返回读了多少；<code>0</code> 表示 EOF。</td>
+          </tr>
+          <tr>
+            <td><code>read_all(in, char* buf, count)</code></td>
+            <td><code>void</code></td>
+            <td>读满 <code>count</code> 个字符，否则失败。</td>
+          </tr>
+          <tr>
+            <td><code>read_some_bytes(in, std::byte* buf, count)</code></td>
+            <td><code>std::size_t</code></td>
+            <td>按字节寻址的形式；返回读了多少字节。</td>
+          </tr>
+          <tr>
+            <td><code>read_all_bytes(in, std::byte* buf, count)</code></td>
+            <td><code>void</code></td>
+            <td>读满 <code>count</code> 字节，否则失败。</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+char buf[4096];
+auto const n{::fast_io::operations::read_some(in, buf, sizeof(buf))};
+if (n == 0)
+{
+    // end of input
+}
+</code></pre>
+      <p>
+        <code>read_some</code> 是原语。即使后面还有数据，它也可能返回少于请求的数量。
+        <code>read_all</code> 是便利形式，会一直读到满足请求的数量。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 写操作</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>操作</th>
+            <th>返回</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>write_some(out, char const* buf, count)</code></td>
+            <td><code>std::size_t</code></td>
+            <td>最多写 <code>count</code> 个字符；返回接受了多少。</td>
+          </tr>
+          <tr>
+            <td><code>write_all(out, char const* buf, count)</code></td>
+            <td><code>void</code></td>
+            <td>写完所有字符，否则失败。</td>
+          </tr>
+          <tr>
+            <td><code>write_some_bytes(out, std::byte const* buf, count)</code></td>
+            <td><code>std::size_t</code></td>
+            <td>按字节寻址的形式；返回写了多少字节。</td>
+          </tr>
+          <tr>
+            <td><code>write_all_bytes(out, std::byte const* buf, count)</code></td>
+            <td><code>void</code></td>
+            <td>写完所有字节，否则失败。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        短写在管道和 socket 上是正常的。<code>write_all</code> 会循环到整个缓冲区被接受；
+        <code>write_some</code> 让调用者决定未写后缀怎么处理。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 带偏移的操作</h2>
+      <p>
+        <code>pread_*</code> 和 <code>pwrite_*</code> 接受显式的
+        <code>::fast_io::intfpos_t</code> 偏移。它们不消耗设备自己的位置；
+        这和 POSIX <code>pread</code>/<code>pwrite</code> 的区分相同。
+        多个读者或写者共享一个文件，或者在已知偏移修补记录时使用它们。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>操作</th>
+            <th>返回</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>pread_some(in, char* buf, count, off)</code></td>
+            <td><code>std::size_t</code></td>
+            <td>在 <code>off</code> 读，不推进流位置。</td>
+          </tr>
+          <tr>
+            <td><code>pread_all(in, char* buf, count, off)</code></td>
+            <td><code>void</code></td>
+            <td>在 <code>off</code> 读满 <code>count</code> 个字符。</td>
+          </tr>
+          <tr>
+            <td><code>pwrite_some(out, char const* buf, count, off)</code></td>
+            <td><code>std::size_t</code></td>
+            <td>在 <code>off</code> 写，不推进流位置。</td>
+          </tr>
+          <tr>
+            <td><code>pwrite_all(out, char const* buf, count, off)</code></td>
+            <td><code>void</code></td>
+            <td>在 <code>off</code> 写完所有字符。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>*_bytes</code> 形式用 <code>std::byte*</code>，偏移方式相同。
+        管道或 socket 不能 seek，所以传偏移是失败，不是悄悄退回。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Scatter 操作</h2>
+      <p>
+        scatter/gather 操作接受一个 <code>::fast_io::io_scatter_t</code> 数组，
+        而不是一块连续缓冲区。每个条目是基址加长度。
+        这避免为了写出去而先把一组缓冲区复制成一块连续内存。
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::io_scatter_t parts[2]{
+    {header.data(), header.size()},
+    {body.data(), body.size()}};
+
+::fast_io::operations::scatter_write_all(out, parts, 2);
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>家族</th>
+            <th>形式</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>读</td>
+            <td><code>scatter_read_some</code>、<code>scatter_read_all</code>、
+              <code>scatter_read_some_bytes</code>、<code>scatter_read_all_bytes</code></td>
+          </tr>
+          <tr>
+            <td>写</td>
+            <td><code>scatter_write_some</code>、<code>scatter_write_all</code>、
+              <code>scatter_write_some_bytes</code>、<code>scatter_write_all_bytes</code></td>
+          </tr>
+          <tr>
+            <td>带偏移读</td>
+            <td><code>scatter_pread_some</code>、<code>scatter_pread_all</code>、
+              <code>scatter_pread_some_bytes</code>、<code>scatter_pread_all_bytes</code></td>
+          </tr>
+          <tr>
+            <td>带偏移写</td>
+            <td><code>scatter_pwrite_some</code>、<code>scatter_pwrite_all</code>、
+              <code>scatter_pwrite_some_bytes</code>、<code>scatter_pwrite_all_bytes</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>*_some</code> 形式返回 <code>io_scatter_status_t</code>，
+        指出在 scatter 数组中的位置和该条目内部的位置。
+        <code>*_all</code> 形式返回 <code>void</code>，整个 scatter 没有传完就失败。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Seek、刷新与单字符</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>操作</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>io_stream_seek_bytes(stream, off, seekdir)</code></td>
+            <td>定位双向流；返回新位置。</td>
+          </tr>
+          <tr>
+            <td><code>input_stream_seek_bytes</code>、<code>output_stream_seek_bytes</code></td>
+            <td>方向特定的 seek。头文件侧。</td>
+          </tr>
+          <tr>
+            <td><code>input_stream_buffer_flush</code>、<code>output_stream_buffer_flush</code>、
+              <code>io_stream_buffer_flush</code></td>
+            <td>刷新缓冲数据。头文件侧。</td>
+          </tr>
+          <tr>
+            <td><code>char_put(out, ch)</code></td>
+            <td>写一个字符。头文件侧。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>seekdir</code> 是 <code>beg</code>、<code>cur</code> 或 <code>end</code>。
+        带缓冲的流会在 seek 前刷新或调整缓冲区，
+        所以你拿回的位置是设备将使用的位置，不是过期的缓冲区游标。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 失败与部分进展</h2>
+      <p>
+        这些操作都通过 herbception 报告设备失败。<code>some</code> 和 <code>all</code>
+        的区别就是部分进展策略：
+      </p>
+      <ul>
+        <li><code>*_some</code> 返回传输量；短计数不是错误。</li>
+        <li><code>*_all</code> 一直做到请求量完成，或者失败。</li>
+        <li><code>read_some</code> 返回 <code>0</code> 表示 EOF，不是失败。</li>
+        <li>不可 seek 的设备加带偏移操作是失败。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>8. 模块导出边界</h2>
+      <p>
+        <code>fast_io</code> 模块导出读、写、pread、pwrite 和 scatter 家族，
+        以及 <code>io_stream_seek_bytes</code>。方向特定的 seek 形式、
+        缓冲区刷新操作、<code>char_put</code> 和部分引用访问器目前属于头文件侧。
+        这些用 <code>#include &lt;fast_io.h&gt;</code>。
+      </p>
+      <div class="note">
+        <strong>不要在这里搭应用代码。</strong>
+        除非你在实现设备或 fast_io 下面的一层，否则用 <code>print</code>、
+        <code>scan</code> 和 <code>transmit</code>。原始操作把缓冲区记账工作推回给你。
+      </div>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>read_some</code>/<code>write_some</code> 报告部分进展；
+          <code>read_all</code>/<code>write_all</code> 要么完成要么失败。</li>
+        <li><code>*_bytes</code> 形式用 <code>std::byte*</code> 和字节计数。</li>
+        <li><code>pread</code>/<code>pwrite</code> 使用显式偏移，不消耗流位置。</li>
+        <li>scatter 操作接受 <code>io_scatter_t</code> 数组；<code>*_some</code> 形式返回
+          <code>io_scatter_status_t</code>。</li>
+        <li><code>seekdir</code> 是 <code>beg</code>/<code>cur</code>/<code>end</code>；
+          对不可 seek 设备做带偏移操作会失败。</li>
+        <li>模块导出主要读写/pread/pwrite/scatter 家族和
+          <code>io_stream_seek_bytes</code>；刷新、<code>char_put</code> 和方向特定 seek
+          在头文件侧。</li>
+        <li>应用代码应该用 <code>print</code>、<code>scan</code> 和
+          <code>transmit</code>。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/08.charcategory/" class="prev-button">&larr; 第26.8章：char_category</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>
