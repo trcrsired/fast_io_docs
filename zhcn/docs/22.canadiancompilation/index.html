@@ -80,8 +80,11 @@
       <p>
         GCC 用 <code>--build</code>、<code>--host</code> 和 <code>--target</code> 配置，
         它的加拿大构建需要两个编译器：一个运行在构建机上、生成宿主代码，另一个运行在构建机上、
-        生成目标代码。LLVM 只有构建和宿主。一个 clang 二进制包含它配置过的所有后端，
-        <code>--target=</code> 在每次调用时选择一个，所以不存在"目标的 clang 构建"。
+        生成目标代码。LLVM 只有构建和宿主。对 clang 来说只有两个构建类别：<strong>本地</strong>
+        （<code>build = host</code>）和<strong>加拿大</strong>（<code>build &ne; host</code>）。
+        交叉编译不是构建类别；它是本地 clang 加 <code>--target=</code> 和 <code>--sysroot=</code>
+        的调用方式，所以是本地编译的特例。一个 clang 二进制包含它配置过的所有后端，
+        <code>--target=</code> 在每次调用时选择一个。
       </p>
     </section>
 

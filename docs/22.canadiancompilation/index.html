@@ -90,8 +90,12 @@
         GCC is configured with <code>--build</code>, <code>--host</code> and <code>--target</code>,
         and its Canadian build needs two compilers: one that runs on the build machine and emits host
         code, and one that runs on the build machine and emits target code. LLVM has only build and
-        host. A single clang binary contains every backend it was configured with, and
-        <code>--target=</code> chooses one per invocation, so there is no target build of clang.
+        host. For clang there are only two build categories: <strong>native</strong>
+        (<code>build = host</code>) and <strong>Canadian</strong> (<code>build &ne; host</code>).
+        Cross compilation is not a build category; it is a native clang invoked with
+        <code>--target=</code> and <code>--sysroot=</code>, so it is a special case of native. A
+        single clang binary contains every backend it was configured with, and <code>--target=</code>
+        chooses one per invocation.
       </p>
     </section>
 

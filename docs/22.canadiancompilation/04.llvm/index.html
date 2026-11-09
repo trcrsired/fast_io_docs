@@ -28,8 +28,8 @@ clang++ --target=wasm32-wasip1 --sysroot=$WASI ...</code></pre>
         So there is no "target clang" in the GCC sense. There is a clang that runs on the host,
         containing the backends that were enabled with <code>LLVM_TARGETS_TO_BUILD</code>. If the
         AArch64 backend is present, the same binary can produce AArch64 code from an x86_64 machine,
-        or from an AArch64 machine, or from a Windows machine. A cross compiler is not a separate
-        build; it is the same driver with a different <code>--target</code>.
+        or from an AArch64 machine, or from a Windows machine. Cross compilation is not a separate
+        build; it is the same native driver with a different <code>--target</code>.
       </p>
       <p>
         But a compiler still has to run somewhere. That is the <strong>host</strong>. LLVM's build
@@ -75,6 +75,39 @@ clang++ --target=wasm32-wasip1 --sysroot=$WASI ...</code></pre>
         on the build machine. Setting the first when you wanted the second produces a compiler that
         will not execute on your machine.
       </p>
+      <p>
+        Because the target is an invocation option, clang has only two build categories, and both
+        are decided by build versus host:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Relationship</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Native</td>
+            <td>build = host</td>
+            <td>The clang binary runs where it was built. Cross compilation is this case: the same
+              native clang is invoked with <code>--target=</code> and <code>--sysroot=</code>.</td>
+          </tr>
+          <tr>
+            <td>Canadian</td>
+            <td>build &ne; host</td>
+            <td>The clang binary is produced on another machine and runs on the host.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        There is no cross build of clang. The GCC cross row in
+        <a href="/docs/22.canadiancompilation/01.triplet/">22.1</a> exists because GCC fixes its
+        target at configure time; clang does not. Crossing is a usage of a native clang, which is
+        why it is a special case of native. The Canadian native/cross/crossback subdivision does not
+        apply either: target is not part of the clang build, so a Canadian clang is simply Canadian.
+      </p>
     </section>
 
     <section>
@@ -84,15 +117,18 @@ clang++ --target=wasm32-wasip1 --sysroot=$WASI ...</code></pre>
         <code>aarch64-linux-gnu</code> and can emit AArch64. You cross-compile clang like any other
         C++ program: the compiler you use must produce AArch64, and the sysroot must be an AArch64
         C/C++ sysroot, because clang links libc and a C++ runtime. That is a Canadian build:
-        build is x86_64, host is aarch64. Target does not enter the CMake triple at all; it is the
-        backend and the default, chosen later by <code>--target</code>.
+        build is x86_64, host is aarch64. This is the only non-native category clang has. Target
+        does not enter the CMake triple at all; it is the backend and the default, chosen later by
+        <code>--target</code>.
       </p>
       <p>
         If you want a clang that runs on the build machine but defaults to AArch64, do not set
         <code>CMAKE_C_COMPILER_TARGET</code>. Leave the binary native, set
         <code>LLVM_DEFAULT_TARGET_TRIPLE=aarch64-linux-gnu</code>, and make sure
         <code>LLVM_TARGETS_TO_BUILD</code> contains <code>AArch64</code>. This is the closest thing
-        LLVM has to a GCC cross compiler, and it is just a native clang with an extra backend.
+        LLVM has to a GCC cross compiler, and it is just a native clang with an extra backend. When
+        you then pass <code>--target=aarch64-linux-gnu --sysroot=$SYSROOT</code>, you are
+        cross-compiling with that native clang; the compiler binary did not change.
       </p>
       <p>
         In both cases the build needs the same three practical things:
@@ -262,7 +298,7 @@ ninja -C build-runtimes install</code></pre>
         <tbody>
           <tr>
             <td><code>llvm-tblgen: not found</code> during the build</td>
-            <td>No native tools; the cross build tries to run a target binary</td>
+            <td>No native tools; the Canadian build tries to run the host binary on the build machine</td>
             <td><code>LLVM_NATIVE_TOOL_DIR</code> or <code>LLVM_TABLEGEN</code>/<code>CLANG_TABLEGEN</code></td>
           </tr>
           <tr>

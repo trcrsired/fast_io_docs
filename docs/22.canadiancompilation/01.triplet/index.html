@@ -135,7 +135,8 @@
     <section>
       <h2>2. Build, Host, Target</h2>
       <p>
-        A compiler build is described by three triplets, and they answer three different questions:
+        For GCC, a compiler build is described by three triplets, and they answer three different
+        questions:
       </p>
       <ul>
         <li>
@@ -162,17 +163,21 @@ Target: x86_64-linux-gnu
 ...
 </code></pre>
       <p>
-        A compiler that runs on the same platform it targets is a <strong>native compiler</strong>
-        for that platform, even if it was built somewhere else. This is the point that is easy to
-        miss: "native" describes the host/target relationship, not the build/host relationship.
-        A compiler built on x86_64 Linux, for x86_64 Linux, is native. A compiler built on x86_64
-        Linux, for AArch64 Linux, is a cross compiler, and when you copy it to an AArch64 machine it
-        becomes a native compiler there without being rebuilt.
+        In the GCC model, a compiler that runs on the same platform it targets is a
+        <strong>native compiler</strong> for that platform, even if it was built somewhere else.
+        This is the point that is easy to miss: "native" describes the host/target relationship, not
+        the build/host relationship. A compiler built on x86_64 Linux, for x86_64 Linux, is native.
+        A compiler built on x86_64 Linux, for AArch64 Linux, is a cross compiler, and when you copy
+        it to an AArch64 machine it becomes a native compiler there without being rebuilt.
+      </p>
+      <p>
+        Clang is different, and section 3 returns to it: clang does not fix its target at build
+        time, so the same binary can run natively and emit for another platform at the same time.
       </p>
     </section>
 
     <section>
-      <h2>3. The Build Shapes and Their Hierarchy</h2>
+      <h2>3. The GCC Build Shapes and Their Hierarchy</h2>
       <p>
         The GCC manual separates two questions that are often collapsed into one word. The first is
         the relationship between <strong>build</strong> and <strong>host</strong>; the second is the
@@ -287,10 +292,40 @@ Target: x86_64-linux-gnu
         what are <code>host</code> and <code>target</code>? The build triple is history; it tells you
         how the artifact was produced, not what it can do.
       </p>
+
+      <h3>The clang model: native and Canadian only</h3>
+      <p>
+        Everything above is the GCC model, where <code>target</code> is fixed by
+        <code>configure --target</code>. Clang does not work that way. It is one binary with several
+        backends, and the target is chosen at invocation with <code>--target=</code> and
+        <code>--sysroot=</code>. There is no configure-time target, so there is no cross build of
+        clang, and the Canadian native/cross split based on target does not apply either.
+      </p>
+      <blockquote>
+        <p>
+          <strong>For clang there are only two build categories:</strong> <strong>native</strong>
+          (<code>build = host</code>) and <strong>Canadian</strong>
+          (<code>build &ne; host</code>). Cross compilation is not a build category at all; it is a
+          native clang invoked with <code>--target=</code> and <code>--sysroot=</code>, so it is a
+          special case of native.
+        </p>
+      </blockquote>
+      <p>
+        When you cross-compile with clang, the compiler you are running is a native compiler. It was
+        built for the machine it is running on; it emits for another target only because you asked
+        it to. Crossback also collapses: if <code>build &ne; host</code> the build is Canadian, and
+        the target is whatever you pass at invocation. There is no clang analogue of the GCC cross
+        or crossback rows.
+      </p>
+      <p>
+        This is why <a href="/docs/22.canadiancompilation/04.llvm/">22.4</a> talks about build and
+        host only. The GCC table above is the right mental model for GCC; it is the wrong model for
+        clang.
+      </p>
     </section>
 
     <section>
-      <h2>4. Why a Canadian Build Needs Two Compilers</h2>
+      <h2>4. Why a GCC Canadian Build Needs Two Compilers</h2>
       <p>
         Suppose you are on <code>x86_64-linux-gnu</code> and you want a compiler that runs on
         <code>aarch64-linux-gnu</code> and targets <code>aarch64-linux-gnu</code>. The obvious plan
@@ -300,7 +335,7 @@ Target: x86_64-linux-gnu
         compiles the target runtime libraries.
       </p>
       <p>
-        So a Canadian build uses two compilers at once:
+        So a GCC Canadian build uses two compilers at once:
       </p>
       <ul>
         <li>

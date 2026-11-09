@@ -26,8 +26,8 @@ clang++ --target=wasm32-wasip1 --sysroot=$WASI ...</code></pre>
       <p>
         所以 GCC 意义上的"目标的 clang"不存在。存在的是一个运行在宿主上、包含
         <code>LLVM_TARGETS_TO_BUILD</code> 所启用后端的 clang。只要 AArch64 后端在，同一个二进制就能
-        在 x86_64 机器上、AArch64 机器上或者 Windows 机器上生成 AArch64 代码。交叉编译器不是另一次构建，
-        而是同一个驱动换一个 <code>--target</code>。
+        在 x86_64 机器上、AArch64 机器上或者 Windows 机器上生成 AArch64 代码。交叉编译不是另一次构建，
+        而是同一个本地驱动换一个 <code>--target</code>。
       </p>
       <p>但编译器总得在某个地方运行。那就是<strong>宿主</strong>。因此 LLVM 的构建只有两个三元组，不是三个：</p>
       <table>
@@ -67,6 +67,37 @@ clang++ --target=wasm32-wasip1 --sysroot=$WASI ...</code></pre>
         生成代码，所以 <em>clang 二进制本身</em>就是那个三元组的。后者只改 clang 的默认值，二进制仍然
         运行在构建机上。想要后者却设了前者，得到的是一个在你机器上不能执行的编译器。
       </p>
+      <p>
+        因为目标是调用参数，clang 只有两个构建类别，二者都由构建和宿主决定：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>类别</th>
+            <th>关系</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>本地（Native）</td>
+            <td>build = host</td>
+            <td>clang 二进制在哪里构建就在哪里运行。交叉编译属于这一类：同一个本地 clang
+              加 <code>--target=</code> 和 <code>--sysroot=</code> 调用。</td>
+          </tr>
+          <tr>
+            <td>加拿大（Canadian）</td>
+            <td>build &ne; host</td>
+            <td>clang 二进制在另一台机器上生产，运行在宿主上。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        clang 没有交叉构建。<a href="/zhcn/docs/22.canadiancompilation/01.triplet/">22.1</a>
+        里 GCC 的交叉行存在，是因为 GCC 在配置期固定目标；clang 不固定。交叉是本地 clang 的一种用法，
+        所以是本地编译的特例。加拿大本地/加拿大交叉/反向编译的划分也不适用：目标不是 clang 构建的
+        一部分，所以加拿大 clang 就是加拿大编译。
+      </p>
     </section>
 
     <section>
@@ -75,15 +106,17 @@ clang++ --target=wasm32-wasip1 --sysroot=$WASI ...</code></pre>
         假设你在 <code>x86_64-linux-gnu</code> 上，想要一个运行在 <code>aarch64-linux-gnu</code> 上、
         能生成 AArch64 的 clang。你像交叉编译任何 C++ 程序一样交叉编译 clang：使用的编译器必须生成
         AArch64，sysroot 必须是 AArch64 的 C/C++ sysroot，因为 clang 要链接 libc 和 C++ 运行时。
-        这就是加拿大构建：构建是 x86_64，宿主是 aarch64。目标根本不进入 CMake 的三元组；它是后端和
-        默认值，之后由 <code>--target</code> 选择。
+        这就是加拿大构建：构建是 x86_64，宿主是 aarch64。这是 clang 唯一的非本地类别。目标根本不进入
+        CMake 的三元组；它是后端和默认值，之后由 <code>--target</code> 选择。
       </p>
       <p>
         如果你想要一个运行在构建机上、但默认面向 AArch64 的 clang，就不要设
         <code>CMAKE_C_COMPILER_TARGET</code>。让二进制保持本地，设
         <code>LLVM_DEFAULT_TARGET_TRIPLE=aarch64-linux-gnu</code>，并确保
         <code>LLVM_TARGETS_TO_BUILD</code> 包含 <code>AArch64</code>。这是 LLVM 里最接近 GCC 交叉编译器
-        的东西，它只是一个多带一个后端的本地 clang。
+        的东西，它只是一个多带一个后端的本地 clang。当你再传
+        <code>--target=aarch64-linux-gnu --sysroot=$SYSROOT</code> 时，就是在用这个本地 clang
+        交叉编译；编译器二进制没有变。
       </p>
       <p>两种情况下，构建都需要同样三样实际的东西：</p>
       <ul>
@@ -235,7 +268,7 @@ ninja -C build-runtimes install</code></pre>
         <tbody>
           <tr>
             <td>构建期间 <code>llvm-tblgen: not found</code></td>
-            <td>没有本地工具；交叉构建试图运行目标二进制</td>
+            <td>没有本地工具；加拿大构建试图在构建机上运行宿主二进制</td>
             <td><code>LLVM_NATIVE_TOOL_DIR</code> 或 <code>LLVM_TABLEGEN</code>/<code>CLANG_TABLEGEN</code></td>
           </tr>
           <tr>

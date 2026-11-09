@@ -130,7 +130,7 @@
 
     <section>
       <h2>2. 构建、宿主、目标</h2>
-      <p>一次编译器构建由三个三元组描述，它们回答三个不同的问题：</p>
+      <p>对 GCC 来说，一次编译器构建由三个三元组描述，它们回答三个不同的问题：</p>
       <ul>
         <li>
           <strong>构建（build）</strong>：<em>构建</em>编译器的机器。这里是 <code>make</code>
@@ -155,16 +155,20 @@ Target: x86_64-linux-gnu
 ...
 </code></pre>
       <p>
-        一个运行平台和目标的平台相同的编译器，对该平台来说就是<strong>本地编译器</strong>，
+        在 GCC 模型里，一个运行平台和目标的平台相同的编译器，对该平台来说就是<strong>本地编译器</strong>，
         即使它是在别处构建的。这一点很容易被忽略："本地"描述的是宿主与目标的关系，
         不是构建与宿主的关系。在 x86_64 Linux 上构建、为 x86_64 Linux 使用的编译器是本地编译器。
         在 x86_64 Linux 上构建、为 AArch64 Linux 使用的编译器是交叉编译器；把它复制到 AArch64
         机器上，它在那里就成了本地编译器，不需要重新构建。
       </p>
+      <p>
+        Clang 不一样，第 3 节会回到这一点：clang 不在构建时固定目标，所以同一个二进制可以既本地运行，
+        又为另一个平台生成代码。
+      </p>
     </section>
 
     <section>
-      <h2>3. 构建形态及其层级</h2>
+      <h2>3. GCC 的构建形态及其层级</h2>
       <p>
         GCC 手册把两个经常被塞进同一个词里的问题分开。第一个是 <strong>build</strong> 与
         <strong>host</strong> 的关系；第二个是 <strong>host</strong> 与 <strong>target</strong> 的关系。
@@ -271,10 +275,36 @@ Target: x86_64-linux-gnu
         和 <code>target</code> 是什么？构建三元组是历史，它告诉你这个产物是怎么造出来的，
         而不是它能做什么。
       </p>
+
+      <h3>Clang 的模型：只有本地和加拿大</h3>
+      <p>
+        上面全部是 GCC 模型，<code>target</code> 由 <code>configure --target</code> 固定。
+        Clang 不是这样。它是一个带多个后端的二进制，目标在调用时用 <code>--target=</code> 和
+        <code>--sysroot=</code> 选择。没有配置期的 target，所以不存在 clang 的交叉构建，
+        按目标划分的加拿大本地/加拿大交叉也不适用。
+      </p>
+      <blockquote>
+        <p>
+          <strong>Clang 只有两个构建类别：</strong><strong>本地</strong>（<code>build = host</code>）
+          和<strong>加拿大</strong>（<code>build &ne; host</code>）。交叉编译根本不是构建类别；
+          它是本地 clang 加 <code>--target=</code> 和 <code>--sysroot=</code> 的调用方式，
+          所以是本地编译的特例。
+        </p>
+      </blockquote>
+      <p>
+        用 clang 交叉编译时，你运行的就是一个本地编译器。它是为当前运行的机器构建的；它之所以为另一个
+        目标生成代码，只是因为你要求它这么做。反向编译也坍缩了：如果 <code>build &ne; host</code>，
+        构建就是加拿大编译，目标是你调用时传的任何值。GCC 的交叉编译和反向编译两行，在 clang 里
+        没有对应物。
+      </p>
+      <p>
+        这就是为什么 <a href="/zhcn/docs/22.canadiancompilation/04.llvm/">第22.4章</a>只讲构建和宿主。
+        上面的 GCC 表格对 GCC 是正确的心智模型；对 clang 不是。
+      </p>
     </section>
 
     <section>
-      <h2>4. 为什么加拿大构建需要两个编译器</h2>
+      <h2>4. 为什么 GCC 的加拿大构建需要两个编译器</h2>
       <p>
         假设你在 <code>x86_64-linux-gnu</code> 上，想要一个运行在 <code>aarch64-linux-gnu</code>
         上、目标也是 <code>aarch64-linux-gnu</code> 的编译器。显然的计划是"为 AArch64 构建 GCC"。
@@ -282,7 +312,7 @@ Target: x86_64-linux-gnu
         必须执行中间工具：生成器、表构造器，以及刚构建出来、用来编译目标运行时库的
         <code>xgcc</code> 本身。
       </p>
-      <p>所以加拿大构建同时使用两个编译器：</p>
+      <p>所以 GCC 的加拿大构建同时使用两个编译器：</p>
       <ul>
         <li>
           一个面向构建机的<strong>本地编译器</strong>。它构建那些必须在构建期间运行的工具。
