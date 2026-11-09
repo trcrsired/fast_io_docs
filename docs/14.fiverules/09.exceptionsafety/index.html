@@ -12,6 +12,13 @@
   <main>
     <h1>Ch14.9: Exception Safety: nothrow, strong, basic, none</h1>
     <p class="lang-switch"><a href="/zhcn/docs/14.fiverules/09.exceptionsafety/">中文（简体）</a></p>
+
+    <div class="note">
+      <strong>Copyable variant.</strong>
+      This page uses a copyable version of <code>my_posix_file</code> where it needs to
+      demonstrate copy mechanics. The chapter&rsquo;s default class deletes copy; the final
+      move-only class is in <a href="/docs/14.fiverules/11.myposixfile/">Ch14.11</a>.
+    </div>
     <section>
       <h2>1. Four Levels, Not a Feeling</h2>
 
@@ -118,20 +125,6 @@
             <td>strong</td>
             <td>a constructor that throws means <em>no object exists</em>; nothing to roll
               back</td>
-          </tr>
-          <tr>
-            <td><code>my_posix_file(T const&amp;)</code></td>
-            <td><code>throws</code></td>
-            <td>strong</td>
-            <td><code>::dup</code> either produces a descriptor or leaves the source and the
-              new object untouched</td>
-          </tr>
-          <tr>
-            <td><code>operator=(T const&amp;)</code></td>
-            <td><code>throws</code></td>
-            <td>strong</td>
-            <td>duplicate first, then the critical line
-              (<a href="/docs/14.fiverules/04.copyassignment/">Ch14.4</a>)</td>
           </tr>
           <tr>
             <td><code>read_some()</code>, <code>write_some()</code></td>
@@ -428,8 +421,8 @@ none:   after:  dst reader = 9, writer = 7
       <ul>
         <li>
           <strong>Do all fallible work into locals first.</strong> Then perform the changes
-          with operations that cannot fail. That is <code>my_posix_file</code>'s copy
-          assignment.
+          with operations that cannot fail. That is the copy assignment of a copyable owner,
+          and the move assignment of a move-only one.
         </li>
         <li>
           <strong>Build a complete temporary, then swap it in.</strong> That is copy and swap

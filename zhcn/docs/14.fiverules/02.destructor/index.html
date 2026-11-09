@@ -30,6 +30,15 @@
       <p>
         这正是 C++ 不需要 <code>finally</code> 块就能管理资源的全部原因：释放挂在生命周期上，而不是挂在某条代码路径上，于是没有任何路径可以忘记。
       </p>
+      <div class="warning">
+        <strong>警告：析构函数不是孤立的声明。</strong>
+        一旦类有了释放资源的析构函数，编译器生成的拷贝构造和拷贝赋值就是错的，因为它们复制句柄而不是资源。
+        为两者声明 <code>= delete</code>，或者写真正的拷贝操作。用户声明的析构函数还会抑制隐式移动操作，
+        所以 move-only 类型必须显式声明移动，或者把移动也删除。
+        <br>
+        C++ Primer 的 <code>HasPtr</code> 是最小证明（<a href="/zhcn/docs/14.fiverules/01.ownership/">第14.1章</a>）；
+        Chromium 的五法则清理是同一个 bug 的大规模版本。
+      </div>
 
     </section>
     <section>

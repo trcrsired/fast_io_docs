@@ -46,25 +46,8 @@ public:
 		fd_ = fd;
 	}
 
-	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
-	{
-		if (fd_ == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-	}
-
-	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
-	{
-		::std::int_least32_t newfd{::dup(other.fd_)};
-		if (newfd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		// ---- critical line ----
-		reset(newfd);
-		return *this;
-	}
+	my_posix_file(my_posix_file const &amp;) = delete;
+	my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
 
 	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
 	{
@@ -131,7 +114,7 @@ inline void swap(my_posix_file &amp;a, my_posix_file &amp;b) noexcept
 }
 </code></pre>
       <p>
-        从上往下读，你就能看到整章：<code>reset</code> 是唯一的 <code>::close</code>（<a href="/zhcn/docs/14.fiverules/02.destructor/">第14.2章</a>）；复制构造函数做复制（<a href="/zhcn/docs/14.fiverules/03.copyconstructor/">第14.3章</a>）；复制赋值有那条临界线（<a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章</a>）；移动构造函数清空它的源（<a href="/zhcn/docs/14.fiverules/05.moveconstructor/">第14.5章</a>）；移动赋值有自检查（<a href="/zhcn/docs/14.fiverules/06.moveassignment/">第14.6章</a>）；<code>swap</code> 是三次写入（<a href="/zhcn/docs/14.fiverules/07.swap/">第14.7章</a>）。凡是只搬一个数字的都是 <code>noexcept</code>；凡是调用内核的都是 <code>throws</code> &mdash; 即<a href="/zhcn/docs/14.fiverules/09.exceptionsafety/">第14.9章</a>的分类，在声明处就看得见。
+        从上往下读，你就能看到整章：<code>reset</code> 是唯一的 <code>::close</code>（<a href="/zhcn/docs/14.fiverules/02.destructor/">第14.2章</a>）；拷贝被删除（<a href="/zhcn/docs/14.fiverules/03.copyconstructor/">第14.3章</a>和<a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章</a>）；移动构造函数清空它的源（<a href="/zhcn/docs/14.fiverules/05.moveconstructor/">第14.5章</a>）；移动赋值有自检查（<a href="/zhcn/docs/14.fiverules/06.moveassignment/">第14.6章</a>）；<code>swap</code> 是三次写入（<a href="/zhcn/docs/14.fiverules/07.swap/">第14.7章</a>）。凡是只搬一个数字的都是 <code>noexcept</code>；凡是调用内核的都是 <code>throws</code> &mdash; 即<a href="/zhcn/docs/14.fiverules/09.exceptionsafety/">第14.9章</a>的分类，在声明处就看得见。
       </p>
 
     </section>
@@ -173,24 +156,8 @@ public:
 		fd_ = fd;
 	}
 
-	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
-	{
-		if (fd_ == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-	}
-
-	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
-	{
-		::std::int_least32_t newfd{::dup(other.fd_)};
-		if (newfd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		reset(newfd);
-		return *this;
-	}
+	my_posix_file(my_posix_file const &amp;) = delete;
+	my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
 
 	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
 	{
@@ -268,11 +235,11 @@ int main()
 	auto n = in.read_some(buf, sizeof(buf));
 	print("read back: ", ::fast_io::mnp::os_c_str_with_known_size(buf, n));
 
-	my_posix_file copy{in};
-	println("in = ", in.native_handle(), ", copy = ", copy.native_handle());
+	my_posix_file moved{::std::move(in)};
+	println("in = ", in.native_handle(), ", moved = ", moved.native_handle());
 
 	::fast_io::vector&lt;my_posix_file&gt; files;
-	files.push_back(::std::move(copy));
+	files.push_back(::std::move(moved));
 	println("the vector holds ", files.size(), " file, fd = ", files.front().native_handle());
 
 	swap(in, files.front());
@@ -281,9 +248,9 @@ int main()
 </code></pre>
       <pre><code class="language-text">
 read back: herbceptions
-in = 3, copy = 4
-the vector holds 1 file, fd = 4
-after swap: in = 4, files.front() = 3
+in = -1, moved = 3
+the vector holds 1 file, fd = 3
+after swap: in = 3, files.front() = -1
 </code></pre>
       <p>
         这个类与本教程的其他一切都能配合：它能进 <code>::fast_io::vector</code>，因为它的移动是 <code>noexcept</code>；它能挺过容器的重新分配，因为移动赋值释放了它该释放的东西；而 <code>swap</code> 在一次系统调用都没有的情况下，把所有权在 vector 和一个局部对象之间搬移。
@@ -301,8 +268,8 @@ after swap: in = 4, files.front() = 3
         <tbody>
           <tr><td><code>int fd_{-1};</code></td><td>空状态是设计的一部分</td><td><a href="/zhcn/docs/14.fiverules/01.ownership/">第14.1章</a></td></tr>
           <tr><td><code>~my_posix_file() noexcept</code></td><td>只有一个地方释放，而且它不会失败</td><td><a href="/zhcn/docs/14.fiverules/02.destructor/">第14.2章</a></td></tr>
-          <tr><td><code>my_posix_file(my_posix_file const &amp;)</code></td><td>副本就是第二个描述符</td><td><a href="/zhcn/docs/14.fiverules/03.copyconstructor/">第14.3章</a></td></tr>
-          <tr><td><code>operator=(my_posix_file const &amp;)</code></td><td>临界线</td><td><a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章</a></td></tr>
+          <tr><td><code>my_posix_file(my_posix_file const &amp;) = delete</code></td><td>禁止第二个所有者</td><td><a href="/zhcn/docs/14.fiverules/03.copyconstructor/">第14.3章</a></td></tr>
+          <tr><td><code>operator=(my_posix_file const &amp;) = delete</code></td><td>拷贝赋值一起删除</td><td><a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章</a></td></tr>
           <tr><td><code>my_posix_file(my_posix_file &amp;&amp;)</code></td><td>先夺取，再清空源</td><td><a href="/zhcn/docs/14.fiverules/05.moveconstructor/">第14.5章</a></td></tr>
           <tr><td><code>operator=(my_posix_file &amp;&amp;)</code></td><td>先释放，再夺取；自检查</td><td><a href="/zhcn/docs/14.fiverules/06.moveassignment/">第14.6章</a></td></tr>
           <tr><td><code>void swap(my_posix_file &amp;) noexcept</code></td><td>提交所由构成的那个原语</td><td><a href="/zhcn/docs/14.fiverules/07.swap/">第14.7章</a></td></tr>
@@ -437,7 +404,7 @@ class config
           <tr>
             <td>复制一个被移出的文件</td>
             <td>
-              运行期的 <code>[posix](9)Bad file number</code> &mdash; 这是设计如此，不是意外
+              编译期的 <code>use of deleted function</code> &mdash; 这是设计如此，不是意外
             </td>
           </tr>
         </tbody>

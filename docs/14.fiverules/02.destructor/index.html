@@ -32,6 +32,18 @@
         <code>finally</code> block: the release is attached to the lifetime, not to a code
         path, so there is no path to forget.
       </p>
+      <div class="warning">
+        <strong>Warning: a destructor is not a standalone declaration.</strong>
+        Once the class has a destructor that releases a resource, the compiler-generated copy
+        constructor and copy assignment are wrong, because they copy the handle instead of the
+        resource. Declare <code>= delete</code> for both, or write real copy operations. A
+        user-declared destructor also suppresses the implicit move operations, so a move-only
+        type must declare its moves explicitly or delete them as well.
+        <br>
+        C++ Primer's <code>HasPtr</code> is the minimal proof
+        (<a href="/docs/14.fiverules/01.ownership/">Ch14.1</a>); Chromium's rule-of-five cleanup
+        is the same bug at scale.
+      </div>
 
     </section>
     <section>

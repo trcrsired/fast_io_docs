@@ -3,218 +3,306 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch14.1: Ownership: Why a Class Needs a Destructor - C++ Tutorial with fast_io</title>
+  <title>Ch14.1: Ownership: The Destructor Starts the Rule - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch14.1: Ownership: Why a Class Needs a Destructor</h1>
+    <h1>Ch14.1: Ownership: The Destructor Starts the Rule</h1>
     <p class="lang-switch"><a href="/zhcn/docs/14.fiverules/01.ownership/">中文（简体）</a></p>
+
     <section>
-      <h2>1. A Descriptor Is a Resource</h2>
-
-
+      <h2>1. A Handle Is Not a Value</h2>
       <p>
-        <code>::open</code> hands you an <code>int</code>. It is not a number you may do
-        arithmetic on; it is a <strong>handle</strong> on something the kernel owns. Three
-        properties make it a resource:
+        <code>::open</code> returns an <code>int</code>, but the <code>int</code> is not the
+        file. It is an index into a table the kernel owns. The same number can be reused for a
+        different file after the first one is closed, and copying the number does not create a
+        second file. Three properties follow:
       </p>
       <ul>
-        <li><strong>It must be released.</strong> The kernel keeps a table of open files per
-          process, and it is finite. An <code>int</code> that is never
-          <code>::close</code>d leaks a slot of that table.</li>
-        <li><strong>It has exactly one meaning while it is alive.</strong> The number stays
-          valid until you close it; after that the same number is free, and the next
-          <code>::open</code> anywhere in the program may hand it out again.</li>
-        <li><strong>It is not the file.</strong> Two descriptors can name the same file, and
-          two copies of the number name the same descriptor. Both facts matter in this
-          chapter.</li>
+        <li><strong>It must be released.</strong> The table is finite. A descriptor that is
+          never <code>::close</code>d leaks a slot.</li>
+        <li><strong>It has one owner while it is alive.</strong> Two objects that both believe
+          they own the same number will both release it.</li>
+        <li><strong>The number is not the resource.</strong> The open file description lives in
+          the kernel; the number is only the handle.</li>
       </ul>
-
-    </section>
-    <section>
-      <h2>2. What a Bare <code>int</code> Does</h2>
-
-
       <p>
-        A plain variable has no idea it owns anything. Nothing closes it, so it lives until
-        the process dies:
+        The compiler has no idea which <code>int</code> is a handle and which is a count. It
+        copies every <code>int</code> the same way. That is the entire source of the bugs in
+        this chapter.
       </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string_view.h&gt;
+    </section>
 
-using namespace ::fast_io::io;
-
-class my_posix_file
+    <section>
+      <h2>2. The Rule: A Destructor Changes the Copy</h2>
+      <p>
+        Write the destructor first, because it is the declaration that tells you the class owns
+        something:
+      </p>
+      <pre><code class="language-cpp">class my_posix_file
 {
-	int fd_{-1};
+    int fd_{-1};
 
 public:
-	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
-	{
-		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
-		if (fd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		fd_ = fd;
-	}
+    explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws;
 
-	~my_posix_file() noexcept
-	{
-		if (fd_ != -1)
-		{
-			::close(fd_);
-		}
-	}
+    ~my_posix_file() noexcept
+    {
+        if (fd_ != -1)
+        {
+            ::close(fd_);
+        }
+    }
+};</code></pre>
+      <p>
+        The compiler still generates a copy constructor and a copy assignment for this class.
+        Both copy <code>fd_</code>. Both produce a second object that thinks it owns the same
+        descriptor. The first destructor closes it; the second destructor closes the number
+        again, which may now belong to an unrelated file. This is not a theoretical bug.
+      </p>
+      <blockquote>
+        <p>
+          <strong>If a class has a destructor that releases a resource, it must declare its
+          copy operations. Delete them, or write a correct copy. Leaving them implicit is the
+          bug.</strong>
+        </p>
+      </blockquote>
+      <div class="warning">
+        <strong>Warning: a destructor without a copy decision is a bug.</strong>
+        If the class has a destructor but no <code>= delete</code> and no real copy
+        constructor/copy assignment, the compiler will generate shallow copies. For a resource
+        owner this is a double release, a use-after-release, or both. At minimum write:
+        <pre><code class="language-cpp">T(T const &amp;) = delete;
+T &amp;operator=(T const &amp;) = delete;</code></pre>
+        and then decide whether the type is also movable.
+      </div>
+      <p>
+        The safe default is deletion:
+      </p>
+      <pre><code class="language-cpp">    my_posix_file(my_posix_file const &amp;) = delete;
+    my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;</code></pre>
+      <p>
+        These are declarations, not comments. They participate in overload resolution and the
+        compiler rejects any attempt to copy the object. If the type should be movable, declare
+        the move operations next; if it should not, delete them too:
+      </p>
+      <pre><code class="language-cpp">    my_posix_file(my_posix_file &amp;&amp;other) noexcept;
+    my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept;</code></pre>
+      <p>
+        "Maybe move operations" is the right phrase. Moving is a separate capability. A
+        non-movable type deletes all four copy/move operations and keeps only the destructor and
+        the resource-owning constructor. A movable type implements the two moves and deletes the
+        two copies. What you must not do is leave the copy implicit.
+      </p>
+    </section>
 
-	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
-	{
-		return fd_;
-	}
-};
+    <section>
+      <h2>3. The C++ Primer Example</h2>
+      <p>
+        C++ Primer, Fifth Edition demonstrates the failure with <code>HasPtr</code>: a class
+        that owns a <code>std::string</code> through a raw pointer and frees it in the
+        destructor, but does not write the copy operations. The book uses <code>new</code> and
+        <code>delete</code>. This tutorial uses the same example with fast_io's allocator and an
+        explicit placement new, so the allocation policy is visible.
+      </p>
+      <p>
+        There are two allocator layers. <code>::fast_io::native_global_allocator</code> is the
+        untyped allocator: it hands out raw bytes. <code>::fast_io::native_typed_global_allocator&lt;T&gt;</code>
+        is the typed adapter: its <code>allocate_die(1)</code> reserves storage for one
+        <code>T</code> with the right size and alignment. Neither one constructs the object.
+        Placement new does that:
+      </p>
+      <pre><code class="language-cpp">#include &lt;new&gt;
+#include &lt;string&gt;
+
+using string_alloc = ::fast_io::native_typed_global_allocator&lt;::std::string&gt;;
+
+std::string *make_string(std::string const &amp;s)
+{
+    auto *p{string_alloc::allocate_die(1)}; // storage, not an object
+    try
+    {
+        return ::new (static_cast&lt;void *&gt;(p)) std::string(s); // placement new
+    }
+    catch (...)
+    {
+        string_alloc::deallocate_n(p, 1);
+        throw;
+    }
+}
+
+void destroy_string(std::string *p) noexcept
+{
+    if (p != nullptr)
+    {
+        p-&gt;~basic_string();               // end the object's lifetime
+        string_alloc::deallocate_n(p, 1); // return the storage
+    }
+}</code></pre>
+      <p>
+        <code>allocate_die</code> terminates on allocation failure, which is the policy this
+        book uses; <code>allocate</code> and <code>allocate_try</code> are the throwing variants.
+        The important part is the lifetime split: allocation gives you storage, placement new
+        starts an object, the destructor ends it, and <code>deallocate_n</code> returns the
+        storage. There is no <code>delete</code> and no mismatch between the allocator that
+        produced the block and the one that frees it.
+      </p>
+      <pre><code class="language-cpp">class HasPtr
+{
+public:
+    HasPtr(std::string const &amp;s = std::string())
+        : ps{make_string(s)}, i{} {}
+
+    ~HasPtr() { destroy_string(ps); }
+
+    // WRONG: the compiler generates these two.
+    // They copy ps, not the string.
+    // HasPtr(HasPtr const &amp;) = default;
+    // HasPtr &amp;operator=(HasPtr const &amp;) = default;
+
+private:
+    std::string *ps;
+    int i;
+};</code></pre>
+      <p>
+        Pass one by value and the bug becomes visible:
+      </p>
+      <pre><code class="language-cpp">HasPtr f(HasPtr hp)      // hp is a shallow copy
+{
+    HasPtr ret = hp;     // another shallow copy
+    return ret;          // hp and ret are destroyed
+}
 
 int main()
 {
-	// A bare int does not know it owns an operating system resource.
-	::std::int_least32_t raw{::open("demo.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644)};
-	println("bare int:  ", raw);
-
-	// Nothing closes everything. The descriptor is leaked for the rest of the run.
-	my_posix_file managed{"demo.txt", O_RDONLY};
-	println("managed:   ", managed.native_handle());
-
-	{
-		my_posix_file scoped{"demo.txt", O_RDONLY};
-		println("in scope:  ", scoped.native_handle());
-	} // the destructor runs here
-	my_posix_file after{"demo.txt", O_RDONLY};
-	println("after:     ", after.native_handle());
-}
-</code></pre>
-      <p>Output:</p>
-      <pre><code class="language-text">
-bare int:  3
-managed:   4
-in scope:  5
-after:     5
-</code></pre>
+    HasPtr p{"some values"};
+    f(p);                // both destructors destroy p.ps
+    HasPtr q{p};         // p.ps is already dangling
+}</code></pre>
       <p>
-        Read the numbers. The bare <code>int</code> took descriptor <code>3</code> and stayed
-        there for the whole run, so every later open got a fresh number:
-        <code>4</code>, then <code>5</code>. The managed file inside the block took
-        <code>5</code> and, when the block ended, gave <code>5</code> back &mdash;
-        which is why the next open receives <code>5</code> again and not <code>6</code>.
+        The parameter and the local copy share the same <code>ps</code>. When <code>f</code>
+        returns, two destructors run on one pointer: a double destruction and a double deallocation. The caller's object is left
+        dangling, so the next copy reads freed memory. The destructor was correct; the implicit
+        copy was not.
       </p>
       <p>
-        That reuse is the proof that the destructor ran. Nothing in the program calls
-        <code>::close</code> explicitly; the object is responsible for its own descriptor, and
-        the responsibility is discharged automatically.
+        The fix is one of two explicit choices. If copying has no meaning, delete it:
       </p>
-            <div class="important">
-        <strong>Owning means: everybody who can reach the object, however they leave the
-          scope, gets the resource released.</strong>
-        A <code>return</code>, a <code>throw throws</code>, a <code>break</code>, a normal
-        fall-through &mdash; the destructor runs in all of them. An explicit
-        <code>::close</code> at the end of a function runs in none of the first three.
-      
-      </div>
-
+      <pre><code class="language-cpp">    HasPtr(HasPtr const &amp;) = delete;
+    HasPtr &amp;operator=(HasPtr const &amp;) = delete;</code></pre>
+      <p>
+        Now <code>f(p)</code> and <code>HasPtr q{p}</code> fail to compile. If copying is
+        meaningful, write a real copy that allocates its own string; that is
+        <a href="/docs/14.fiverules/03.copyconstructor/">Ch14.3</a> and
+        <a href="/docs/14.fiverules/04.copyassignment/">Ch14.4</a>.
+      </p>
     </section>
+
     <section>
-      <h2>3. The Five Questions</h2>
-
-
+      <h2>4. Chromium Had the Same Bug at Scale</h2>
       <p>
-        A class that owns a descriptor has to say what happens in these five situations. There
-        is no escape: if you say nothing, the compiler answers all five for you, and its
-        answers are wrong for a resource.
+        This is not only a teaching example. Chromium's ChromeDriver 130 release notes record a
+        rule-of-five cleanup: an out-of-line destructor was declared without matching move
+        operations, so the compiler silently fell back to copies. The fix added the missing
+        declarations. The relevant change is <code>crrev.com/c/5846757</code>, tracked as
+        <code>crbug.com/364788123</code>.
       </p>
+      <p>
+        The compiler accepted the code. The symptom appeared somewhere else. That is the
+        signature of a missing special member: the language gives you a default, and the default
+        is wrong for an owner. <code>HasPtr</code> is the smallest version of the same failure;
+        Chromium is the same failure across a large codebase.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. What This Chapter Builds</h2>
+      <p>
+        The running example is a move-only file:
+      </p>
+      <pre><code class="language-cpp">class my_posix_file
+{
+    int fd_{-1};
+
+public:
+    my_posix_file() noexcept = default;
+    explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws;
+
+    ~my_posix_file() noexcept;
+
+    my_posix_file(my_posix_file const &amp;) = delete;
+    my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
+
+    my_posix_file(my_posix_file &amp;&amp;other) noexcept;
+    my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept;
+
+    void swap(my_posix_file &amp;other) noexcept;
+
+    [[nodiscard]] bool is_open() const noexcept;
+    [[nodiscard]] ::std::int_least32_t native_handle() const noexcept;
+};</code></pre>
+      <p>
+        A file descriptor is an identity, not a value. Two descriptors for the same file are
+        possible, but they are a deliberate system call (<code>::dup</code>), not something the
+        compiler should do behind your back. Deleting copy states that clearly. Moving is still
+        useful: returning a file from a factory, storing it in a container, or passing ownership
+        to another scope.
+      </p>
+      <p>
+        fast_io's own file types make the same choice: they are movable, not copyable. The
+        reduced class here keeps only what the rule needs, so every declaration can be checked
+        against the code on the page.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. The Five Members, and the One Decision</h2>
       <table>
         <thead>
-          <tr><th>Question</th><th>Written as</th><th>Wrong default</th></tr>
+          <tr>
+            <th>Declaration</th>
+            <th>Question it answers</th>
+            <th>For this class</th>
+          </tr>
         </thead>
         <tbody>
           <tr>
-            <td>When the object dies, who frees the descriptor?</td>
             <td><code>~my_posix_file()</code></td>
-            <td>nobody: the descriptor leaks</td>
+            <td>Who closes the descriptor?</td>
+            <td><code>::close</code>, once, in one place.</td>
           </tr>
           <tr>
-            <td>When a new object is made from an existing one, what happens?</td>
-            <td><code>my_posix_file(my_posix_file const &amp;)</code></td>
-            <td>the number is copied: two owners, one descriptor</td>
+            <td><code>my_posix_file(my_posix_file const&amp;)</code></td>
+            <td>What does a copy own?</td>
+            <td><code>= delete</code>: a copy would be a second owner.</td>
           </tr>
           <tr>
-            <td>When an existing object is assigned from another, what happens?</td>
-            <td><code>operator=(my_posix_file const &amp;)</code></td>
-            <td>the old descriptor leaks and the new one is shared</td>
+            <td><code>operator=(my_posix_file const&amp;)</code></td>
+            <td>What happens on copy assignment?</td>
+            <td><code>= delete</code>, for the same reason.</td>
           </tr>
           <tr>
-            <td>When a dying object is used to build a new one, can we just take it?</td>
-            <td><code>my_posix_file(my_posix_file &amp;&amp;)</code></td>
-            <td>it copies instead, which is correct but wasteful</td>
+            <td><code>my_posix_file(my_posix_file&amp;&amp;)</code></td>
+            <td>How is ownership transferred?</td>
+            <td>Take <code>fd_</code>, leave <code>-1</code>.</td>
           </tr>
           <tr>
-            <td>When an existing object takes over from a dying one, what happens?</td>
-            <td><code>operator=(my_posix_file &amp;&amp;)</code></td>
-            <td>it copies instead, and leaks the old descriptor</td>
+            <td><code>operator=(my_posix_file&amp;&amp;)</code></td>
+            <td>How is ownership replaced?</td>
+            <td>Close ours, take theirs, empty the source.</td>
           </tr>
         </tbody>
       </table>
       <p>
-        Write all five and you have the <strong>rule of five</strong>. Write none and have the
-        compiler generate all of them &mdash; the
-        <strong>rule of zero</strong> &mdash; which is the better outcome, but only possible
-        when every member is already a well-behaved value. A raw descriptor is not
-        (<a href="/docs/14.fiverules/11.myposixfile/">Ch14.11</a> comes back to this).
+        The decision is not "five functions or none". It is "does this class own a resource?"
+        If it does, the destructor starts the rule, and the copy operations are the first thing
+        you must make explicit.
       </p>
-
     </section>
-    <section>
-      <h2>4. What We Are Going to Build</h2>
 
-
-      <p>
-        The class stays small on purpose. It holds one <code>int</code>, and everything else is
-        the five rules:
-      </p>
-      <pre><code class="language-cpp">
-class my_posix_file
-{
-	int fd_{-1}; // -1 means "no descriptor"; it is the empty state
-
-public:
-	// 1. create: acquire a descriptor from a path
-	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws;
-
-	// 2. destroy: give the descriptor back                   -&gt; Ch14.2
-	~my_posix_file() noexcept;
-
-	// 3. copy: a second descriptor for the same open file     -&gt; Ch14.3
-	my_posix_file(my_posix_file const &amp;other) throws;
-
-	// 4. copy-assign: replace what this object owns           -&gt; Ch14.4
-	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws;
-
-	// 5. move: take the descriptor and leave -1 behind        -&gt; Ch14.5, Ch14.6
-	my_posix_file(my_posix_file &amp;&amp;other) noexcept;
-	my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept;
-
-	// 6. swap: exchange two objects' descriptors              -&gt; Ch14.7
-	void swap(my_posix_file &amp;other) noexcept;
-};
-</code></pre>
-      <p>
-        The sentinel <code>-1</code> is doing real work: it is the difference between
-        &ldquo;I own a file&rdquo; and &ldquo;I own nothing&rdquo;. Without it there would be
-        no way to leave a moved-from object in a state where its destructor can run safely.
-      </p>
-
-    </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
       <a href="/docs/14.fiverules/" class="prev-button">&larr; Ch14: The Rule of Five</a>

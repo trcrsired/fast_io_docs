@@ -3,337 +3,161 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch14.3: The Copy Constructor: Two Objects, Two Resources - C++ Tutorial with fast_io</title>
+  <title>Ch14.3: Copy Construction: Delete It, or Deep-Copy It - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch14.3: The Copy Constructor: Two Objects, Two Resources</h1>
+    <h1>Ch14.3: Copy Construction: Delete It, or Deep-Copy It</h1>
     <p class="lang-switch"><a href="/zhcn/docs/14.fiverules/03.copyconstructor/">中文（简体）</a></p>
+
     <section>
-      <h2>1. What a Copy Has to Mean</h2>
-
-
+      <h2>1. The Compiler's Copy Is Shallow</h2>
       <p>
-        The destructor answers &ldquo;who releases it&rdquo;. The copy constructor answers the
-        next question: when a <em>new</em> object is made from an existing one, what does the
-        new object own?
+        A copy constructor is called whenever a new object is made from an existing one. If you
+        do not declare one, the compiler writes a member-wise copy. For a class that owns a
+        resource, that copy is almost always wrong.
       </p>
       <p>
-        For <code>point</code> in <a href="/docs/13.class/">Chapter 13</a> the answer was
-        trivial: its own two numbers. For an owner the answer must be
-        <strong>&ldquo;its own resource&rdquo;</strong>, and the only way to get a second
-        descriptor for the same open file is to ask the kernel for one:
-        <code>::dup</code>.
+        The C++ Primer <code>HasPtr</code> from the previous page is the minimal example. Its
+        destructor destroys the string through <code>ps</code>; its compiler-generated copy copies the pointer:
       </p>
-      <pre><code class="language-cpp">
-int dup(int fd);              // a new descriptor for the same open file
-int dup2(int fd, int newfd);  // make newfd refer to the same open file
-</code></pre>
-
-    </section>
-    <section>
-      <h2>2. What the Compiler Writes If You Say Nothing</h2>
-
-
-      <p>
-        A class with no copy constructor gets one generated for it, and the generated one does
-        the same thing it does for <code>point</code>: it copies each member. For an
-        <code>int</code> that means the number is copied. The number is not the descriptor
-        &mdash; it is only the name of one.
-      </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string_view.h&gt;
-
-using namespace ::fast_io::io;
-
-// No copy constructor, no move constructor, no assignment: the compiler
-// supplies member-wise versions of all of them.
-class shallow_file
+      <pre><code class="language-cpp">HasPtr f(HasPtr hp)      // hp is a shallow copy
 {
-	int fd_{-1};
+    HasPtr ret = hp;     // another shallow copy
+    return ret;          // both destructors destroy ps
+}</code></pre>
+      <p>
+        The parameter and the local object share one <code>std::string</code>. When the function
+        returns, the same pointer is destroyed twice, and the caller's object is left dangling.
+        The bug is not that the destructor exists. The bug is that the copy was left implicit.
+      </p>
+      <p>
+        There are exactly two valid answers: <strong>delete the copy</strong>, or
+        <strong>write a copy that acquires its own resource</strong>. There is no third answer
+        called "let the compiler do it".
+      </p>
+      <div class="warning">
+        <strong>Warning: the implicit copy is not a copy of the resource.</strong>
+        If the class owns a handle, the compiler's copy constructor copies the handle. That is
+        why a class with a destructor must declare <code>= delete</code> for both copy
+        operations, or write real ones. "I have a destructor" is the warning sign; "the
+        compiler will handle the copy" is the bug.
+      </div>
+    </section>
+
+    <section>
+      <h2>2. Answer One: <code>= delete</code></h2>
+      <p>
+        This is the default for a resource owner. The class owns a handle; copying the handle
+        would create a second owner. Delete both copy operations:
+      </p>
+      <pre><code class="language-cpp">class my_posix_file
+{
+    int fd_{-1};
 
 public:
-	explicit shallow_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
-	{
-		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
-		if (fd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		fd_ = fd;
-	}
+    explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws;
+    ~my_posix_file() noexcept;
 
-	~shallow_file() noexcept
-	{
-		if (fd_ != -1)
-		{
-			::close(fd_);
-		}
-	}
+    my_posix_file(my_posix_file const &amp;) = delete;
+    my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
 
-	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
-	{
-		return fd_;
-	}
-};
-
-int main()
-{
-	shallow_file a{"demo.txt", O_RDONLY};
-	println("a = ", a.native_handle());
-
-	{
-		shallow_file b{a}; // copies the number, not the file
-		println("b = ", b.native_handle(), ", b owns the same descriptor = ", b.native_handle() == a.native_handle());
-	} // b closes the descriptor it thinks it owns
-
-	println("after b died, a = ", a.native_handle(), ", still valid = ", ::fcntl(a.native_handle(), F_GETFD) != -1);
-
-	shallow_file c{"demo.txt", O_RDONLY};
-	println("c = ", c.native_handle(), ", the number came back");
-} // c and a both close descriptor 3
-</code></pre>
-      <pre><code class="language-text">
-a = 3
-b = 3, b owns the same descriptor = 1
-after b died, a = 3, still valid = 0
-c = 3, the number came back
-</code></pre>
+    my_posix_file(my_posix_file &amp;&amp;other) noexcept;
+    my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept;
+};</code></pre>
       <p>
-        <code>b</code> has the same <code>int</code>, so it has the same owner's claim, so it
-        closes the descriptor when it dies. After that line <code>a</code> still holds
-        <code>3</code> and <code>3</code> is no longer open: <code>a</code> is a
-        <strong>dangling owner</strong>. Every later use of it fails with
-        <code>EBADF</code>, and its destructor will close descriptor <code>3</code> a second
-        time &mdash; which by then may belong to a completely different file, as the last two
-        lines of the output show. Closing somebody else's file is one of the nastiest bugs
-        there is, because the symptom appears far away from the mistake.
+        The two deleted functions are declarations. The compiler uses them during overload
+        resolution and rejects a copy with a clear error:
       </p>
-            <div class="important">
-        <strong>The compiler's copy is member-wise, and a member-wise copy of a handle is
-          always wrong.</strong>
-        This is the reason the rule of five exists at all: you cannot take the generated copy
-        <em>and</em> the generated destructor. Once one of the five is yours, you own all of
-        them.
-      
-      </div>
-
+      <pre><code class="language-text">error: use of deleted function 'my_posix_file::my_posix_file(const my_posix_file&amp;)'
+error: use of deleted function 'my_posix_file&amp; my_posix_file::operator=(const my_posix_file&amp;)'</code></pre>
+      <p>
+        This is what you want. The incorrect program does not compile, and the error points at
+        the copy. If you want the type to be movable, declare the move operations as well. If
+        not, delete them too; a non-movable owner is a perfectly valid type.
+      </p>
+      <p>
+        Declaring the copy constructor deleted also prevents the compiler from generating a move
+        constructor. That is why the move declarations above are explicit. A deleted copy and a
+        missing move leaves the type neither copyable nor movable, which is correct for a
+        non-movable owner and a surprise for a type that should be movable.
+      </p>
     </section>
+
     <section>
-      <h2>3. The Copy Constructor: A Descriptor of Its Own</h2>
-
-
-      <pre><code class="language-cpp">
-	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
-	{
-		if (fd_ == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-	}
-</code></pre>
+      <h2>3. Answer Two: A Real Deep Copy</h2>
       <p>
-        Read it in three parts.
+        If copying has a clear meaning, write a copy constructor that creates a new resource.
+        For <code>HasPtr</code>, that means a new <code>std::string</code>:
       </p>
-      <ul>
-        <li>
-          <strong>The parameter is <code>const&amp;</code>.</strong> A copy constructor must
-          not modify what it copies; if it did, <code>my_posix_file const &amp;</code>
-          parameters could not be copied, and <code>const</code> objects would be second-class.
-        </li>
-        <li>
-          <strong><code>::dup</code> happens in the member initializer list.</strong> It is
-          the only place the member is initialized
-          (<a href="/docs/13.class/06.constructors/">Ch13.6</a>), and doing the fallible call
-          there means nothing has been modified yet when it runs.
-        </li>
-        <li>
-          <strong><code>throws</code>, because <code>::dup</code> can fail.</strong> It fails
-          with <code>EMFILE</code> when the process has too many descriptors open and with
-          <code>EBADF</code> when the source has none &mdash; which is exactly what copying a
-          moved-from file does (<a href="/docs/14.fiverules/10.movedfrom/">Ch14.10</a>).
-        </li>
-      </ul>
-            <div class="note">
-        <strong>Why not close-then-open the path again?</strong>
-        Because the file need not still be at that path, and because reopening would lose the
-        file offset and the open mode. <code>::dup</code> duplicates <em>the open file</em>,
-        not the name, so it works after the file has been renamed or unlinked.
-      
-      </div>
-
-    </section>
-    <section>
-      <h2>4. Two Descriptors, One Open File</h2>
-
-
-      <p>
-        What exactly does the copy share? The program below writes ten bytes to a file, then
-        copies a reader, then reads four bytes from each handle in turn:
-      </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string_view.h&gt;
-
-using namespace ::fast_io::io;
-
-class my_posix_file
+      <pre><code class="language-cpp">class HasPtr
 {
-	int fd_{-1};
-
 public:
-	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
-	{
-		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
-		if (fd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		fd_ = fd;
-	}
+    HasPtr(std::string const &amp;s = std::string())
+        : ps{make_string(s)}, i{} {}
 
-	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
-	{
-		if (fd_ == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-	}
+    HasPtr(HasPtr const &amp;other)
+        : ps{other.ps ? make_string(*other.ps) : nullptr},
+          i{other.i}
+    {
+    }
 
-	~my_posix_file() noexcept
-	{
-		if (fd_ != -1)
-		{
-			::close(fd_);
-		}
-	}
+    ~HasPtr() { destroy_string(ps); }
 
-	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
-	{
-		return fd_;
-	}
-
-	::std::size_t read_some(char *buf, ::std::size_t n) throws
-	{
-		auto ret{::read(fd_, buf, n)};
-		if (ret == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		return static_cast&lt;::std::size_t&gt;(ret);
-	}
-
-	::std::size_t write_some(char const *buf, ::std::size_t n) throws
-	{
-		auto ret{::write(fd_, buf, n)};
-		if (ret == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		return static_cast&lt;::std::size_t&gt;(ret);
-	}
-};
-
-int main()
-{
-	{
-		my_posix_file out{"demo.txt", O_WRONLY | O_CREAT | O_TRUNC};
-		out.write_some("0123456789", 10);
-	}
-
-	my_posix_file a{"demo.txt", O_RDONLY};
-	my_posix_file b{a}; // copy: a descriptor of its own, same open file description
-	println("a = ", a.native_handle(), ", b = ", b.native_handle());
-
-	char buf[16]{};
-	a.read_some(buf, 4);
-	println("read from a: ", ::fast_io::mnp::os_c_str_with_known_size(buf, 4));
-	b.read_some(buf, 4);
-	println("read from b: ", ::fast_io::mnp::os_c_str_with_known_size(buf, 4));
-
-	my_posix_file c{"demo.txt", O_RDONLY};
-	c.read_some(buf, 4);
-	println("read from c: ", ::fast_io::mnp::os_c_str_with_known_size(buf, 4));
-}
-</code></pre>
-      <pre><code class="language-text">
-a = 3, b = 4
-read from a: 0123
-read from b: 4567
-read from c: 0123
-</code></pre>
+private:
+    std::string *ps;
+    int i;
+};</code></pre>
       <p>
-        Look at the three reads.
+        The new object has its own <code>ps</code>. Destroying one object does not affect the
+        other. The null check is there because a moved-from <code>HasPtr</code> may have a null
+        pointer once move operations are added; a copy constructor should still be safe.
       </p>
+      <p>
+        A deep copy is a real operation with a real cost: one allocation and one string copy.
+        That cost is why deletion is the default for handles. A file descriptor can be
+        duplicated with <code>::dup</code>, but that is a deliberate system call that creates a
+        second descriptor for the same open file; it is not what the compiler's member-wise copy
+        does. If you want that semantics, write it explicitly and document the sharing.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. What <code>std::move</code> Does When Copy Is Deleted</h2>
+      <p>
+        <code>::std::move</code> does not move anything. It casts to an rvalue reference and
+        makes a move constructor eligible. If the move constructor is not declared, overload
+        resolution falls back to the copy constructor. If the copy constructor is deleted, the
+        fallback is a deleted function, so the program does not compile:
+      </p>
+      <pre><code class="language-cpp">my_posix_file a{"demo.txt", O_RDONLY};
+my_posix_file b{::std::move(a)}; // error if no move constructor is declared</code></pre>
+      <p>
+        That is the correct behavior for a move-only owner: transferring ownership must be
+        explicit in the class, not an accidental copy. The move constructor itself is
+        <a href="/docs/14.fiverules/05.moveconstructor/">Ch14.5</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. What to Remember</h2>
       <ul>
-        <li>
-          <code>a</code> and <code>b</code> have <strong>different descriptors</strong>
-          (<code>3</code> and <code>4</code>), so closing one does not close the other, and
-          each one's destructor closes exactly one descriptor. That is what makes the copy
-          safe.
-        </li>
-        <li>
-          But they share the <strong>file offset</strong>: after <code>a</code> read
-          <code>0123</code>, <code>b</code>'s read continues at <code>4567</code>, not at the
-          beginning. <code>::dup</code> duplicates the open file description, and the offset
-          is part of it.
-        </li>
-        <li>
-          <code>c</code> was opened separately, so it has its own open file description and
-          reads <code>0123</code> from the start.
-        </li>
+        <li>The implicit copy is member-wise; for a handle, that means a second owner.</li>
+        <li>If the class has a destructor that releases a resource, declare the copy.</li>
+        <li>Default to <code>= delete</code> for unique ownership.</li>
+        <li>Write a deep copy only when copying has a defined meaning and a documented cost.</li>
+        <li>Delete both copy construction and copy assignment; they are one decision.</li>
+        <li>If the type is movable, declare the moves; if not, delete them too.</li>
       </ul>
       <p>
-        So a copy of <code>my_posix_file</code> is an <strong>independent owner of a shared
-        stream</strong>. That is the honest semantics of the underlying system, and the class
-        should not pretend otherwise. If you need an independent offset, open the file again
-        (<code>c</code>), do not copy.
+        The next page applies the same decision to copy assignment: delete it, or write a real
+        assignment with a critical line.
       </p>
-
     </section>
-    <section>
-      <h2>5. When Copying Makes No Sense</h2>
 
-
-      <p>
-        For a file, duplicating the descriptor is meaningful, so we support it. For plenty of
-        resources it is not: a lock is either held or not, a buffer has one owner, an
-        <code>::open</code> in progress cannot be duplicated. Such a class says so:
-      </p>
-      <pre><code class="language-cpp">
-class my_lock
-{
-public:
-	my_lock(my_lock const &amp;) = delete;
-	my_lock &amp;operator=(my_lock const &amp;) = delete;
-};
-</code></pre>
-      <p>
-        Anyone who tries to copy it gets a compile-time refusal instead of a double
-        <code>::close</code> at run time:
-      </p>
-      <pre><code class="language-text">
-error: use of deleted function 'my_lock::my_lock(const my_lock&amp;)'
-note:   declared here
-</code></pre>
-      <p>
-        fast_io does the same where ownership cannot be duplicated: its
-        <code>posix_file_factory</code> &mdash; the object that holds a fresh descriptor until
-        a file object takes it over &mdash; deletes its copy constructor and copy assignment
-        for exactly this reason.
-      </p>
-            <div class="note">
-        <strong>Copying is a promise about ownership, not about bytes.</strong>
-        &ldquo;Can this be copied?&rdquo; and &ldquo;what does the copy mean?&rdquo; are the same
-        question. If you cannot answer the second in one sentence, delete the copy.
-      
-      </div>
-
-    </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
       <a href="/docs/14.fiverules/02.destructor/" class="prev-button">&larr; Ch14.2: The Destructor</a>

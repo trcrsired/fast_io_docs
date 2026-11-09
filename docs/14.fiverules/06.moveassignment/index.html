@@ -122,24 +122,8 @@ public:
 		fd_ = fd;
 	}
 
-	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
-	{
-		if (fd_ == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-	}
-
-	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
-	{
-		::std::int_least32_t newfd{::dup(other.fd_)};
-		if (newfd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		reset(newfd);
-		return *this;
-	}
+	my_posix_file(my_posix_file const &amp;) = delete;
+	my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
 
 	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
 	{

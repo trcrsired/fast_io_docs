@@ -12,250 +12,267 @@
   <main>
     <h1>Ch14: The Rule of Five</h1>
     <p class="lang-switch"><a href="/zhcn/docs/14.fiverules/">中文（简体）</a></p>
+
     <section>
-      <h2>1. Why This Chapter Exists</h2>
-
-
+      <h2>1. The Rule Is Not "Write Five Functions"</h2>
       <p>
-        Every class in <a href="/docs/13.class/">Chapter 13</a> owned numbers. Copying one was
-        obviously harmless: <code>point b{a}</code> gives you two points, and nothing is
-        shared. <code>account</code> owned a balance, and copying it was still harmless.
+        The name is misleading. The rule of five does not say that every class should have five
+        hand-written special members. It says that the five special members are a package: if
+        you declare one of them, you must decide what happens to the others. Most classes should
+        declare none of them. A class that owns a resource must declare all of the ones it needs.
       </p>
       <p>
-        The moment a class owns something the operating system handed out &mdash; a file
-        descriptor, a socket, a lock, a block of memory &mdash; that comfort ends. Two objects
-        that own the same descriptor are a bug waiting to happen, and the compiler's
-        default behaviour makes exactly that bug: it copies the number, not the resource.
+        C++ Primer introduces the copy constructor, copy assignment and destructor first, then
+        states the rule. This chapter starts with the destructor, because the destructor is the
+        warning sign: once a class says "I release a resource", the copy question is forced. The
+        mechanics are the same; the order is chosen to make the bug obvious earlier.
       </p>
       <p>
-        Such a class has to answer five questions, and this chapter is those five answers.
+        The dangerous case is smaller and sharper than the name suggests:
       </p>
-
+      <blockquote>
+        <p>
+          <strong>If a class has a destructor that releases a resource, the compiler-generated
+          copy constructor and copy assignment are almost certainly wrong. Declare them
+          <code>= delete</code>, or write a correct copy. Never leave them implicit.</strong>
+        </p>
+      </blockquote>
+      <p>
+        The destructor says "this object owns something and must release it." The implicit copy
+        says "copy the handle." Those two statements cannot both be true. The result is two
+        objects that believe they own the same resource: a double release, a use-after-release,
+        or both.
+      </p>
+      <div class="warning">
+        <strong>Warning: a destructor without <code>= delete</code> is a bug.</strong>
+        If you write a destructor and leave the copy operations implicit, the compiler will
+        shallow-copy the handle. At minimum declare both copy operations deleted. If the type is
+        also movable, declare the moves; if not, delete those too.
+      </div>
     </section>
+
     <section>
-      <h2>2. What a Resource Is</h2>
-
-
+      <h2>2. C++ Primer's <code>HasPtr</code>: The Minimal Bug</h2>
       <p>
-        A <strong>resource</strong> is anything that
+        C++ Primer, Fifth Edition uses this example in its copy-control chapter. The class owns
+        a <code>std::string</code> through a raw pointer and frees it in the destructor, but it
+        leaves copy construction and copy assignment to the compiler. The allocation helpers
+        <code>make_string</code> and <code>destroy_string</code> use fast_io's allocator and
+        placement new; they are introduced in
+        <a href="/docs/14.fiverules/01.ownership/">Ch14.1</a>.
       </p>
-      <ul>
-        <li>has to be <strong>acquired</strong> before use and <strong>released</strong>
-          afterwards,</li>
-        <li>can be acquired only a limited number of times,</li>
-        <li>is <strong>identified by a handle</strong> that you pass around instead of the
-          thing itself.</li>
-      </ul>
-      <p>
-        A file descriptor is the smallest useful example. <code>::open</code> returns an
-        <code>int</code>; <code>::close</code> gives it back; the process has a limited number
-        of them; and the <code>int</code> is a handle, not the file. Copying the handle does
-        <em>not</em> copy the file &mdash; it gives you a second name for the same thing, and
-        two owners of one resource is precisely the problem this chapter solves.
-      </p>
+      <pre><code class="language-cpp">class HasPtr
+{
+public:
+    HasPtr(std::string const &amp;s = std::string())
+        : ps{make_string(s)}, i{} {}
 
+    ~HasPtr() { destroy_string(ps); }
+
+    // WRONG: copy construction and copy assignment are compiler-generated.
+    // They copy ps, not the string.
+
+private:
+    std::string *ps;
+    int i;
+};</code></pre>
+      <p>
+        Now pass one by value:
+      </p>
+      <pre><code class="language-cpp">HasPtr f(HasPtr hp)      // hp is a copy of the argument
+{
+    HasPtr ret = hp;     // another copy of the same pointer
+    // ...
+    return ret;          // ret and hp are destroyed here
+}
+
+int main()
+{
+    HasPtr p{"some values"};
+    f(p);                // hp and ret both delete p.ps
+    HasPtr q{p};         // p.ps is already dangling
+}</code></pre>
+      <p>
+        The parameter <code>hp</code> is a shallow copy of <code>p</code>: it holds the same
+        <code>ps</code> pointer. The local <code>ret</code> is another shallow copy. When
+        <code>f</code> returns, both destructors run and both call <code>delete</code> on the
+        same pointer. That is a double free. The caller's <code>p</code> is left with a
+        dangling pointer, so the next <code>HasPtr q{p}</code> copies a pointer that is already
+        invalid. The bug is not in the destructor; it is in the copy the compiler wrote.
+      </p>
+      <p>
+        The fix is not a comment. It is a declaration:
+      </p>
+      <pre><code class="language-cpp">class HasPtr
+{
+public:
+    HasPtr(std::string const &amp;s = std::string())
+        : ps{make_string(s)}, i{} {}
+
+    ~HasPtr() { destroy_string(ps); }
+
+    HasPtr(HasPtr const &amp;) = delete;
+    HasPtr &amp;operator=(HasPtr const &amp;) = delete;
+
+private:
+    std::string *ps;
+    int i;
+};</code></pre>
+      <p>
+        <code>f(p)</code> and <code>HasPtr q{p}</code> now fail to compile. That is the point:
+        the bug has been moved from run time to compile time. If copying is meaningful, the
+        alternative is to write a real copy constructor and copy assignment that allocate a new
+        string; the two choices are "delete" and "implement", never "leave it to the compiler".
+      </p>
     </section>
+
     <section>
-      <h2>3. The Five Special Member Functions</h2>
-
-
+      <h2>3. Chromium Has Paid for This Bug at Scale</h2>
       <p>
-        When you do not write them, the compiler writes them for you. When you write one, the
-        rest change their meaning. They are:
+        This is not a textbook-only concern. Chromium's ChromeDriver 130 release notes record a
+        rule-of-five cleanup across classes where an out-of-line destructor was declared without
+        matching move operations, so the compiler silently fell back to copies. The missing
+        declarations were added for exactly the reason above: a destructor plus an implicit copy
+        is an ownership bug waiting to happen.
       </p>
+      <p>
+        The relevant Chromium change is <code>crrev.com/c/5846757</code>, tracked as
+        <code>crbug.com/364788123</code>. The fix is mechanical, but finding it is not: the
+        compiler accepted the code, and the symptom appeared somewhere else. That is the
+        signature of a missing special-member declaration.
+      </p>
+      <p>
+        C++ Primer's <code>HasPtr</code> is the smallest possible version of the same failure.
+        Chromium is the same failure repeated across a large codebase. The rule is the same at
+        both scales.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The Five Members, as a Package</h2>
       <table>
         <thead>
           <tr>
             <th>Member</th>
-            <th>Called when</th>
-            <th>Subchapter</th>
+            <th>What it decides</th>
+            <th>If you own a resource</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>destructor <code>~T()</code></td>
-            <td>an object goes out of scope, or is deleted</td>
-            <td><a href="/docs/14.fiverules/02.destructor/">Ch14.2</a></td>
+            <td><code>~T()</code></td>
+            <td>How the resource is released</td>
+            <td>Write it. This is the declaration that starts the rule.</td>
           </tr>
           <tr>
-            <td>copy constructor <code>T(T const&amp;)</code></td>
-            <td>a new object is made from an existing one</td>
-            <td><a href="/docs/14.fiverules/03.copyconstructor/">Ch14.3</a></td>
+            <td><code>T(T const&amp;)</code></td>
+            <td>What a new object owns when copied</td>
+            <td><code>= delete</code>, or allocate/duplicate a real resource.</td>
           </tr>
           <tr>
-            <td>copy assignment <code>operator=(T const&amp;)</code></td>
-            <td>an existing object is given another object's value</td>
-            <td><a href="/docs/14.fiverules/04.copyassignment/">Ch14.4</a></td>
+            <td><code>operator=(T const&amp;)</code></td>
+            <td>What an existing object owns after assignment</td>
+            <td><code>= delete</code>, or release the old and acquire a real one.</td>
           </tr>
           <tr>
-            <td>move constructor <code>T(T&amp;&amp;)</code></td>
-            <td>a new object is made from one that is about to die</td>
-            <td><a href="/docs/14.fiverules/05.moveconstructor/">Ch14.5</a></td>
+            <td><code>T(T&amp;&amp;)</code></td>
+            <td>How a dying object's resource is taken</td>
+            <td>Implement it if the type should be movable; otherwise delete it.</td>
           </tr>
           <tr>
-            <td>move assignment <code>operator=(T&amp;&amp;)</code></td>
-            <td>an existing object takes over from one that is about to die</td>
-            <td><a href="/docs/14.fiverules/06.moveassignment/">Ch14.6</a></td>
-          </tr>
-          <tr>
-            <td><code>swap</code></td>
-            <td>you ask for it by name</td>
-            <td><a href="/docs/14.fiverules/07.swap/">Ch14.7</a></td>
+            <td><code>operator=(T&amp;&amp;)</code></td>
+            <td>How an existing object takes over and empties the source</td>
+            <td>Implement it if the type should be movable; otherwise delete it.</td>
           </tr>
         </tbody>
       </table>
       <p>
-        Five of them are special members the compiler will generate; <code>swap</code> is not
-        &mdash; nobody calls it unless you write the call. It belongs here anyway, because it
-        is the one operation that lets copy assignment be <em>safe</em>
-        (<a href="/docs/14.fiverules/08.copyandswap/">Ch14.8</a>), and because
-        <code>::std::swap</code> falls back to three moves, which is only fast and safe when
-        your moves are <code>noexcept</code>.
+        The compiler does not generate a move constructor or move assignment if the class has a
+        user-declared destructor, copy constructor or copy assignment. That is why a destructor
+        alone silently leaves you with copies, and why "delete the copy" is usually followed by
+        "write the moves" or "delete the moves too".
       </p>
-
-    </section>
-    <section>
-      <h2>4. The Example: <code>my_posix_file</code></h2>
-
-
       <p>
-        Every page from here on uses one running example: a class that owns a POSIX file
-        descriptor. It is a reduced version of what fast_io itself does in
-        <code>basic_posix_file</code>, keeping only what the five rules need, so that the
-        interesting code is never more than fifteen lines.
+        The best outcome is still the <strong>rule of zero</strong>: own no raw resource at all.
+        Put the <code>int</code> inside a type that already implements the rule, and let
+        composition generate the special members for you. This chapter is about the day you
+        cannot do that.
       </p>
-      <pre><code class="language-cpp">
-class my_posix_file
+    </section>
+
+    <section>
+      <h2>5. Two Running Examples</h2>
+      <p>
+        The chapter uses two owners to teach the same rule. The first is memory: C++ Primer's
+        <code>HasPtr</code>, which allocates storage with fast_io's
+        <code>native_typed_global_allocator&lt;std::string&gt;</code>, constructs the string
+        with placement new, and explicitly destroys and deallocates it in the destructor. The
+        second is a file descriptor: <code>my_posix_file</code>, which owns a POSIX descriptor
+        acquired by <code>::open</code> and released by <code>::close</code>. It is deliberately
+        move-only, like fast_io's own file types: a descriptor is an identity, not a value, so
+        copying it is not allowed. The skeleton is:
+      </p>
+      <pre><code class="language-cpp">class my_posix_file
 {
-	int fd_{-1};
+    int fd_{-1};
 
 public:
-	my_posix_file() noexcept = default;
-	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws;
-	my_posix_file(my_posix_file const &amp;other) throws;
-	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws;
-	my_posix_file(my_posix_file &amp;&amp;other) noexcept;
-	my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept;
-	~my_posix_file() noexcept;
-	void swap(my_posix_file &amp;other) noexcept;
+    my_posix_file() noexcept = default;
+    explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws;
 
-	[[nodiscard]] bool is_open() const noexcept;
-	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept;
-	::std::size_t read_some(char *buf, ::std::size_t n) throws;
-	::std::size_t write_some(char const *buf, ::std::size_t n) throws;
-};
-</code></pre>
-      <p>
-        The path is a <code>::fast_io::cstring_view</code>, the flags are the plain POSIX
-        <code>int</code> flags (<code>O_RDONLY</code>, <code>O_WRONLY | O_CREAT</code>, ...),
-        and the body calls <code>::open</code>, <code>::dup</code> and <code>::close</code>
-        directly. Nothing is hidden behind fast_io helpers, so every rule this chapter states
-        can be checked against the code on the page.
-      </p>
-      <p>
-        Failures are reported the only way this tutorial reports failures
-        (<a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>):
-      </p>
-      <pre><code class="language-cpp">
-if (fd == -1) [[unlikely]]
-{
-	throw throws static_cast&lt;::std::errc&gt;(errno);
-}
-</code></pre>
-      <p>
-        On a POSIX system the standard <code>::std::errc</code> values are the
-        <code>errno</code> values, so the cast preserves the error exactly; the handler sees
-        <code>[posix](2)No such file or directory</code> and friends.
-      </p>
+    ~my_posix_file() noexcept;
 
+    my_posix_file(my_posix_file const &amp;) = delete;
+    my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
+
+    my_posix_file(my_posix_file &amp;&amp;other) noexcept;
+    my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept;
+
+    void swap(my_posix_file &amp;other) noexcept;
+};</code></pre>
+      <p>
+        The copy operations are not missing. They are deleted, explicitly, in the class. That is
+        the difference between a class that compiles and a class that is correct.
+      </p>
     </section>
+
     <section>
-      <h2>5. The Two Ideas That Pay for the Chapter</h2>
-
-
-      <p>
-        The rules themselves are bookkeeping. Two ideas make them worth learning, and they are
-        the reason this chapter exists at all.
-      </p>
-      <h3>The critical line</h3>
-      <p>
-        Inside a function that may fail, there is a line &mdash; sometimes an obvious one,
-        sometimes a single statement &mdash; such that
-      </p>
+      <h2>6. Contents</h2>
       <ul>
-        <li><strong>above it:</strong> things may fail, and nothing has been modified yet;</li>
-        <li><strong>below it:</strong> nothing may fail, and the modifications happen.</li>
-      </ul>
-      <p>
-        Put every fallible step above the line and every change below it, and the operation
-        either happens completely or not at all. That is the <strong>strong exception safety
-        guarantee</strong>, and it is what
-        <a href="/docs/14.fiverules/04.copyassignment/">Ch14.4</a> is really about.
-      </p>
-      <h3>Four levels of exception safety</h3>
-      <p>
-        <code>nothrow</code>, <code>strong</code>, <code>basic</code>, <code>none</code>
-        &mdash; every function you write has exactly one of these, whether you thought about
-        it or not. <a href="/docs/14.fiverules/09.exceptionsafety/">Ch14.9</a> names them,
-        classifies every member of <code>my_posix_file</code>, and shows how herbceptions turn
-        the first level from a promise into something the compiler proves.
-      </p>
-
-    </section>
-    <section>
-      <h2>6. Conventions Used in This Chapter</h2>
-
-
-      <ul>
-        <li>Data members that are private end with an underscore: <code>fd_</code>.</li>
-        <li>
-          Every member function is either <code>noexcept</code> or <code>throws</code>
-          &mdash; there is no third option in this tutorial
-          (<a href="/docs/06.function/16.noexceptthrows/">Ch6.16</a>). Which one it is tells
-          you the exception-safety level before you read the body.
-        </li>
-        <li>
-          Integers are <code>::std::int_least32_t</code>, <code>::std::int_least64_t</code> or
-          <code>::std::size_t</code>; never plain <code>int</code>. The only exception is
-          <code>int main()</code>, and the POSIX API's own <code>int</code> arguments and
-          return values, which are shown as the <code>int</code> they are.
-        </li>
-        <li>
-          Failures are herbceptions: <code>throw throws ...</code> and
-          <code>catch throws (::std::error e)</code>.
-        </li>
-        <li>
-          Every complete program on these pages was compiled with
-          <code>-std=c++26 -fherbceptions -lherbceptions</code> and run; the output shown is
-          what it actually printed.
-        </li>
-      </ul>
-
-    </section>
-    <section>
-      <h2>7. Contents</h2>
-
-
-      <ul>
-        <li><a href="/docs/14.fiverules/01.ownership/">Ch14.1: Ownership: Why a Class Needs a Destructor</a></li>
-        <li><a href="/docs/14.fiverules/02.destructor/">Ch14.2: The Destructor</a></li>
-        <li><a href="/docs/14.fiverules/03.copyconstructor/">Ch14.3: The Copy Constructor</a></li>
-        <li><a href="/docs/14.fiverules/04.copyassignment/">Ch14.4: Copy Assignment and the Critical Line</a></li>
-        <li><a href="/docs/14.fiverules/05.moveconstructor/">Ch14.5: The Move Constructor</a></li>
-        <li><a href="/docs/14.fiverules/06.moveassignment/">Ch14.6: Move Assignment</a></li>
-        <li><a href="/docs/14.fiverules/07.swap/">Ch14.7: swap</a></li>
-        <li><a href="/docs/14.fiverules/08.copyandswap/">Ch14.8: Copy and Swap</a></li>
+        <li><a href="/docs/14.fiverules/01.ownership/">Ch14.1: Ownership: The Destructor Starts the Rule</a></li>
+        <li><a href="/docs/14.fiverules/02.destructor/">Ch14.2: The Destructor: Release, and Nothing Else</a></li>
+        <li><a href="/docs/14.fiverules/03.copyconstructor/">Ch14.3: Copy Construction: Delete It, or Deep-Copy It</a></li>
+        <li><a href="/docs/14.fiverules/04.copyassignment/">Ch14.4: Copy Assignment: Delete It, or Use the Critical Line</a></li>
+        <li><a href="/docs/14.fiverules/05.moveconstructor/">Ch14.5: The Move Constructor: Taking the Resource</a></li>
+        <li><a href="/docs/14.fiverules/06.moveassignment/">Ch14.6: Move Assignment: Releasing First</a></li>
+        <li><a href="/docs/14.fiverules/07.swap/">Ch14.7: swap: Exchanging Two Owners</a></li>
+        <li><a href="/docs/14.fiverules/08.copyandswap/">Ch14.8: Copy and Swap: One Infallible Commit</a></li>
         <li><a href="/docs/14.fiverules/09.exceptionsafety/">Ch14.9: Exception Safety: nothrow, strong, basic, none</a></li>
         <li><a href="/docs/14.fiverules/10.movedfrom/">Ch14.10: Self-Assignment and Moved-From Objects</a></li>
-        <li><a href="/docs/14.fiverules/11.myposixfile/">Ch14.11: The Whole Class, and fast_io's posix_file</a></li>
+        <li><a href="/docs/14.fiverules/11.myposixfile/">Ch14.11: The Whole Class, and fast_io&rsquo;s posix_file</a></li>
       </ul>
-
     </section>
+
+    <section>
+      <h2>7. How to Read This Chapter</h2>
+      <p>
+        Read 14.1 and 14.2 as the rule. Read 14.3 and 14.4 as the two legitimate answers for a
+        copy: delete it, or write a real one. Read 14.5 and 14.6 because most resource-owning
+        types are movable even when they are not copyable. Read 14.7 to 14.10 as the mechanics
+        that make the good implementations safe. Read 14.11 as the complete class.
+      </p>
+      <p>
+        If your class has no raw resource, stop at the rule of zero: write none of the five and
+        let the compiler do its job. The rest of this chapter is only for the classes that
+        actually own something.
+      </p>
+    </section>
+
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
       <a href="/docs/13.class/11.puttingtogether/" class="prev-button">&larr; Ch13.11: Putting It Together</a>
       <a href="/" class="main-button">&uarr; Main Page</a>
-      <a href="/docs/14.fiverules/01.ownership/" class="next-button">Ch14.1: Ownership &rarr;</a>
+      <a href="/docs/14.fiverules/01.ownership/" class="next-button">Ch14.1: Ownership: The Destructor Starts the Rule &rarr;</a>
     </div>
   </main>
 </body>

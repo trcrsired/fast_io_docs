@@ -23,6 +23,9 @@
         没有系统调用，没有内核表里的第二个条目，也不会失败：两次 <code>int</code> 写入。这就是语言引入 <code>&amp;&amp;</code> 参数的全部理由。
       </p>
       <pre><code class="language-cpp">
+	my_posix_file(my_posix_file const &amp;) = delete;
+	my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
+
 	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
 	{
 		other.fd_ = -1; // the source no longer owns anything
@@ -112,6 +115,11 @@ b = 4, a = 3, a.is_open() = 1
             <div class="important">
               <strong>只有当你没有写复制构造函数、复制赋值、移动赋值或析构函数中的任何一个时，编译器才会生成移动构造函数。</strong>我们的类把这些全写了，所以全都要我们自己写。这也是“写五者之一，就得到五者全部”并非传说的原因：它是一条决定编译器愿意生成什么的规则。
             </div>
+      <p>
+        对 move-only 类型，回退方式不同：拷贝构造被删除，所以 <code>::std::move(a)</code> 不会静默拷贝，
+        而是编译失败。这是正确结果。如果类型应该可移动，就声明移动构造；如果不该，就也删除移动，
+        把所有权留在一个地方。
+      </p>
 
     </section>
     <section>
@@ -190,13 +198,8 @@ public:
 		fd_ = fd;
 	}
 
-	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
-	{
-		if (fd_ == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-	}
+	my_posix_file(my_posix_file const &amp;) = delete;
+	my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
 
 	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
 	{
@@ -223,8 +226,6 @@ public:
 };
 
 static_assert(::std::is_nothrow_move_constructible_v&lt;my_posix_file&gt;);
-static_assert(::std::is_copy_constructible_v&lt;my_posix_file&gt;);
-static_assert(!::std::is_nothrow_copy_constructible_v&lt;my_posix_file&gt;);
 static_assert(::std::is_nothrow_destructible_v&lt;my_posix_file&gt;);
 
 int main()

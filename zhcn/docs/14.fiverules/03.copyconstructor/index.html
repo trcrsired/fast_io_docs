@@ -3,287 +3,149 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>第14.3章: 复制构造函数 - 使用 fast_io 学习 C++ 教程</title>
+  <title>第14.3章：拷贝构造：删除，或者深拷贝 - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>第14.3章: 复制构造函数：两个对象，两份资源</h1>
+    <h1>第14.3章：拷贝构造：删除，或者深拷贝</h1>
     <p class="lang-switch"><a href="/docs/14.fiverules/03.copyconstructor/">English</a></p>
+
     <section>
-      <h2>1. 复制必须意味着什么</h2>
-
-
+      <h2>1. 编译器的拷贝是浅的</h2>
       <p>
-        析构函数回答“谁释放它”。复制构造函数回答下一个问题：当一个<em>新</em>对象由已有对象构造出来时，新对象拥有什么？
+        每当用已有对象创建新对象，就会调用拷贝构造函数。如果你不声明，编译器会写一个逐成员拷贝。对拥有资源的类来说，
+        这个拷贝几乎总是错的。
       </p>
       <p>
-        对<a href="/zhcn/docs/13.class/">第13章</a>的 <code>point</code> 来说答案很简单：它自己的两个数字。对拥有者来说，答案必须是<strong>“它自己的资源”</strong>，而为一个已打开的文件取得第二个描述符的唯一办法，是向内核要一个：<code>::dup</code>。
+        上一页的 C++ Primer <code>HasPtr</code> 是最小的例子。它的析构函数释放 <code>ps</code>；编译器生成的拷贝
+        复制指针：
       </p>
-      <pre><code class="language-cpp">
-int dup(int fd);              // a new descriptor for the same open file
-int dup2(int fd, int newfd);  // make newfd refer to the same open file
-</code></pre>
-
-    </section>
-    <section>
-      <h2>2. 你什么都不写时编译器会写什么</h2>
-
-
-      <p>
-        没有复制构造函数的类会得到一个自动生成的版本，而生成的那个对 <code>point</code> 做的事一样：复制每个成员。对 <code>int</code> 来说就是把数字复制一份。数字不是描述符 &mdash; 它只是一个描述符的名字。
-      </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string_view.h&gt;
-
-using namespace ::fast_io::io;
-
-// No copy constructor, no move constructor, no assignment: the compiler
-// supplies member-wise versions of all of them.
-class shallow_file
+      <pre><code class="language-cpp">HasPtr f(HasPtr hp)      // hp is a shallow copy
 {
-	int fd_{-1};
+    HasPtr ret = hp;     // another shallow copy
+    return ret;          // both destructors destroy ps
+}</code></pre>
+      <p>
+        参数和局部对象共享同一个 <code>std::string</code>。函数返回时，同一个指针被析构两次，调用者的对象留下悬空。
+        bug 不是“析构函数存在”，bug 是拷贝被留给隐式版本。
+      </p>
+      <p>
+        只有两个合法答案：<strong>删除拷贝</strong>，或者<strong>写一个获取自己资源的拷贝</strong>。
+        没有第三个答案叫“交给编译器”。
+      </p>
+      <div class="warning">
+        <strong>警告：隐式拷贝不是资源的拷贝。</strong>
+        如果类拥有句柄，编译器生成的拷贝构造复制的是句柄。这就是有析构函数的类必须为两个拷贝操作声明
+        <code>= delete</code>、或者写真正实现的原因。“我有析构函数”是警告信号；“编译器会处理拷贝”是 bug。
+      </div>
+    </section>
+
+    <section>
+      <h2>2. 答案一：<code>= delete</code></h2>
+      <p>
+        对资源所有者来说，这是默认。类拥有句柄；复制句柄会产生第二个所有者。删除两个拷贝操作：
+      </p>
+      <pre><code class="language-cpp">class my_posix_file
+{
+    int fd_{-1};
 
 public:
-	explicit shallow_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
-	{
-		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
-		if (fd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		fd_ = fd;
-	}
+    explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws;
+    ~my_posix_file() noexcept;
 
-	~shallow_file() noexcept
-	{
-		if (fd_ != -1)
-		{
-			::close(fd_);
-		}
-	}
+    my_posix_file(my_posix_file const &amp;) = delete;
+    my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
 
-	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
-	{
-		return fd_;
-	}
-};
-
-int main()
-{
-	shallow_file a{"demo.txt", O_RDONLY};
-	println("a = ", a.native_handle());
-
-	{
-		shallow_file b{a}; // copies the number, not the file
-		println("b = ", b.native_handle(), ", b owns the same descriptor = ", b.native_handle() == a.native_handle());
-	} // b closes the descriptor it thinks it owns
-
-	println("after b died, a = ", a.native_handle(), ", still valid = ", ::fcntl(a.native_handle(), F_GETFD) != -1);
-
-	shallow_file c{"demo.txt", O_RDONLY};
-	println("c = ", c.native_handle(), ", the number came back");
-} // c and a both close descriptor 3
-</code></pre>
-      <pre><code class="language-text">
-a = 3
-b = 3, b owns the same descriptor = 1
-after b died, a = 3, still valid = 0
-c = 3, the number came back
-</code></pre>
+    my_posix_file(my_posix_file &amp;&amp;other) noexcept;
+    my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept;
+};</code></pre>
       <p>
-        <code>b</code> 有同样的 <code>int</code>，所以它有同一个所有者的主张，所以它消亡时会关闭那个描述符。那一行之后 <code>a</code> 仍然持有 <code>3</code>，而 <code>3</code> 已经不再打开：<code>a</code> 成了一个<strong>悬空的拥有者</strong>。之后每次使用它都会以 <code>EBADF</code> 失败，而它的析构函数会第二次关闭描述符 <code>3</code> &mdash; 那时它可能已经属于完全不同的文件了，正如输出的最后两行所示。关闭别人的文件是最恶毒的 bug 之一，因为症状出现的地方离错误很远。
+        两个被删除的函数是声明。编译器在重载决议中使用它们，并用清晰的错误拒绝拷贝：
       </p>
-            <div class="important">
-              <strong>编译器生成的复制是逐成员的，而对句柄的逐成员复制永远是错的。</strong>这就是五法则存在的理由：你不能同时要编译器生成的复制<em>和</em>生成的析构函数。五者之一属于你之后，五个全都属于你。
-            </div>
-
+      <pre><code class="language-text">error: use of deleted function 'my_posix_file::my_posix_file(const my_posix_file&amp;)'
+error: use of deleted function 'my_posix_file&amp; my_posix_file::operator=(const my_posix_file&amp;)'</code></pre>
+      <p>
+        这正是你要的。错误程序不能编译，错误指向拷贝。如果类型还应可移动，就声明移动操作。如果不该，也删除它们；
+        不可移动的所有者是完全合法的类型。
+      </p>
+      <p>
+        声明拷贝构造为 delete 也会阻止编译器生成移动构造。这就是上面的移动声明必须显式写出的原因。
+        删除拷贝又没有移动，类型既不能拷贝也不能移动；对不可移动所有者这是正确的，对应该可移动的类型则是意外。
+      </p>
     </section>
+
     <section>
-      <h2>3. 复制构造函数：自己的描述符</h2>
-
-
-      <pre><code class="language-cpp">
-	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
-	{
-		if (fd_ == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-	}
-</code></pre>
+      <h2>3. 答案二：真正的深拷贝</h2>
       <p>
-        分三部分来读。
+        如果拷贝有明确含义，就写一个创建新资源的拷贝构造。对 <code>HasPtr</code> 来说，就是一个新的
+        <code>std::string</code>：
       </p>
-      <ul>
-        <li>
-          <strong>参数是 <code>const&amp;</code>。</strong>复制构造函数不能修改它复制的东西；如果它能，<code>my_posix_file const &amp;</code> 参数就无法被复制，<code>const</code> 对象就会变成二等公民。
-        </li>
-        <li>
-          <strong><code>::dup</code> 发生在成员初始化列表里。</strong>那是成员被初始化的唯一地方（<a href="/zhcn/docs/13.class/06.constructors/">第13.6章</a>），而把可能失败的调用放在那里，意味着它运行时还什么都没有被修改。
-        </li>
-        <li>
-          <strong>是 <code>throws</code>，因为 <code>::dup</code> 可能失败。</strong>当进程打开的描述符太多时它以 <code>EMFILE</code> 失败，当源对象没有描述符时它以 <code>EBADF</code> 失败 &mdash; 这正是复制一个被移出的文件会发生的事（<a href="/zhcn/docs/14.fiverules/10.movedfrom/">第14.10章</a>）。
-        </li>
-      </ul>
-            <div class="note">
-              <strong>为什么不先关闭再按路径重新打开？</strong>因为文件未必还在那个路径上，而且重新打开会丢掉文件偏移和打开模式。<code>::dup</code> 复制的是<em>那个已打开的文件</em>，而不是名字，所以即使文件被改名或删除它依然有效。
-            </div>
-
-    </section>
-    <section>
-      <h2>4. 两个描述符，一个打开的文件</h2>
-
-
-      <p>
-        复制到底共享了什么？下面的程序向文件写入十个字节，然后复制一个读者，再依次从每个句柄读四个字节：
-      </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string_view.h&gt;
-
-using namespace ::fast_io::io;
-
-class my_posix_file
+      <pre><code class="language-cpp">class HasPtr
 {
-	int fd_{-1};
-
 public:
-	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
-	{
-		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
-		if (fd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		fd_ = fd;
-	}
+    HasPtr(std::string const &amp;s = std::string())
+        : ps{make_string(s)}, i{} {}
 
-	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
-	{
-		if (fd_ == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-	}
+    HasPtr(HasPtr const &amp;other)
+        : ps{other.ps ? make_string(*other.ps) : nullptr},
+          i{other.i}
+    {
+    }
 
-	~my_posix_file() noexcept
-	{
-		if (fd_ != -1)
-		{
-			::close(fd_);
-		}
-	}
+    ~HasPtr() { destroy_string(ps); }
 
-	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
-	{
-		return fd_;
-	}
-
-	::std::size_t read_some(char *buf, ::std::size_t n) throws
-	{
-		auto ret{::read(fd_, buf, n)};
-		if (ret == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		return static_cast&lt;::std::size_t&gt;(ret);
-	}
-
-	::std::size_t write_some(char const *buf, ::std::size_t n) throws
-	{
-		auto ret{::write(fd_, buf, n)};
-		if (ret == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		return static_cast&lt;::std::size_t&gt;(ret);
-	}
-};
-
-int main()
-{
-	{
-		my_posix_file out{"demo.txt", O_WRONLY | O_CREAT | O_TRUNC};
-		out.write_some("0123456789", 10);
-	}
-
-	my_posix_file a{"demo.txt", O_RDONLY};
-	my_posix_file b{a}; // copy: a descriptor of its own, same open file description
-	println("a = ", a.native_handle(), ", b = ", b.native_handle());
-
-	char buf[16]{};
-	a.read_some(buf, 4);
-	println("read from a: ", ::fast_io::mnp::os_c_str_with_known_size(buf, 4));
-	b.read_some(buf, 4);
-	println("read from b: ", ::fast_io::mnp::os_c_str_with_known_size(buf, 4));
-
-	my_posix_file c{"demo.txt", O_RDONLY};
-	c.read_some(buf, 4);
-	println("read from c: ", ::fast_io::mnp::os_c_str_with_known_size(buf, 4));
-}
-</code></pre>
-      <pre><code class="language-text">
-a = 3, b = 4
-read from a: 0123
-read from b: 4567
-read from c: 0123
-</code></pre>
+private:
+    std::string *ps;
+    int i;
+};</code></pre>
       <p>
-        看看这三次读取。
+        新对象有自己的 <code>ps</code>。销毁一个对象不会影响另一个。空指针检查存在，是因为加入移动操作后，
+        移后 <code>HasPtr</code> 可能持有空指针；拷贝构造仍然应该安全。
       </p>
+      <p>
+        深拷贝是真实操作，有真实成本：一次分配和一次字符串拷贝。这就是为什么对句柄来说删除是默认。
+        文件描述符可以用 <code>::dup</code> 复制，但那是显式系统调用，为同一个打开文件创建第二个描述符；
+        它不是编译器逐成员拷贝做的事。如果你要这种语义，就显式写出来并记录共享关系。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 拷贝被删除时，<code>std::move</code> 做什么</h2>
+      <p>
+        <code>::std::move</code> 不移动任何东西。它转换成右值引用，让移动构造变得可匹配。如果没有声明移动构造，
+        重载决议回退到拷贝构造。如果拷贝构造被删除，回退目标就是被删除的函数，程序不能编译：
+      </p>
+      <pre><code class="language-cpp">my_posix_file a{"demo.txt", O_RDONLY};
+my_posix_file b{::std::move(a)}; // error if no move constructor is declared</code></pre>
+      <p>
+        对 move-only 所有者来说，这是正确行为：转移所有权必须在类里显式实现，而不是意外拷贝。移动构造本身在
+        <a href="/zhcn/docs/14.fiverules/05.moveconstructor/">第14.5章</a>。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 需要记住什么</h2>
       <ul>
-        <li>
-          <code>a</code> 与 <code>b</code> 拥有<strong>不同的描述符</strong>（<code>3</code> 和 <code>4</code>），所以关闭一个不会关闭另一个，各自的析构函数恰好关闭一个描述符。这正是复制安全的原因。
-        </li>
-        <li>
-          但它们共享<strong>文件偏移</strong>：在 <code>a</code> 读了 <code>0123</code> 之后，<code>b</code> 的读取从 <code>4567</code> 继续，而不是从开头。<code>::dup</code> 复制的是打开文件描述，而偏移是它的一部分。
-        </li>
-        <li>
-          <code>c</code> 是单独打开的，所以它有自己的打开文件描述，从头读到 <code>0123</code>。
-        </li>
+        <li>隐式拷贝是逐成员的；对句柄来说，就是第二个所有者。</li>
+        <li>如果类有释放资源的析构函数，就声明拷贝。</li>
+        <li>唯一所有权默认 <code>= delete</code>。</li>
+        <li>只有当拷贝有定义明确的意义和成本时，才写深拷贝。</li>
+        <li>同时删除拷贝构造和拷贝赋值；它们是一个决定。</li>
+        <li>如果类型可移动，声明移动；如果不可移动，也删除移动。</li>
       </ul>
       <p>
-        所以 <code>my_posix_file</code> 的副本是<strong>一个共享流的独立拥有者</strong>。这是底层系统诚实的语义，类不应当假装不是这样。如果你需要独立的偏移，就重新打开文件（<code>c</code>），而不是复制。
+        下一页把同样的决定应用到拷贝赋值：删除它，或者写一个带临界行的真正赋值。
       </p>
-
     </section>
-    <section>
-      <h2>5. 复制完全没有意义的时候</h2>
 
-
-      <p>
-        对文件来说，复制描述符是有意义的，所以我们支持它。对许多资源来说并非如此：一把锁要么被持有要么没有，一个缓冲区只有一个所有者，一个进行中的 <code>::open</code> 无法被复制。这样的类就明确说出来：
-      </p>
-      <pre><code class="language-cpp">
-class my_lock
-{
-public:
-	my_lock(my_lock const &amp;) = delete;
-	my_lock &amp;operator=(my_lock const &amp;) = delete;
-};
-</code></pre>
-      <p>
-        任何试图复制它的人都会得到编译期拒绝，而不是运行期的两次 <code>::close</code>：
-      </p>
-      <pre><code class="language-text">
-error: use of deleted function 'my_lock::my_lock(const my_lock&amp;)'
-note:   declared here
-</code></pre>
-      <p>
-        fast_io 在所有权无法复制的地方也这样做：它的 <code>posix_file_factory</code> &mdash; 那个在文件对象接管之前持有新描述符的对象 &mdash; 正是因为这个理由删除了复制构造函数和复制赋值。
-      </p>
-            <div class="note">
-              <strong>复制是关于所有权的承诺，不是关于字节的承诺。</strong>“这个能被复制吗？”与“副本意味着什么？”是同一个问题。如果你不能用一句话回答第二个问题，就删掉复制。
-            </div>
-
-    </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/14.fiverules/02.destructor/" class="prev-button">&larr; 第14.2章: 析构函数</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/14.fiverules/04.copyassignment/" class="next-button">第14.4章: 复制赋值 &rarr;</a>
+      <a href="/zhcn/docs/14.fiverules/02.destructor/" class="prev-button">&larr; 第14.2章：析构函数</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/14.fiverules/04.copyassignment/" class="next-button">第14.4章：拷贝赋值 &rarr;</a>
     </div>
   </main>
 </body>

@@ -3,198 +3,282 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>第14.1章: 所有权 - 使用 fast_io 学习 C++ 教程</title>
+  <title>第14.1章：所有权：析构函数启动规则 - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>第14.1章: 所有权：为什么类需要析构函数</h1>
+    <h1>第14.1章：所有权：析构函数启动规则</h1>
     <p class="lang-switch"><a href="/docs/14.fiverules/01.ownership/">English</a></p>
+
     <section>
-      <h2>1. 描述符就是资源</h2>
-
-
+      <h2>1. 句柄不是值</h2>
       <p>
-        <code>::open</code> 交给你一个 <code>int</code>。它不是你可以随便做算术的数字，而是内核所拥有的某个东西的<strong>句柄</strong>。三个性质使它成为资源：
+        <code>::open</code> 返回一个 <code>int</code>，但这个 <code>int</code> 不是文件。它是内核拥有的一张表里的
+        索引。第一个文件关闭后，同一个数字可以被另一个文件复用；复制这个数字也不会创建第二个文件。由此有三条性质：
       </p>
       <ul>
-        <li>
-          <strong>它必须被释放。</strong>内核为每个进程维护一张打开文件的表，它的大小是有限的。一个从不 <code>::close</code> 的 <code>int</code> 会泄漏那张表的一个槽位。
-        </li>
-        <li>
-          <strong>它在存活期间只有一个含义。</strong>这个数字在你关闭它之前一直有效；此后同一个数字就空出来了，程序中任何地方下一次 <code>::open</code> 都可能再次发出它。
-        </li>
-        <li>
-          <strong>它不是文件。</strong>两个描述符可以指名同一个文件，而同一个数字的两份拷贝指名同一个描述符。这两个事实在本章都很重要。
-        </li>
+        <li><strong>它必须被释放。</strong>表是有限的。一个永远不被 <code>::close</code> 的描述符会泄漏一个槽位。</li>
+        <li><strong>它活着的时候只有一个所有者。</strong>两个对象都以为自己拥有同一个数字，就会都去释放它。</li>
+        <li><strong>数字不是资源。</strong>打开文件描述活在 kernel 里；数字只是句柄。</li>
       </ul>
-
-    </section>
-    <section>
-      <h2>2. 一个裸 <code>int</code> 会怎样</h2>
-
-
       <p>
-        一个普通变量完全不知道自己拥有什么。没有东西关闭它，于是一直活到进程结束：
+        编译器不知道哪个 <code>int</code> 是句柄、哪个是计数。它用同样的方式复制所有 <code>int</code>。
+        这就是本章所有 bug 的来源。
       </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string_view.h&gt;
+    </section>
 
-using namespace ::fast_io::io;
-
-class my_posix_file
+    <section>
+      <h2>2. 规则：析构函数改变拷贝</h2>
+      <p>
+        先写析构函数，因为它是告诉你“这个类拥有东西”的声明：
+      </p>
+      <pre><code class="language-cpp">class my_posix_file
 {
-	int fd_{-1};
+    int fd_{-1};
 
 public:
-	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
-	{
-		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
-		if (fd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		fd_ = fd;
-	}
+    explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws;
 
-	~my_posix_file() noexcept
-	{
-		if (fd_ != -1)
-		{
-			::close(fd_);
-		}
-	}
+    ~my_posix_file() noexcept
+    {
+        if (fd_ != -1)
+        {
+            ::close(fd_);
+        }
+    }
+};</code></pre>
+      <p>
+        编译器仍然会为这个类生成拷贝构造和拷贝赋值。两者都复制 <code>fd_</code>。两者都产生一个自以为拥有同一个
+        描述符的对象。第一个析构函数关闭它；第二个析构函数再次关闭这个数字，而它现在可能属于一个无关的文件。
+        这不是理论问题。
+      </p>
+      <blockquote>
+        <p>
+          <strong>如果一个类有释放资源的析构函数，它必须声明拷贝操作。删除它们，或者写一个正确的拷贝。
+          留着隐式版本就是 bug。</strong>
+        </p>
+      </blockquote>
+      <div class="warning">
+        <strong>警告：只有析构函数、没有拷贝决定，就是 bug。</strong>
+        如果类有析构函数，却没有 <code>= delete</code>，也没有真正的拷贝构造/拷贝赋值，编译器会生成浅拷贝。
+        对资源所有者来说，这就是重复释放、释放后使用，或者两者都有。至少写：
+        <pre><code class="language-cpp">T(T const &amp;) = delete;
+T &amp;operator=(T const &amp;) = delete;</code></pre>
+        然后再决定类型是否还要可移动。
+      </div>
+      <p>
+        安全的默认是删除：
+      </p>
+      <pre><code class="language-cpp">    my_posix_file(my_posix_file const &amp;) = delete;
+    my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;</code></pre>
+      <p>
+        这些是声明，不是注释。它们参与重载决议，任何拷贝都会被编译器拒绝。如果类型应该可移动，接着声明移动操作；
+        如果不该，就也删除它们：
+      </p>
+      <pre><code class="language-cpp">    my_posix_file(my_posix_file &amp;&amp;other) noexcept;
+    my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept;</code></pre>
+      <p>
+        “也许移动操作”这个说法是对的。移动是另一种能力。不可移动类型删除全部四个拷贝/移动操作，只保留析构和
+        获取资源的构造。可移动类型实现两个移动、删除两个拷贝。你不能做的是把拷贝留给隐式版本。
+      </p>
+    </section>
 
-	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
-	{
-		return fd_;
-	}
-};
+    <section>
+      <h2>3. C++ Primer 的例子</h2>
+      <p>
+        《C++ Primer》第五版用 <code>HasPtr</code> 演示这个失败：类通过裸指针拥有一个
+        <code>std::string</code>，在析构函数里释放它，却没有写拷贝操作。书里用 <code>new</code> 和
+        <code>delete</code>。本教程用 fast_io 的分配器和显式 placement new 做同一个例子，让分配策略可见。
+      </p>
+      <p>
+        分配器有两层。<code>::fast_io::native_global_allocator</code> 是非类型化分配器：它发放原始字节。
+        <code>::fast_io::native_typed_global_allocator&lt;T&gt;</code> 是类型化适配器：它的
+        <code>allocate_die(1)</code> 为一个 <code>T</code> 预留正确大小和对齐的存储。两者都不构造对象。
+        placement new 才构造：
+      </p>
+      <pre><code class="language-cpp">#include &lt;new&gt;
+#include &lt;string&gt;
+
+using string_alloc = ::fast_io::native_typed_global_allocator&lt;::std::string&gt;;
+
+std::string *make_string(std::string const &amp;s)
+{
+    auto *p{string_alloc::allocate_die(1)}; // storage, not an object
+    try
+    {
+        return ::new (static_cast&lt;void *&gt;(p)) std::string(s); // placement new
+    }
+    catch (...)
+    {
+        string_alloc::deallocate_n(p, 1);
+        throw;
+    }
+}
+
+void destroy_string(std::string *p) noexcept
+{
+    if (p != nullptr)
+    {
+        p-&gt;~basic_string();               // end the object's lifetime
+        string_alloc::deallocate_n(p, 1); // return the storage
+    }
+}</code></pre>
+      <p>
+        <code>allocate_die</code> 在分配失败时终止，这是本书的策略；<code>allocate</code> 和
+        <code>allocate_try</code> 是会抛出的变体。重要的是生命周期被拆开了：分配给你存储，placement new 开始对象，
+        析构函数结束对象，<code>deallocate_n</code> 归还存储。没有 <code>delete</code>，也没有“产生块的分配器”
+        和“释放块的分配器”不匹配的问题。
+      </p>
+      <pre><code class="language-cpp">class HasPtr
+{
+public:
+    HasPtr(std::string const &amp;s = std::string())
+        : ps{make_string(s)}, i{} {}
+
+    ~HasPtr() { destroy_string(ps); }
+
+    // WRONG: the compiler generates these two.
+    // They copy ps, not the string.
+    // HasPtr(HasPtr const &amp;) = default;
+    // HasPtr &amp;operator=(HasPtr const &amp;) = default;
+
+private:
+    std::string *ps;
+    int i;
+};</code></pre>
+      <p>
+        按值传一个，bug 就出现了：
+      </p>
+      <pre><code class="language-cpp">HasPtr f(HasPtr hp)      // hp is a shallow copy
+{
+    HasPtr ret = hp;     // another shallow copy
+    return ret;          // hp and ret are destroyed
+}
 
 int main()
 {
-	// A bare int does not know it owns an operating system resource.
-	::std::int_least32_t raw{::open("demo.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644)};
-	println("bare int:  ", raw);
-
-	// Nothing closes everything. The descriptor is leaked for the rest of the run.
-	my_posix_file managed{"demo.txt", O_RDONLY};
-	println("managed:   ", managed.native_handle());
-
-	{
-		my_posix_file scoped{"demo.txt", O_RDONLY};
-		println("in scope:  ", scoped.native_handle());
-	} // the destructor runs here
-	my_posix_file after{"demo.txt", O_RDONLY};
-	println("after:     ", after.native_handle());
-}
-</code></pre>
-      <p>输出：</p>
-      <pre><code class="language-text">
-bare int:  3
-managed:   4
-in scope:  5
-after:     5
-</code></pre>
+    HasPtr p{"some values"};
+    f(p);                // both destructors destroy p.ps
+    HasPtr q{p};         // p.ps is already dangling
+}</code></pre>
       <p>
-        读一下这些数字。裸 <code>int</code> 拿走了描述符 <code>3</code> 并在整个运行期间占着它，所以之后每次 open 都得到一个新数字：<code>4</code>，然后是 <code>5</code>。块内那个受管理的文件拿到了 <code>5</code>，而当块结束时它把 <code>5</code> 还了回去 &mdash; 这就是为什么下一次 open 又收到 <code>5</code> 而不是 <code>6</code>。
+        参数和局部拷贝共享同一个 <code>ps</code>。<code>f</code> 返回时，两个析构函数在同一个指针上运行：
+        重复析构和重复归还。调用者的对象留下悬空指针，所以下一次拷贝读到已释放内存。析构函数是对的；隐式拷贝不是。
       </p>
       <p>
-        这种复用正是析构函数运行过的证据。程序里没有任何地方显式调用 <code>::close</code>；对象对自己的描述符负责，而这份责任被自动履行。
+        修复有两个显式选择。如果拷贝没有意义，删除它：
       </p>
-            <div class="important">
-              <strong>拥有意味着：任何能够到达该对象的人，无论以何种方式离开作用域，资源都会被释放。</strong>一次 <code>return</code>、一次 <code>throw throws</code>、一次 <code>break</code>、一次正常的落出 &mdash; 析构函数在所有这些情形中都会运行。而函数末尾显式的 <code>::close</code> 在前三种情形里一次都不会运行。
-            </div>
-
+      <pre><code class="language-cpp">    HasPtr(HasPtr const &amp;) = delete;
+    HasPtr &amp;operator=(HasPtr const &amp;) = delete;</code></pre>
+      <p>
+        现在 <code>f(p)</code> 和 <code>HasPtr q{p}</code> 不能编译。如果拷贝有意义，写一个分配自己 string 的
+        真正拷贝；那是<a href="/zhcn/docs/14.fiverules/03.copyconstructor/">第14.3章</a>和
+        <a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章</a>。
+      </p>
     </section>
+
     <section>
-      <h2>3. 五个问题</h2>
-
-
+      <h2>4. Chromium 也遇到过同一个 bug</h2>
       <p>
-        拥有描述符的类必须说明在这五种情形下会发生什么。无处可逃：如果你什么都不说，编译器替你回答全部五个，而它对资源给出的答案都是错的。
+        这不只是教学例子。Chromium 的 ChromeDriver 130 发布说明记录了一次五法则清理：某个类声明了类外析构函数，
+        却没有匹配的移动操作，于是编译器静默回退到拷贝。修复补上了缺失的声明。相关改动是
+        <code>crrev.com/c/5846757</code>，跟踪 issue 是 <code>crbug.com/364788123</code>。
       </p>
+      <p>
+        编译器接受了代码。症状出现在别处。这就是缺失特殊成员的签名：语言给你一个默认值，而默认值对所有者来说是错的。
+        <code>HasPtr</code> 是同一个失败的最小版本；Chromium 是同一个失败在大规模代码库里的重复。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 这一章构建什么</h2>
+      <p>
+        贯穿的示例是一个 move-only 文件：
+      </p>
+      <pre><code class="language-cpp">class my_posix_file
+{
+    int fd_{-1};
+
+public:
+    my_posix_file() noexcept = default;
+    explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws;
+
+    ~my_posix_file() noexcept;
+
+    my_posix_file(my_posix_file const &amp;) = delete;
+    my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
+
+    my_posix_file(my_posix_file &amp;&amp;other) noexcept;
+    my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept;
+
+    void swap(my_posix_file &amp;other) noexcept;
+
+    [[nodiscard]] bool is_open() const noexcept;
+    [[nodiscard]] ::std::int_least32_t native_handle() const noexcept;
+};</code></pre>
+      <p>
+        文件描述符是身份，不是值。同一个文件可以有两个描述符，但那是显式系统调用（<code>::dup</code>），
+        不是编译器应该背着你做的事。删除拷贝明确表达了这一点。移动仍然有用：从工厂返回文件、放进容器，
+        或者把所有权传给另一个作用域。
+      </p>
+      <p>
+        fast_io 自己的文件类型做同样的选择：可移动，不可拷贝。这里缩减后的类只保留规则需要的东西，
+        所以每个声明都能和页面上的代码对照。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 五个成员，一个决定</h2>
       <table>
         <thead>
-          <tr><th>问题</th><th>写法</th><th>错误的默认行为</th></tr>
+          <tr>
+            <th>声明</th>
+            <th>它回答的问题</th>
+            <th>对这个类</th>
+          </tr>
         </thead>
         <tbody>
           <tr>
-            <td>对象消亡时，谁释放描述符？</td>
             <td><code>~my_posix_file()</code></td>
-            <td>没人：描述符泄漏</td>
+            <td>谁关闭描述符？</td>
+            <td><code>::close</code>，一次，在一个地方。</td>
           </tr>
           <tr>
-            <td>由已有对象构造新对象时发生什么？</td>
-            <td><code>my_posix_file(my_posix_file const &amp;)</code></td>
-            <td>数字被复制：两个所有者，一个描述符</td>
+            <td><code>my_posix_file(my_posix_file const&amp;)</code></td>
+            <td>拷贝拥有什么？</td>
+            <td><code>= delete</code>：拷贝就是第二个所有者。</td>
           </tr>
           <tr>
-            <td>把另一个对象赋给已有对象时发生什么？</td>
-            <td><code>operator=(my_posix_file const &amp;)</code></td>
-            <td>旧描述符泄漏，而新的那个被共享</td>
+            <td><code>operator=(my_posix_file const&amp;)</code></td>
+            <td>拷贝赋值发生什么？</td>
+            <td><code>= delete</code>，同样的原因。</td>
           </tr>
           <tr>
-            <td>用一个将亡对象构造新对象时，我们能直接接管吗？</td>
-            <td><code>my_posix_file(my_posix_file &amp;&amp;)</code></td>
-            <td>它会去复制，正确但浪费</td>
+            <td><code>my_posix_file(my_posix_file&amp;&amp;)</code></td>
+            <td>所有权如何转移？</td>
+            <td>取走 <code>fd_</code>，留下 <code>-1</code>。</td>
           </tr>
           <tr>
-            <td>已有对象从一个将亡对象接管时发生什么？</td>
-            <td><code>operator=(my_posix_file &amp;&amp;)</code></td>
-            <td>它会去复制，并且泄漏旧描述符</td>
+            <td><code>operator=(my_posix_file&amp;&amp;)</code></td>
+            <td>所有权如何替换？</td>
+            <td>关闭自己的，取走对方的，清空源。</td>
           </tr>
         </tbody>
       </table>
       <p>
-        把五个都写出来，你就有了<strong>五法则</strong>。一个都不写、让编译器生成全部 &mdash; 这是<strong>零法则</strong> &mdash; 是更好的结果，但只有当每个成员本身都是行为良好的值时才有可能。裸描述符不是（<a href="/zhcn/docs/14.fiverules/11.myposixfile/">第14.11章</a>会回到这一点）。
+        决定不是“五个函数全写或全不写”。决定是“这个类拥有资源吗？”如果拥有，析构函数启动规则，
+        拷贝操作是你必须先明确的东西。
       </p>
-
     </section>
-    <section>
-      <h2>4. 我们要构建的东西</h2>
 
-
-      <p>
-        这个类刻意保持很小。它持有一个 <code>int</code>，其余全都是那五条规则：
-      </p>
-      <pre><code class="language-cpp">
-class my_posix_file
-{
-	int fd_{-1}; // -1 means "no descriptor"; it is the empty state
-
-public:
-	// 1. create: acquire a descriptor from a path
-	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws;
-
-	// 2. destroy: give the descriptor back                   -&gt; Ch14.2
-	~my_posix_file() noexcept;
-
-	// 3. copy: a second descriptor for the same open file     -&gt; Ch14.3
-	my_posix_file(my_posix_file const &amp;other) throws;
-
-	// 4. copy-assign: replace what this object owns           -&gt; Ch14.4
-	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws;
-
-	// 5. move: take the descriptor and leave -1 behind        -&gt; Ch14.5, Ch14.6
-	my_posix_file(my_posix_file &amp;&amp;other) noexcept;
-	my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept;
-
-	// 6. swap: exchange two objects' descriptors              -&gt; Ch14.7
-	void swap(my_posix_file &amp;other) noexcept;
-};
-</code></pre>
-      <p>
-        哨兵值 <code>-1</code> 在真正干活：它是“我拥有一个文件”与“我什么都不拥有”之间的区别。没有它，就无法把一个被移出的对象留在一个析构函数能安全运行的状态。
-      </p>
-
-    </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/14.fiverules/" class="prev-button">&larr; 第14章: 五法则</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/14.fiverules/02.destructor/" class="next-button">第14.2章: 析构函数 &rarr;</a>
+      <a href="/zhcn/docs/14.fiverules/" class="prev-button">&larr; 第14章：五法则</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/14.fiverules/02.destructor/" class="next-button">第14.2章：析构函数 &rarr;</a>
     </div>
   </main>
 </body>

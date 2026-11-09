@@ -12,6 +12,12 @@
   <main>
     <h1>第14.9章: 异常安全：nothrow、strong、basic、none</h1>
     <p class="lang-switch"><a href="/docs/14.fiverules/09.exceptionsafety/">English</a></p>
+
+    <div class="note">
+      <strong>可拷贝变体。</strong>
+      这一页在需要演示拷贝机制的地方使用 <code>my_posix_file</code> 的可拷贝版本。本章默认类删除拷贝；
+      最终的 move-only 类在<a href="/zhcn/docs/14.fiverules/11.myposixfile/">第14.11章</a>。
+    </div>
     <section>
       <h2>1. 四个级别，不是一种感觉</h2>
 
@@ -114,22 +120,6 @@
             <td>strong</td>
             <td>
               抛出的构造函数意味着<em>对象不存在</em>；没有东西需要回滚
-            </td>
-          </tr>
-          <tr>
-            <td><code>my_posix_file(T const&amp;)</code></td>
-            <td><code>throws</code></td>
-            <td>strong</td>
-            <td>
-              <code>::dup</code> 要么产生一个描述符，要么让源对象和新对象都不变
-            </td>
-          </tr>
-          <tr>
-            <td><code>operator=(T const&amp;)</code></td>
-            <td><code>throws</code></td>
-            <td>strong</td>
-            <td>
-              先复制，然后越过临界线（<a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章</a>）
             </td>
           </tr>
           <tr>
@@ -411,7 +401,7 @@ none:   after:  dst reader = 9, writer = 7
       </p>
       <ul>
         <li>
-          <strong>先把所有可能失败的工作做进局部变量。</strong>然后用不会失败的操作执行改动。这就是 <code>my_posix_file</code> 的复制赋值。
+          <strong>先把所有可能失败的工作做进局部变量。</strong>然后用不会失败的操作执行改动。这就是可拷贝所有者的拷贝赋值，或 move-only 所有者的移动赋值。
         </li>
         <li>
           <strong>构造一个完整的临时对象，然后把它交换进来。</strong>这就是复制并交换（<a href="/zhcn/docs/14.fiverules/08.copyandswap/">第14.8章</a>），它能扩展到任意多个成员。

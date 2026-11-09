@@ -50,25 +50,8 @@ public:
 		fd_ = fd;
 	}
 
-	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
-	{
-		if (fd_ == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-	}
-
-	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
-	{
-		::std::int_least32_t newfd{::dup(other.fd_)};
-		if (newfd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		// ---- critical line ----
-		reset(newfd);
-		return *this;
-	}
+	my_posix_file(my_posix_file const &amp;) = delete;
+	my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
 
 	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
 	{
@@ -136,11 +119,10 @@ inline void swap(my_posix_file &amp;a, my_posix_file &amp;b) noexcept
 </code></pre>
       <p>
         Read it top to bottom and you can see the chapter: <code>reset</code> is the only
-        <code>::close</code> (<a href="/docs/14.fiverules/02.destructor/">Ch14.2</a>); the copy
-        constructor duplicates
-        (<a href="/docs/14.fiverules/03.copyconstructor/">Ch14.3</a>); copy assignment has the
-        critical line (<a href="/docs/14.fiverules/04.copyassignment/">Ch14.4</a>); the move
-        constructor empties its source
+        <code>::close</code> (<a href="/docs/14.fiverules/02.destructor/">Ch14.2</a>); copy is
+        deleted (<a href="/docs/14.fiverules/03.copyconstructor/">Ch14.3</a> and
+        <a href="/docs/14.fiverules/04.copyassignment/">Ch14.4</a>); the move constructor empties
+        its source
         (<a href="/docs/14.fiverules/05.moveconstructor/">Ch14.5</a>); move assignment has the
         self-check (<a href="/docs/14.fiverules/06.moveassignment/">Ch14.6</a>);
         <code>swap</code> is three writes
@@ -190,24 +172,8 @@ public:
 		fd_ = fd;
 	}
 
-	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
-	{
-		if (fd_ == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-	}
-
-	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
-	{
-		::std::int_least32_t newfd{::dup(other.fd_)};
-		if (newfd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		reset(newfd);
-		return *this;
-	}
+	my_posix_file(my_posix_file const &amp;) = delete;
+	my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
 
 	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
 	{
@@ -285,11 +251,11 @@ int main()
 	auto n = in.read_some(buf, sizeof(buf));
 	print("read back: ", ::fast_io::mnp::os_c_str_with_known_size(buf, n));
 
-	my_posix_file copy{in};
-	println("in = ", in.native_handle(), ", copy = ", copy.native_handle());
+	my_posix_file moved{::std::move(in)};
+	println("in = ", in.native_handle(), ", moved = ", moved.native_handle());
 
 	::fast_io::vector&lt;my_posix_file&gt; files;
-	files.push_back(::std::move(copy));
+	files.push_back(::std::move(moved));
 	println("the vector holds ", files.size(), " file, fd = ", files.front().native_handle());
 
 	swap(in, files.front());
@@ -298,9 +264,9 @@ int main()
 </code></pre>
       <pre><code class="language-text">
 read back: herbceptions
-in = 3, copy = 4
-the vector holds 1 file, fd = 4
-after swap: in = 4, files.front() = 3
+in = -1, moved = 3
+the vector holds 1 file, fd = 3
+after swap: in = 3, files.front() = -1
 </code></pre>
       <p>
         The class works with everything else in this tutorial: it goes into a
@@ -322,8 +288,8 @@ after swap: in = 4, files.front() = 3
         <tbody>
           <tr><td><code>int fd_{-1};</code></td><td>the empty state is part of the design</td><td><a href="/docs/14.fiverules/01.ownership/">Ch14.1</a></td></tr>
           <tr><td><code>~my_posix_file() noexcept</code></td><td>one place releases, and it cannot fail</td><td><a href="/docs/14.fiverules/02.destructor/">Ch14.2</a></td></tr>
-          <tr><td><code>my_posix_file(my_posix_file const &amp;)</code></td><td>a copy is a second descriptor</td><td><a href="/docs/14.fiverules/03.copyconstructor/">Ch14.3</a></td></tr>
-          <tr><td><code>operator=(my_posix_file const &amp;)</code></td><td>the critical line</td><td><a href="/docs/14.fiverules/04.copyassignment/">Ch14.4</a></td></tr>
+          <tr><td><code>my_posix_file(my_posix_file const &amp;) = delete</code></td><td>a second owner is forbidden</td><td><a href="/docs/14.fiverules/03.copyconstructor/">Ch14.3</a></td></tr>
+          <tr><td><code>operator=(my_posix_file const &amp;) = delete</code></td><td>copy assignment is deleted with it</td><td><a href="/docs/14.fiverules/04.copyassignment/">Ch14.4</a></td></tr>
           <tr><td><code>my_posix_file(my_posix_file &amp;&amp;)</code></td><td>take, then empty the source</td><td><a href="/docs/14.fiverules/05.moveconstructor/">Ch14.5</a></td></tr>
           <tr><td><code>operator=(my_posix_file &amp;&amp;)</code></td><td>release, then take; self-check</td><td><a href="/docs/14.fiverules/06.moveassignment/">Ch14.6</a></td></tr>
           <tr><td><code>void swap(my_posix_file &amp;) noexcept</code></td><td>the primitive a commit is made of</td><td><a href="/docs/14.fiverules/07.swap/">Ch14.7</a></td></tr>
@@ -485,7 +451,7 @@ class config
           </tr>
           <tr>
             <td>Copy of a moved-from file</td>
-            <td><code>[posix](9)Bad file number</code> at run time &mdash; by design, not by
+            <td><code>use of deleted function</code> at compile time &mdash; by design, not by
               accident</td>
           </tr>
         </tbody>

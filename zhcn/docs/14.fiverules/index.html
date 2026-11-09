@@ -3,216 +3,251 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>第14章: 五法则 - 使用 fast_io 学习 C++ 教程</title>
+  <title>第14章：五法则 - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>第14章: 五法则</h1>
+    <h1>第14章：五法则</h1>
     <p class="lang-switch"><a href="/docs/14.fiverules/">English</a></p>
+
     <section>
-      <h2>1. 为什么需要这一章</h2>
-
-
+      <h2>1. 这条规则不是“写五个函数”</h2>
       <p>
-        <a href="/zhcn/docs/13.class/">第13章</a>里的每个类拥有的都是数字。复制一个显然无害：<code>point b{a}</code> 得到两个点，没有任何共享。<code>account</code> 拥有的是一笔余额，复制它同样无害。
+        这个名字有误导性。五法则不是说每个类都应该手写五个特殊成员函数。它说的是这五个特殊成员是一个
+        整体：如果你声明了其中一个，就必须决定另外几个怎么办。大多数类一个都不该声明。拥有资源的类必须
+        声明它需要的那些。
       </p>
       <p>
-        一旦类拥有由操作系统发放的东西 &mdash; 文件描述符、socket、锁、一块内存 &mdash; 这份安心就结束了。两个对象拥有同一个描述符是一个等着发生的 bug，而编译器的默认行为制造的恰好就是这个 bug：它复制那个数字，而不是复制资源。
+        《C++ Primer》先讲拷贝构造、拷贝赋值和析构，再给出规则。本章从析构函数开始，因为析构函数是警告信号：
+        一旦类说“我释放资源”，拷贝问题就被逼出来了。机制相同；这个顺序是为了更早暴露 bug。
       </p>
       <p>
-        这样的类必须回答五个问题，本章就是这五个答案。
+        真正危险的情况比名字暗示的更小、更尖锐：
       </p>
-
+      <blockquote>
+        <p>
+          <strong>如果一个类有释放资源的析构函数，编译器生成的拷贝构造函数和拷贝赋值几乎一定是错的。
+          把它们声明为 <code>= delete</code>，或者写一个正确的拷贝。绝不要留着隐式版本。</strong>
+        </p>
+      </blockquote>
+      <p>
+        析构函数在说“这个对象拥有东西，必须释放”。隐式拷贝在说“复制句柄”。这两句话不能同时为真。
+        结果就是两个对象都以为自己拥有同一个资源：重复释放、释放后使用，或者两者都有。
+      </p>
+      <div class="warning">
+        <strong>警告：没有 <code>= delete</code> 的析构函数就是 bug。</strong>
+        如果你写了析构函数，却把拷贝操作留给隐式版本，编译器会浅拷贝句柄。至少把两个拷贝操作都声明为删除。
+        如果类型还可移动，声明移动；如果不可移动，把移动也删除。
+      </div>
     </section>
+
     <section>
-      <h2>2. 什么是资源</h2>
-
-
+      <h2>2. C++ Primer 的 <code>HasPtr</code>：最小的 bug</h2>
       <p>
-        <strong>资源</strong>是任何满足下列条件的东西：
+        《C++ Primer》第五版在拷贝控制章节用了这个例子。类通过裸指针拥有一个
+        <code>std::string</code>，在析构函数里释放它，却把拷贝构造和拷贝赋值留给编译器。分配辅助函数
+        <code>make_string</code> 和 <code>destroy_string</code> 使用 fast_io 的分配器和 placement new；
+        它们在第14.1章介绍。
       </p>
-      <ul>
-        <li>
-          使用之前必须<strong>获取</strong>，使用之后必须<strong>释放</strong>，
-        </li>
-        <li>只能被获取有限次，</li>
-        <li>
-          由<strong>一个句柄</strong>标识，你传递句柄而不是传递那个东西本身。
-        </li>
-      </ul>
-      <p>
-        文件描述符是最小的有用例子。<code>::open</code> 返回一个 <code>int</code>；<code>::close</code> 把它还回去；进程能拥有的数量是有限的；而这个 <code>int</code> 是句柄，不是文件。复制句柄<em>不会</em>复制文件 &mdash; 它给同一个东西起了第二个名字，而一个资源有两个所有者，正是本章要解决的问题。
-      </p>
+      <pre><code class="language-cpp">class HasPtr
+{
+public:
+    HasPtr(std::string const &amp;s = std::string())
+        : ps{make_string(s)}, i{} {}
 
+    ~HasPtr() { destroy_string(ps); }
+
+    // WRONG: copy construction and copy assignment are compiler-generated.
+    // They copy ps, not the string.
+
+private:
+    std::string *ps;
+    int i;
+};</code></pre>
+      <p>
+        现在按值传一个：
+      </p>
+      <pre><code class="language-cpp">HasPtr f(HasPtr hp)      // hp is a copy of the argument
+{
+    HasPtr ret = hp;     // another copy of the same pointer
+    // ...
+    return ret;          // ret and hp are destroyed here
+}
+
+int main()
+{
+    HasPtr p{"some values"};
+    f(p);                // hp and ret both delete p.ps
+    HasPtr q{p};         // p.ps is already dangling
+}</code></pre>
+      <p>
+        参数 <code>hp</code> 是 <code>p</code> 的浅拷贝：它持有同一个 <code>ps</code> 指针。局部对象
+        <code>ret</code> 又是另一个浅拷贝。<code>f</code> 返回时，两个析构函数都运行，都对同一个指针调用
+        <code>delete</code>。这是重复释放。调用者的 <code>p</code> 留下悬空指针，所以下一个
+        <code>HasPtr q{p}</code> 复制的是一个已经失效的指针。bug 不在析构函数里；bug 在编译器写的拷贝里。
+      </p>
+      <p>
+        修复不是一句注释，而是一个声明：
+      </p>
+      <pre><code class="language-cpp">class HasPtr
+{
+public:
+    HasPtr(std::string const &amp;s = std::string())
+        : ps{make_string(s)}, i{} {}
+
+    ~HasPtr() { destroy_string(ps); }
+
+    HasPtr(HasPtr const &amp;) = delete;
+    HasPtr &amp;operator=(HasPtr const &amp;) = delete;
+
+private:
+    std::string *ps;
+    int i;
+};</code></pre>
+      <p>
+        <code>f(p)</code> 和 <code>HasPtr q{p}</code> 现在不能编译。这正是目的：bug 从运行时移到了编译期。
+        如果拷贝有明确含义，另一种选择是写真正的拷贝构造和拷贝赋值，分配一个新的 string；两个选择是
+        “删除”和“实现”，永远不是“交给编译器”。
+      </p>
     </section>
+
     <section>
-      <h2>3. 五个特殊成员函数</h2>
-
-
+      <h2>3. Chromium 为这个 bug 付过代价</h2>
       <p>
-        你不写它们时，编译器替你写。你写了其中一个时，其余的含义会改变。它们是：
+        这不是只存在于教科书里的问题。Chromium 的 ChromeDriver 130 发布说明记录了一次跨类的五法则清理：
+        某些类声明了类外析构函数，却没有匹配的移动操作，于是编译器静默回退到拷贝。缺失的声明后来被补上，
+        原因正是上面那条：析构函数加隐式拷贝就是一个等着发生的所有权 bug。
       </p>
+      <p>
+        相关改动是 <code>crrev.com/c/5846757</code>，跟踪 issue 是
+        <code>crbug.com/364788123</code>。修复本身是机械的，但发现它并不机械：编译器接受了代码，症状出现在
+        别处。这就是缺失特殊成员声明的签名。
+      </p>
+      <p>
+        C++ Primer 的 <code>HasPtr</code> 是同一个失败的最小版本。Chromium 是同一个失败在大规模代码库里的
+        重复。两个尺度上，规则是一样的。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 五个成员是一个整体</h2>
       <table>
         <thead>
           <tr>
             <th>成员</th>
-            <th>何时被调用</th>
-            <th>子章</th>
+            <th>它决定什么</th>
+            <th>如果你拥有资源</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>析构函数 <code>~T()</code></td>
-            <td>对象离开作用域，或被删除</td>
-            <td><a href="/zhcn/docs/14.fiverules/02.destructor/">第14.2章</a></td>
+            <td><code>~T()</code></td>
+            <td>资源如何释放</td>
+            <td>写它。这条声明启动整条规则。</td>
           </tr>
           <tr>
-            <td>复制构造函数 <code>T(T const&amp;)</code></td>
-            <td>由一个已有对象构造新对象</td>
-            <td><a href="/zhcn/docs/14.fiverules/03.copyconstructor/">第14.3章</a></td>
+            <td><code>T(T const&amp;)</code></td>
+            <td>拷贝时新对象拥有什么</td>
+            <td><code>= delete</code>，或者分配/复制一个真正的资源。</td>
           </tr>
           <tr>
-            <td>复制赋值 <code>operator=(T const&amp;)</code></td>
-            <td>把一个已有对象赋予另一个对象的值</td>
-            <td><a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章</a></td>
+            <td><code>operator=(T const&amp;)</code></td>
+            <td>赋值后已有对象拥有什么</td>
+            <td><code>= delete</code>，或者释放旧的、获取真正的新的。</td>
           </tr>
           <tr>
-            <td>移动构造函数 <code>T(T&amp;&amp;)</code></td>
-            <td>由一个即将消亡的对象构造新对象</td>
-            <td><a href="/zhcn/docs/14.fiverules/05.moveconstructor/">第14.5章</a></td>
+            <td><code>T(T&amp;&amp;)</code></td>
+            <td>如何取走将死对象的资源</td>
+            <td>类型应可移动就实现；否则删除。</td>
           </tr>
           <tr>
-            <td>移动赋值 <code>operator=(T&amp;&amp;)</code></td>
-            <td>一个已有对象从一个即将消亡的对象接管资源</td>
-            <td><a href="/zhcn/docs/14.fiverules/06.moveassignment/">第14.6章</a></td>
-          </tr>
-          <tr>
-            <td><code>swap</code></td>
-            <td>你按名字调用它</td>
-            <td><a href="/zhcn/docs/14.fiverules/07.swap/">第14.7章</a></td>
+            <td><code>operator=(T&amp;&amp;)</code></td>
+            <td>已有对象如何接管并清空源</td>
+            <td>类型应可移动就实现；否则删除。</td>
           </tr>
         </tbody>
       </table>
       <p>
-        其中五个是编译器会替你生成的特殊成员；<code>swap</code> 不是 &mdash; 除非你写出调用，否则没人会调用它。它仍然属于这里，因为它是唯一一个能让复制赋值变得<em>安全</em>的操作（<a href="/zhcn/docs/14.fiverules/08.copyandswap/">第14.8章</a>），也因为 <code>::std::swap</code> 会退化成三次移动，而只有你的移动是 <code>noexcept</code> 时它才既快又安全。
+        如果类有用户声明的析构函数、拷贝构造或拷贝赋值，编译器不会生成移动构造和移动赋值。这就是为什么
+        单独一个析构函数会静默地把你留给拷贝，也是为什么“删除拷贝”之后通常要跟着“写移动”或“连移动也删除”。
       </p>
-
-    </section>
-    <section>
-      <h2>4. 贯穿全章的示例：<code>my_posix_file</code></h2>
-
-
       <p>
-        从这一页开始的每一页都使用同一个贯穿示例：一个拥有 POSIX 文件描述符的类。它是 fast_io 自己在 <code>basic_posix_file</code> 里所做工作的简化版本，只保留五法则需要的东西，从而让有意思的代码永远不超过十五行。
+        最好的结果仍然是<strong>零法则</strong>：根本不拥有裸资源。把 <code>int</code> 放进一个已经实现
+        这条规则的类型里，让组合替你生成特殊成员。这一章讲的是你做不到零法则的那一天。
       </p>
-      <pre><code class="language-cpp">
-class my_posix_file
+    </section>
+
+    <section>
+      <h2>5. 两个示例</h2>
+      <p>
+        本章用两个所有者来教同一条规则。第一个是内存：C++ Primer 的 <code>HasPtr</code>，它通过
+        fast_io 的 <code>native_typed_global_allocator&lt;std::string&gt;</code> 分配存储，用 placement new
+        构造 string，在析构函数里显式调用析构并归还存储。第二个是文件描述符：
+        <code>my_posix_file</code>，它拥有一个 POSIX 描述符，用 <code>::open</code> 获取、<code>::close</code>
+        释放。它刻意是 move-only 的，和 fast_io 自己的文件类型一样：描述符是身份，不是值，所以不允许拷贝。
+        骨架是：
+      </p>
+      <pre><code class="language-cpp">class my_posix_file
 {
-	int fd_{-1};
+    int fd_{-1};
 
 public:
-	my_posix_file() noexcept = default;
-	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws;
-	my_posix_file(my_posix_file const &amp;other) throws;
-	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws;
-	my_posix_file(my_posix_file &amp;&amp;other) noexcept;
-	my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept;
-	~my_posix_file() noexcept;
-	void swap(my_posix_file &amp;other) noexcept;
+    my_posix_file() noexcept = default;
+    explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws;
 
-	[[nodiscard]] bool is_open() const noexcept;
-	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept;
-	::std::size_t read_some(char *buf, ::std::size_t n) throws;
-	::std::size_t write_some(char const *buf, ::std::size_t n) throws;
-};
-</code></pre>
-      <p>
-        路径是 <code>::fast_io::cstring_view</code>，标志是普通的 POSIX <code>int</code> 标志（<code>O_RDONLY</code>、<code>O_WRONLY | O_CREAT</code> 等），函数体直接调用 <code>::open</code>、<code>::dup</code> 和 <code>::close</code>。没有任何东西藏在 fast_io 的辅助设施后面，所以本章陈述的每一条规则都能对着页面上的代码核对。
-      </p>
-      <p>
-        失败用本教程唯一的报告方式报告（<a href="/zhcn/docs/03.statements/16.herbceptions/">第3.16章</a>）：
-      </p>
-      <pre><code class="language-cpp">
-if (fd == -1) [[unlikely]]
-{
-	throw throws static_cast&lt;::std::errc&gt;(errno);
-}
-</code></pre>
-      <p>
-        在 POSIX 系统上标准的 <code>::std::errc</code> 取值就是 <code>errno</code> 的取值，所以强制转换精确保留了错误；处理者会看到 <code>[posix](2)No such file or directory</code> 之类的内容。
-      </p>
+    ~my_posix_file() noexcept;
 
+    my_posix_file(my_posix_file const &amp;) = delete;
+    my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
+
+    my_posix_file(my_posix_file &amp;&amp;other) noexcept;
+    my_posix_file &amp;operator=(my_posix_file &amp;&amp;other) noexcept;
+
+    void swap(my_posix_file &amp;other) noexcept;
+};</code></pre>
+      <p>
+        拷贝操作不是“漏了”，而是在类里显式删除的。这就是一个能编译的类和一个正确的类之间的区别。
+      </p>
     </section>
+
     <section>
-      <h2>5. 为本章付账的两个想法</h2>
-
-
-      <p>
-        规则本身只是记账。有两个想法让它们值得学，也正是本章存在的理由。
-      </p>
-      <h3>那条临界线</h3>
-      <p>
-        在一个可能失败的函数内部，存在一条线 &mdash; 有时很明显，有时只是一个语句 &mdash; 使得
-      </p>
+      <h2>6. 目录</h2>
       <ul>
-        <li><strong>在它之上：</strong>允许失败，而还没有任何东西被修改；</li>
-        <li><strong>在它之下：</strong>不允许失败，修改就在那里发生。</li>
+        <li><a href="/zhcn/docs/14.fiverules/01.ownership/">第14.1章：所有权：析构函数启动规则</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/02.destructor/">第14.2章：析构函数：只做释放</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/03.copyconstructor/">第14.3章：拷贝构造：删除，或者深拷贝</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章：拷贝赋值：删除，或者使用临界行</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/05.moveconstructor/">第14.5章：移动构造：取走资源</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/06.moveassignment/">第14.6章：移动赋值：先释放</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/07.swap/">第14.7章：swap：交换两个所有者</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/08.copyandswap/">第14.8章：拷贝并交换：一次不会失败的提交</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/09.exceptionsafety/">第14.9章：异常安全：nothrow、strong、basic、none</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/10.movedfrom/">第14.10章：自赋值与移后对象</a></li>
+        <li><a href="/zhcn/docs/14.fiverules/11.myposixfile/">第14.11章：完整类，以及 fast_io 的 posix_file</a></li>
       </ul>
-      <p>
-        把每个可能失败的步骤放到线之上、每个改动放到线之下，这个操作要么完整发生，要么完全不发生。这就是<strong>强异常安全保证</strong>，也正是<a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章</a>真正要讲的东西。
-      </p>
-      <h3>异常安全的四个级别</h3>
-      <p>
-        <code>nothrow</code>、<code>strong</code>、<code>basic</code>、<code>none</code> &mdash; 你写的每个函数必然恰好属于其中之一，无论你是否想过这个问题。<a href="/zhcn/docs/14.fiverules/09.exceptionsafety/">第14.9章</a>为它们命名，对 <code>my_posix_file</code> 的每个成员分类，并说明赫布异常如何把第一级从一句承诺变成编译器能证明的东西。
-      </p>
-
     </section>
+
     <section>
-      <h2>6. 本章使用的约定</h2>
-
-
-      <ul>
-        <li>私有数据成员以下划线结尾：<code>fd_</code>。</li>
-        <li>
-          每个成员函数要么是 <code>noexcept</code>，要么是 <code>throws</code> &mdash; 本教程中不存在第三个选项（<a href="/zhcn/docs/06.function/16.noexceptthrows/">第6.16章</a>）。它是哪一个，会在你读函数体之前就告诉你异常安全级别。
-        </li>
-        <li>
-          整数用 <code>::std::int_least32_t</code>、<code>::std::int_least64_t</code> 或 <code>::std::size_t</code>，绝不用裸 <code>int</code>。唯一的例外是 <code>int main()</code>，以及 POSIX API 自身的 <code>int</code> 参数和返回值，它们就按 <code>int</code> 展示。
-        </li>
-        <li>
-          失败用赫布异常：<code>throw throws ...</code> 与 <code>catch throws (::std::error e)</code>。
-        </li>
-        <li>
-          这些页面上的每个完整程序都用 <code>-std=c++26 -fherbceptions -lherbceptions</code> 编译并运行过；显示的输出就是它实际打印的内容。
-        </li>
-      </ul>
-
+      <h2>7. 怎么读这一章</h2>
+      <p>
+        把 14.1 和 14.2 当作规则来读。把 14.3 和 14.4 当作拷贝的两种合法答案来读：删除它，或者写一个真正的
+        拷贝。读 14.5 和 14.6，因为大多数拥有资源的类型即使不能拷贝也应该可以移动。把 14.7 到 14.10
+        当作让正确实现安全的机制。把 14.11 当作完整的类。
+      </p>
+      <p>
+        如果你的类没有裸资源，停在零法则：五个都不写，让编译器做它该做的事。这一章其余部分只适用于真正拥有
+        东西的类。
+      </p>
     </section>
-    <section>
-      <h2>7. 目录</h2>
 
-
-      <ul>
-        <li><a href="/zhcn/docs/14.fiverules/01.ownership/">第14.1章: 所有权：为什么类需要析构函数</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/02.destructor/">第14.2章: 析构函数</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/03.copyconstructor/">第14.3章: 复制构造函数</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/04.copyassignment/">第14.4章: 复制赋值与那条临界线</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/05.moveconstructor/">第14.5章: 移动构造函数</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/06.moveassignment/">第14.6章: 移动赋值</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/07.swap/">第14.7章: swap</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/08.copyandswap/">第14.8章: 复制并交换</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/09.exceptionsafety/">第14.9章: 异常安全：nothrow、strong、basic、none</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/10.movedfrom/">第14.10章: 自赋值与已移出的对象</a></li>
-        <li><a href="/zhcn/docs/14.fiverules/11.myposixfile/">第14.11章: 完整的类，以及 fast_io 的 posix_file</a></li>
-      </ul>
-
-    </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/13.class/11.puttingtogether/" class="prev-button">&larr; 第13.11章: 综合起来</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/14.fiverules/01.ownership/" class="next-button">第14.1章: 所有权 &rarr;</a>
+      <a href="/zhcn/docs/13.class/11.puttingtogether/" class="prev-button">&larr; 第13.11章：把所有东西放在一起</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/14.fiverules/01.ownership/" class="next-button">第14.1章：所有权：析构函数启动规则 &rarr;</a>
     </div>
   </main>
 </body>

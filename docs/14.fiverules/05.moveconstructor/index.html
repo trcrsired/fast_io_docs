@@ -27,6 +27,9 @@
         <code>&amp;&amp;</code> parameters.
       </p>
       <pre><code class="language-cpp">
+	my_posix_file(my_posix_file const &amp;) = delete;
+	my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
+
 	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
 	{
 		other.fd_ = -1; // the source no longer owns anything
@@ -128,6 +131,12 @@ b = 4, a = 3, a.is_open() = 1
         decides what the compiler is willing to generate.
       
       </div>
+      <p>
+        For a move-only type the fallback is different: the copy constructor is deleted, so
+        <code>::std::move(a)</code> does not silently copy. It fails to compile. That is the
+        correct result. If the type should be movable, declare the move constructor; if it
+        should not, delete the move too and keep ownership in one place.
+      </p>
 
     </section>
     <section>
@@ -222,13 +231,8 @@ public:
 		fd_ = fd;
 	}
 
-	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
-	{
-		if (fd_ == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-	}
+	my_posix_file(my_posix_file const &amp;) = delete;
+	my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;
 
 	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
 	{
@@ -255,8 +259,6 @@ public:
 };
 
 static_assert(::std::is_nothrow_move_constructible_v&lt;my_posix_file&gt;);
-static_assert(::std::is_copy_constructible_v&lt;my_posix_file&gt;);
-static_assert(!::std::is_nothrow_copy_constructible_v&lt;my_posix_file&gt;);
 static_assert(::std::is_nothrow_destructible_v&lt;my_posix_file&gt;);
 
 int main()

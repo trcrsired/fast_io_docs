@@ -3,343 +3,174 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>第14.4章: 复制赋值与那条临界线 - 使用 fast_io 学习 C++ 教程</title>
+  <title>第14.4章：拷贝赋值：删除，或者使用临界行 - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>第14.4章: 复制赋值与那条临界线</h1>
+    <h1>第14.4章：拷贝赋值：删除，或者使用临界行</h1>
     <p class="lang-switch"><a href="/docs/14.fiverules/04.copyassignment/">English</a></p>
+
     <section>
-      <h2>1. 赋值不是构造</h2>
-
-
+      <h2>1. 拷贝构造和拷贝赋值是一个决定</h2>
       <p>
-        <code>my_posix_file a{"demo.txt", O_RDONLY}; my_posix_file b{"other.txt", O_RDONLY};</code> 然后 <code>a = b;</code> 与 <code>my_posix_file a{b};</code> 是完全不同的操作。
+        拷贝构造创建新对象。拷贝赋值修改一个已经拥有东西的已有对象。它们是不同操作，但回答同一个策略问题：
+        这个类型允许第二个所有者吗？
       </p>
       <p>
-        在赋值中，<code>a</code> <strong>已经拥有一个描述符</strong>。无论这个函数怎么做，那个描述符最终必须被关闭 &mdash; 否则它就泄漏了 &mdash; 而 <code>a</code> 最终必须拥有 <code>b</code> 的副本。所以必须发生三件事，唯一真正的问题是<em>顺序</em>：
+        如果答案是否，两个都删除：
       </p>
-      <ul>
-        <li>获取新描述符（<code>::dup</code>，可能失败）；</li>
-        <li>释放旧的（<code>::close</code>，在我们关心的意义上不会失败）；</li>
-        <li>安装新的（一次 <code>int</code> 赋值，不会失败）。</li>
-      </ul>
-
+      <pre><code class="language-cpp">    my_posix_file(my_posix_file const &amp;) = delete;
+    my_posix_file &amp;operator=(my_posix_file const &amp;) = delete;</code></pre>
+      <p>
+        拷贝构造被删除、拷贝赋值却可用，几乎总是错误。两个操作应该一致，而编译器不会替你强制。把这一对在类里写清楚。
+      </p>
+      <div class="warning">
+        <strong>警告：只删除一对中的一个是不完整的。</strong>
+        如果你写了 <code>T(T const &amp;) = delete;</code>，却把拷贝赋值留给隐式版本，编译器仍然可能生成一个浅拷贝句柄的
+        赋值。两个都删除，或者两个都实现。
+      </div>
     </section>
+
     <section>
-      <h2>2. 每个人最先写出的顺序</h2>
-
-
+      <h2>2. 如果选择拷贝：临界行</h2>
       <p>
-        它读起来很自然：先把旧文件处理掉，再拿新的。
+        赋值有一个构造没有的问题：左边对象已经拥有资源。函数必须释放旧资源并获取新资源。唯一的问题是顺序，
+        而错误的顺序是所有人最先写出的那个：
       </p>
-      <pre><code class="language-cpp">
-	// WRONG
-	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
-	{
-		if (fd_ != -1)
-		{
-			::close(fd_);          // the old file is gone
-		}
-		fd_ = ::dup(other.fd_);    // may fail -- and now there is nothing left
-		if (fd_ == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		return *this;
-	}
-</code></pre>
+      <pre><code class="language-cpp">    // WRONG: destroy first
+    HasPtr &amp;operator=(HasPtr const &amp;other)
+    {
+        destroy_string(ps);              // old string gone
+        ps = make_string(*other.ps);     // may fail; *this is now broken
+        i = other.i;
+        return *this;
+    }</code></pre>
       <p>
-        它有三个问题，值得分开讲。
+        如果分配失败，对象已经失去了旧值，又没有新值可替换。把可能失败的步骤先做进局部变量，此时对象还没被碰：
       </p>
-      <ul>
-        <li>
-          <strong>对象在新资源存在之前就被破坏了。</strong>如果 <code>::dup</code> 失败，赋值失败<em>并且</em>刚才还开着的文件也没了。调用者拿到一个损坏的对象，而且没有回头路。
-        </li>
-        <li>
-          <strong>自赋值会毁掉文件。</strong><code>a = a</code> 关闭 <code>a</code> 的描述符，然后去复制 <code>-1</code>，以 <code>EBADF</code> 失败。完全合法的语句 <code>a = a</code> 让 <code>a</code> 被关闭并抛出异常。
-        </li>
-        <li>
-          <strong>它看起来不是靠加一个检查就能修好的。</strong>加上 <code>if (this == &amp;other) return *this;</code> 只是掩盖第二个问题，第一个问题丝毫未动。错的是<em>顺序</em>。
-        </li>
-      </ul>
-
+      <pre><code class="language-cpp">    HasPtr &amp;operator=(HasPtr const &amp;other)
+    {
+        auto *new_ps{make_string(*other.ps)}; // may fail, *this untouched
+        destroy_string(ps);                   // ---- critical line ----
+        ps = new_ps;
+        i = other.i;
+        return *this;
+    }</code></pre>
+      <p>
+        线上方：分配可能失败，<code>*this</code> 没变。线下方：<code>destroy_string</code> 和指针/整数写入都不会失败，
+        所以对象从旧值移动到新值，没有中间损坏状态。这就是<strong>强异常安全保证</strong>。
+      </p>
+      <p>
+        这个顺序也让自赋值不需要特判。如果 <code>this == &amp;other</code>，新 string 在旧指针被销毁之前分配并拷贝，
+        然后替换指针。对象最终拥有一个新 string，值相同。没有数据丢失。
+      </p>
     </section>
+
     <section>
-      <h2>3. 临界线</h2>
-
-
-      <p>
-        把顺序反过来，一切就各就各位了。先在一个局部变量里做可能失败的工作，此时对象还未被触碰；然后，一旦再没有会失败的操作，就提交：
-      </p>
-      <pre><code class="language-cpp">
-	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
-	{
-		::std::int_least32_t newfd{::dup(other.fd_)};   // may fail, *this untouched
-		if (newfd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		// ---- critical line ----
-		reset(newfd);                                   // cannot fail, *this changes
-		return *this;
-	}
-</code></pre>
-            <div class="important">
-              <strong>临界线是一个可能失败的函数内部的分界线：</strong> <br> &mdash; <strong>在它之上</strong>，操作可能失败，而<strong>还没有任何东西被修改</strong>； <br> &mdash; <strong>在它之下</strong>，操作<strong>不会失败</strong>，而它们才是修改对象的那些。 <br> 把它放在正确的位置，失败就只可能发生在还没有东西需要撤销的时候。这就是<strong>强异常安全保证</strong>，而临界线是获得它的方式。
-            </div>
-      <p>
-        数一数两侧的语句。线上：一次 <code>::dup</code> 调用和一个检查，都可能失败，都不碰 <code>*this</code>。线下：一次 <code>reset</code> 调用，它是 <code>noexcept</code>，完成整个提交 &mdash; 关闭旧描述符、存入新的。不存在 <code>*this</code> 被赋值一半的状态，因为在旧值被触碰之后没有可失败的操作。
-      </p>
-
-    </section>
-    <section>
-      <h2>4. 自赋值不需要特殊处理</h2>
-
-
-      <p>
-        大多数教程会让你在赋值运算符开头写一个自赋值检查。用这个顺序你不需要：<code>a = a</code> 自己就能正常工作。
-      </p>
-      <p>
-        跟踪一下。<code>::dup(a.fd_)</code> 为同一个打开的文件产生第二个描述符；检查通过；然后 <code>reset</code> 关闭旧描述符并存入新的。<code>a</code> 现在拥有<em>同一个</em>文件的<em>另一个</em>描述符。没有丢失，没有泄漏，唯一可观察到的差别是一个新数字。
-      </p>
-            <div class="note">
-              <strong>不要只因为大家都这么做就加那个检查。</strong>当操作无法容忍“读取自己即将销毁的东西”时才需要它 &mdash; 移动赋值正是这种情况（<a href="/zhcn/docs/14.fiverules/06.moveassignment/">第14.6章</a>），因为它<em>先释放</em>，没有副本可以退回。这里的复制赋值是先复制的，所以按构造就是自赋值安全的。
-            </div>
-
-    </section>
-    <section>
-      <h2>5. 两种顺序并排看</h2>
-
-
-      <p>
-        一个程序，两个类：正确的 <code>my_posix_file</code> 和一个先关闭的 <code>naive_file</code>。它演练了自赋值、一次失败的赋值，以及同样两种情况在朴素类上的表现。
-      </p>
-      <pre><code class="language-cpp">
-#include &lt;fast_io.h&gt;
-#include &lt;fast_io_dsal/string_view.h&gt;
-
-using namespace ::fast_io::io;
-
-class my_posix_file
+      <h2>3. 完整的深拷贝类</h2>
+      <pre><code class="language-cpp">class HasPtr
 {
-	int fd_{-1};
-
-	void reset(::std::int_least32_t newfd = -1) noexcept
-	{
-		if (fd_ != -1)
-		{
-			::close(fd_);
-		}
-		fd_ = newfd;
-	}
-
 public:
-	explicit my_posix_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
-	{
-		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
-		if (fd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		fd_ = fd;
-	}
+    HasPtr(std::string const &amp;s = std::string())
+        : ps{make_string(s)}, i{} {}
 
-	my_posix_file(my_posix_file const &amp;other) throws : fd_{::dup(other.fd_)}
-	{
-		if (fd_ == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-	}
+    HasPtr(HasPtr const &amp;other)
+        : ps{other.ps ? make_string(*other.ps) : nullptr},
+          i{other.i}
+    {
+    }
 
-	my_posix_file &amp;operator=(my_posix_file const &amp;other) throws
-	{
-		::std::int_least32_t newfd{::dup(other.fd_)};
-		if (newfd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		reset(newfd);
-		return *this;
-	}
+    HasPtr &amp;operator=(HasPtr const &amp;other)
+    {
+        auto *new_ps{other.ps ? make_string(*other.ps) : nullptr};
+        destroy_string(ps);
+        ps = new_ps;
+        i = other.i;
+        return *this;
+    }
 
-	my_posix_file(my_posix_file &amp;&amp;other) noexcept : fd_{other.fd_}
-	{
-		other.fd_ = -1;
-	}
+    ~HasPtr() { destroy_string(ps); }
 
-	~my_posix_file() noexcept
-	{
-		reset();
-	}
-
-	[[nodiscard]] bool is_open() const noexcept
-	{
-		return fd_ != -1;
-	}
-
-	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
-	{
-		return fd_;
-	}
-};
-
-class naive_file
-{
-	int fd_{-1};
-
-public:
-	explicit naive_file(::fast_io::cstring_view path, ::std::int_least32_t flags) throws
-	{
-		::std::int_least32_t fd{::open(path.c_str(), flags, 0644)};
-		if (fd == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		fd_ = fd;
-	}
-
-	~naive_file() noexcept
-	{
-		if (fd_ != -1)
-		{
-			::close(fd_);
-		}
-	}
-
-	naive_file &amp;operator=(naive_file const &amp;other) throws
-	{
-		// WRONG: the old descriptor is gone before the new one exists.
-		if (fd_ != -1)
-		{
-			::close(fd_);
-		}
-		fd_ = ::dup(other.fd_);
-		if (fd_ == -1) [[unlikely]]
-		{
-			throw throws static_cast&lt;::std::errc&gt;(errno);
-		}
-		return *this;
-	}
-
-	[[nodiscard]] bool is_open() const noexcept
-	{
-		return fd_ != -1;
-	}
-
-	[[nodiscard]] ::std::int_least32_t native_handle() const noexcept
-	{
-		return fd_;
-	}
-};
-
-int main()
-{
-	{ // make sure the example file exists
-		::std::int_least32_t fd{::open("demo.txt", O_WRONLY | O_CREAT, 0644)};
-		::close(fd);
-	}
-
-	my_posix_file a{"demo.txt", O_RDONLY};
-	println("a before   = ", a.native_handle());
-	a = a; // self-assignment
-	println("a after a=a = ", a.native_handle(), ", is_open = ", a.is_open());
-
-	my_posix_file moved_from{"demo.txt", O_RDONLY};
-	my_posix_file b{::std::move(moved_from)};
-	println("b = ", b.native_handle(), ", moved_from = ", moved_from.native_handle());
-	try
-	{
-		a = moved_from;
-	}
-	catch throws (::std::error e)
-	{
-		print("a = moved_from failed: ", e, "\n");
-	}
-	println("a survived = ", a.native_handle(), ", is_open = ", a.is_open());
-
-	naive_file n{"demo.txt", O_RDONLY};
-	println("n before   = ", n.native_handle());
-	try
-	{
-		n = n; // self-assignment, the naive way
-	}
-	catch throws (::std::error e)
-	{
-		print("n=n failed: ", e, "\n");
-	}
-	println("n after n=n = ", n.native_handle(), ", is_open = ", n.is_open());
-}
-</code></pre>
-      <pre><code class="language-text">
-a before   = 3
-a after a=a = 4, is_open = 1
-b = 3, moved_from = -1
-a = moved_from failed: [posix](9)Bad file number
-a survived = 4, is_open = 1
-n before   = 5
-n=n failed: [posix](9)Bad file number
-n after n=n = -1, is_open = 0
-</code></pre>
+private:
+    std::string *ps;
+    int i;
+};</code></pre>
       <p>
-        四行承载了这个教训。
+        这个类可拷贝，所以它还必须处理移动操作，或者接受移动回退到拷贝。移动是另一个决定；见
+        <a href="/zhcn/docs/14.fiverules/05.moveconstructor/">第14.5章</a>和
+        <a href="/zhcn/docs/14.fiverules/06.moveassignment/">第14.6章</a>。这里的重点是拷贝赋值是显式的：
+        它知道旧资源，并且有临界行。
       </p>
+    </section>
+
+    <section>
+      <h2>4. 返回类型与自检</h2>
+      <p>
+        按引用返回 <code>*this</code>，让赋值可以串联，并像内建赋值一样工作：
+      </p>
+      <pre><code class="language-cpp">a = b = c; // parsed as a = (b = c)</code></pre>
+      <p>
+        当你在销毁前分配时，不需要自检。当实现先释放时，<em>才</em>需要，因为 <code>a = a</code>
+        会在读取值之前销毁它。如果你写了安全顺序，不要因为教程都这么写就加检查；如果你写了不安全顺序，
+        检查也不足以修复失败路径。
+      </p>
+      <p>
+        同样的推理适用于移动赋值，但顺序是被迫的：移动没有副本可分配，所以必须先释放，因此必须检查自移动。
+        这个不对称在第<a href="/zhcn/docs/14.fiverules/06.moveassignment/">14.6章</a>。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 两个合法答案</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>所有权</th>
+            <th>拷贝构造</th>
+            <th>拷贝赋值</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>唯一（文件、socket、锁）</td>
+            <td><code>= delete</code></td>
+            <td><code>= delete</code></td>
+          </tr>
+          <tr>
+            <td>可拷贝，带真实资源（深拷贝）</td>
+            <td>分配/复制新资源</td>
+            <td>先分配，再在临界线下方提交</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        没有第三行叫“交给编译器”。如果类有析构函数，那一行就是 bug。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 需要记住什么</h2>
       <ul>
-        <li>
-          <strong><code>a after a=a = 4, is_open = 1</code></strong> &mdash; 自赋值在没有检查的情况下成功了。数字变了，因为 <code>::dup</code> 发出的是 <code>4</code>（旧的 <code>3</code> 在同一次调用中被关闭），而文件还是同一个文件。
-        </li>
-        <li>
-          <strong><code>a = moved_from failed: [posix](9)Bad file number</code></strong> &mdash; 赋值失败，因为右侧没有描述符（<a href="/zhcn/docs/14.fiverules/10.movedfrom/">第14.10章</a>）。
-        </li>
-        <li>
-          <strong><code>a survived = 4, is_open = 1</code></strong> &mdash; 这正是重点：失败没有改变任何东西。<code>a</code> 仍然恰好持有它在语句之前持有的东西。
-        </li>
-        <li>
-          <strong><code>n after n=n = -1, is_open = 0</code></strong> &mdash; 朴素的类关闭了自己的文件然后失败，留下一个有效但空的对象，原本那里有一个文件。没有任何东西损坏，但调用者丢掉了它从未要求放弃的资源。
-        </li>
+        <li>一起删除拷贝构造和拷贝赋值，或者一起正确实现。</li>
+        <li>赋值必须释放旧资源，但只能在新资源安全之后。</li>
+        <li>临界行把可能失败的准备和不会失败的提交分开。</li>
+        <li>先分配再销毁；自赋值就不需要特判。</li>
+        <li>按引用返回 <code>*this</code>。</li>
+        <li>移动赋值顺序相反，而且确实需要自检。</li>
       </ul>
-
+      <p>
+        下一页讲让 move-only 所有者有用的操作：从一个将死对象取走资源。
+      </p>
     </section>
-    <section>
-      <h2>6. 为什么返回类型是引用</h2>
 
-
-      <p>
-        <code>operator=</code> 返回 <code>my_posix_file &amp;</code> &mdash; 对左操作对象的引用 &mdash; 实现就是 <code>return *this;</code>。这才让链式赋值成为可能：
-      </p>
-      <pre><code class="language-cpp">
-a = b = c;      // means a = (b = c), with b = c yielding b
-
-(a = b).read_some(buf, n);   // the result of the assignment is a
-</code></pre>
-      <p>
-        改成按值返回就崩了：那个表达式会变成 <code>a</code> 的<em>副本</em>，于是链式赋值会复制一个描述符再把那个副本扔掉。永远返回 <code>*this</code>。
-      </p>
-
-    </section>
-    <section>
-      <h2>7. 什么时候不该有赋值</h2>
-
-
-      <p>
-        并非每个资源都能被替换。一把锁不能重新指向另一把锁；一个进行中的打开操作不能被从调用者脚下换掉。对这样的类型，正确答案是 <code>= delete</code>，与复制构造函数完全一样（<a href="/zhcn/docs/14.fiverules/03.copyconstructor/">第14.3章</a>），而编译器会在调用点告诉你，而不是在凌晨三点。
-      </p>
-      <pre><code class="language-cpp">
-	my_lock &amp;operator=(my_lock const &amp;) = delete;
-	my_lock &amp;operator=(my_lock &amp;amp;&amp;amp;) = delete;
-</code></pre>
-      <p>
-        删除复制赋值<em>并不</em>意味着对象不能被复制 &mdash; 那是复制构造函数的事。它意味着对象不能被<strong>重新赋值</strong>，这是一个更弱的陈述。
-      </p>
-
-    </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/14.fiverules/03.copyconstructor/" class="prev-button">&larr; 第14.3章: 复制构造函数</a> <a href="/zhcn/" class="main-button">&uarr; 主页</a> <a href="/zhcn/docs/14.fiverules/05.moveconstructor/" class="next-button">第14.5章: 移动构造函数 &rarr;</a>
+      <a href="/zhcn/docs/14.fiverules/03.copyconstructor/" class="prev-button">&larr; 第14.3章：拷贝构造</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/14.fiverules/05.moveconstructor/" class="next-button">第14.5章：移动构造 &rarr;</a>
     </div>
   </main>
 </body>
