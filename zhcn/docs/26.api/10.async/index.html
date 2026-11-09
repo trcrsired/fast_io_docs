@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.10章：异步 I/O - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.10章：异步 I/O</h1>
+    <p class="lang-switch"><a href="/docs/26.api/10.async/">English</a></p>
+
+    <section>
+      <h2>1. 对象模型</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>对象</th>
+            <th>角色</th>
+            <th>所有权</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::io_async_scheduler</code></td>
+            <td>OS 后端：Linux 上是 io_uring，Windows 上是 IOCP/IoRing，
+              其他 POSIX 上是线程池。</td>
+            <td>程序拥有，通常每个事件循环一个。</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::io_async_observer</code></td>
+            <td>scheduler 的小型、可复制、非拥有视图。</td>
+            <td>借用；scheduler 必须比它活得久。</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::io_async_task&lt;T&gt;</code></td>
+            <td>惰性协程任务；拥有自己的 frame，可以被 resume、await 或 detach。</td>
+            <td>只能移动；任务对象销毁时销毁 frame。</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::io_async_wait(sched)</code></td>
+            <td>事件泵：等待一个完成、分派它、恢复等待中的协程。</td>
+            <td>由程序的监督循环调用。</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+::fast_io::io_async_scheduler sched{::fast_io::io_async};
+::fast_io::io_async_observer obs{sched};
+</code></pre>
+      <p>
+        scheduler 用 <code>io_async</code> 标签创建。把拥有它的 scheduler 传给需要 observer 的地方时，
+        会自动 decay，和拥有文件退化为 observer 完全一样。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. <code>io_async_task</code></h2>
+      <p>
+        <code>io_async_task&lt;T&gt;</code> 是惰性的：创建它不会运行协程体。
+        <code>resume()</code> 进入或继续它；<code>done()</code> 报告完成；
+        <code>rethrow_if_error()</code> 把保存的 herbception 重新抛出。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>成员</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>resume()</code></td>
+            <td>开始或继续协程，直到它挂起或结束。</td>
+          </tr>
+          <tr>
+            <td><code>done()</code></td>
+            <td>frame 已结束，或任务不再拥有 frame 时为真。</td>
+          </tr>
+          <tr>
+            <td><code>detach()</code></td>
+            <td>释放所有权，标记 frame 为 detached 并启动它。完成时 frame 自己销毁。</td>
+          </tr>
+          <tr>
+            <td><code>rethrow_if_error()</code></td>
+            <td>通过 herbception 通道重新抛出保存的错误。</td>
+          </tr>
+          <tr>
+            <td><code>native_handle()</code></td>
+            <td>底层的 <code>std::coroutine_handle</code>。</td>
+          </tr>
+          <tr>
+            <td><code>co_await task</code></td>
+            <td>等待子任务；成功时移出结果，错误重新抛出。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        既没有被 await 也没有被 detach 的任务，在任务对象销毁时销毁 frame。
+        detached 任务的失败是静默的，除非协程自己处理了它。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 异步操作</h2>
+      <p>
+        异步表面镜像同步表面。每个操作接收 scheduler、timeout、设备，以及操作特定的参数；
+        协程形式返回 awaiter。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>操作</th>
+            <th>签名</th>
+            <th>返回</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>async_scan</code></td>
+            <td><code>(sched, timeout, in, args...)</code></td>
+            <td>awaiter；<code>co_await</code> 扫描值。</td>
+          </tr>
+          <tr>
+            <td><code>async_scan_some</code></td>
+            <td><code>(sched, timeout, in, args...)</code></td>
+            <td>部分输入时返回 <code>scan_some_result_t</code>。</td>
+          </tr>
+          <tr>
+            <td><code>async_print</code>、<code>async_println</code></td>
+            <td><code>(sched, timeout, out, args...)</code></td>
+            <td>awaiter；<code>co_await</code> 写出格式化字节。</td>
+          </tr>
+          <tr>
+            <td><code>async_transmit_some_bytes</code></td>
+            <td><code>(sched, timeout, out, off_out, in, off_in, bound)</code></td>
+            <td>这一轮搬了多少字节；<code>0</code> 表示 EOF。</td>
+          </tr>
+          <tr>
+            <td><code>async_transmit_all_bytes</code></td>
+            <td>相同签名</td>
+            <td>到达 bound 或 EOF 时完成。</td>
+          </tr>
+          <tr>
+            <td><code>async_accept</code></td>
+            <td><code>(sched, timeout, listener, mode = {})</code></td>
+            <td>原生 accepted handle；包进 socket 文件。</td>
+          </tr>
+          <tr>
+            <td><code>async_connect</code></td>
+            <td><code>(sched, timeout, socket, addr, addrlen)</code></td>
+            <td>连接完成；socket 被复用，不被消耗。</td>
+          </tr>
+          <tr>
+            <td><code>async_output_stream_flush</code></td>
+            <td><code>(sched, timeout, out)</code></td>
+            <td>挂起输出到达设备时完成。</td>
+          </tr>
+          <tr>
+            <td><code>async_pread_some_bytes</code>、<code>async_pwrite_some_bytes</code></td>
+            <td><code>(sched, timeout, stream, buf, count, off)</code></td>
+            <td>传输的字节数；底层字节窗口。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        高层规则和同步层相同：<strong>输入用 scan，输出用 print，字节移动用 transmit</strong>。
+        降到 <code>async_pread</code>/<code>async_pwrite</code> 意味着你又接管了缓冲和部分传输处理。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 最小循环</h2>
+      <pre><code class="language-cpp">
+::fast_io::io_async_task&lt;&gt; work(::fast_io::io_async_observer sched) throws
+{
+    ::fast_io::ibuf_file in{"input.txt", ::fast_io::open_mode::in};
+    int a{};
+    int b{};
+    co_await ::fast_io::async_scan(sched, {}, in, a, b);
+    co_await ::fast_io::async_println(sched, {}, ::fast_io::out(), a + b);
+}
+
+int main()
+try
+{
+    ::fast_io::io_async_scheduler sched{::fast_io::io_async};
+    auto task{work(sched)};
+    task.resume();
+    while (!task.done())
+    {
+        ::fast_io::io_async_wait(sched);
+    }
+    task.rethrow_if_error();
+}
+catch throws(::std::error e)
+{
+    ::fast_io::perrln(e);
+    return 1;
+}
+</code></pre>
+      <p>
+        <code>task.resume()</code> 进入协程。第一个 <code>co_await</code> 提交读并挂起。
+        <code>io_async_wait</code> 收割完成并恢复 frame。循环直到任务完成。
+        事件循环是单线程的；等待由内核或线程池完成。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 后端与错误</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>平台</th>
+            <th>后端</th>
+            <th>等待原语</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Linux</td>
+            <td><code>io_uring</code></td>
+            <td><code>io_async_wait</code>、<code>io_async_peek</code>、
+              <code>io_async_wait_timeout</code></td>
+          </tr>
+          <tr>
+            <td>Windows</td>
+            <td>IOCP 或 IoRing</td>
+            <td>同一组等待原语</td>
+          </tr>
+          <tr>
+            <td>其他 POSIX</td>
+            <td>线程池</td>
+            <td>同一组等待原语</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        操作失败通过 herbception 通道浮出：被 await 的操作抛出，
+        <code>rethrow_if_error()</code> 重新抛出保存的错误，detached 任务的未处理错误随 frame 丢弃。
+        超时用 <code>posix_statx_timestamp_opt</code> 传入；<code>{}</code> 表示没有超时。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 所有权与生命周期规则</h2>
+      <ul>
+        <li>scheduler 必须比所有使用它的 task 和 observer 活得久。</li>
+        <li>被 await 的任务会转移结果；被 detach 的任务自己运行到完成。</li>
+        <li>挂起在操作上的协程 frame，在操作完成前不能被销毁。</li>
+        <li>带缓冲的异步流用 <code>async_output_stream_flush</code> 刷新；
+          不要假定 awaiter 恢复时挂起的写已经到达设备。</li>
+        <li>accepted socket 是原生句柄；把它包进 socket 文件就是转移所有权。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>异步 I/O 使用四个对象：scheduler、observer、task 和 wait 循环。</li>
+        <li><code>io_async_task</code> 是惰性的、只能移动的，并拥有自己的协程 frame。</li>
+        <li><code>resume</code>、<code>done</code>、<code>detach</code> 和
+          <code>rethrow_if_error</code> 是任务生命周期。</li>
+        <li><code>async_scan</code>/<code>async_print</code>/<code>async_transmit</code> 镜像
+          同步高层操作。</li>
+        <li><code>io_async_wait</code> 是事件泵；循环默认单线程。</li>
+        <li>超时用 <code>posix_statx_timestamp_opt</code>；<code>{}</code> 表示没有超时。</li>
+        <li>detached 任务的失败是静默的，除非协程处理了它。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/09.operations/" class="prev-button">&larr; 第26.9章：I/O 操作</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>

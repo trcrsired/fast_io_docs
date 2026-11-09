@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.10: Async I/O - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.10: Async I/O</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/10.async/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Object Model</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Object</th>
+            <th>Role</th>
+            <th>Ownership</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::io_async_scheduler</code></td>
+            <td>The OS backend: io_uring on Linux, IOCP/IoRing on Windows, a thread pool on other
+              POSIX targets.</td>
+            <td>Owned by the program, usually one per event loop.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::io_async_observer</code></td>
+            <td>A small, copyable, non-owning view of the scheduler.</td>
+            <td>Borrowed; the scheduler must outlive it.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::io_async_task&lt;T&gt;</code></td>
+            <td>Lazy coroutine task; owns its frame and can be resumed, awaited or detached.</td>
+            <td>Move-only; destroys the frame when the task object dies.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::io_async_wait(sched)</code></td>
+            <td>The event pump: wait for one completion, dispatch it, resume the waiting
+              coroutine.</td>
+            <td>Called by the program's supervisor loop.</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+::fast_io::io_async_scheduler sched{::fast_io::io_async};
+::fast_io::io_async_observer obs{sched};
+</code></pre>
+      <p>
+        The scheduler is created with the <code>io_async</code> tag. Passing the owning scheduler
+        where an observer is expected decays automatically, exactly as an owning file decays to
+        its observer.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. <code>io_async_task</code></h2>
+      <p>
+        <code>io_async_task&lt;T&gt;</code> is lazy: creating it does not run the coroutine body.
+        <code>resume()</code> enters or continues it; <code>done()</code> reports completion;
+        <code>rethrow_if_error()</code> turns a stored herbception back into a throw.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>resume()</code></td>
+            <td>Start or continue the coroutine until it suspends or finishes.</td>
+          </tr>
+          <tr>
+            <td><code>done()</code></td>
+            <td>True when the frame has finished or the task no longer owns one.</td>
+          </tr>
+          <tr>
+            <td><code>detach()</code></td>
+            <td>Release ownership, mark the frame detached and start it. The frame destroys itself
+              at completion.</td>
+          </tr>
+          <tr>
+            <td><code>rethrow_if_error()</code></td>
+            <td>Rethrow a stored error through the herbception channel.</td>
+          </tr>
+          <tr>
+            <td><code>native_handle()</code></td>
+            <td>The underlying <code>std::coroutine_handle</code>.</td>
+          </tr>
+          <tr>
+            <td><code>co_await task</code></td>
+            <td>Await a child task; the result is moved out on success, errors are rethrown.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        A task that is neither awaited nor detached has its frame destroyed when the task object
+        dies. A detached task's failure is silent unless the coroutine handled it itself.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Async Operations</h2>
+      <p>
+        The async surface mirrors the synchronous one. Each operation takes the scheduler, a
+        timeout, the device, and the operation-specific arguments; the coroutine form returns an
+        awaiter.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Signature</th>
+            <th>Returns</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>async_scan</code></td>
+            <td><code>(sched, timeout, in, args...)</code></td>
+            <td>An awaiter; <code>co_await</code> scans the values.</td>
+          </tr>
+          <tr>
+            <td><code>async_scan_some</code></td>
+            <td><code>(sched, timeout, in, args...)</code></td>
+            <td><code>scan_some_result_t</code> for partial input.</td>
+          </tr>
+          <tr>
+            <td><code>async_print</code>, <code>async_println</code></td>
+            <td><code>(sched, timeout, out, args...)</code></td>
+            <td>An awaiter; <code>co_await</code> writes the formatted bytes.</td>
+          </tr>
+          <tr>
+            <td><code>async_transmit_some_bytes</code></td>
+            <td><code>(sched, timeout, out, off_out, in, off_in, bound)</code></td>
+            <td>Bytes moved in this round; <code>0</code> means EOF.</td>
+          </tr>
+          <tr>
+            <td><code>async_transmit_all_bytes</code></td>
+            <td>same signature</td>
+            <td>Completes when the bound or EOF is reached.</td>
+          </tr>
+          <tr>
+            <td><code>async_accept</code></td>
+            <td><code>(sched, timeout, listener, mode = {})</code></td>
+            <td>Native accepted handle; wrap it in a socket file.</td>
+          </tr>
+          <tr>
+            <td><code>async_connect</code></td>
+            <td><code>(sched, timeout, socket, addr, addrlen)</code></td>
+            <td>Completes when connected; the socket is reused, not consumed.</td>
+          </tr>
+          <tr>
+            <td><code>async_output_stream_flush</code></td>
+            <td><code>(sched, timeout, out)</code></td>
+            <td>Completes when pending output reaches the device.</td>
+          </tr>
+          <tr>
+            <td><code>async_pread_some_bytes</code>, <code>async_pwrite_some_bytes</code></td>
+            <td><code>(sched, timeout, stream, buf, count, off)</code></td>
+            <td>Bytes moved; low-level byte windows.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The high-level rule is the same as the synchronous layer:
+        <strong>scan for input, print for output, transmit for byte movement</strong>. Dropping to
+        <code>async_pread</code>/<code>async_pwrite</code> means taking over buffering and partial
+        transfer handling again.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The Smallest Loop</h2>
+      <pre><code class="language-cpp">
+::fast_io::io_async_task&lt;&gt; work(::fast_io::io_async_observer sched) throws
+{
+    ::fast_io::ibuf_file in{"input.txt", ::fast_io::open_mode::in};
+    int a{};
+    int b{};
+    co_await ::fast_io::async_scan(sched, {}, in, a, b);
+    co_await ::fast_io::async_println(sched, {}, ::fast_io::out(), a + b);
+}
+
+int main()
+try
+{
+    ::fast_io::io_async_scheduler sched{::fast_io::io_async};
+    auto task{work(sched)};
+    task.resume();
+    while (!task.done())
+    {
+        ::fast_io::io_async_wait(sched);
+    }
+    task.rethrow_if_error();
+}
+catch throws(::std::error e)
+{
+    ::fast_io::perrln(e);
+    return 1;
+}
+</code></pre>
+      <p>
+        <code>task.resume()</code> enters the coroutine. The first <code>co_await</code> submits
+        the read and suspends. <code>io_async_wait</code> reaps the completion and resumes the
+        frame. The loop repeats until the task is done. The event loop is single-threaded; the
+        kernel or thread pool does the waiting.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Backends and Errors</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Platform</th>
+            <th>Backend</th>
+            <th>Wait primitive</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Linux</td>
+            <td><code>io_uring</code></td>
+            <td><code>io_async_wait</code>, <code>io_async_peek</code>,
+              <code>io_async_wait_timeout</code></td>
+          </tr>
+          <tr>
+            <td>Windows</td>
+            <td>IOCP or IoRing</td>
+            <td>the same wait family</td>
+          </tr>
+          <tr>
+            <td>Other POSIX</td>
+            <td>thread pool</td>
+            <td>the same wait family</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Operation failures surface through the herbception channel: an awaited operation throws,
+        <code>rethrow_if_error()</code> rethrows a stored error, and a detached task's unhandled
+        error is discarded with the frame. Timeouts are passed as
+        <code>posix_statx_timestamp_opt</code>; <code>{}</code> means no timeout.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Ownership and Lifetime Rules</h2>
+      <ul>
+        <li>The scheduler must outlive every task and observer that uses it.</li>
+        <li>A task that is awaited transfers its result; a task that is detached runs to
+          completion on its own.</li>
+        <li>A coroutine frame that suspends on an operation must not be destroyed before the
+          operation completes.</li>
+        <li>Buffered async streams are flushed with <code>async_output_stream_flush</code>; do not
+          assume a pending write has reached the device when the awaiter resumes.</li>
+        <li>Accepted sockets are native handles; wrapping them in a socket file transfers
+          ownership.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>Async I/O uses four objects: scheduler, observer, task and wait loop.</li>
+        <li><code>io_async_task</code> is lazy, move-only and owns its coroutine frame.</li>
+        <li><code>resume</code>, <code>done</code>, <code>detach</code> and
+          <code>rethrow_if_error</code> are the task lifecycle.</li>
+        <li><code>async_scan</code>/<code>async_print</code>/<code>async_transmit</code> mirror
+          the synchronous high-level operations.</li>
+        <li><code>io_async_wait</code> is the event pump; the loop is single-threaded by
+          default.</li>
+        <li>Timeouts use <code>posix_statx_timestamp_opt</code>; <code>{}</code> means no
+          timeout.</li>
+        <li>Detached-task failures are silent unless the coroutine handles them.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/09.operations/" class="prev-button">&larr; Ch26.9: I/O Operations</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>
