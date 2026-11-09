@@ -158,6 +158,49 @@ right *rp = dynamic_cast&lt;right *&gt;(lp); // sibling subobject, or nullptr
         to get wrong. In new code, composition is almost always clearer.
       </p>
     </section>
+    <section>
+      <h2>4. Why the Feature Exists</h2>
+      <p>
+        Virtual base classes were one of the key C++ 2.0 innovations, and the iostream redesign
+        of that era was their first large-scale use. That is why the feature is usually associated
+        with iostreams. When Jerry Schwarz redesigned the stream library around multiple
+        inheritance, the goal was one shared <code>basic_ios</code> holding the state and the
+        buffer, with <code>basic_istream</code> adding reads, <code>basic_ostream</code> adding
+        writes, and <code>basic_iostream</code> offering both. Without virtual inheritance,
+        <code>basic_iostream</code> would contain two <code>basic_ios</code> subobjects: two sets
+        of flags, two buffers, two error states. Virtual inheritance collapses the diamond to one
+        base.
+      </p>
+      <p>
+        That is a real modelling problem, but solving it inside one library added one of the most
+        complicated features of the object model to the language. Every C++ program pays for it:
+        virtual base offsets, most-derived construction, ignored initializers, cross-casts and
+        RTTI. Most programs never need a diamond. iostreams needed one because a deep class
+        hierarchy was the only tool the library had at the time.
+      </p>
+      <p>
+        fast_io takes the other road. The device is a template parameter, not a base class.
+        <code>print</code>, <code>scan</code> and <code>transmit</code> are functions on a device
+        reference, and a read-write type holds one reference to one device. There is no shared
+        base to duplicate, so there is no diamond, no virtual base and no RTTI. Sharing is a
+        member that is visible in the type, not a hidden adjustment in the object layout.
+      </p>
+      <p>
+        The security cost follows from the same complexity. Type confusion, corrupted vtable or
+        virtual-base pointers, and <code>dynamic_cast</code> on damaged objects are standard
+        exploitation techniques. A layout with hidden offsets and runtime pointer adjustment
+        gives an attacker more state to corrupt and more places where a wrong offset turns into
+        the wrong object. That is not the main reason to avoid virtual inheritance, but it is
+        another reason the simple layout wins.
+      </p>
+      <p>
+        The lesson is not that the iostream designers were careless. They were solving a genuine
+        duplication problem with the tools of the time, when runtime polymorphism and deep
+        hierarchies were treated as the default shape of good design. The lesson is that a
+        library-internal modelling problem should not force a language-wide mechanism, and that
+        templates plus composition can express the same sharing with far less machinery.
+      </p>
+    </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
       <a href="/docs/18.virtual/08.gui/" class="prev-button">&larr; Ch18.8: Qt, MFC, and Why GUIs Are Where C++ Went Wrong</a>

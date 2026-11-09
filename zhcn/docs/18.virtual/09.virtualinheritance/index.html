@@ -144,6 +144,37 @@ right *rp = dynamic_cast&lt;right *&gt;(lp); // sibling subobject, or nullptr
         狭窄场景。它在布局、构造顺序和转换上都很昂贵，而且很容易写错。在新代码里，组合几乎总是更清晰。
       </p>
     </section>
+    <section>
+      <h2>4. 这个特性为什么存在</h2>
+      <p>
+        虚基类是 C++ 2.0 的关键创新之一，而那个时代的 iostream 重设计是它的第一次大规模使用。这就是人们
+        总把虚继承和 iostream 联系起来的原因。Jerry Schwarz 用多重继承重写流库时，目标是让一个共享的
+        <code>basic_ios</code> 持有状态和缓冲区，让 <code>basic_istream</code> 增加读操作、
+        <code>basic_ostream</code> 增加写操作、<code>basic_iostream</code> 同时提供两者。如果没有虚继承，
+        <code>basic_iostream</code> 会包含两个 <code>basic_ios</code> 子对象：两套标志、两个缓冲区、两个错误状态。
+        虚继承把菱形折叠成一个基类。
+      </p>
+      <p>
+        这是一个真实的建模问题，但为了在一个库里解决它，语言被加进了一个最复杂的对象模型特性。每个 C++ 程序都要
+        为它付出代价：虚基类偏移、最派生类构造、被忽略的初始化器、交叉转换和 RTTI。大多数程序从不需要菱形。
+        iostream 需要，是因为在那个年代，深层类层次是库唯一会用的工具。
+      </p>
+      <p>
+        fast_io 走的是另一条路。设备是模板参数，不是基类。<code>print</code>、<code>scan</code> 和
+        <code>transmit</code> 是接收设备引用的函数，读写类型持有一个设备的引用。没有可复制的共享基类，
+        所以没有菱形、没有虚基类、也没有 RTTI。共享是一个在类型里可见的成员，而不是对象布局里的隐藏调整。
+      </p>
+      <p>
+        安全代价来自同一份复杂性。类型混淆、破坏 vtable 或虚基类指针、对已经损坏的对象做
+        <code>dynamic_cast</code>，都是常见的利用手法。带隐藏偏移和运行时指针调整的布局，给攻击者更多可破坏的状态，
+        也带来更多“偏移错了就变成另一个对象”的位置。这不是避免虚继承的主要原因，但它是简单布局胜出的又一个理由。
+      </p>
+      <p>
+        教训不是 iostream 的设计者不小心。他们是在用当时的工具解决一个真实的重复问题，那个年代把运行时多态和深层
+        继承当成良好设计的默认形态。教训是：库内部的建模问题不该逼出语言级机制；模板加组合可以用少得多的机械
+        表达同样的共享。
+      </p>
+    </section>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
       <a href="/zhcn/docs/18.virtual/08.gui/" class="prev-button">&larr; 第18.8章：Qt、MFC，以及为什么 GUI 是 C++ 走歪的地方</a>
