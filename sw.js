@@ -1,4 +1,4 @@
-const CACHE_NAME = "fast_io-docs-v84.3";
+const CACHE_NAME = "fast_io-docs-v84.4";
 const urlsToCache = [
   "/",
   "/style.css",
@@ -25,6 +25,7 @@ const urlsToCache = [
   "/docs/26.api/14.networking/",
   "/docs/26.api/15.freestanding/",
   "/docs/26.api/16.time/",
+  "/docs/26.api/17.random/",
   "/zhcn/docs/26.api/",
   "/zhcn/docs/26.api/01.modules/",
   "/zhcn/docs/26.api/02.print/",
@@ -42,6 +43,7 @@ const urlsToCache = [
   "/zhcn/docs/26.api/14.networking/",
   "/zhcn/docs/26.api/15.freestanding/",
   "/zhcn/docs/26.api/16.time/",
+  "/zhcn/docs/26.api/17.random/",
   // Chinese (zh-CN) translation
   "/zhcn/",
   "/zhcn/docs/00.intro/01.fastio/",

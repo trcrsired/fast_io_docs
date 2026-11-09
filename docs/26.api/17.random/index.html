@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.17: Random and Entropy - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.17: Random and Entropy</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/17.random/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Two Different Problems</h2>
+      <p>
+        “Random” covers two unrelated requirements. A simulation needs a reproducible sequence
+        with good statistical properties. A password, key or token needs unpredictability even
+        to an attacker who knows the program. fast_io separates the two: the white-hole family
+        reads the operating system's entropy source; `std::mt19937_64` is a seeded PRNG for
+        reproducibility.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Requirement</th>
+            <th>Use</th>
+            <th>Predictable?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Reproducible simulation</td>
+            <td>A seeded PRNG such as <code>std::mt19937_64</code></td>
+            <td>Yes, by design.</td>
+          </tr>
+          <tr>
+            <td>Keys, tokens, salts</td>
+            <td><code>ibuf_white_hole_engine</code> or the OS entropy source directly</td>
+            <td>No.</td>
+          </tr>
+          <tr>
+            <td>Shuffling a game deck</td>
+            <td>A seeded PRNG</td>
+            <td>Yes, when the seed is known.</td>
+          </tr>
+          <tr>
+            <td>Shuffling a security-sensitive list</td>
+            <td>An entropy engine</td>
+            <td>No.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. The White-Hole Family</h2>
+      <p>
+        A “white hole” emits random bytes; it does not absorb them. The native type reads the
+        platform's entropy source; the buffered type batches reads and wipes its buffer on
+        destruction.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Module</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>native_white_hole</code></td>
+            <td>Unbuffered raw entropy source.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>ibuf_white_hole</code></td>
+            <td>Buffered entropy source with secure buffer clearing.</td>
+            <td>header-side</td>
+          </tr>
+          <tr>
+            <td><code>native_white_hole_engine</code></td>
+            <td>Uniform random bit generator over the native source.</td>
+            <td>header-side</td>
+          </tr>
+          <tr>
+            <td><code>ibuf_white_hole_engine</code></td>
+            <td>Uniform random bit generator over the buffered source.</td>
+            <td>header-side</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+::fast_io::ibuf_white_hole_engine eng;
+::std::uniform_int_distribution&lt;::std::uint32_t&gt; dist{1, 100};
+auto const value{dist(eng)};
+</code></pre>
+      <p>
+        The engine satisfies the C++ UniformRandomBitGenerator requirement, so it works with the
+        distributions in <code>&lt;random&gt;</code>. Each engine instance owns its own source and
+        buffer; do not share one engine across threads without synchronization.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Entropy Reporting</h2>
+      <p>
+        <code>basic_white_hole_engine::entropy()</code> returns the platform's entropy estimate
+        when the source exposes one, clamped to the result width. A source without an entropy
+        method returns <code>0.0</code>. Do not treat that value as a proof of security; it is a
+        hint from the OS.
+      </p>
+      <p>
+        The engine's <code>min()</code> is 0 and <code>max()</code> is the maximum value of its
+        <code>result_type</code>. <code>operator()</code> reads enough bytes for one result and
+        returns it. On POSIX the source is <code>getrandom</code> or <code>/dev/urandom</code>; on
+        Windows it is <code>RtlGenRandom</code>/<code>BCryptGenRandom</code> or the platform
+        equivalent; on WASI it is <code>random_get</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Reproducible PRNGs</h2>
+      <p>
+        For simulation, testing and procedural content, use a seeded engine from
+        <code>&lt;random&gt;</code>. The seed is part of the experiment: record it and replay it.
+      </p>
+      <pre><code class="language-cpp">
+::std::mt19937_64 eng{0x123456789abcdef0ULL};
+::std::uniform_real_distribution&lt;double&gt; dist{0.0, 1.0};
+double const sample{dist(eng)};
+</code></pre>
+      <p>
+        A default-constructed engine uses a fixed seed, so every run produces the same sequence.
+        That is useful for tests and wrong for anything security-sensitive. If you want a random
+        seed, read it from the entropy source first, then seed the PRNG.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Distributions and Bias</h2>
+      <p>
+        Do not reduce an engine value modulo a range:
+      </p>
+      <pre><code class="language-cpp">
+// wrong: biased toward the low end
+auto bad{eng() % 100u};
+
+// right: the distribution removes the bias
+::std::uniform_int_distribution&lt;::std::uint32_t&gt; dist{0, 99};
+auto good{dist(eng)};
+</code></pre>
+      <p>
+        The standard distributions are the correct layer for ranges, Bernoulli trials, normal
+        samples and shuffling. They consume the engine's raw bits according to the distribution's
+        contract, not according to a hand-written modulo.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. <code>random_generate</code></h2>
+      <p>
+        <code>random_generate(distribution, engine)</code> is a small wrapper that calls the
+        distribution and converts a legacy exception crossing the boundary back to the
+        herbception channel. It is header-side and is useful when a distribution implementation
+        throws.
+      </p>
+      <pre><code class="language-cpp">
+auto value{::fast_io::random_generate(dist, eng)};
+</code></pre>
+    </section>
+
+    <section>
+      <h2>7. Module and Header Boundary</h2>
+      <p>
+        The <code>fast_io</code> module exports <code>native_white_hole</code>. The buffered
+        source, the engines and <code>random_generate</code> are header-side today. The
+        distributions themselves come from <code>&lt;random&gt;</code> and are not fast_io types.
+      </p>
+      <div class="note">
+        <strong>Do not use a PRNG for secrets.</strong> A seeded Mersenne Twister is reproducible;
+        that is the opposite of what a key or token needs. Use the entropy engine, and never log or
+        reuse the bytes it produces.
+      </div>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>Reproducible PRNGs and cryptographic entropy are different tools.</li>
+        <li><code>native_white_hole</code> is module-exported; the buffered source and engines are
+          header-side.</li>
+        <li><code>ibuf_white_hole_engine</code> satisfies UniformRandomBitGenerator and works with
+          standard distributions.</li>
+        <li>The buffered engine wipes its internal buffer on destruction.</li>
+        <li>Default-constructed PRNGs are deterministic; record and replay seeds for simulation.</li>
+        <li>Never use modulo reduction for a range; use a distribution.</li>
+        <li><code>random_generate</code> bridges distribution exceptions into the herbception
+          channel.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/16.time/" class="prev-button">&larr; Ch26.16: Time</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.17章：随机与熵 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.17章：随机与熵</h1>
+    <p class="lang-switch"><a href="/docs/26.api/17.random/">English</a></p>
+
+    <section>
+      <h2>1. 两个不同的问题</h2>
+      <p>
+        “随机”覆盖两个互不相关的要求。模拟需要可复现、统计性质好的序列；
+        密码、密钥或 token 需要即使攻击者知道程序也无法预测。fast_io 把两者分开：
+        white-hole 家族读取操作系统熵源；`std::mt19937_64` 是用于复现的带种子 PRNG。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>需求</th>
+            <th>使用</th>
+            <th>可预测？</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>可复现模拟</td>
+            <td>带种子的 PRNG，例如 <code>std::mt19937_64</code></td>
+            <td>是，设计如此。</td>
+          </tr>
+          <tr>
+            <td>密钥、token、盐</td>
+            <td><code>ibuf_white_hole_engine</code> 或直接使用 OS 熵源</td>
+            <td>否。</td>
+          </tr>
+          <tr>
+            <td>洗游戏牌堆</td>
+            <td>带种子的 PRNG</td>
+            <td>种子已知时可预测。</td>
+          </tr>
+          <tr>
+            <td>洗安全敏感的列表</td>
+            <td>熵引擎</td>
+            <td>否。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. White-hole 家族</h2>
+      <p>
+        “white hole”发射随机字节，不吸收它们。原生类型读取平台熵源；
+        带缓冲类型批量读取，并在销毁时擦除缓冲区。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>名字</th>
+            <th>角色</th>
+            <th>模块</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>native_white_hole</code></td>
+            <td>不带缓冲的原始熵源。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>ibuf_white_hole</code></td>
+            <td>带缓冲、带安全擦除的熵源。</td>
+            <td>头文件侧</td>
+          </tr>
+          <tr>
+            <td><code>native_white_hole_engine</code></td>
+            <td>基于原生源的 Uniform random bit generator。</td>
+            <td>头文件侧</td>
+          </tr>
+          <tr>
+            <td><code>ibuf_white_hole_engine</code></td>
+            <td>基于带缓冲源的 Uniform random bit generator。</td>
+            <td>头文件侧</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+::fast_io::ibuf_white_hole_engine eng;
+::std::uniform_int_distribution&lt;::std::uint32_t&gt; dist{1, 100};
+auto const value{dist(eng)};
+</code></pre>
+      <p>
+        引擎满足 C++ UniformRandomBitGenerator 要求，所以能和 <code>&lt;random&gt;</code>
+        里的分布一起用。每个引擎实例拥有自己的源和缓冲区；
+        不要在多个线程之间无同步地共享一个引擎。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 熵报告</h2>
+      <p>
+        <code>basic_white_hole_engine::entropy()</code> 在源提供熵估计时返回平台值，
+        并夹到结果宽度。没有熵方法的源返回 <code>0.0</code>。
+        不要把这个值当作安全证明；它是 OS 的提示。
+      </p>
+      <p>
+        引擎的 <code>min()</code> 是 0，<code>max()</code> 是
+        <code>result_type</code> 的最大值。<code>operator()</code> 读取一个结果所需的字节并返回。
+        POSIX 上源是 <code>getrandom</code> 或 <code>/dev/urandom</code>；
+        Windows 上是 <code>RtlGenRandom</code>/<code>BCryptGenRandom</code> 或平台等价物；
+        WASI 上是 <code>random_get</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 可复现 PRNG</h2>
+      <p>
+        模拟、测试和程序化内容用 <code>&lt;random&gt;</code> 里的带种子引擎。
+        种子是实验的一部分：记录下来并重放。
+      </p>
+      <pre><code class="language-cpp">
+::std::mt19937_64 eng{0x123456789abcdef0ULL};
+::std::uniform_real_distribution&lt;double&gt; dist{0.0, 1.0};
+double const sample{dist(eng)};
+</code></pre>
+      <p>
+        默认构造的引擎使用固定种子，所以每次运行产生同一序列。
+        这对测试有用，对任何安全敏感的东西都是错的。
+        想要随机种子，先从熵源读种子，再 seed PRNG。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 分布与偏差</h2>
+      <p>
+        不要用取模把引擎值压到范围：
+      </p>
+      <pre><code class="language-cpp">
+// wrong: biased toward the low end
+auto bad{eng() % 100u};
+
+// right: the distribution removes the bias
+::std::uniform_int_distribution&lt;::std::uint32_t&gt; dist{0, 99};
+auto good{dist(eng)};
+</code></pre>
+      <p>
+        标准分布是处理范围、伯努利试验、正态样本和洗牌的正确层。
+        它们按分布的契约消费引擎原始比特，而不是按手写取模。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. <code>random_generate</code></h2>
+      <p>
+        <code>random_generate(distribution, engine)</code> 是一个小包装：
+        调用分布，并把跨边界的遗留异常转回 herbception 通道。
+        它在头文件侧，适合分布实现会抛出的情况。
+      </p>
+      <pre><code class="language-cpp">
+auto value{::fast_io::random_generate(dist, eng)};
+</code></pre>
+    </section>
+
+    <section>
+      <h2>7. 模块与头文件边界</h2>
+      <p>
+        <code>fast_io</code> 模块导出 <code>native_white_hole</code>。
+        带缓冲源、引擎和 <code>random_generate</code> 目前在头文件侧。
+        分布本身来自 <code>&lt;random&gt;</code>，不是 fast_io 类型。
+      </p>
+      <div class="note">
+        <strong>不要用 PRNG 生成秘密。</strong> 带种子的 Mersenne Twister 是可复现的，
+        这正好和密钥/token 的需求相反。用熵引擎，并且永远不要记录或复用它产生的字节。
+      </div>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>可复现 PRNG 和密码学熵是不同的工具。</li>
+        <li><code>native_white_hole</code> 由模块导出；带缓冲源和引擎在头文件侧。</li>
+        <li><code>ibuf_white_hole_engine</code> 满足 UniformRandomBitGenerator，
+          可与标准分布一起用。</li>
+        <li>带缓冲引擎销毁时擦除内部缓冲区。</li>
+        <li>默认构造的 PRNG 是确定性的；模拟要记录并重放种子。</li>
+        <li>不要用取模做范围；用分布。</li>
+        <li><code>random_generate</code> 把分布异常桥接到 herbception 通道。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/16.time/" class="prev-button">&larr; 第26.16章：时间</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>
