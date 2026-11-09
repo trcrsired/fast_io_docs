@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.15: Freestanding API - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.15: Freestanding API</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/15.freestanding/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Header Boundary</h2>
+      <p>
+        Freestanding is a property of the headers you include, not a runtime switch inside a
+        hosted binary. The three umbrella headers mark the boundary:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Header</th>
+            <th>Contains</th>
+            <th>Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>&lt;fast_io_core.h&gt;</code></td>
+            <td>Core vocabulary, formatting, scanning, buffers, serialization, allocators.</td>
+            <td>The smallest freestanding surface.</td>
+          </tr>
+          <tr>
+            <td><code>&lt;fast_io_freestanding.h&gt;</code></td>
+            <td>Core plus freestanding containers, algorithms and buffer devices.</td>
+            <td>Normal freestanding target.</td>
+          </tr>
+          <tr>
+            <td><code>&lt;fast_io_hosted.h&gt;</code></td>
+            <td>Adds native files, consoles, processes, threads, filesystem.</td>
+            <td>Hosted target.</td>
+          </tr>
+          <tr>
+            <td><code>&lt;fast_io.h&gt;</code></td>
+            <td>Hosted plus the legacy iostream bridge.</td>
+            <td>The tutorial's normal build; never include it in a freestanding target.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The <code>fast_io</code> module applies the same boundary: when the target is not hosted,
+        it defines <code>FAST_IO_FREESTANDING</code> and omits the hosted export units. The
+        freestanding module still exports core I/O, containers and allocators.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. The Allocator Contract</h2>
+      <p>
+        A freestanding target has no hidden heap. The default allocator is
+        <code>freestanding_global_allocator</code>: declared by fast_io, defined by you. It
+        exposes the two failure policies in the function names:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Policy</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>allocate_aligned_conditional_zero_at_least_die(...)</code></td>
+            <td>Terminate through <code>fast_terminate()</code> when the arena is exhausted.</td>
+          </tr>
+          <tr>
+            <td><code>allocate_aligned_conditional_zero_at_least_try(...)</code></td>
+            <td>Report <code>std::errc::not_enough_memory</code> on the herbception channel.</td>
+          </tr>
+          <tr>
+            <td><code>deallocate_aligned_n(p, alignment, n)</code></td>
+            <td>Release a block; the arena implementation may make this a no-op.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The return type is <code>allocation_least_result</code>, a pointer plus the usable size.
+        <code>generic_allocator_adapter</code> and <code>typed_generic_allocator_adapter</code>
+        turn a raw allocator into the interface containers expect.
+      </p>
+      <pre><code class="language-cpp">
+using heap_a = ::fast_io::generic_allocator_adapter&lt;my_arena&gt;;
+::fast_io::containers::vector&lt;int, heap_a&gt; v;
+v.push_back(42);
+</code></pre>
+      <p>
+        There is no fallback to <code>malloc</code>, no global operator new, and no exception
+        allocation. If the target has no heap, the container that needs one is simply not
+        instantiated.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Freestanding Algorithms</h2>
+      <p>
+        The <code>fast_io::freestanding</code> namespace provides the algorithms a container or
+        formatter needs without pulling in <code>&lt;algorithm&gt;</code>:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Group</th>
+            <th>Names</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Copy and fill</td>
+            <td><code>copy</code>, <code>copy_n</code>, <code>copy_backward</code>,
+              <code>move_backward</code>, <code>fill</code>, <code>fill_n</code>,
+              <code>non_overlapped_copy</code>, <code>non_overlapped_copy_n</code>,
+              <code>overlapped_copy</code>, <code>overlapped_copy_n</code></td>
+          </tr>
+          <tr>
+            <td>Memory</td>
+            <td><code>my_memcpy</code>, <code>my_memmove</code>, <code>my_memset</code>,
+              <code>my_memcmp</code>, <code>bytes_clear_n</code>,
+              <code>nonoverlapped_bytes_copy_n</code></td>
+          </tr>
+          <tr>
+            <td>Search and compare</td>
+            <td><code>find_if</code>, <code>find_not</code>, <code>find_last</code>,
+              <code>find_last_not</code>, <code>find_first_not_of</code>,
+              <code>find_last_of</code>, <code>find_last_not_of</code>,
+              <code>my_mismatch</code>, <code>equal</code>,
+              <code>lexicographical_compare</code>,
+              <code>lexicographical_compare_three_way</code>, <code>lower_bound</code></td>
+          </tr>
+          <tr>
+            <td>Construction and rotation</td>
+            <td><code>uninitialized_copy</code>, <code>uninitialized_copy_n</code>,
+              <code>uninitialized_move_n</code>, <code>uninitialized_default_construct</code>,
+              <code>uninitialized_default_construct_n</code>, <code>uninitialized_fill</code>,
+              <code>uninitialized_fill_n</code>, <code>rotate</code>, <code>remove</code></td>
+          </tr>
+          <tr>
+            <td>Traits</td>
+            <td><code>is_zero_default_constructible</code>,
+              <code>is_trivially_copyable_or_relocatable</code> and their
+              <code>_v</code> forms.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        These are the same names a hosted build uses internally. They are exported by the module's
+        <code>freestanding.inc</code>, so a module consumer does not need the header algorithms.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. I/O Without a Console</h2>
+      <p>
+        In a freestanding target there is no default <code>stdout</code>. <code>print</code> and
+        <code>println</code> still exist, but the first argument must be a device the target
+        supplies: a UART buffer, a framebuffer, a ring buffer, a host mailbox. There is no silent
+        fallback to a console that does not exist.
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::obuffer_view out{uart_buffer, uart_buffer + sizeof(uart_buffer)};
+::fast_io::io::println(out, "boot: ", stage);
+</code></pre>
+      <p>
+        The same rule applies to errors: herbceptions carry a domain and a code on the return path.
+        There is no unwinder, no frame table and no personality routine. A target that cannot
+        afford even that can use the <code>_die</code> allocator policy and terminate on exhaustion.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Module and Header Boundary</h2>
+      <p>
+        The module exports the allocation adapters, native allocators, freestanding algorithms and
+        the core I/O vocabulary. <code>freestanding_global_allocator</code> itself is header-side:
+        it is a declaration you implement, not a library definition. <code>fast_terminate</code> is
+        exported with the hosted unit; in a freestanding build, use your target's trap directly or
+        the allocation policy that matches it.
+      </p>
+      <div class="note">
+        <strong>Do not include <code>&lt;fast_io.h&gt;</code> in a freestanding target.</strong>
+        It asks for consoles, files, processes and the iostream bridge. Include
+        <code>&lt;fast_io_freestanding.h&gt;</code> or the smaller core header instead.
+      </div>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>Freestanding is selected by the header boundary, not by a runtime flag.</li>
+        <li><code>fast_io_freestanding.h</code> provides core I/O, containers and algorithms;
+          <code>fast_io.h</code> is hosted-only.</li>
+        <li><code>freestanding_global_allocator</code> is declared by fast_io and defined by the
+          target.</li>
+        <li>Allocation failure is explicit in the function name: <code>_die</code> or
+          <code>_try</code>.</li>
+        <li>Containers carry their allocator in the type; there is no hidden heap.</li>
+        <li>The module exports allocation adapters and freestanding algorithms;
+          <code>freestanding_global_allocator</code> remains header-side.</li>
+        <li>There is no default console; <code>print</code> needs a target-supplied device.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/14.networking/" class="prev-button">&larr; Ch26.14: Networking</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

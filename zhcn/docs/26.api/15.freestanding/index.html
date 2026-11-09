@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.15章：Freestanding API - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.15章：Freestanding API</h1>
+    <p class="lang-switch"><a href="/docs/26.api/15.freestanding/">English</a></p>
+
+    <section>
+      <h2>1. 头文件边界</h2>
+      <p>
+        Freestanding 是头文件的属性，不是 hosted 二进制里的运行期开关。三个总括头文件标出边界：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>头文件</th>
+            <th>包含什么</th>
+            <th>用途</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>&lt;fast_io_core.h&gt;</code></td>
+            <td>核心词汇、格式化、扫描、缓冲区、序列化、分配器。</td>
+            <td>最小的 freestanding 表面。</td>
+          </tr>
+          <tr>
+            <td><code>&lt;fast_io_freestanding.h&gt;</code></td>
+            <td>核心加 freestanding 容器、算法和缓冲设备。</td>
+            <td>通常的 freestanding 目标。</td>
+          </tr>
+          <tr>
+            <td><code>&lt;fast_io_hosted.h&gt;</code></td>
+            <td>增加原生文件、控制台、进程、线程、文件系统。</td>
+            <td>Hosted 目标。</td>
+          </tr>
+          <tr>
+            <td><code>&lt;fast_io.h&gt;</code></td>
+            <td>Hosted 加遗留 iostream 桥。</td>
+            <td>教程的正常构建；freestanding 目标绝不要包含。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>fast_io</code> 模块使用同样的边界：目标不是 hosted 时，
+        它定义 <code>FAST_IO_FREESTANDING</code> 并省略 hosted 导出单元。
+        freestanding 模块仍然导出核心 I/O、容器和分配器。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 分配器契约</h2>
+      <p>
+        Freestanding 目标没有隐藏堆。默认分配器是
+        <code>freestanding_global_allocator</code>：fast_io 声明，你定义。
+        它在函数名里暴露两种失败策略：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>函数</th>
+            <th>策略</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>allocate_aligned_conditional_zero_at_least_die(...)</code></td>
+            <td>arena 耗尽时通过 <code>fast_terminate()</code> 终止。</td>
+          </tr>
+          <tr>
+            <td><code>allocate_aligned_conditional_zero_at_least_try(...)</code></td>
+            <td>通过 herbception 通道报告 <code>std::errc::not_enough_memory</code>。</td>
+          </tr>
+          <tr>
+            <td><code>deallocate_aligned_n(p, alignment, n)</code></td>
+            <td>释放块；arena 实现可以把它做成空操作。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        返回类型是 <code>allocation_least_result</code>，即指针加可用大小。
+        <code>generic_allocator_adapter</code> 和 <code>typed_generic_allocator_adapter</code>
+        把原始分配器变成容器期望的接口。
+      </p>
+      <pre><code class="language-cpp">
+using heap_a = ::fast_io::generic_allocator_adapter&lt;my_arena&gt;;
+::fast_io::containers::vector&lt;int, heap_a&gt; v;
+v.push_back(42);
+</code></pre>
+      <p>
+        没有退回 <code>malloc</code>，没有全局 operator new，也没有异常分配。
+        目标没有堆的话，需要堆的容器根本不会被实例化。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Freestanding 算法</h2>
+      <p>
+        <code>fast_io::freestanding</code> 命名空间提供容器或格式化器需要、
+        又不想拉进 <code>&lt;algorithm&gt;</code> 的算法：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>分组</th>
+            <th>名字</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>复制与填充</td>
+            <td><code>copy</code>、<code>copy_n</code>、<code>copy_backward</code>、
+              <code>move_backward</code>、<code>fill</code>、<code>fill_n</code>、
+              <code>non_overlapped_copy</code>、<code>non_overlapped_copy_n</code>、
+              <code>overlapped_copy</code>、<code>overlapped_copy_n</code></td>
+          </tr>
+          <tr>
+            <td>内存</td>
+            <td><code>my_memcpy</code>、<code>my_memmove</code>、<code>my_memset</code>、
+              <code>my_memcmp</code>、<code>bytes_clear_n</code>、
+              <code>nonoverlapped_bytes_copy_n</code></td>
+          </tr>
+          <tr>
+            <td>查找与比较</td>
+            <td><code>find_if</code>、<code>find_not</code>、<code>find_last</code>、
+              <code>find_last_not</code>、<code>find_first_not_of</code>、
+              <code>find_last_of</code>、<code>find_last_not_of</code>、
+              <code>my_mismatch</code>、<code>equal</code>、
+              <code>lexicographical_compare</code>、
+              <code>lexicographical_compare_three_way</code>、<code>lower_bound</code></td>
+          </tr>
+          <tr>
+            <td>构造与旋转</td>
+            <td><code>uninitialized_copy</code>、<code>uninitialized_copy_n</code>、
+              <code>uninitialized_move_n</code>、<code>uninitialized_default_construct</code>、
+              <code>uninitialized_default_construct_n</code>、<code>uninitialized_fill</code>、
+              <code>uninitialized_fill_n</code>、<code>rotate</code>、<code>remove</code></td>
+          </tr>
+          <tr>
+            <td>Traits</td>
+            <td><code>is_zero_default_constructible</code>、
+              <code>is_trivially_copyable_or_relocatable</code> 及其
+              <code>_v</code> 形式。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        这些就是 hosted 构建内部使用的同一批名字。它们由模块的
+        <code>freestanding.inc</code> 导出，模块使用者不需要头文件算法。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 没有控制台的 I/O</h2>
+      <p>
+        Freestanding 目标没有默认 <code>stdout</code>。<code>print</code> 和
+        <code>println</code> 仍然存在，但第一个参数必须是目标提供的设备：
+        UART 缓冲区、framebuffer、环形缓冲区、宿主 mailbox。
+        不存在悄悄退回一个不存在的控制台。
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::obuffer_view out{uart_buffer, uart_buffer + sizeof(uart_buffer)};
+::fast_io::io::println(out, "boot: ", stage);
+</code></pre>
+      <p>
+        错误同理：herbception 在返回路径上携带 domain 和 code。
+        没有 unwinder、frame table 或 personality routine。
+        连这些都不想付的目标可以用 <code>_die</code> 分配策略，在耗尽时终止。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 模块与头文件边界</h2>
+      <p>
+        模块导出分配适配器、原生分配器、freestanding 算法和核心 I/O 词汇。
+        <code>freestanding_global_allocator</code> 本身在头文件侧：
+        它是你实现的声明，不是库定义。<code>fast_terminate</code> 随 hosted 单元导出；
+        freestanding 构建直接用目标的 trap，或选择匹配的分配策略。
+      </p>
+      <div class="note">
+        <strong>不要在 freestanding 目标里包含 <code>&lt;fast_io.h&gt;</code>。</strong>
+        它会要求控制台、文件、进程和 iostream 桥。改用
+        <code>&lt;fast_io_freestanding.h&gt;</code> 或更小的核心头文件。
+      </div>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>Freestanding 由头文件边界选择，不是运行期标志。</li>
+        <li><code>fast_io_freestanding.h</code> 提供核心 I/O、容器和算法；
+          <code>fast_io.h</code> 仅 hosted。</li>
+        <li><code>freestanding_global_allocator</code> 由 fast_io 声明，由目标定义。</li>
+        <li>分配失败策略写在函数名里：<code>_die</code> 或 <code>_try</code>。</li>
+        <li>容器把分配器放在类型里；没有隐藏堆。</li>
+        <li>模块导出分配适配器和 freestanding 算法；
+          <code>freestanding_global_allocator</code> 仍在头文件侧。</li>
+        <li>没有默认控制台；<code>print</code> 需要目标提供的设备。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/14.networking/" class="prev-button">&larr; 第26.14章：网络</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>
