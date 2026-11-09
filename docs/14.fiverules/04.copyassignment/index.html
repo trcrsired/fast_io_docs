@@ -49,33 +49,35 @@
     HasPtr &amp;operator=(HasPtr const &amp;other)
     {
         destroy_string(ps);              // old string gone
-        ps = make_string(*other.ps);     // may fail; *this is now broken
+        ps = make_string(::fast_io::string_view{other.ps->data(), other.ps->size()}); // no failure here, but old value is gone
         i = other.i;
         return *this;
     }</code></pre>
       <p>
-        If the allocation fails, the object has already lost its old value and has nothing to
-        replace it with. Do the fallible work first, into a local, while the object is still
-        untouched:
+        If the clone can fail, the object has already lost its old value and has nothing to
+        replace it with. <code>fast_io::string</code> is noexcept, so this particular clone
+        cannot fail; the order is still the pattern to use for a clone that can. Do the fallible
+        work first, into a local, while the object is still untouched:
       </p>
       <pre><code class="language-cpp">    HasPtr &amp;operator=(HasPtr const &amp;other)
     {
-        auto *new_ps{make_string(*other.ps)}; // may fail, *this untouched
+        auto *new_ps{make_string(::fast_io::string_view{other.ps->data(), other.ps->size()})}; // clone first, *this untouched
         destroy_string(ps);                   // ---- critical line ----
         ps = new_ps;
         i = other.i;
         return *this;
     }</code></pre>
       <p>
-        Above the line: the allocation may fail, and <code>*this</code> is unchanged. Below the
-        line: <code>destroy_string</code> and the pointer/integer writes cannot fail, so the object
-        moves from the old value to the new one without an intermediate broken state. That is
-        the <strong>strong exception safety guarantee</strong>.
+        Above the line: the clone may fail in general (not here), and <code>*this</code> is
+        unchanged. Below the line: <code>destroy_string</code> and the pointer/integer writes
+        cannot fail, so the object moves from the old value to the new one without an intermediate
+        broken state. That is the <strong>strong exception safety guarantee</strong> when the clone
+        is fallible.
       </p>
       <p>
         This order also makes self-assignment safe without a special case. If
         <code>this == &amp;other</code>, the new string is allocated and copied before the old
-        old string is destroyed, then the pointer is replaced. The object ends up with a new string
+        string is destroyed, then the pointer is replaced. The object ends up with a new string
         holding the same value. No data is lost.
       </p>
     </section>
@@ -85,18 +87,18 @@
       <pre><code class="language-cpp">class HasPtr
 {
 public:
-    HasPtr(std::string const &amp;s = std::string())
+    HasPtr(::fast_io::string_view s = {})
         : ps{make_string(s)}, i{} {}
 
     HasPtr(HasPtr const &amp;other)
-        : ps{other.ps ? make_string(*other.ps) : nullptr},
+        : ps{other.ps ? make_string(::fast_io::string_view{other.ps->data(), other.ps->size()}) : nullptr},
           i{other.i}
     {
     }
 
     HasPtr &amp;operator=(HasPtr const &amp;other)
     {
-        auto *new_ps{other.ps ? make_string(*other.ps) : nullptr};
+        auto *new_ps{other.ps ? make_string(::fast_io::string_view{other.ps->data(), other.ps->size()}) : nullptr};
         destroy_string(ps);
         ps = new_ps;
         i = other.i;
@@ -106,8 +108,8 @@ public:
     ~HasPtr() { destroy_string(ps); }
 
 private:
-    std::string *ps;
-    int i;
+    ::fast_io::string *ps;
+    ::std::size_t i;
 };</code></pre>
       <p>
         This class is copyable, so it must also handle move operations or accept that moves

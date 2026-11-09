@@ -24,13 +24,13 @@
         The C++ Primer <code>HasPtr</code> from the previous page is the minimal example. Its
         destructor destroys the string through <code>ps</code>; its compiler-generated copy copies the pointer:
       </p>
-      <pre><code class="language-cpp">HasPtr f(HasPtr hp)      // hp is a shallow copy
+      <pre><code class="language-cpp">static HasPtr f(HasPtr hp)      // hp is a shallow copy
 {
     HasPtr ret = hp;     // another shallow copy
     return ret;          // both destructors destroy ps
 }</code></pre>
       <p>
-        The parameter and the local object share one <code>std::string</code>. When the function
+        The parameter and the local object share one <code>::fast_io::string</code>. When the function
         returns, the same pointer is destroyed twice, and the caller's object is left dangling.
         The bug is not that the destructor exists. The bug is that the copy was left implicit.
       </p>
@@ -91,16 +91,16 @@ error: use of deleted function 'my_posix_file&amp; my_posix_file::operator=(cons
       <h2>3. Answer Two: A Real Deep Copy</h2>
       <p>
         If copying has a clear meaning, write a copy constructor that creates a new resource.
-        For <code>HasPtr</code>, that means a new <code>std::string</code>:
+        For <code>HasPtr</code>, that means a new <code>::fast_io::string</code>:
       </p>
       <pre><code class="language-cpp">class HasPtr
 {
 public:
-    HasPtr(std::string const &amp;s = std::string())
+    HasPtr(::fast_io::string_view s = {})
         : ps{make_string(s)}, i{} {}
 
     HasPtr(HasPtr const &amp;other)
-        : ps{other.ps ? make_string(*other.ps) : nullptr},
+        : ps{other.ps ? make_string(::fast_io::string_view{other.ps->data(), other.ps->size()}) : nullptr},
           i{other.i}
     {
     }
@@ -108,8 +108,8 @@ public:
     ~HasPtr() { destroy_string(ps); }
 
 private:
-    std::string *ps;
-    int i;
+    ::fast_io::string *ps;
+    ::std::size_t i;
 };</code></pre>
       <p>
         The new object has its own <code>ps</code>. Destroying one object does not affect the

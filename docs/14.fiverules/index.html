@@ -28,6 +28,11 @@
         mechanics are the same; the order is chosen to make the bug obvious earlier.
       </p>
       <p>
+        Every free function in the examples is marked <code>inline</code> or <code>static</code>;
+        member functions defined inside a class are implicitly inline, and <code>main</code> is
+        the one exception the language defines.
+      </p>
+      <p>
         The dangerous case is smaller and sharper than the name suggests:
       </p>
       <blockquote>
@@ -55,7 +60,7 @@
       <h2>2. C++ Primer's <code>HasPtr</code>: The Minimal Bug</h2>
       <p>
         C++ Primer, Fifth Edition uses this example in its copy-control chapter. The class owns
-        a <code>std::string</code> through a raw pointer and frees it in the destructor, but it
+        a <code>::fast_io::string</code> through a raw pointer and frees it in the destructor, but it
         leaves copy construction and copy assignment to the compiler. The allocation helpers
         <code>make_string</code> and <code>destroy_string</code> use fast_io's allocator and
         placement new; they are introduced in
@@ -64,7 +69,7 @@
       <pre><code class="language-cpp">class HasPtr
 {
 public:
-    HasPtr(std::string const &amp;s = std::string())
+    HasPtr(::fast_io::string_view s = {})
         : ps{make_string(s)}, i{} {}
 
     ~HasPtr() { destroy_string(ps); }
@@ -73,13 +78,13 @@ public:
     // They copy ps, not the string.
 
 private:
-    std::string *ps;
-    int i;
+    ::fast_io::string *ps;
+    ::std::size_t i;
 };</code></pre>
       <p>
         Now pass one by value:
       </p>
-      <pre><code class="language-cpp">HasPtr f(HasPtr hp)      // hp is a copy of the argument
+      <pre><code class="language-cpp">static HasPtr f(HasPtr hp)      // hp is a copy of the argument
 {
     HasPtr ret = hp;     // another copy of the same pointer
     // ...
@@ -95,8 +100,8 @@ int main()
       <p>
         The parameter <code>hp</code> is a shallow copy of <code>p</code>: it holds the same
         <code>ps</code> pointer. The local <code>ret</code> is another shallow copy. When
-        <code>f</code> returns, both destructors run and both call <code>delete</code> on the
-        same pointer. That is a double free. The caller's <code>p</code> is left with a
+        <code>f</code> returns, both destructors run and both destroy the same string and
+        deallocate the same block. That is a double destruction and a double deallocation. The caller's <code>p</code> is left with a
         dangling pointer, so the next <code>HasPtr q{p}</code> copies a pointer that is already
         invalid. The bug is not in the destructor; it is in the copy the compiler wrote.
       </p>
@@ -106,7 +111,7 @@ int main()
       <pre><code class="language-cpp">class HasPtr
 {
 public:
-    HasPtr(std::string const &amp;s = std::string())
+    HasPtr(::fast_io::string_view s = {})
         : ps{make_string(s)}, i{} {}
 
     ~HasPtr() { destroy_string(ps); }
@@ -115,8 +120,8 @@ public:
     HasPtr &amp;operator=(HasPtr const &amp;) = delete;
 
 private:
-    std::string *ps;
-    int i;
+    ::fast_io::string *ps;
+    ::std::size_t i;
 };</code></pre>
       <p>
         <code>f(p)</code> and <code>HasPtr q{p}</code> now fail to compile. That is the point:
@@ -205,7 +210,7 @@ private:
       <p>
         The chapter uses two owners to teach the same rule. The first is memory: C++ Primer's
         <code>HasPtr</code>, which allocates storage with fast_io's
-        <code>native_typed_global_allocator&lt;std::string&gt;</code>, constructs the string
+        <code>native_typed_global_allocator&lt;::fast_io::string&gt;</code>, constructs the string
         with placement new, and explicitly destroys and deallocates it in the destructor. The
         second is a file descriptor: <code>my_posix_file</code>, which owns a POSIX descriptor
         acquired by <code>::open</code> and released by <code>::close</code>. It is deliberately

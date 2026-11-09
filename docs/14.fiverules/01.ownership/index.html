@@ -103,10 +103,11 @@ T &amp;operator=(T const &amp;) = delete;</code></pre>
       <h2>3. The C++ Primer Example</h2>
       <p>
         C++ Primer, Fifth Edition demonstrates the failure with <code>HasPtr</code>: a class
-        that owns a <code>std::string</code> through a raw pointer and frees it in the
-        destructor, but does not write the copy operations. The book uses <code>new</code> and
-        <code>delete</code>. This tutorial uses the same example with fast_io's allocator and an
-        explicit placement new, so the allocation policy is visible.
+        that owns a string through a raw pointer and frees it in the destructor, but does not
+        write the copy operations. The book uses <code>std::string</code> with <code>new</code>
+        and <code>delete</code>. This tutorial uses <code>::fast_io::string</code>, which is
+        noexcept, with fast_io's allocator and an explicit placement new, so the allocation
+        policy is visible.
       </p>
       <p>
         There are two allocator layers. <code>::fast_io::native_global_allocator</code> is the
@@ -115,26 +116,19 @@ T &amp;operator=(T const &amp;) = delete;</code></pre>
         <code>T</code> with the right size and alignment. Neither one constructs the object.
         Placement new does that:
       </p>
-      <pre><code class="language-cpp">#include &lt;new&gt;
-#include &lt;string&gt;
+      <pre><code class="language-cpp">#include &lt;fast_io_dsal/string.h&gt;
+#include &lt;fast_io_dsal/string_view.h&gt;
+#include &lt;new&gt;
 
-using string_alloc = ::fast_io::native_typed_global_allocator&lt;::std::string&gt;;
+using string_alloc = ::fast_io::native_typed_global_allocator&lt;::fast_io::string&gt;;
 
-std::string *make_string(std::string const &amp;s)
+inline ::fast_io::string *make_string(::fast_io::string_view s) noexcept
 {
     auto *p{string_alloc::allocate_die(1)}; // storage, not an object
-    try
-    {
-        return ::new (static_cast&lt;void *&gt;(p)) std::string(s); // placement new
-    }
-    catch (...)
-    {
-        string_alloc::deallocate_n(p, 1);
-        throw;
-    }
+    return ::new (static_cast&lt;void *&gt;(p)) ::fast_io::string(s); // placement new
 }
 
-void destroy_string(std::string *p) noexcept
+inline void destroy_string(::fast_io::string *p) noexcept
 {
     if (p != nullptr)
     {
@@ -153,7 +147,7 @@ void destroy_string(std::string *p) noexcept
       <pre><code class="language-cpp">class HasPtr
 {
 public:
-    HasPtr(std::string const &amp;s = std::string())
+    HasPtr(::fast_io::string_view s = {})
         : ps{make_string(s)}, i{} {}
 
     ~HasPtr() { destroy_string(ps); }
@@ -164,13 +158,13 @@ public:
     // HasPtr &amp;operator=(HasPtr const &amp;) = default;
 
 private:
-    std::string *ps;
-    int i;
+    ::fast_io::string *ps;
+    ::std::size_t i;
 };</code></pre>
       <p>
         Pass one by value and the bug becomes visible:
       </p>
-      <pre><code class="language-cpp">HasPtr f(HasPtr hp)      // hp is a shallow copy
+      <pre><code class="language-cpp">static HasPtr f(HasPtr hp)      // hp is a shallow copy
 {
     HasPtr ret = hp;     // another shallow copy
     return ret;          // hp and ret are destroyed

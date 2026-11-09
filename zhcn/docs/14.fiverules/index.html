@@ -25,6 +25,10 @@
         一旦类说“我释放资源”，拷贝问题就被逼出来了。机制相同；这个顺序是为了更早暴露 bug。
       </p>
       <p>
+        例子里的每个自由函数都标了 <code>inline</code> 或 <code>static</code>；类内定义的成员函数隐式
+        inline，<code>main</code> 是语言规定的唯一例外。
+      </p>
+      <p>
         真正危险的情况比名字暗示的更小、更尖锐：
       </p>
       <blockquote>
@@ -48,14 +52,14 @@
       <h2>2. C++ Primer 的 <code>HasPtr</code>：最小的 bug</h2>
       <p>
         《C++ Primer》第五版在拷贝控制章节用了这个例子。类通过裸指针拥有一个
-        <code>std::string</code>，在析构函数里释放它，却把拷贝构造和拷贝赋值留给编译器。分配辅助函数
+        <code>::fast_io::string</code>，在析构函数里释放它，却把拷贝构造和拷贝赋值留给编译器。分配辅助函数
         <code>make_string</code> 和 <code>destroy_string</code> 使用 fast_io 的分配器和 placement new；
         它们在第14.1章介绍。
       </p>
       <pre><code class="language-cpp">class HasPtr
 {
 public:
-    HasPtr(std::string const &amp;s = std::string())
+    HasPtr(::fast_io::string_view s = {})
         : ps{make_string(s)}, i{} {}
 
     ~HasPtr() { destroy_string(ps); }
@@ -64,13 +68,13 @@ public:
     // They copy ps, not the string.
 
 private:
-    std::string *ps;
-    int i;
+    ::fast_io::string *ps;
+    ::std::size_t i;
 };</code></pre>
       <p>
         现在按值传一个：
       </p>
-      <pre><code class="language-cpp">HasPtr f(HasPtr hp)      // hp is a copy of the argument
+      <pre><code class="language-cpp">static HasPtr f(HasPtr hp)      // hp is a copy of the argument
 {
     HasPtr ret = hp;     // another copy of the same pointer
     // ...
@@ -85,8 +89,7 @@ int main()
 }</code></pre>
       <p>
         参数 <code>hp</code> 是 <code>p</code> 的浅拷贝：它持有同一个 <code>ps</code> 指针。局部对象
-        <code>ret</code> 又是另一个浅拷贝。<code>f</code> 返回时，两个析构函数都运行，都对同一个指针调用
-        <code>delete</code>。这是重复释放。调用者的 <code>p</code> 留下悬空指针，所以下一个
+        <code>ret</code> 又是另一个浅拷贝。<code>f</code> 返回时，两个析构函数都运行，都销毁同一个字符串、归还同一块存储。这是重复析构和重复归还。调用者的 <code>p</code> 留下悬空指针，所以下一个
         <code>HasPtr q{p}</code> 复制的是一个已经失效的指针。bug 不在析构函数里；bug 在编译器写的拷贝里。
       </p>
       <p>
@@ -95,7 +98,7 @@ int main()
       <pre><code class="language-cpp">class HasPtr
 {
 public:
-    HasPtr(std::string const &amp;s = std::string())
+    HasPtr(::fast_io::string_view s = {})
         : ps{make_string(s)}, i{} {}
 
     ~HasPtr() { destroy_string(ps); }
@@ -104,8 +107,8 @@ public:
     HasPtr &amp;operator=(HasPtr const &amp;) = delete;
 
 private:
-    std::string *ps;
-    int i;
+    ::fast_io::string *ps;
+    ::std::size_t i;
 };</code></pre>
       <p>
         <code>f(p)</code> 和 <code>HasPtr q{p}</code> 现在不能编译。这正是目的：bug 从运行时移到了编译期。
@@ -184,7 +187,7 @@ private:
       <h2>5. 两个示例</h2>
       <p>
         本章用两个所有者来教同一条规则。第一个是内存：C++ Primer 的 <code>HasPtr</code>，它通过
-        fast_io 的 <code>native_typed_global_allocator&lt;std::string&gt;</code> 分配存储，用 placement new
+        fast_io 的 <code>native_typed_global_allocator&lt;::fast_io::string&gt;</code> 分配存储，用 placement new
         构造 string，在析构函数里显式调用析构并归还存储。第二个是文件描述符：
         <code>my_posix_file</code>，它拥有一个 POSIX 描述符，用 <code>::open</code> 获取、<code>::close</code>
         释放。它刻意是 move-only 的，和 fast_io 自己的文件类型一样：描述符是身份，不是值，所以不允许拷贝。

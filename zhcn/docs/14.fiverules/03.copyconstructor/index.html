@@ -23,13 +23,13 @@
         上一页的 C++ Primer <code>HasPtr</code> 是最小的例子。它的析构函数释放 <code>ps</code>；编译器生成的拷贝
         复制指针：
       </p>
-      <pre><code class="language-cpp">HasPtr f(HasPtr hp)      // hp is a shallow copy
+      <pre><code class="language-cpp">static HasPtr f(HasPtr hp)      // hp is a shallow copy
 {
     HasPtr ret = hp;     // another shallow copy
     return ret;          // both destructors destroy ps
 }</code></pre>
       <p>
-        参数和局部对象共享同一个 <code>std::string</code>。函数返回时，同一个指针被析构两次，调用者的对象留下悬空。
+        参数和局部对象共享同一个 <code>::fast_io::string</code>。函数返回时，同一个指针被析构两次，调用者的对象留下悬空。
         bug 不是“析构函数存在”，bug 是拷贝被留给隐式版本。
       </p>
       <p>
@@ -81,16 +81,16 @@ error: use of deleted function 'my_posix_file&amp; my_posix_file::operator=(cons
       <h2>3. 答案二：真正的深拷贝</h2>
       <p>
         如果拷贝有明确含义，就写一个创建新资源的拷贝构造。对 <code>HasPtr</code> 来说，就是一个新的
-        <code>std::string</code>：
+        <code>::fast_io::string</code>：
       </p>
       <pre><code class="language-cpp">class HasPtr
 {
 public:
-    HasPtr(std::string const &amp;s = std::string())
+    HasPtr(::fast_io::string_view s = {})
         : ps{make_string(s)}, i{} {}
 
     HasPtr(HasPtr const &amp;other)
-        : ps{other.ps ? make_string(*other.ps) : nullptr},
+        : ps{other.ps ? make_string(::fast_io::string_view{other.ps->data(), other.ps->size()}) : nullptr},
           i{other.i}
     {
     }
@@ -98,8 +98,8 @@ public:
     ~HasPtr() { destroy_string(ps); }
 
 private:
-    std::string *ps;
-    int i;
+    ::fast_io::string *ps;
+    ::std::size_t i;
 };</code></pre>
       <p>
         新对象有自己的 <code>ps</code>。销毁一个对象不会影响另一个。空指针检查存在，是因为加入移动操作后，

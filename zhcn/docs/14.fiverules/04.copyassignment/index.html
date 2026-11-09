@@ -44,24 +44,27 @@
     HasPtr &amp;operator=(HasPtr const &amp;other)
     {
         destroy_string(ps);              // old string gone
-        ps = make_string(*other.ps);     // may fail; *this is now broken
+        ps = make_string(::fast_io::string_view{other.ps->data(), other.ps->size()}); // no failure here, but old value is gone
         i = other.i;
         return *this;
     }</code></pre>
       <p>
-        如果分配失败，对象已经失去了旧值，又没有新值可替换。把可能失败的步骤先做进局部变量，此时对象还没被碰：
+        如果克隆可能失败，对象已经失去了旧值，又没有新值可替换。<code>fast_io::string</code> 是 noexcept 的，
+        所以这个特定的克隆不会失败；但这个顺序仍然是克隆可能失败时应该使用的模式。把可能失败的步骤先做进局部变量，
+        此时对象还没被碰：
       </p>
       <pre><code class="language-cpp">    HasPtr &amp;operator=(HasPtr const &amp;other)
     {
-        auto *new_ps{make_string(*other.ps)}; // may fail, *this untouched
+        auto *new_ps{make_string(::fast_io::string_view{other.ps->data(), other.ps->size()})}; // clone first, *this untouched
         destroy_string(ps);                   // ---- critical line ----
         ps = new_ps;
         i = other.i;
         return *this;
     }</code></pre>
       <p>
-        线上方：分配可能失败，<code>*this</code> 没变。线下方：<code>destroy_string</code> 和指针/整数写入都不会失败，
-        所以对象从旧值移动到新值，没有中间损坏状态。这就是<strong>强异常安全保证</strong>。
+        线上方：克隆在一般情况下可能失败（这里不会），<code>*this</code> 没变。线下方：
+        <code>destroy_string</code> 和指针/整数写入都不会失败，所以对象从旧值移动到新值，没有中间损坏状态。
+        当克隆可能失败时，这就是<strong>强异常安全保证</strong>。
       </p>
       <p>
         这个顺序也让自赋值不需要特判。如果 <code>this == &amp;other</code>，新 string 在旧指针被销毁之前分配并拷贝，
@@ -74,18 +77,18 @@
       <pre><code class="language-cpp">class HasPtr
 {
 public:
-    HasPtr(std::string const &amp;s = std::string())
+    HasPtr(::fast_io::string_view s = {})
         : ps{make_string(s)}, i{} {}
 
     HasPtr(HasPtr const &amp;other)
-        : ps{other.ps ? make_string(*other.ps) : nullptr},
+        : ps{other.ps ? make_string(::fast_io::string_view{other.ps->data(), other.ps->size()}) : nullptr},
           i{other.i}
     {
     }
 
     HasPtr &amp;operator=(HasPtr const &amp;other)
     {
-        auto *new_ps{other.ps ? make_string(*other.ps) : nullptr};
+        auto *new_ps{other.ps ? make_string(::fast_io::string_view{other.ps->data(), other.ps->size()}) : nullptr};
         destroy_string(ps);
         ps = new_ps;
         i = other.i;
@@ -95,8 +98,8 @@ public:
     ~HasPtr() { destroy_string(ps); }
 
 private:
-    std::string *ps;
-    int i;
+    ::fast_io::string *ps;
+    ::std::size_t i;
 };</code></pre>
       <p>
         这个类可拷贝，所以它还必须处理移动操作，或者接受移动回退到拷贝。移动是另一个决定；见
