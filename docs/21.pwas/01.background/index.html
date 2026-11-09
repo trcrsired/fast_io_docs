@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch21.1: The App Sandbox Problem - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch21.1: The App Sandbox Problem</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/21.pwas/01.background/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Promise and the Trap</h2>
+      <p>
+        "Write once, run everywhere" is the oldest promise in cross-platform development. UWP
+        promised it for Windows Phone, Surface RT, HoloLens and Xbox. HarmonyOS's "all-scenario"
+        story promises the same for phones, tablets, watches, TVs and cars. Both are universal only
+        inside one vendor's ecosystem. UWP is dead, WinUI3 is half-dead, and the reason is not
+        technical: no developer can afford to write only for one ecosystem, and no user owns only
+        one ecosystem.
+      </p>
+      <p>
+        The app sandbox is how the platform turns that ecosystem into a chokepoint. It is sold as
+        security, and it does provide isolation, but it also decides what can run, what can access
+        storage, what can be installed, and what can be updated. When the sandbox is designed around
+        the vendor's language and the vendor's store, "cross-platform" becomes "write the app again
+        for every vendor".
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Five Costs of the App Sandbox</h2>
+      <p>
+        The argument is not that sandboxes are useless. It is that they are not free, and the bill
+        is paid in portability. The concrete costs:
+      </p>
+      <ol>
+        <li>
+          <strong>No sharing.</strong> A sandbox breaks the shared-library model. In the Snap
+          package, Firefox startup can take around twenty seconds because the runtime and its
+          dependencies are no longer shared the way a system package shares them. Each app carries
+          more of its own runtime, binaries grow, and cross-app access to common resources becomes
+          an integration project.
+        </li>
+        <li>
+          <strong>Driver and hardware access.</strong> Flatpak-style sandboxes regularly hit driver
+          problems. A sandbox that cannot see the device cannot use it, and the missing functionality
+          is not a bug the app can fix from inside.
+        </li>
+        <li>
+          <strong>The security illusion.</strong> The sandbox isolates user space, not the kernel.
+          If the kernel is compromised, the sandbox is a fence around a room whose floor is gone.
+          Isolation is still worth having; it is not the absolute guarantee the marketing implies.
+        </li>
+        <li>
+          <strong>Development cost.</strong> Existing apps must be rewritten, and so must their
+          dependencies. The interesting part is why: mainstream languages were not designed for this
+          environment. <code>fopen</code> and <code>fstream</code> open a file &mdash; <em>where</em>?
+          Third-party libraries assume a current directory, a console, environment variables and a
+          process that starts at <code>main</code>. In a sandbox, nobody knows how the app was
+          launched or which paths it is allowed to touch.
+        </li>
+        <li>
+          <strong>Vendor monopoly.</strong> Mobile is an Android/iOS duopoly. Windows Phone and UWP
+          are the counterexample: a third ecosystem failed even with a major vendor behind it. Even
+          on Android, tools such as <code>gcc</code> and <code>clang</code> are structurally
+          incompatible with the sandbox, because a compiler is a process that reads and writes
+          arbitrary files and launches other processes.
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>3. C++ Is the Portable Core</h2>
+      <p>
+        It is tempting to explain C++'s popularity with performance. Performance is part of it, but
+        the more important reason is portability. The standard architecture of a serious
+        cross-platform app is a <strong>portable core plus a platform-specific UI</strong>:
+      </p>
+      <ul>
+        <li>
+          The core is C, C++ or assembly: business logic, codecs, DRM, cryptography, networking,
+          synchronisation, media pipelines, game engines.
+        </li>
+        <li>
+          The UI is the platform language: SwiftUI, Jetpack Compose, WinUI, ArkUI, or a web view.
+        </li>
+      </ul>
+      <p>
+        Spotify, QQ and WeChat are the obvious examples: their core engines are C++, with
+        platform-specific shells around them. The core is the asset that took years to build; the
+        UI is the part that is expected to be replaced.
+      </p>
+      <p>
+        Spotify is a specific and useful case. It uses assembly in the DRM and streaming path so
+        that playback can begin immediately. That "instant streaming" is a competitive advantage,
+        not a nice-to-have, and it is exactly the kind of code that cannot be reimplemented in a
+        managed language for one phone platform. When Windows Phone 7 restricted third-party apps
+        to managed code and did not allow native C++, Spotify's WP7 app ran native under a
+        Microsoft exception, and Spotify complained directly to Microsoft. The argument was blunt:
+        <em>we are not going to rewrite Spotify's core engine just to support your phones.</em> That
+        pressure is part of why Windows Phone 8 reversed the policy and added full C and C++
+        support.
+      </p>
+      <p>
+        The same reasoning makes Android's "don't use the NDK" advice wrong for cross-platform
+        products. That advice is written for a single-platform app: use the platform language unless
+        you have a measured performance reason. But for a product that already has a portable core,
+        the native core is the rule and the platform UI is the exception. Moving the core into
+        Kotlin or Swift is not a simplification; it is a second implementation, with a second set
+        of bugs, that has to be kept in sync forever.
+      </p>
+      <p>
+        This is why the app sandbox is a portability tax. It attacks the one layer that was portable.
+        A sandbox that forces the core into the platform language, or behind platform-specific
+        storage and process APIs, takes the asset and makes it platform-specific again.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The Category the Standard Does Not Have</h2>
+      <p>
+        Chapter 20 gave the standard's two categories: a <strong>freestanding</strong>
+        implementation may execute without an operating system; a <strong>hosted</strong>
+        implementation supports all the facilities described in the document. There is no third
+        category. In particular, the standard never defines a <strong>restricted</strong>
+        environment.
+      </p>
+      <p>
+        Android is the test case. It has an operating system, a scheduler, a filesystem and a
+        network stack, so it is hosted by the definition. Yet most of the hosted facilities that
+        touch the outside world do not behave the way a desktop program expects. The functions
+        exist; the authority does not.
+      </p>
+      <p>
+        That distinction matters because "hosted" is about API availability, not universal reach.
+        A sandboxed process can call <code>fopen</code>. Whether the call succeeds is a permission
+        decision, not a conformance issue. The standard says the function exists; it does not say
+        the program can open any particular path.
+      </p>
+      <p>
+        Concretely:
+      </p>
+      <ul>
+        <li>
+          <code>fopen("data.txt")</code> and <code>std::fstream{"data.txt"}</code> resolve against
+          the process's current working directory. On Android the CWD is <code>/</code>, which is
+          read-only. The writable private directory is <code>Context.getFilesDir()</code>, typically
+          under <code>/data/user/0/&lt;pkg&gt;/files</code>. App-specific external storage is
+          <code>getExternalFilesDir()</code>. Shared media goes through MediaStore or the Storage
+          Access Framework, which returns a <code>content://</code> URI, not a path.
+        </li>
+        <li>
+          On iOS the container is
+          <code>/var/mobile/Containers/Data/Application/&lt;UUID&gt;/</code>. The UUID changes on
+          reinstall, update or restore. A hard-coded path is broken by design.
+        </li>
+        <li>
+          <code>stdout</code> and <code>stderr</code> are not a console. On Android, <code>printf</code>
+          may go nowhere; logging is <code>__android_log_print</code>, which fast_io wraps as
+          <code>fast_io::android_logger</code>.
+        </li>
+        <li>
+          <code>getenv("HOME")</code> is not the app's data directory, and the environment is not a
+          contract. <code>tmpfile()</code> and <code>/tmp</code> may not be writable; the platform
+          cache directory is the right place.
+        </li>
+        <li>
+          <code>main</code> is not the entry point. Android code is entered through
+          <code>android_main</code>, <code>JNI_OnLoad</code> or <code>ANativeActivity_onCreate</code>;
+          <code>exit</code>, <code>atexit</code> and static destructors may not run the way a desktop
+          program expects. There is no shell, and arbitrary <code>fork</code>/<code>exec</code> is
+          not available.
+        </li>
+        <li>
+          Legacy exceptions and RTTI are not guaranteed. <code>ndk-build</code> defaults to
+          <code>-fno-exceptions -fno-rtti</code>; the old system runtime has neither; AOSP is built
+          without them; throwing across JNI or a shared-library boundary is unsafe. Chapter 19 is
+          about the replacement, and this is one more place where the replacement matters.
+        </li>
+        <li>
+          <code>std::fstream</code> cannot consume a file descriptor. It only takes a path. So even
+          when the platform hands you a handle &mdash; a <code>ParcelFileDescriptor</code> from a
+          <code>content://</code> URI, or a directory fd for the app's private storage &mdash; the
+          standard stream cannot use it.
+        </li>
+      </ul>
+      <p>
+        And this is not a C++ problem. No mainstream language's standard I/O library is built around
+        capabilities. Java's <code>File</code> and <code>Path</code>, C#'s <code>File</code> and
+        <code>Directory</code>, Python's <code>open</code> and <code>pathlib</code>, Ruby's
+        <code>File</code>, Go's <code>os.Open</code>, Rust's <code>std::fs</code> and Swift's
+        <code>FileManager</code> all assume a path, a current directory and ambient authority. The
+        runtime sandboxes that did exist were removed: Java's <code>SecurityManager</code> is
+        deprecated and permanently disabled, .NET Code Access Security is gone, Ruby's
+        <code>$SAFE</code> was removed in Ruby 3.0, and Python's <code>rexec</code> and
+        <code>Bastion</code> are long gone. Sandboxing moved to the operating system; the I/O API
+        never moved with it.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. The Walled Garden and the Duopoly</h2>
+      <blockquote>
+        <p>
+          <strong>Definition.</strong> A walled-garden operating system is one that forbids running
+          binaries directly. Everything is an app; apps are installed from a store; each app runs in
+          a sandbox with a permission list. The vendor decides what can run, what can be installed,
+          and what can access the device.
+        </p>
+        <p>
+          <strong>Walled gardens:</strong> Android, iOS, iPadOS, ChromeOS, Windows 11 S mode and the
+          UWP platform.
+        </p>
+        <p>
+          <strong>Not walled gardens:</strong> GNU/Linux, Windows, macOS, FreeBSD, SerenityOS.
+        </p>
+      </blockquote>
+      <p>
+        Once it is defined that way, the problems are structural rather than incidental:
+      </p>
+      <ul>
+        <li>
+          <strong>PWA is the better cross-platform path.</strong> A PWA is a website; it uses less
+          space, updates without user intervention, and runs in the browser's sandbox. It is not a
+          second app ecosystem with a second permission model.
+        </li>
+        <li>
+          <strong>Security is used to justify removing capability.</strong> A walled garden cannot
+          run Rufus to format a disk, cannot flash a Raspberry Pi SD card with Arch Linux, and
+          cannot run a compiler that writes arbitrary files and launches processes. If the only
+          safe device is one that cannot run your code, the argument proves too much. "Do not use a
+          phone" is not a security model.
+        </li>
+        <li>
+          <strong>Ownership.</strong> You bought the device, not a license to use it under the
+          vendor's terms. Bootloader locks and sideloading bans are a restriction on ownership, not
+          a safety feature. A security option at login would be a choice; a locked bootloader is
+          not.
+        </li>
+        <li>
+          <strong>Ads and privacy.</strong> A browser can run an ad blocker; an app generally
+          cannot. The app ecosystem is also a data market. A PWA in a browser is not in the same
+          position to sell the user's data, which is precisely why some vendors prefer the app.
+        </li>
+        <li>
+          <strong>The sandbox breaks OS-level tools.</strong> Full app sandboxing limits what the
+          operating system can do. Disk tools, system installers, compilers, terminal environments
+          and hardware utilities need capabilities that the app model does not grant. Chapter 21.3
+          will show the web equivalent, but the point here is that "everything is an app" is not a
+          neutral design.
+        </li>
+        <li>
+          <strong>Re-adaptation.</strong> The existing languages and libraries were not designed for
+          this environment. C/C++ has only freestanding and hosted; there is no "restricted"
+          category. A third-party library that calls <code>fopen</code> or <code>fstream</code> on a
+          path cannot open the file, because the sandbox owns the path. iOS bans JIT, so a
+          Java-style runtime is strangled at the platform level. A PWA has permissions too, but it
+          does not require every library to be rewritten around them.
+        </li>
+      </ul>
+      <p>
+        UWP is the failure that proves the point. Microsoft wanted Apple's tax model and tried to
+        force a walled garden through Windows Phone and Windows RT. UWP's permission model was
+        coarse, and its managed-first design made C++ a second-class citizen; Windows Phone 7 did
+        not allow native C++ at all. Most apps had a C/C++/assembly cross-platform logic layer
+        with a thin platform API on top (JNI on Android, for example). UWP forced managed code and
+        restricted the filesystem so aggressively that there was no file manager, and many apps
+        could not be ported at all. Windows Phone users could not change the browser, so there was
+        no Chromium, so YouTube could not even ship a PWA. Microsoft abandoned UWP and returned to
+        PWA and Win32. The joke is exact: a $40 Android phone can compile and run a Windows
+        <code>.exe</code>; Windows Phone ran Windows and could not compile or run Windows programs.
+      </p>
+      <p>
+        The duopoly is the same structure at market scale. Android and iOS control the store, the
+        payment rail, the review process and the APIs, and often the browser engine. Apple's WebKit
+        requirement is the clearest example: every browser on iOS had to use WebKit, which limits
+        what the web can do on the platform that sells itself as the most privacy-conscious. The
+        EU's Digital Markets Act and Japan's rules have forced openings, but the structure is still
+        the structure.
+      </p>
+      <p>
+        There is also a less comfortable point. A vendor that complains about the store tax while
+        refusing to ship a PWA is part of the problem. The article's example is WeChat: it complains
+        about Apple's cut, but it does not offer a PWA, and its mobile web experience is deliberately
+        worse than the app. Baidu Tieba is the performance version of the same argument: the
+        Java/Kotlin app is slower than its own mobile web page, while the web page is crippled to
+        push the APK. If a vendor will not do PWA, it has no standing to complain about the tax.
+      </p>
+      <p>
+        The sandbox is not neutral security infrastructure. It is the boundary where the platform
+        decides which code is allowed to exist. A cross-platform framework that runs only inside one
+        vendor's sandbox is not cross-platform. It is a first-party framework with a
+        universal-looking name.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. The Pivot</h2>
+      <p>
+        If the goal is genuinely to run the same app on phones, tablets, desktops, TVs, cars and
+        headsets, there is already a platform that is on all of them and does not require a vendor's
+        permission: the web. A Progressive Web App is a website with a manifest and a service
+        worker. It is installable, it works offline, it runs in its own window, and it is
+        distributed by URL instead of by store review.
+      </p>
+      <p>
+        The useful way to say it is: a PWA is UWP minus the W. It keeps the universal app model and
+        removes the requirement that the universe be one vendor's.
+      </p>
+      <p>
+        The usual objections are weaker than they sound. "The web is slow" &mdash; WebAssembly is
+        fast, and Android's Java/Kotlin is not native either. "Safari and Firefox are bad" &mdash;
+        that is an argument for better browsers, not against the web. "Outlook and Teams are bad
+        PWAs" &mdash; those are WebView wrappers, not real PWAs. "The web cannot do X" &mdash;
+        Project Fugu exists precisely to close the gap, and the gap is shrinking.
+      </p>
+      <p>
+        The rest of this chapter is the constructive part. <a href="/docs/21.pwas/02.write/">21.2</a>
+        builds the shell. <a href="/docs/21.pwas/03.wasm/">21.3</a> puts the C++ core into it with
+        WebAssembly. <a href="/docs/21.pwas/04.publish/">21.4</a> publishes it without a gatekeeper.
+      </p>
+      <p>
+        The background argument is developed at length in three articles:
+        <a href="https://zhuanlan.zhihu.com/p/1943333551597687448">why UWP and vendor
+        "all-scenario" schemes are a false proposition</a>,
+        <a href="https://zhuanlan.zhihu.com/p/718977116">what a walled garden is</a>, and
+        <a href="https://zhuanlan.zhihu.com/p/1943653871596582173">why the app sandbox is inferior
+        to a Progressive Web App</a>.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/21.pwas/" class="prev-button">&larr; Ch21: Progressive Web Apps</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/21.pwas/02.write/" class="next-button">Ch21.2: How to Write a PWA &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

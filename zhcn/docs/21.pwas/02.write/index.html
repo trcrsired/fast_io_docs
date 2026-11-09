@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第21.2章：如何编写 PWA - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第21.2章：如何编写 PWA</h1>
+    <p class="lang-switch"><a href="/docs/21.pwas/02.write/">English</a></p>
+
+    <section>
+      <h2>1. PWA 是什么</h2>
+      <p>渐进式网络应用（PWA）是一个网站加上三样东西：</p>
+      <ul>
+        <li>
+          一个<strong>Web 应用清单</strong>（manifest），描述名称、图标、启动 URL、显示模式和主题色；
+        </li>
+        <li>
+          一个<strong>Service Worker</strong>，运行在页面和网络之间的 JavaScript worker，可以缓存资源以供离线使用；
+        </li>
+        <li>
+          <strong>HTTPS</strong>，让 Service Worker 可以被信任。
+        </li>
+      </ul>
+      <p>
+        这就是全部的平台要求。没有 SDK，没有商店账号，没有原生工程。浏览器支持，应用就可安装；
+        浏览器不支持，同一个 URL 仍然作为普通网站工作。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 你需要会什么</h2>
+      <p>
+        你需要基本的 <strong>HTML</strong>、<strong>CSS</strong>、<strong>JavaScript</strong>，
+        以及 Web 应用清单。你不需要原生 UI 工具包、平台语言或跨平台框架。UI 是 HTML 和 CSS；
+        逻辑是 JavaScript 或 WebAssembly；清单和 Service Worker 是 JSON 和 JavaScript。
+      </p>
+      <p>
+        这比"学 Android 和 iOS"的前置清单小得多，也是 Web 成为实际跨平台目标的原因。如果你能读懂
+        一个网页的源码、理解一次 <code>fetch</code> 调用，你就能写 PWA。
+      </p>
+      <p>
+        它也是最容易交给 AI 助手的东西之一。各个部件都是标准的、文档齐全的、自包含的：一个清单、
+        一个 Service Worker、一个注册脚本、一个安装按钮、一个响应式页面。AI 非常擅长写 PWA，
+        一遍就能生成可用的脚手架。用它生成脚手架，但有两件事要自己验证：应用是否真的可安装，
+        以及是否真的能离线工作。这些是行为，不是文字。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 清单</h2>
+      <p>清单是一个从页面链接的 JSON 文件：</p>
+      <pre><code class="language-html">&lt;link rel="manifest" href="/manifest.webmanifest"&gt;
+&lt;meta name="theme-color" content="#111111"&gt;
+&lt;link rel="apple-touch-icon" href="/icons/192.png"&gt;</code></pre>
+      <p>一个满足可安装性的最小清单是这样的：</p>
+      <pre><code class="language-json">{
+  "id": "/notes/",
+  "name": "Notes",
+  "short_name": "Notes",
+  "start_url": "/notes/",
+  "scope": "/notes/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "description": "A minimal offline notes app.",
+  "icons": [
+    { "src": "/icons/192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512",
+      "type": "image/png", "purpose": "maskable" }
+  ]
+}</code></pre>
+      <p>
+        对可安装性重要的字段是 <code>name</code> 或 <code>short_name</code>、<code>start_url</code>、
+        <code>display</code>（或 <code>display_override</code>），以及 192 和 512 像素的图标。
+        加上 <code>scope</code>，让应用不要声称拥有整个源；加上 <code>id</code>，这样以后改
+        <code>start_url</code> 时浏览器还能保持应用身份稳定。
+      </p>
+      <p>
+        <code>display: standalone</code> 隐藏浏览器外壳。<code>display_override</code> 让浏览器在桌面上
+        选择更丰富的模式，比如 <code>window-controls-overlay</code>，同时回退到 <code>standalone</code>。
+        想要更丰富的安装界面就加 <code>screenshots</code>；只有应用真的实现了，才加
+        <code>shortcuts</code>、<code>share_target</code> 或 <code>file_handlers</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Service Worker</h2>
+      <p>
+        Service Worker 是让应用离线工作的部分。它有三个生命周期事件：<code>install</code>、
+        <code>activate</code> 和 <code>fetch</code>。一个小的缓存优先 worker：
+      </p>
+      <pre><code class="language-js">const VERSION = "v3";
+const CACHE = `notes-${VERSION}`;
+const SHELL = [
+  "/notes/",
+  "/notes/app.js",
+  "/notes/style.css",
+  "/notes/manifest.webmanifest",
+  "/notes/icons/192.png"
+];
+
+self.addEventListener("install", (event) =&gt; {
+  event.waitUntil(caches.open(CACHE).then((cache) =&gt; cache.addAll(SHELL)));
+});
+
+self.addEventListener("activate", (event) =&gt; {
+  event.waitUntil(
+    caches.keys().then((keys) =&gt;
+      Promise.all(keys.filter((key) =&gt; key !== CACHE)
+                      .map((key) =&gt; caches.delete(key)))
+    )
+  );
+});
+
+self.addEventListener("fetch", (event) =&gt; {
+  const { request } = event;
+  if (request.method !== "GET") return;
+
+  event.respondWith(
+    caches.match(request).then((cached) =&gt; {
+      if (cached) return cached;
+      return fetch(request).then((response) =&gt; {
+        if (response.ok &amp;&amp; new URL(request.url).origin === location.origin) {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) =&gt; cache.put(request, copy));
+        }
+        return response;
+      });
+    })
+  );
+});</code></pre>
+      <p>三条规则决定它是演示还是能用的应用：</p>
+      <ul>
+        <li>
+          <strong>给缓存加版本。</strong>壳一变就增加 <code>VERSION</code>，否则回访用户一直拿旧文件。
+        </li>
+        <li>
+          <strong>按资源选择策略。</strong>应用壳用缓存优先；API 和必须新鲜的内容用网络优先；
+          可以稍微旧一点的内容用 stale-while-revalidate。
+        </li>
+        <li>
+          <strong>不要什么都缓存。</strong>第三方响应、跨源的不透明响应和大媒体不要盲目塞进缓存。
+        </li>
+      </ul>
+      <p>
+        Service Worker 同时也是更新机制。新的 worker 在后台安装并等待。你可以调用
+        <code>self.skipWaiting()</code> 立即激活它，调用 <code>self.clients.claim()</code> 接管已打开的页面。
+        更安全的做法是在重载前询问用户，这也是本教程的 <code>sw-register.js</code> 做的事。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 注册和安装体验</h2>
+      <p>从页面注册 worker：</p>
+      <pre><code class="language-js">if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () =&gt; {
+    navigator.serviceWorker
+      .register("/notes/sw.js", { scope: "/notes/" })
+      .catch((error) =&gt; console.error("SW registration failed", error));
+  });
+}</code></pre>
+      <p>
+        在 Chromium 上，<code>beforeinstallprompt</code> 让你显示自己的安装按钮，而不是依赖浏览器 UI：
+      </p>
+      <pre><code class="language-js">let deferredPrompt;
+
+window.addEventListener("beforeinstallprompt", (event) =&gt; {
+  event.preventDefault();
+  deferredPrompt = event;
+  document.getElementById("install").hidden = false;
+});
+
+document.getElementById("install").addEventListener("click", async () =&gt; {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById("install").hidden = true;
+});</code></pre>
+      <p>
+        iOS 不一样。Safari 不触发 <code>beforeinstallprompt</code>；用户通过
+        <em>分享 &rarr; 添加到主屏幕</em> 安装。提供 <code>apple-touch-icon</code>，如果想要独立窗口的外观，
+        再加上 <code>apple-mobile-web-app-capable</code> 元标签。不要写一个假设所有平台都有安装提示的 UI。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 离线、更新和测试</h2>
+      <p>
+        一个能离线的应用需要一个应用壳：让 UI 在没有网络时也能启动的 HTML、CSS、JavaScript、图标和
+        WebAssembly 二进制。在 install 时缓存这些。不要把用户数据缓存到和壳同一个缓存里；数据用
+        IndexedDB 或源私有文件系统（OPFS），把缓存当作代码的副本。
+      </p>
+      <p>测试行为，不是测试源码：</p>
+      <ul>
+        <li>DevTools &rarr; Application &rarr; Manifest：清单有效吗？可安装吗？</li>
+        <li>Application &rarr; Service Workers：它激活了吗？当前是哪个缓存？</li>
+        <li>Network &rarr; Offline：应用还能启动和渲染吗？</li>
+        <li>改一个壳文件、增加版本、重载：更新到了吗？</li>
+        <li>在 Android、iOS 和桌面上安装：它是否以独立窗口打开？</li>
+      </ul>
+      <p>
+        跑一次 Lighthouse 的 PWA 检查，但不要把分数当成目标。目标是：用户可以安装应用、在没有网络时打开它、
+        并且在不清理站点数据的情况下收到更新。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 本教程就是一个 PWA</h2>
+      <p>
+        你正在读的这个站点本身就是一个 PWA。它的 <code>manifest.json</code> 提供名称、图标和独立显示；
+        它的 <code>sw.js</code> 预缓存页面；它的 <code>sw-register.js</code> 检测新的 worker，并在重载前询问。
+        缓存名带版本（<code>fast_io-docs-v80.x</code>），内容一变就必须增加。
+      </p>
+      <p>
+        最后这个细节最容易咬人。一个激进缓存的 Service Worker 加上一个永不改变的缓存版本，会让回访用户
+        永远看到旧站点。缓存不是部署细节，它是发布的一部分。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 检查清单</h2>
+      <ol>
+        <li>HTTPS，或者开发时的 localhost。</li>
+        <li>清单包含名称、短名称、启动 URL、scope、display、192 和 512 图标。</li>
+        <li>Service Worker 以正确的 scope 注册。</li>
+        <li>应用壳已预缓存；离线启动可用。</li>
+        <li>每次改壳都增加缓存版本。</li>
+        <li>更新流程测试过；不会永久停留在旧状态。</li>
+        <li>在 Android、iOS 和桌面上测试过安装。</li>
+        <li>没有混合内容；客户端没有密钥。</li>
+      </ol>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/21.pwas/01.background/" class="prev-button">&larr; 第21.1章：应用沙盒问题</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/21.pwas/03.wasm/" class="next-button">第21.3章：WebAssembly：PWA 中的 C++ 核心 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

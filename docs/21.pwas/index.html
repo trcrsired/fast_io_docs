@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch21: Progressive Web Apps - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch21: Progressive Web Apps</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/21.pwas/">中文（简体）</a></p>
+
+    <section>
+      <h2>Why This Chapter Exists</h2>
+      <p>
+        Chapter 20 removed the operating system and asked what C++ has left. This chapter removes
+        something else: the assumption that the program owns the machine. An app sandbox still has
+        an operating system, a scheduler, a filesystem and a network stack, but the program is no
+        longer allowed to reach them directly. The C++ standard has no name for that environment.
+      </p>
+      <p>
+        The result is not a smaller C++. It is C++ running in a place where <code>fopen</code>,
+        <code>fstream</code>, <code>stdout</code>, <code>getenv</code>, <code>main</code> and
+        legacy exceptions still exist but no longer mean what a desktop program assumes. That is
+        the portability problem this chapter is about.
+      </p>
+      <p>
+        The answer this chapter argues for is the web platform: a Progressive Web App with a
+        portable C++ core compiled to WebAssembly, a platform-independent UI, and no store
+        gatekeeper between the developer and the user.
+      </p>
+    </section>
+
+    <section>
+      <h2>The Four Pages</h2>
+      <ol>
+        <li>
+          <a href="/docs/21.pwas/01.background/">21.1 The App Sandbox Problem</a>
+        </li>
+        <li>
+          <a href="/docs/21.pwas/02.write/">21.2 How to Write a PWA</a>
+        </li>
+        <li>
+          <a href="/docs/21.pwas/03.wasm/">21.3 WebAssembly: The C++ Core in the PWA</a>
+        </li>
+        <li>
+          <a href="/docs/21.pwas/04.publish/">21.4 Publishing a PWA</a>
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>The Short Version</h2>
+      <p>
+        Cross-platform apps are usually built as a portable core plus a platform-specific UI. The
+        core is C, C++ or assembly &mdash; codecs, DRM, crypto, networking, media pipelines, game
+        engines. The UI is SwiftUI, Jetpack Compose, WinUI or ArkUI. The core is the asset; the UI
+        is the replaceable part. The app sandbox attacks the portable layer by forcing the core
+        into the platform language or behind platform-specific APIs.
+      </p>
+      <p>
+        A <strong>walled garden</strong> is a specific kind of operating system: one that forbids
+        running binaries directly. Everything is an app, installed from a store, running in a
+        sandbox with a permission list. Android, iOS, iPadOS, ChromeOS, Windows 11 S mode and the
+        UWP platform are walled gardens. GNU/Linux, Windows, macOS, FreeBSD and SerenityOS are not.
+      </p>
+      <p>
+        The web is the one platform that is already on every device and needs no vendor's
+        permission. A PWA is a website with a manifest and a service worker: installable,
+        offline-capable, standalone, and distributable without a store. WebAssembly lets the same
+        C++ core run there. That is the architecture this chapter builds: C++/WASM core, web UI,
+        open distribution.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/20.freestanding/03.video/" class="prev-button">&larr; Ch20.3: Freestanding C++</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/21.pwas/01.background/" class="next-button">Ch21.1: The App Sandbox Problem &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

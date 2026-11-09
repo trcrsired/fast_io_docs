@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第21.3章：WebAssembly：PWA 中的 C++ 核心 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第21.3章：WebAssembly：PWA 中的 C++ 核心</h1>
+    <p class="lang-switch"><a href="/docs/21.pwas/03.wasm/">English</a></p>
+
+    <section>
+      <h2>1. 为什么用 WebAssembly</h2>
+      <p>
+        <a href="/zhcn/docs/21.pwas/01.background/">21.1</a> 的架构是"可移植核心 + 平台特定 UI"。
+        在 PWA 里，UI 是 HTML 和 CSS，核心是 WebAssembly。这样同一份 C++ 代码既能跑在原生平台，
+        也能跑在 Web 上，而 UI 栈只有一套，浏览器能跑的地方它就能跑。
+      </p>
+      <p>
+        WebAssembly 不是原生代码的替代品。它是"浏览器就是平台"这种情况下的可移植目标。浏览器本身
+        已经是沙盒，所以应用不需要商店、原生 SDK 或平台特定的安装器。代价是线性内存模型、JavaScript 边界，
+        以及更小的系统接口。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 工具链</h2>
+      <p>使用较新的 clang 和 WASI sysroot。关键参数是：</p>
+      <pre><code class="language-sh">clang++ --config=$HOME/cfgs/wasm32-wasip1-noeh-nomtg.cfg \
+  -fherbceptions -lherbceptions \
+  -nostartfiles -Wl,--no-entry \
+  -Wl,--export=__wasm_call_ctors \
+  -Wl,--export=__wasm_call_dtors \
+  -Wl,--export=app_run \
+  -Wl,--export=app_ptr \
+  -Wl,--export=app_len \
+  app.cpp -o app.wasm</code></pre>
+      <p>
+        这个 config 面向 <code>wasm32-wasip1</code>，使用 libc++ 和一个没有遗留异常机制的 sysroot，
+        并传入 <code>-fno-exceptions</code>。最后这个参数并不矛盾：
+        <code>-fno-exceptions</code> 关闭遗留 unwinder，而 <code>-fherbceptions</code> 启用赫布异常语言特性，
+        <code>-lherbceptions</code> 链接它的运行时。WASI sysroot 为 <code>wasm32-wasip1</code> 提供了
+        <code>libherbceptions.a</code>。再加上 <code>-fno-rtti</code>；核心不需要它，而且能让二进制更小。
+      </p>
+      <p>
+        <code>-nostartfiles</code> 和 <code>--no-entry</code> 让模块成为一个库，而不是一个 WASI 命令。
+        没有 <code>_start</code>；JavaScript 调用导出的函数。实例化后必须调用
+        <code>__wasm_call_ctors</code>，让静态构造函数运行；如果希望在卸载时运行析构函数，就调用
+        <code>__wasm_call_dtors</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 一个最小 C++ 模块</h2>
+      <p>
+        核心不向控制台打印。它格式化到一个缓冲区，JavaScript 读取这个缓冲区。这就是
+        <a href="/zhcn/docs/20.freestanding/02.fastio/">20.2</a> 里"设备是一个类型"的设计，
+        只不过这里的设备是浏览器：
+      </p>
+      <pre><code class="language-cpp">#include &lt;cstddef&gt;
+#include &lt;herbceptions/error&gt;
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+
+namespace
+{
+::fast_io::u8string text;
+
+void render(int value) throws
+{
+  if (value &lt; 0)
+  {
+    throw throws ::std::errc::invalid_argument;
+  }
+  text.clear();
+  ::fast_io::u8ostring_ref_fast_io out{__builtin_addressof(text)};
+  ::fast_io::io::print(out, u8"value = ", value, u8"\n");
+}
+} // namespace
+
+extern "C" int app_run(int value) noexcept
+{
+  try
+  {
+    render(value);
+    return 0;
+  }
+  catch throws(::std::error e)
+  {
+    return static_cast&lt;int&gt;(e.to_errc());
+  }
+}
+
+extern "C" const char8_t *app_ptr() noexcept { return text.c_str(); }
+extern "C" ::std::size_t app_len() noexcept { return text.size(); }</code></pre>
+      <p>这个小例子里有三条规则：</p>
+      <ul>
+        <li>
+          <strong>异常不跨越边界。</strong>导出函数是 <code>noexcept</code>，捕获赫布异常并返回错误码。
+          JavaScript 没有 C++ unwinder，也不应该看到它。
+        </li>
+        <li>
+          <strong>边界是字节和整数。</strong>导出指针和长度；JS 侧按 UTF-8 解码。不要传
+          <code>std::string</code>、<code>std::vector</code>，或者生命周期不清晰的对象指针。
+        </li>
+        <li>
+          <strong>格式化由 fast_io 做。</strong>核心不用 <code>std::cout</code>、<code>printf</code>
+          或 <code>FILE*</code>；它写进 <code>u8string</code>，那是模块自己拥有的内存。
+        </li>
+      </ul>
+      <p>
+        如果模块用随机数或时间戳，fast_io 会调用 <code>random_get</code> 和
+        <code>clock_time_get</code> 这样的 WASI import。你从 JavaScript 提供它们。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. JavaScript 胶水</h2>
+      <p>实例化模块，并提供它 import 的 WASI 函数：</p>
+      <pre><code class="language-js">let wasm;
+
+const imports = {
+  wasi_snapshot_preview1: {
+    proc_exit(code) {
+      throw new Error(`wasm exited with code ${code}`);
+    },
+    random_get(ptr, len) {
+      crypto.getRandomValues(
+        new Uint8Array(wasm.exports.memory.buffer, ptr, len)
+      );
+      return 0;
+    },
+    clock_time_get(id, precision, out) {
+      const ns = BigInt(Date.now()) * 1_000_000n;
+      new DataView(wasm.exports.memory.buffer)
+        .setBigUint64(out, ns, true);
+      return 0;
+    }
+  }
+};
+
+const response = await fetch("/app.wasm");
+const { instance } = await WebAssembly.instantiateStreaming(response, imports);
+wasm = instance;
+instance.exports.__wasm_call_ctors();
+
+const status = instance.exports.app_run(42);
+const ptr = instance.exports.app_ptr();
+const len = instance.exports.app_len();
+const text = new TextDecoder().decode(
+  new Uint8Array(instance.exports.memory.buffer, ptr, len)
+);
+console.log(status, text);</code></pre>
+      <p>
+        <code>instantiateStreaming</code> 要求服务器发送
+        <code>Content-Type: application/wasm</code>。如果服务器不发送，就回退到：
+      </p>
+      <pre><code class="language-js">const bytes = await (await fetch("/app.wasm")).arrayBuffer();
+const { instance } = await WebAssembly.instantiate(bytes, imports);</code></pre>
+      <p>
+        内存是线性的，而且会增长。不要在可能分配内存的调用之间保留 <code>Uint8Array</code>；
+        每次可能让它增长的调用之后，都从 <code>memory.buffer</code> 重新创建视图。字符串也一样：
+        指针在下一次导致字符串重新分配的调用之前有效，所以要在回调模块之前把字节读走。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 浏览器里的 fast_io</h2>
+      <p>
+        C++ 侧看起来就是普通的 fast_io 代码。<code>print</code> 写进 <code>u8string</code>；
+        格式化引擎不知道、也不关心目标是 WebAssembly 线性内存缓冲区而不是文件。这就是 concept
+        设计的要点：设备是一个类型，同一份格式化代码为它实例化。
+      </p>
+      <p>
+        同一个核心可以原生编译并链接平台 UI，也可以编译成 WebAssembly 并链接 Web UI。DRM、编解码器、
+        密码学和网络代码不需要第二份实现。这就是 <a href="/zhcn/docs/21.pwas/01.background/">21.1</a>
+        的架构落到实处。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 体积、速度和调试</h2>
+      <ul>
+        <li>
+          用 <code>-O2</code> 或 <code>-Os</code> 编译，开启 LTO，使用 <code>--gc-sections</code>，
+          再对结果跑 <code>wasm-opt -Oz</code>。
+        </li>
+        <li>
+          保留 <code>-fno-rtti</code>，避开 <code>&lt;iostream&gt;</code>、<code>&lt;locale&gt;</code>
+          和其他只属于宿主环境的重量级内容。WasmPass 参考二进制约 26 KB，对于一个专注的模块来说，
+          这是现实的目标。
+        </li>
+        <li>
+          调试时用 <code>-g</code> 构建。先用 <code>wasm-objdump -x</code> 检查 import 和 export 表；
+          大多数"跑不起来"的情况都是缺 import、缺 export，或者构造函数没被调用。
+        </li>
+        <li>
+          在浏览器 DevTools 里测试，不要只在 Node 里测。WebAssembly 内存、JS 边界和 Service Worker
+          只存在于浏览器里。
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>7. 参考实现</h2>
+      <p>
+        <a href="https://github.com/trcrsired/WasmPass">WasmPass</a> 是一个能用的 PWA，用编译成
+        WebAssembly 的 fast_io 生成密码、用户名和 PIN。它用的就是这里描述的结构：导出函数、
+        指针/长度 getter、一个 <code>wasi_snapshot_preview1</code> import 对象，以及一个缓存
+        <code>.wasm</code> 二进制的 Service Worker。
+      </p>
+      <p>
+        你不需要了解 WasmPass 的内部实现才能用这一章。它是这套构建确实能工作的证明，不是主题。
+        想要更小的起点，用
+        <a href="https://github.com/trcrsired/pwa-wasm-fast_io-demo">pwa-wasm-fast_io-demo</a>。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/21.pwas/02.write/" class="prev-button">&larr; 第21.2章：如何编写 PWA</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/21.pwas/04.publish/" class="next-button">第21.4章：发布 PWA &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

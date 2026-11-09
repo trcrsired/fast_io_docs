@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第21.1章：应用沙盒问题 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第21.1章：应用沙盒问题</h1>
+    <p class="lang-switch"><a href="/docs/21.pwas/01.background/">English</a></p>
+
+    <section>
+      <h2>1. 承诺与陷阱</h2>
+      <p>
+        "一次编写，到处运行"是跨平台开发里最古老的承诺。UWP 对 Windows Phone、Surface RT、Hololens
+        和 Xbox 许下过这个承诺。鸿蒙的"万物互联"对手机、平板、手表、电视和汽车许下同样的承诺。
+        它们都只在一个厂商的生态内部才是通用的。UWP 已经死了，WinUI3 半死不活，原因不是技术：
+        没有开发者能只为一个生态写应用，也没有用户只拥有一个生态。
+      </p>
+      <p>
+        应用沙盒就是平台把这个生态变成卡点的方式。它被包装成安全机制，确实也提供了隔离，但它同时决定
+        什么能运行、什么能访问存储、什么能安装、什么能更新。当沙盒围绕厂商的语言和厂商的商店设计时，
+        "跨平台"就变成了"为每个厂商重写一遍应用"。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 应用沙盒的五项代价</h2>
+      <p>
+        这里不是说沙盒没用，而是说它不是免费的，账单用可移植性来付。具体代价是：
+      </p>
+      <ol>
+        <li>
+          <strong>没有共享。</strong>沙盒打破了共享库模型。在 Snap 包里，Firefox 启动可能要二十秒左右，
+          因为运行时和依赖不再像系统包那样共享。每个应用自带更多运行时，二进制膨胀，跨应用访问常用资源
+          变成一项集成工程。
+        </li>
+        <li>
+          <strong>驱动和硬件访问。</strong>Flatpak 式的沙盒经常遇到驱动问题。沙盒看不见设备，就用不了设备，
+          而缺失的功能不是应用在沙盒内部能修好的 bug。
+        </li>
+        <li>
+          <strong>安全假象。</strong>沙盒隔离的是用户态，不是内核。内核被攻破，沙盒就是一间地板已经没了
+          的房间周围的栅栏。隔离仍然值得有，但它不是营销暗示的那种绝对保证。
+        </li>
+        <li>
+          <strong>开发成本。</strong>现有应用要重写，依赖也要重写。有意思的是原因：主流语言根本不是为这个
+          环境设计的。<code>fopen</code> 和 <code>fstream</code> 会打开一个文件——<em>打开在哪？</em>
+          第三方库假设有当前目录、有控制台、有环境变量、有一个从 <code>main</code> 开始的进程。
+          在沙盒里，没人知道应用是怎么启动的，也不知道它被允许碰哪些路径。
+        </li>
+        <li>
+          <strong>厂商垄断。</strong>移动端是 Android/iOS 双头垄断。Windows Phone 和 UWP 是反例：
+          即使有巨头支持，第三个生态还是失败了。即便在 Android 上，<code>gcc</code> 和 <code>clang</code>
+          这类工具也与沙盒结构上不兼容，因为编译器本身就是一个读写任意文件、启动其他进程的进程。
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>3. C++ 是可移植核心</h2>
+      <p>
+        人们很容易用性能来解释 C++ 的流行。性能是一部分，但更重要的原因是可移植性。一个严肃的跨平台应用，
+        标准架构是<strong>可移植核心 + 平台特定 UI</strong>：
+      </p>
+      <ul>
+        <li>
+          核心是 C、C++ 或汇编：业务逻辑、编解码器、DRM、密码学、网络、同步、媒体管线、游戏引擎。
+        </li>
+        <li>
+          UI 是平台语言：SwiftUI、Jetpack Compose、WinUI、ArkUI，或者一个 WebView。
+        </li>
+      </ul>
+      <p>
+        Spotify、QQ、微信是明显的例子：它们的核心引擎是 C++，外面套着平台特定的壳。核心是花了多年
+        构建的资产，UI 才是预期会被替换的部分。
+      </p>
+      <p>
+        Spotify 是一个具体而有用的案例。它在 DRM 和流媒体路径里使用汇编，让播放可以立即开始。
+        这种"即时串流"是竞争优势，不是可有可无的装饰，而且正是那种不可能为了一个手机平台用托管语言
+        重写一遍的代码。Windows Phone 7 把第三方应用限制在托管代码里，不允许原生 C++，而 Spotify 的
+        WP7 应用是在微软的特批下以原生代码运行的，Spotify 也直接向微软投诉。理由很直接：
+        <em>我们不会仅仅为了支持你们的手机，就重写 Spotify 的核心引擎。</em>这种压力是 Windows Phone 8
+        改变政策、加入完整 C 和 C++ 支持的部分原因。
+      </p>
+      <p>
+        同样的道理让 Android 的"不要用 NDK"建议在跨平台产品上是错的。那条建议是写给单平台应用的：
+        除非有可测量的性能理由，否则用平台语言。但对于一个已经有可移植核心的产品，原生核心才是常态，
+        平台 UI 才是例外。把核心搬到 Kotlin 或 Swift 不是简化，而是第二份实现、第二套 bug，
+        而且要永远保持同步。
+      </p>
+      <p>
+        这就是为什么应用沙盒是一种可移植性税。它攻击的正是那个可移植的层。一个迫使核心改用平台语言、
+        或者被平台特定的存储和进程 API 锁住的沙盒，把资产重新变成了平台特定的东西。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 标准没有的那个类别</h2>
+      <p>
+        第20章给出了标准的两个类别：<strong>独立</strong>实现可以在没有操作系统的情况下执行；
+        <strong>宿主</strong>实现支持文档描述的所有设施。没有第三个类别。尤其是，标准从未定义
+        <strong>受限</strong>环境。
+      </p>
+      <p>
+        Android 是试金石。它有操作系统、调度器、文件系统和网络栈，所以按定义它是宿主实现。
+        但大多数接触外部世界的宿主设施，行为并不像桌面程序期待的那样。函数存在，权限不存在。
+      </p>
+      <p>
+        这个区别很重要，因为"宿主"说的是 API 可用性，不是无限制的访问能力。沙盒里的进程可以调用
+        <code>fopen</code>。调用是否成功是权限决定，不是符合性决定。标准说函数存在，没说程序能打开
+        任意一个具体路径。
+      </p>
+      <p>具体来说：</p>
+      <ul>
+        <li>
+          <code>fopen("data.txt")</code> 和 <code>std::fstream{"data.txt"}</code> 相对于进程的当前工作目录
+          解析。在 Android 上，当前工作目录是 <code>/</code>，只读。可写的私有目录是
+          <code>Context.getFilesDir()</code>，通常在 <code>/data/user/0/&lt;pkg&gt;/files</code> 下。
+          应用特定的外部存储是 <code>getExternalFilesDir()</code>。共享媒体走 MediaStore 或存储访问框架
+          （SAF），返回的是 <code>content://</code> URI，不是路径。
+        </li>
+        <li>
+          在 iOS 上，容器是
+          <code>/var/mobile/Containers/Data/Application/&lt;UUID&gt;/</code>。UUID 在重装、更新或恢复时会变。
+          硬编码路径从设计上就是坏的。
+        </li>
+        <li>
+          <code>stdout</code> 和 <code>stderr</code> 不是控制台。在 Android 上，<code>printf</code> 可能
+          什么都不做；日志是 <code>__android_log_print</code>，fast_io 把它封装成
+          <code>fast_io::android_logger</code>。
+        </li>
+        <li>
+          <code>getenv("HOME")</code> 不是应用的数据目录，环境变量也不是契约。<code>tmpfile()</code>
+          和 <code>/tmp</code> 可能不可写；平台的缓存目录才是正确的位置。
+        </li>
+        <li>
+          <code>main</code> 不是入口。Android 代码通过 <code>android_main</code>、<code>JNI_OnLoad</code>
+          或 <code>ANativeActivity_onCreate</code> 进入；<code>exit</code>、<code>atexit</code> 和静态析构
+          可能不会按桌面程序期待的方式运行。没有 shell，也不能随意 <code>fork</code>/<code>exec</code>。
+        </li>
+        <li>
+          遗留异常和 RTTI 没有保证。<code>ndk-build</code> 默认
+          <code>-fno-exceptions -fno-rtti</code>；旧的系统运行时两者都没有；AOSP 构建时也不用它们；
+          跨 JNI 或共享库边界抛异常是不安全的。第19章讲替代方案，而这里正是替代方案重要的又一个地方。
+        </li>
+        <li>
+          <code>std::fstream</code> 不能接受文件描述符。它只接受路径。所以即使平台递给你一个句柄——
+          来自 <code>content://</code> URI 的 <code>ParcelFileDescriptor</code>，或者应用私有存储的目录
+          fd——标准流也用不了。
+        </li>
+      </ul>
+      <p>
+        而且这不是 C++ 独有的问题。没有主流语言的标准 I/O 库是围绕能力（capability）构建的。Java 的
+        <code>File</code> 和 <code>Path</code>、C# 的 <code>File</code> 和 <code>Directory</code>、
+        Python 的 <code>open</code> 和 <code>pathlib</code>、Ruby 的 <code>File</code>、Go 的
+        <code>os.Open</code>、Rust 的 <code>std::fs</code>、Swift 的 <code>FileManager</code>，
+        全都假设路径、当前目录和环境权限。曾经存在的运行时沙盒被删掉了：Java 的
+        <code>SecurityManager</code> 已废弃并被永久禁用，.NET 的代码访问安全（CAS）没了，Ruby 的
+        <code>$SAFE</code> 在 Ruby 3.0 被移除，Python 的 <code>rexec</code> 和 <code>Bastion</code>
+        早就没了。沙盒搬到了操作系统里，I/O API 却没有跟着搬。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 围墙花园与双头垄断</h2>
+      <blockquote>
+        <p>
+          <strong>定义。</strong>围墙花园操作系统，是禁止直接运行二进制的操作系统。一切皆是 app；
+          应用从应用商店安装；每个 app 都运行在带权限列表的沙盒里。厂商决定什么能运行、什么能安装、
+          什么能访问设备。
+        </p>
+        <p>
+          <strong>围墙花园：</strong>Android、iOS、iPadOS、ChromeOS、Windows 11 S 模式和 UWP 平台。
+        </p>
+        <p>
+          <strong>不是围墙花园：</strong>GNU/Linux、Windows、macOS、FreeBSD、SerenityOS。
+        </p>
+      </blockquote>
+      <p>这样定义之后，问题就是结构性的，而不是偶发的：</p>
+      <ul>
+        <li>
+          <strong>PWA 是更好的跨平台路径。</strong>PWA 就是网站；占用更小，更新不需要用户干预，
+          运行在浏览器的沙盒里。它不是第二个应用生态，也不是第二套权限模型。
+        </li>
+        <li>
+          <strong>安全被用来为削减功能辩护。</strong>围墙花园不能运行 Rufus 格式化磁盘，不能给树莓派的
+          SD 卡刷 Arch Linux，也不能运行一个写任意文件、启动进程的编译器。如果唯一安全的设备是不能运行
+          你的代码的设备，那这个论证就过头了。"不用手机"不是安全模型。
+        </li>
+        <li>
+          <strong>所有权。</strong>你买的是设备，不是按厂商条款使用的许可。锁引导加载器（BL）、禁止侧载，
+          是对所有权的限制，不是安全特性。登录时给一个安全选项才叫选择；锁死 BL 不叫。
+        </li>
+        <li>
+          <strong>广告与隐私。</strong>浏览器可以跑广告屏蔽器；app 通常不行。app 生态同时也是一个数据市场。
+          浏览器里的 PWA 不处在同样的位置去卖用户数据，这正是某些厂商更喜欢 app 的原因。
+        </li>
+        <li>
+          <strong>沙盒破坏系统级工具。</strong>完全应用沙盒限制了操作系统能做什么。磁盘工具、系统安装器、
+          编译器、终端环境、硬件工具都需要 app 模型不授予的能力。21.3 会讲 Web 侧的对等物，但这里的重点是：
+          "一切皆是 app"不是中立设计。
+        </li>
+        <li>
+          <strong>重新适配。</strong>现有语言和库不是为这个环境设计的。C/C++ 只有独立和宿主，没有
+          "受限"类别。一个调用 <code>fopen</code> 或 <code>fstream</code> 打开路径的第三方库打不开文件，
+          因为路径归沙盒管。iOS 禁止 JIT，所以 Java 一类的运行时在平台层面就被掐死。PWA 也有权限，
+          但它不要求每个库都围绕权限重写。
+        </li>
+      </ul>
+      <p>
+        UWP 是证明这一点的失败案例。微软想要苹果的抽成模式，试图通过 Windows Phone 和 Windows RT
+        强推围墙花园。UWP 的权限模型很粗糙，托管优先的设计让 C++ 成了二等公民；Windows Phone 7
+        则完全不允许原生 C++。大多数应用是 C/C++/汇编写的跨平台逻辑层，
+        上面套一层薄薄的平台 API（比如 Android 上的 JNI）。UWP 强制托管代码，把文件系统限制到连文件管理器
+        都没有，很多应用根本没法移植。Windows Phone 用户不能换浏览器，所以没有 Chromium，所以 YouTube
+        连 PWA 都做不了。微软放弃了 UWP，回到 PWA 和 Win32。那个笑话是准确的：40 美元的 Android 手机
+        能编译运行 Windows 的 <code>.exe</code>；Windows Phone 运行的是 Windows，却不能编译或运行
+        Windows 程序。
+      </p>
+      <p>
+        双头垄断是同一结构在市场尺度上的表现。Android 和 iOS 控制商店、支付通道、审核流程和 API，
+        通常还控制浏览器引擎。苹果的 WebKit 强制要求是最明显的例子：iOS 上每个浏览器都必须用 WebKit，
+        这限制了 Web 在一个自称最注重隐私的平台上能做什么。欧盟的《数字市场法》和日本的规则已经迫使它开放，
+        但结构仍然是那个结构。
+      </p>
+      <p>
+        还有一个不那么舒服的点。一个一边抱怨商店抽成、一边拒绝做 PWA 的厂商，本身就是问题的一部分。
+        文章里的例子是微信：它抱怨苹果税，却不提供 PWA，而且移动网页体验被故意做得比 app 差。
+        百度贴吧是同一论证的性能版本：Java/Kotlin 的 app 比它自己的移动网页还慢，而移动网页被阉割，
+        用来逼用户下载 APK。如果一个厂商连 PWA 都不做，它就没有资格抱怨抽成。
+      </p>
+      <p>
+        沙盒不是中立的安保基础设施。它是平台决定哪些代码被允许存在的边界。一个只在一个厂商的沙盒里运行的
+        跨平台框架，不是跨平台。它只是一个名字听起来很通用的第一方框架。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 转向</h2>
+      <p>
+        如果目标真的是让同一个应用跑在手机、平板、桌面、电视、汽车和头显上，那么已经有一个平台存在于
+        所有这些设备上，而且不需要厂商许可：Web。渐进式网络应用是带清单和 Service Worker 的网站。
+        它可以安装，可以离线工作，运行在自己的窗口里，通过 URL 分发，而不是通过应用商店审核。
+      </p>
+      <p>
+        一个有用的说法是：PWA 就是去掉 W 的 UWP。它保留了通用应用模型，去掉了"宇宙必须属于一个厂商"
+        这个要求。
+      </p>
+      <p>
+        常见的反对意见比听起来要弱。"Web 很慢"——WebAssembly 很快，而且 Android 的 Java/Kotlin
+        也不是原生代码。"Safari 和 Firefox 很差"——那是要求更好的浏览器，不是反对 Web。
+        "Outlook 和 Teams 的 PWA 很烂"——那些是 WebView 套壳，不是真正的 PWA。"Web 做不了 X"——
+        Project Fugu 的存在就是为了填这个坑，而且坑在变小。
+      </p>
+      <p>
+        这一章剩下的部分是建设性的。<a href="/zhcn/docs/21.pwas/02.write/">21.2</a> 搭壳。
+        <a href="/zhcn/docs/21.pwas/03.wasm/">21.3</a> 用 WebAssembly 把 C++ 核心放进去。
+        <a href="/zhcn/docs/21.pwas/04.publish/">21.4</a> 在没有守门人的情况下发布。
+      </p>
+      <p>
+        背景论证在三篇文章里有更长的展开：
+        <a href="https://zhuanlan.zhihu.com/p/1943333551597687448">为什么 UWP 和厂商的"万物互联"
+        是伪命题</a>、
+        <a href="https://zhuanlan.zhihu.com/p/718977116">什么叫围墙花园</a>，以及
+        <a href="https://zhuanlan.zhihu.com/p/1943653871596582173">为什么应用沙盒不如渐进式网络应用</a>。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/21.pwas/" class="prev-button">&larr; 第21章：渐进式网络应用（PWA）</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/21.pwas/02.write/" class="next-button">第21.2章：如何编写 PWA &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

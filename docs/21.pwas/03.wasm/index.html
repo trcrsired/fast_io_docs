@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch21.3: WebAssembly: The C++ Core in the PWA - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch21.3: WebAssembly: The C++ Core in the PWA</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/21.pwas/03.wasm/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Why WebAssembly</h2>
+      <p>
+        The architecture from <a href="/docs/21.pwas/01.background/">21.1</a> is a portable core
+        plus a platform-specific UI. In a PWA, the UI is HTML and CSS, and the core is WebAssembly.
+        That gives you the same C++ code on native platforms and on the web, with one UI stack that
+        runs on every device the browser runs on.
+      </p>
+      <p>
+        WebAssembly is not a replacement for native code. It is the portable target for the case
+        where the browser is the platform. The browser is already the sandbox, so the app does not
+        need a store, a native SDK or a platform-specific installer. The trade is a linear-memory
+        model, a JavaScript boundary and a smaller system interface.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. The Toolchain</h2>
+      <p>
+        Use a recent clang with the WASI sysroot. The important flags are:
+      </p>
+      <pre><code class="language-sh">clang++ --config=$HOME/cfgs/wasm32-wasip1-noeh-nomtg.cfg \
+  -fherbceptions -lherbceptions \
+  -nostartfiles -Wl,--no-entry \
+  -Wl,--export=__wasm_call_ctors \
+  -Wl,--export=__wasm_call_dtors \
+  -Wl,--export=app_run \
+  -Wl,--export=app_ptr \
+  -Wl,--export=app_len \
+  app.cpp -o app.wasm</code></pre>
+      <p>
+        The config targets <code>wasm32-wasip1</code>, uses libc++ and a no-legacy-EH sysroot, and
+        passes <code>-fno-exceptions</code>. That last flag is not a contradiction:
+        <code>-fno-exceptions</code> disables the legacy unwinder, while
+        <code>-fherbceptions</code> enables the herbception language feature and
+        <code>-lherbceptions</code> links its runtime. The WASI sysroot ships
+        <code>libherbceptions.a</code> for <code>wasm32-wasip1</code>. Add
+        <code>-fno-rtti</code> as well; the core does not need it, and it keeps the binary smaller.
+      </p>
+      <p>
+        <code>-nostartfiles</code> and <code>--no-entry</code> make the module a library rather than
+        a WASI command. There is no <code>_start</code>; JavaScript calls the exports. You must call
+        <code>__wasm_call_ctors</code> after instantiation so static constructors run, and
+        <code>__wasm_call_dtors</code> if you want destructors on unload.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. A Minimal C++ Module</h2>
+      <p>
+        The core does not print to a console. It formats into a buffer, and JavaScript reads the
+        buffer. That is the same "device is a type" design from
+        <a href="/docs/20.freestanding/02.fastio/">20.2</a>, with the browser as the device:
+      </p>
+      <pre><code class="language-cpp">#include &lt;cstddef&gt;
+#include &lt;herbceptions/error&gt;
+#include &lt;fast_io.h&gt;
+#include &lt;fast_io_dsal/string.h&gt;
+
+namespace
+{
+::fast_io::u8string text;
+
+void render(int value) throws
+{
+  if (value &lt; 0)
+  {
+    throw throws ::std::errc::invalid_argument;
+  }
+  text.clear();
+  ::fast_io::u8ostring_ref_fast_io out{__builtin_addressof(text)};
+  ::fast_io::io::print(out, u8"value = ", value, u8"\n");
+}
+} // namespace
+
+extern "C" int app_run(int value) noexcept
+{
+  try
+  {
+    render(value);
+    return 0;
+  }
+  catch throws(::std::error e)
+  {
+    return static_cast&lt;int&gt;(e.to_errc());
+  }
+}
+
+extern "C" const char8_t *app_ptr() noexcept { return text.c_str(); }
+extern "C" ::std::size_t app_len() noexcept { return text.size(); }</code></pre>
+      <p>
+        Three rules are visible in that small example:
+      </p>
+      <ul>
+        <li>
+          <strong>No exception crosses the boundary.</strong> The exported function is
+          <code>noexcept</code> and catches herbceptions, returning an error code. JavaScript has no
+          C++ unwinder and should not see one.
+        </li>
+        <li>
+          <strong>The boundary is bytes and integers.</strong> Export a pointer and a length; the JS
+          side decodes UTF-8. Do not pass <code>std::string</code>, <code>std::vector</code> or
+          pointers to objects with unclear lifetime.
+        </li>
+        <li>
+          <strong>fast_io does the formatting.</strong> The core does not use <code>std::cout</code>,
+          <code>printf</code> or <code>FILE*</code>; it writes into <code>u8string</code>, which is
+          memory the module owns.
+        </li>
+      </ul>
+      <p>
+        If the module uses random numbers or timestamps, fast_io will call WASI imports such as
+        <code>random_get</code> and <code>clock_time_get</code>. You provide those from JavaScript.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The JavaScript Glue</h2>
+      <p>
+        Instantiate the module and provide the WASI functions it imports:
+      </p>
+      <pre><code class="language-js">let wasm;
+
+const imports = {
+  wasi_snapshot_preview1: {
+    proc_exit(code) {
+      throw new Error(`wasm exited with code ${code}`);
+    },
+    random_get(ptr, len) {
+      crypto.getRandomValues(
+        new Uint8Array(wasm.exports.memory.buffer, ptr, len)
+      );
+      return 0;
+    },
+    clock_time_get(id, precision, out) {
+      const ns = BigInt(Date.now()) * 1_000_000n;
+      new DataView(wasm.exports.memory.buffer)
+        .setBigUint64(out, ns, true);
+      return 0;
+    }
+  }
+};
+
+const response = await fetch("/app.wasm");
+const { instance } = await WebAssembly.instantiateStreaming(response, imports);
+wasm = instance;
+instance.exports.__wasm_call_ctors();
+
+const status = instance.exports.app_run(42);
+const ptr = instance.exports.app_ptr();
+const len = instance.exports.app_len();
+const text = new TextDecoder().decode(
+  new Uint8Array(instance.exports.memory.buffer, ptr, len)
+);
+console.log(status, text);</code></pre>
+      <p>
+        <code>instantiateStreaming</code> requires the server to send
+        <code>Content-Type: application/wasm</code>. If it does not, fall back to:
+      </p>
+      <pre><code class="language-js">const bytes = await (await fetch("/app.wasm")).arrayBuffer();
+const { instance } = await WebAssembly.instantiate(bytes, imports);</code></pre>
+      <p>
+        The memory is linear and can grow. Never keep a <code>Uint8Array</code> across a call that
+        may allocate; recreate the view from <code>memory.buffer</code> after every call that can
+        grow it. The same rule applies to strings: the pointer is valid until the next allocation
+        that reallocates the string, so read the bytes before calling back into the module.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. fast_io in the Browser</h2>
+      <p>
+        The C++ side looks like ordinary fast_io code. <code>print</code> writes into
+        <code>u8string</code>; the formatting engine does not know or care that the destination is a
+        WebAssembly linear-memory buffer rather than a file. That is the point of the concept-based
+        design: the device is a type, and the same formatting code instantiates for it.
+      </p>
+      <p>
+        The same core can be compiled natively and linked against a platform UI, or compiled to
+        WebAssembly and linked against the web UI. The DRM, codec, crypto and networking code does
+        not need a second implementation. That is the architecture from
+        <a href="/docs/21.pwas/01.background/">21.1</a> made concrete.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Size, Speed and Debugging</h2>
+      <ul>
+        <li>
+          Compile with <code>-O2</code> or <code>-Os</code>, enable LTO, use
+          <code>--gc-sections</code>, and run <code>wasm-opt -Oz</code> on the result.
+        </li>
+        <li>
+          Keep <code>-fno-rtti</code> and avoid <code>&lt;iostream&gt;</code>,
+          <code>&lt;locale&gt;</code> and other hosted-only weight. The WasmPass reference binary is
+          about 26 KB, which is a realistic target for a focused module.
+        </li>
+        <li>
+          Build with <code>-g</code> when debugging. Inspect the import and export tables first with
+          <code>wasm-objdump -x</code>; most "it does not work" cases are a missing import, a
+          missing export, or a constructor that was never called.
+        </li>
+        <li>
+          Test in the browser's DevTools, not only in Node. The WebAssembly memory, the JS boundary
+          and the service worker only exist in the browser.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>7. The Reference Implementation</h2>
+      <p>
+        <a href="https://github.com/trcrsired/WasmPass">WasmPass</a> is a working PWA that generates
+        passwords, usernames and PINs with fast_io compiled to WebAssembly. It uses the same
+        structure described here: exported functions, pointer/length getters, a
+        <code>wasi_snapshot_preview1</code> import object, and a service worker that caches the
+        <code>.wasm</code> binary.
+      </p>
+      <p>
+        You do not need to know WasmPass's internals to use this chapter. It is the proof that the
+        build works, not the subject. For a smaller starting point, use
+        <a href="https://github.com/trcrsired/pwa-wasm-fast_io-demo">pwa-wasm-fast_io-demo</a>.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/21.pwas/02.write/" class="prev-button">&larr; Ch21.2: How to Write a PWA</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/21.pwas/04.publish/" class="next-button">Ch21.4: Publishing a PWA &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

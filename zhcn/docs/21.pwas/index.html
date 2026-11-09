@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第21章：渐进式网络应用（PWA） - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第21章：渐进式网络应用（PWA）</h1>
+    <p class="lang-switch"><a href="/docs/21.pwas/">English</a></p>
+
+    <section>
+      <h2>为什么有这一章</h2>
+      <p>
+        第20章拿走了操作系统，问 C++ 还剩下什么。这一章拿走的是另一个假设：程序拥有整台机器。
+        应用沙盒仍然有操作系统、调度器、文件系统和网络栈，但程序不再被允许直接接触它们。
+        C++ 标准对这种环境没有名字。
+      </p>
+      <p>
+        结果不是"更小的 C++"。它是运行在这样一个地方的 C++：<code>fopen</code>、<code>fstream</code>、
+        <code>stdout</code>、<code>getenv</code>、<code>main</code> 和遗留异常都还在，但不再具有桌面程序
+        假设的含义。这就是这一章要讲的移植性问题。
+      </p>
+      <p>
+        这一章主张的答案是 Web 平台：一个渐进式网络应用（PWA），核心是可移植的 C++，编译成
+        WebAssembly；UI 与平台无关；开发者和用户之间没有应用商店守门人。
+      </p>
+    </section>
+
+    <section>
+      <h2>四页内容</h2>
+      <ol>
+        <li>
+          <a href="/zhcn/docs/21.pwas/01.background/">21.1 应用沙盒问题</a>
+        </li>
+        <li>
+          <a href="/zhcn/docs/21.pwas/02.write/">21.2 如何编写 PWA</a>
+        </li>
+        <li>
+          <a href="/zhcn/docs/21.pwas/03.wasm/">21.3 WebAssembly：PWA 中的 C++ 核心</a>
+        </li>
+        <li>
+          <a href="/zhcn/docs/21.pwas/04.publish/">21.4 发布 PWA</a>
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>一句话版本</h2>
+      <p>
+        跨平台应用通常由"可移植核心 + 平台特定 UI"组成。核心是 C、C++ 或汇编——编解码器、DRM、密码学、
+        网络、同步、媒体管线、游戏引擎。UI 是 SwiftUI、Jetpack Compose、WinUI 或 ArkUI。核心是资产，
+        UI 是可替换的部分。应用沙盒攻击的正是可移植层：它迫使核心改用平台语言，或者被平台特定的 API 锁住。
+      </p>
+      <p>
+        <strong>围墙花园</strong>是一类具体的操作系统：禁止直接运行二进制。一切皆是 app，从应用商店安装，
+        运行在带权限列表的沙盒里。Android、iOS、iPadOS、ChromeOS、Windows 11 S 模式和 UWP 平台是围墙花园。
+        GNU/Linux、Windows、macOS、FreeBSD 和 SerenityOS 不是。
+      </p>
+      <p>
+        Web 是唯一一个已经存在于所有设备上、又不需要任何厂商许可的平台。PWA 是带清单（manifest）和
+        Service Worker 的网站：可安装、可离线、独立窗口，而且不需要应用商店就能分发。WebAssembly
+        让同一份 C++ 核心跑在那里。这就是这一章要搭的架构：C++/WASM 核心、Web UI、开放分发。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/20.freestanding/03.video/" class="prev-button">&larr; 第20.3章：独立 C++</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/21.pwas/01.background/" class="next-button">第21.1章：应用沙盒问题 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

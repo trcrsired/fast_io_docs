@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第21.4章：发布 PWA - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第21.4章：发布 PWA</h1>
+    <p class="lang-switch"><a href="/docs/21.pwas/04.publish/">English</a></p>
+
+    <section>
+      <h2>1. 托管</h2>
+      <p>
+        PWA 就是静态文件：HTML、CSS、JavaScript、清单、图标和一个 <code>.wasm</code> 二进制。
+        任何静态托管都行。本书关心的两个是 GitHub Pages 和 Cloudflare Pages，因为它们恰好在一个
+        对全球受众很重要的地方不同。
+      </p>
+      <p>
+        <strong>GitHub Pages</strong> 最简单。把站点推到仓库，启用 Pages，你就得到
+        <code>&lt;user&gt;.github.io/&lt;repo&gt;/</code> 或自定义域名上的 HTTPS。问题在可达性：
+        GitHub Pages 在中国大陆经常被屏蔽或不稳定，很多 GitHub 托管的资源也一样。如果你的受众在那里，
+        GitHub Pages 的 URL 不是分发策略。
+      </p>
+      <p>
+        <strong>Cloudflare Pages</strong> 是实际可用的替代。连接仓库，设置构建命令和输出目录，
+        Cloudflare 就会从它的 CDN 提供结果，带 HTTPS 和自定义域名。它在中国大陆通常可达，
+        这使它成为全球 PWA 更好的默认选择。发布 URL 之前，从目标网络测试一下；"通常"不是保证。
+      </p>
+      <p>
+        其他选择还有 Netlify、Vercel、Firebase Hosting 和自建静态服务器。要求是一样的：
+        HTTPS、正确的 MIME 类型，以及不会和 Service Worker 打架的缓存头。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 会让部署出问题的细节</h2>
+      <ul>
+        <li>
+          <strong>MIME 类型。</strong><code>.wasm</code> 必须以 <code>application/wasm</code> 提供，
+          否则 <code>instantiateStreaming</code> 会拒绝它。清单应该是
+          <code>application/manifest+json</code>；<code>.webmanifest</code> 通常会被正确映射，
+          但要检查。
+        </li>
+        <li>
+          <strong>Service Worker 缓存。</strong><code>sw.js</code> 用
+          <code>Cache-Control: no-cache</code> 提供，这样浏览器才能检测更新。带哈希的静态资源可以
+          长期缓存；HTML 入口不要。
+        </li>
+        <li>
+          <strong>Scope 和基础路径。</strong>如果应用在子路径下，清单的 <code>start_url</code> 和
+          <code>scope</code>、Service Worker 的注册 scope，以及每个绝对 URL 必须一致。一个在
+          <code>/notes/</code> 的应用如果在源根注册 <code>/sw.js</code>，控制的范围就太大了。
+        </li>
+        <li>
+          <strong>HTTPS 和混合内容。</strong>Service Worker 要求安全上下文。一个
+          <code>http://</code> 资源就可能破坏安装或离线壳。
+        </li>
+        <li>
+          <strong>缓存失效。</strong>每次发布都增加 Service Worker 缓存版本，对会变的资源使用带哈希的
+          文件名。
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. 打包进应用商店</h2>
+      <p>
+        <a href="https://www.pwabuilder.com/">PWA Builder</a> 接收一个 PWA URL，生成微软商店、
+        Google Play、iOS App Store 和 Meta Quest 的安装包。它读取清单，检查可安装性，
+        把同一个 Web 应用包进原生外壳：Windows 的 MSIX、Android 的 Trusted Web Activity、
+        iOS 的 WKWebView 外壳。
+      </p>
+      <p>
+        这是一座务实的桥，不是双头垄断的解药。代码不变，但商店的审核、规则和分成又回来了。
+        外壳是 PWA 外面的一层；你维护的仍然是 Web 应用。当商店存在感是硬需求时用它，
+        同时保持 URL 本身可安装。
+      </p>
+      <p>
+        打包之前，确保 PWA 通过可安装性检查：有效的清单、192 和 512 图标、带 fetch 处理器的
+        Service Worker、HTTPS，以及位于 scope 内的启动 URL。PWA Builder 会告诉你缺什么。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. PWA Store</h2>
+      <p>
+        <a href="https://pwa-store-7x5.pages.dev/">PWA Store</a> 是一个免费、开源的 PWA 和 PWA
+        套壳启动器。它本身就是一个 PWA，使用 GPLv3，接受那些没有提供 PWA 支持的网站的套壳。
+        商店有策展但开放；重点在于，分发不需要平台所有者的许可。
+      </p>
+      <p>
+        最简单的上榜方式是把你的 PWA URL 发过去，它会被人手工加入。如果你想自己动手，
+        向 <a href="https://github.com/trcrsired/pwa-store">github.com/trcrsired/pwa-store</a>
+        提交 pull request。商店的浏览页是
+        <a href="https://pwa-store-7x5.pages.dev/store/">pwa-store-7x5.pages.dev/store/</a>。
+      </p>
+      <p>
+        这和应用程序商店是不同的分发模型：一个 URL、一个清单和一个 Service Worker 就足够安装，
+        商店是发现层，不是守门人。这就是这一章一直在主张的模型。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 发布检查清单</h2>
+      <ol>
+        <li>HTTPS 可用；没有混合内容。</li>
+        <li>清单有效：名称、短名称、启动 URL、scope、display、192 和 512 图标。</li>
+        <li>图标包含 maskable 变体；如果安装界面用到截图，就提供截图。</li>
+        <li>Service Worker 以正确的 scope 注册并激活。</li>
+        <li>应用壳已预缓存；断网时能离线启动。</li>
+        <li>缓存版本已增加；更新确实能到达已安装的客户端。</li>
+        <li><code>sw.js</code> 以 <code>no-cache</code> 提供；<code>.wasm</code> 以
+          <code>application/wasm</code> 提供。</li>
+        <li>在 Android、iOS 和桌面上测试过安装；独立模式显示正常。</li>
+        <li>从中国大陆测试过可达性；优先 Cloudflare Pages 而不是 GitHub Pages。</li>
+        <li>链接了隐私政策、许可证和源码仓库。</li>
+      </ol>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/21.pwas/03.wasm/" class="prev-button">&larr; 第21.3章：WebAssembly：PWA 中的 C++ 核心</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/22.canadiancompilation/" class="next-button">第22章：加拿大编译 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

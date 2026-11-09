@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch21.4: Publishing a PWA - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch21.4: Publishing a PWA</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/21.pwas/04.publish/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Hosting</h2>
+      <p>
+        A PWA is static files: HTML, CSS, JavaScript, a manifest, icons and a
+        <code>.wasm</code> binary. Any static host works. The two that matter for this book are
+        GitHub Pages and Cloudflare Pages, because they differ in exactly the place that matters
+        for a global audience.
+      </p>
+      <p>
+        <strong>GitHub Pages</strong> is the simplest. Push the site to a repository, enable Pages,
+        and you get HTTPS on <code>&lt;user&gt;.github.io/&lt;repo&gt;/</code> or a custom domain.
+        The problem is reachability: GitHub Pages is frequently blocked or unreliable in mainland
+        China, and so are many GitHub-hosted assets. If your audience is there, a GitHub Pages URL
+        is not a distribution strategy.
+      </p>
+      <p>
+        <strong>Cloudflare Pages</strong> is the practical alternative. Connect the repository, set
+        the build command and output directory, and Cloudflare serves the result from its CDN with
+        HTTPS and a custom domain. It is generally reachable in mainland China, which makes it the
+        better default for a global PWA. Test from the target network before you announce the URL;
+        "generally" is not a guarantee.
+      </p>
+      <p>
+        Other options are Netlify, Vercel, Firebase Hosting and a self-hosted static server. The
+        requirements are the same: HTTPS, the right MIME types, and cache headers that do not fight
+        the service worker.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. The Details That Break Deployments</h2>
+      <ul>
+        <li>
+          <strong>MIME types.</strong> <code>.wasm</code> must be served as
+          <code>application/wasm</code>, or <code>instantiateStreaming</code> will refuse it. The
+          manifest should be <code>application/manifest+json</code>; <code>.webmanifest</code> is
+          usually mapped correctly, but check.
+        </li>
+        <li>
+          <strong>Service worker caching.</strong> Serve <code>sw.js</code> with
+          <code>Cache-Control: no-cache</code> so the browser can detect updates. Hashed static
+          assets can be immutable; the HTML entry point should not be.
+        </li>
+        <li>
+          <strong>Scope and base path.</strong> If the app lives under a subpath, the manifest's
+          <code>start_url</code> and <code>scope</code>, the service worker registration scope, and
+          every absolute URL must agree. A PWA at <code>/notes/</code> that registers
+          <code>/sw.js</code> at the origin root will control more than it should.
+        </li>
+        <li>
+          <strong>HTTPS and mixed content.</strong> A service worker requires a secure context. One
+          <code>http://</code> asset can break the install or the offline shell.
+        </li>
+        <li>
+          <strong>Cache busting.</strong> Bump the service worker cache version on every release,
+          and use hashed file names for the assets that change.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. Packaging for App Stores</h2>
+      <p>
+        <a href="https://www.pwabuilder.com/">PWA Builder</a> takes a PWA URL and generates packages
+        for the Microsoft Store, Google Play, the iOS App Store and Meta Quest. It reads the
+        manifest, checks installability, and wraps the same web app in a native shell:
+        MSIX for Windows, a Trusted Web Activity for Android, a WKWebView wrapper for iOS.
+      </p>
+      <p>
+        This is a pragmatic bridge, not a cure for the duopoly. The code stays the same, but the
+        store's review, rules and revenue share come back. The wrapper is a shell around the PWA;
+        the web app is still the thing you maintain. Use it when store presence is a requirement,
+        and keep the URL installable on its own.
+      </p>
+      <p>
+        Before packaging, make sure the PWA passes the installability checks: a valid manifest,
+        192 and 512 icons, a service worker with a fetch handler, HTTPS, and a start URL inside the
+        scope. PWA Builder will tell you what is missing.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The PWA Store</h2>
+      <p>
+        <a href="https://pwa-store-7x5.pages.dev/">PWA Store</a> is a free, open-source launcher for
+        PWAs and PWA wrappers. It is itself a PWA, it is GPLv3, and it accepts wrappers for sites
+        that do not ship PWA support. The store is curated but open; the point is that distribution
+        does not require a platform owner's permission.
+      </p>
+      <p>
+        The easiest way to get listed is to send the URL of your PWA. It will be added manually.
+        If you prefer to do it yourself, submit a pull request to
+        <a href="https://github.com/trcrsired/pwa-store">github.com/trcrsired/pwa-store</a>. The
+        store's browse page is
+        <a href="https://pwa-store-7x5.pages.dev/store/">pwa-store-7x5.pages.dev/store/</a>.
+      </p>
+      <p>
+        This is a different distribution model from an app store: a URL, a manifest and a service
+        worker are enough to install, and the store is a discovery layer rather than a gatekeeper.
+        That is the model the chapter has been arguing for.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Launch Checklist</h2>
+      <ol>
+        <li>HTTPS works; no mixed content.</li>
+        <li>Manifest is valid: name, short name, start URL, scope, display, 192 and 512 icons.</li>
+        <li>Icons include a maskable variant; screenshots are present if the install UI uses them.</li>
+        <li>Service worker registers with the correct scope and is activated.</li>
+        <li>App shell is pre-cached; offline start works with the network disabled.</li>
+        <li>Cache version is bumped; an update actually reaches an installed client.</li>
+        <li><code>sw.js</code> is served with <code>no-cache</code>; <code>.wasm</code> is served as
+          <code>application/wasm</code>.</li>
+        <li>Install tested on Android, iOS and desktop; standalone mode looks right.</li>
+        <li>Reachability tested from mainland China; Cloudflare Pages preferred over GitHub Pages.</li>
+        <li>Privacy policy, license and source repository are linked.</li>
+      </ol>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/21.pwas/03.wasm/" class="prev-button">&larr; Ch21.3: WebAssembly: The C++ Core in the PWA</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/22.canadiancompilation/" class="next-button">Ch22: Canadian Compilation &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

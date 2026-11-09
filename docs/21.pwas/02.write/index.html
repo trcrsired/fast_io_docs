@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch21.2: How to Write a PWA - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch21.2: How to Write a PWA</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/21.pwas/02.write/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. What a PWA Is</h2>
+      <p>
+        A Progressive Web App is a website with three additions:
+      </p>
+      <ul>
+        <li>
+          a <strong>web app manifest</strong> that describes the name, icons, start URL, display
+          mode and theme;
+        </li>
+        <li>
+          a <strong>service worker</strong>, a JavaScript worker that sits between the page and the
+          network and can cache assets for offline use;
+        </li>
+        <li>
+          <strong>HTTPS</strong>, so the service worker can be trusted.
+        </li>
+      </ul>
+      <p>
+        That is the whole platform requirement. There is no SDK, no store account and no native
+        project. If the browser supports it, the app is installable; if it does not, the same URL
+        still works as an ordinary website.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. What You Need to Know</h2>
+      <p>
+        You need basic <strong>HTML</strong>, <strong>CSS</strong> and <strong>JavaScript</strong>,
+        plus the web app manifest. You do not need a native UI toolkit, a platform language or a
+        cross-platform framework. The UI is HTML and CSS; the logic is JavaScript or WebAssembly;
+        the manifest and the service worker are JSON and JavaScript.
+      </p>
+      <p>
+        That is a much smaller prerequisite list than "learn Android and iOS", and it is the reason
+        the web is the practical cross-platform target. If you can read a web page's source and
+        understand a <code>fetch</code> call, you can build a PWA.
+      </p>
+      <p>
+        It is also one of the easiest things to delegate to an AI assistant. The pieces are
+        standard, well documented and self-contained: a manifest, a service worker, a registration
+        script, an install button and a responsive page. AI is extremely good at writing PWAs; it
+        can produce a working scaffold in one pass. Use it for the scaffold, but verify the two
+        things that matter yourself: that the app is actually installable, and that it actually
+        works offline. Those are behaviors, not text.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Manifest</h2>
+      <p>
+        The manifest is a JSON file linked from the page:
+      </p>
+      <pre><code class="language-html">&lt;link rel="manifest" href="/manifest.webmanifest"&gt;
+&lt;meta name="theme-color" content="#111111"&gt;
+&lt;link rel="apple-touch-icon" href="/icons/192.png"&gt;</code></pre>
+      <p>
+        A minimal manifest that satisfies installability looks like this:
+      </p>
+      <pre><code class="language-json">{
+  "id": "/notes/",
+  "name": "Notes",
+  "short_name": "Notes",
+  "start_url": "/notes/",
+  "scope": "/notes/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "description": "A minimal offline notes app.",
+  "icons": [
+    { "src": "/icons/192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512",
+      "type": "image/png", "purpose": "maskable" }
+  ]
+}</code></pre>
+      <p>
+        The fields that matter for installability are <code>name</code> or
+        <code>short_name</code>, <code>start_url</code>, <code>display</code> (or
+        <code>display_override</code>), and icons at 192 and 512 pixels. Add
+        <code>scope</code> so the app does not claim the whole origin, and <code>id</code> so the
+        browser can keep the app identity stable if <code>start_url</code> changes later.
+      </p>
+      <p>
+        <code>display: standalone</code> hides the browser chrome. <code>display_override</code>
+        lets a browser choose a richer mode such as <code>window-controls-overlay</code> on desktop
+        while falling back to <code>standalone</code>. Add <code>screenshots</code> if you want a
+        richer install UI, and <code>shortcuts</code>, <code>share_target</code> or
+        <code>file_handlers</code> only when the app actually implements them.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The Service Worker</h2>
+      <p>
+        The service worker is the part that makes the app work offline. It has three lifecycle
+        events: <code>install</code>, <code>activate</code> and <code>fetch</code>. A small
+        cache-first worker:
+      </p>
+      <pre><code class="language-js">const VERSION = "v3";
+const CACHE = `notes-${VERSION}`;
+const SHELL = [
+  "/notes/",
+  "/notes/app.js",
+  "/notes/style.css",
+  "/notes/manifest.webmanifest",
+  "/notes/icons/192.png"
+];
+
+self.addEventListener("install", (event) =&gt; {
+  event.waitUntil(caches.open(CACHE).then((cache) =&gt; cache.addAll(SHELL)));
+});
+
+self.addEventListener("activate", (event) =&gt; {
+  event.waitUntil(
+    caches.keys().then((keys) =&gt;
+      Promise.all(keys.filter((key) =&gt; key !== CACHE)
+                      .map((key) =&gt; caches.delete(key)))
+    )
+  );
+});
+
+self.addEventListener("fetch", (event) =&gt; {
+  const { request } = event;
+  if (request.method !== "GET") return;
+
+  event.respondWith(
+    caches.match(request).then((cached) =&gt; {
+      if (cached) return cached;
+      return fetch(request).then((response) =&gt; {
+        if (response.ok &amp;&amp; new URL(request.url).origin === location.origin) {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) =&gt; cache.put(request, copy));
+        }
+        return response;
+      });
+    })
+  );
+});</code></pre>
+      <p>
+        Three rules make the difference between a demo and a working app:
+      </p>
+      <ul>
+        <li>
+          <strong>Version the cache.</strong> Bump <code>VERSION</code> whenever the shell changes,
+          or returning users keep the old files.
+        </li>
+        <li>
+          <strong>Choose a strategy per resource.</strong> Cache-first for the app shell; network-first
+          for APIs and anything that must be fresh; stale-while-revalidate for content that can be
+          slightly old.
+        </li>
+        <li>
+          <strong>Do not cache everything.</strong> Third-party responses, opaque cross-origin
+          responses and large media should not be blindly put in the cache.
+        </li>
+      </ul>
+      <p>
+        The service worker is also the update mechanism. A new worker installs in the background and
+        waits. You can call <code>self.skipWaiting()</code> to activate it immediately, and
+        <code>self.clients.claim()</code> to take control of open pages. The safer pattern is to ask
+        the user before reloading, which is what this tutorial's
+        <code>sw-register.js</code> does.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Registration and Install UX</h2>
+      <p>
+        Register the worker from the page:
+      </p>
+      <pre><code class="language-js">if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () =&gt; {
+    navigator.serviceWorker
+      .register("/notes/sw.js", { scope: "/notes/" })
+      .catch((error) =&gt; console.error("SW registration failed", error));
+  });
+}</code></pre>
+      <p>
+        On Chromium, <code>beforeinstallprompt</code> lets you show your own install button instead
+        of relying on the browser's UI:
+      </p>
+      <pre><code class="language-js">let deferredPrompt;
+
+window.addEventListener("beforeinstallprompt", (event) =&gt; {
+  event.preventDefault();
+  deferredPrompt = event;
+  document.getElementById("install").hidden = false;
+});
+
+document.getElementById("install").addEventListener("click", async () =&gt; {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById("install").hidden = true;
+});</code></pre>
+      <p>
+        iOS is different. Safari does not fire <code>beforeinstallprompt</code>; the user installs
+        through <em>Share &rarr; Add to Home Screen</em>. Provide an
+        <code>apple-touch-icon</code>, and if you want the standalone look, the
+        <code>apple-mobile-web-app-capable</code> meta tag. Do not build a UI that assumes an
+        install prompt exists on every platform.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Offline, Updates and Testing</h2>
+      <p>
+        An offline-capable app needs an app shell: the HTML, CSS, JavaScript, icons and WebAssembly
+        binary that make the UI start without the network. Cache those at install. Do not cache the
+        user's data in the same cache as the shell; use IndexedDB or the Origin Private File System
+        for data, and treat the cache as a copy of the code.
+      </p>
+      <p>
+        Test the behaviors, not the source:
+      </p>
+      <ul>
+        <li>DevTools &rarr; Application &rarr; Manifest: is it valid and installable?</li>
+        <li>Application &rarr; Service Workers: is it activated, and which cache is current?</li>
+        <li>Network &rarr; Offline: does the app still start and render?</li>
+        <li>Change a shell file, bump the version, reload: does the update arrive?</li>
+        <li>Install on Android, iOS and desktop: does it open standalone?</li>
+      </ul>
+      <p>
+        Run Lighthouse's PWA checks once, but do not treat the score as the goal. The goal is that a
+        user can install the app, open it without a network, and receive an update without clearing
+        site data.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. This Tutorial Is a PWA</h2>
+      <p>
+        The site you are reading is itself a PWA. Its <code>manifest.json</code> supplies the name,
+        icons and standalone display; its <code>sw.js</code> pre-caches the pages; its
+        <code>sw-register.js</code> detects a new worker and asks before reloading. The cache name
+        carries a version (<code>fast_io-docs-v80.x</code>) that must be bumped whenever the content
+        changes.
+      </p>
+      <p>
+        That last detail is the one that bites. A service worker that caches aggressively and a
+        cache version that never changes produce a site that is permanently stale for returning
+        users. The cache is not a deployment detail; it is part of the release.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Checklist</h2>
+      <ol>
+        <li>HTTPS, or localhost during development.</li>
+        <li>Manifest with name, short name, start URL, scope, display, 192 and 512 icons.</li>
+        <li>Service worker registered with the right scope.</li>
+        <li>App shell pre-cached; offline start works.</li>
+        <li>Cache version bumped on every shell change.</li>
+        <li>Update flow tested; no permanent stale state.</li>
+        <li>Install tested on Android, iOS and desktop.</li>
+        <li>No mixed content; no secrets in the client.</li>
+      </ol>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/21.pwas/01.background/" class="prev-button">&larr; Ch21.1: The App Sandbox Problem</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/21.pwas/03.wasm/" class="next-button">Ch21.3: WebAssembly: The C++ Core in the PWA &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
