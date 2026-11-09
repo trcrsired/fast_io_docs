@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第22章：加拿大编译 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第22章：加拿大编译</h1>
+    <p class="lang-switch"><a href="/docs/22.canadiancompilation/">English</a></p>
+
+    <section>
+      <h2>为什么需要这一章</h2>
+      <p>
+        前面每一章都默认编译器已经在那儿了。你写一个源文件，调用 <code>g++</code> 或
+        <code>clang++</code>，得到一个二进制。这一章把这个假设拿掉。编译器本身也是程序，
+        它也需要被构建，而且必须为运行它的那台机器构建。在一个新的体系结构上，根本没有编译器
+        可以用来构建编译器。这就是自举问题，加拿大编译是它的答案。
+      </p>
+      <p>
+        这个话题听起来像发布流程的杂活，其实不是。同样是三个三元组，决定了二进制能不能在眼前
+        这台机器上跑、sysroot 里装的是不是正确的 C 库，以及"交叉编译"到底指哪一件事。如果你曾经
+        把一套工具链拷到另一台机器上，然后看着它在 <code>crt1.o</code>、找不到的 <code>ld</code>
+        或者 <code>libstdc++.so.6</code> 版本上失败，这一章就是解释。
+      </p>
+      <p>
+        这一章很短，也很具体：一页讲命名体系，一页讲 sysroot，然后 GCC 和 LLVM 各一页。
+      </p>
+    </section>
+
+    <section>
+      <h2>四页</h2>
+      <ol>
+        <li>
+          <a href="/zhcn/docs/22.canadiancompilation/01.triplet/">22.1 三元组：给平台命名</a>
+        </li>
+        <li>
+          <a href="/zhcn/docs/22.canadiancompilation/02.sysroot/">22.2 Sysroot：有 libc，或者什么都没有</a>
+        </li>
+        <li>
+          <a href="/zhcn/docs/22.canadiancompilation/03.gcc/">22.3 GCC：构建、宿主、目标</a>
+        </li>
+        <li>
+          <a href="/zhcn/docs/22.canadiancompilation/04.llvm/">22.4 LLVM：构建与宿主</a>
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>简短版本</h2>
+      <p>
+        一个平台由<strong>三元组</strong>命名：指令集、厂商、操作系统和 C 库，按这个顺序。
+        厂商可以省略，C 库在某些情况下也可以省略。任何一部分不同，平台就不同，二进制不能互相运行。
+        桌面的 <code>x86_64-linux-gnu</code> 和 Android 的 <code>x86_64-linux-android</code>
+        共享指令集和内核；它们仍然是两个平台，因为 glibc 和 bionic 是两个不同的 C 库。
+      </p>
+      <p>
+        描述一次编译器构建需要三个三元组：<strong>构建</strong>是构建编译器的那台机器，
+        <strong>宿主</strong>是运行编译器的那台机器，<strong>目标</strong>是编译器生成代码所面向的机器。
+        本地编译三者相同。交叉编译是构建等于宿主、但不等于目标。加拿大编译是构建不等于宿主；
+        如果宿主也不等于目标，就是加拿大交叉编译。反向编译是构建等于目标、但不等于宿主，
+        也就是你每天从 Linux 测试 Windows 构建时用的那一种。
+      </p>
+      <p>
+        编译器不提供目标平台的 C 库。<strong>sysroot</strong> 提供它，连同启动对象、内核头文件和
+        动态加载器。GCC 提供 libgcc 和 libstdc++；LLVM 提供 compiler-rt、libc++、libc++abi 和
+        libunwind。如果你不提供 libc，目标就是独立的，工具链必须如实说明，而不是假装自己是 Linux。
+      </p>
+      <p>
+        在这些开始之前，构建机自己也需要同样的东西：一个带 C/C++ 头文件、libc 和 C++ 运行时的
+        C/C++ 开发环境，因为 GCC 和 Clang 都是 C++ 程序。Python、Go 和 Rust 不定义第二个 sysroot；
+        它们的运行时和原生模块都针对 C/C++ sysroot 构建。这就是为什么一个新平台首先得到的是
+        C/C++ 工具链。
+      </p>
+      <p>
+        GCC 用 <code>--build</code>、<code>--host</code> 和 <code>--target</code> 配置，
+        它的加拿大构建需要两个编译器：一个运行在构建机上、生成宿主代码，另一个运行在构建机上、
+        生成目标代码。LLVM 只有构建和宿主。一个 clang 二进制包含它配置过的所有后端，
+        <code>--target=</code> 在每次调用时选择一个，所以不存在"目标的 clang 构建"。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/21.pwas/04.publish/" class="prev-button">&larr; 第21.4章：发布 PWA</a>
+      <a href="/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/22.canadiancompilation/01.triplet/" class="next-button">第22.1章：三元组 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

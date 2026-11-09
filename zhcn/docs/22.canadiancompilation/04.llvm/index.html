@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第22.4章：LLVM：构建与宿主 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第22.4章：LLVM：构建与宿主</h1>
+    <p class="lang-switch"><a href="/docs/22.canadiancompilation/04.llvm/">English</a></p>
+
+    <section>
+      <h2>1. Clang 没有"目标的构建"</h2>
+      <p>
+        GCC 针对一个目标配置。用 <code>--target=aarch64-linux-gnu</code> 构建出来的
+        <code>gcc</code> 只生成 AArch64，别的都不行。LLVM 是另一种设计：一个代码生成器带多个后端，
+        全部编进一个 <code>clang</code> 二进制。目标在调用时选择：
+      </p>
+      <pre><code class="language-sh">clang++ --target=aarch64-linux-gnu --sysroot=$SYSROOT ...
+clang++ --target=x86_64-windows-gnu --sysroot=$MINGW ...
+clang++ --target=wasm32-wasip1 --sysroot=$WASI ...</code></pre>
+      <p>
+        所以 GCC 意义上的"目标的 clang"不存在。存在的是一个运行在宿主上、包含
+        <code>LLVM_TARGETS_TO_BUILD</code> 所启用后端的 clang。只要 AArch64 后端在，同一个二进制就能
+        在 x86_64 机器上、AArch64 机器上或者 Windows 机器上生成 AArch64 代码。交叉编译器不是另一次构建，
+        而是同一个驱动换一个 <code>--target</code>。
+      </p>
+      <p>但编译器总得在某个地方运行。那就是<strong>宿主</strong>。因此 LLVM 的构建只有两个三元组，不是三个：</p>
+      <table>
+        <thead>
+          <tr>
+            <th>概念</th>
+            <th>在 LLVM/CMake 里</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>构建</td>
+            <td>运行 CMake/Ninja 的机器</td>
+            <td><code>cmake</code> 和 <code>ninja</code> 在哪里运行</td>
+          </tr>
+          <tr>
+            <td>宿主</td>
+            <td><code>CMAKE_C_COMPILER_TARGET</code>、<code>LLVM_HOST_TRIPLE</code></td>
+            <td>产出的 <code>clang</code> 二进制在哪里运行</td>
+          </tr>
+          <tr>
+            <td>默认目标</td>
+            <td><code>LLVM_DEFAULT_TARGET_TRIPLE</code></td>
+            <td>用户不传 <code>--target</code> 时 clang 生成什么</td>
+          </tr>
+          <tr>
+            <td>启用的后端</td>
+            <td><code>LLVM_TARGETS_TO_BUILD</code></td>
+            <td>这个二进制能为哪些指令集生成代码</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        最容易弄错的是 <code>CMAKE_C_COMPILER_TARGET</code> 和
+        <code>LLVM_DEFAULT_TARGET_TRIPLE</code> 的区别。前者告诉"构建 clang 的那个编译器"为某个三元组
+        生成代码，所以 <em>clang 二进制本身</em>就是那个三元组的。后者只改 clang 的默认值，二进制仍然
+        运行在构建机上。想要后者却设了前者，得到的是一个在你机器上不能执行的编译器。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 什么算一次加拿大 LLVM 构建</h2>
+      <p>
+        假设你在 <code>x86_64-linux-gnu</code> 上，想要一个运行在 <code>aarch64-linux-gnu</code> 上、
+        能生成 AArch64 的 clang。你像交叉编译任何 C++ 程序一样交叉编译 clang：使用的编译器必须生成
+        AArch64，sysroot 必须是 AArch64 的 C/C++ sysroot，因为 clang 要链接 libc 和 C++ 运行时。
+        这就是加拿大构建：构建是 x86_64，宿主是 aarch64。目标根本不进入 CMake 的三元组；它是后端和
+        默认值，之后由 <code>--target</code> 选择。
+      </p>
+      <p>
+        如果你想要一个运行在构建机上、但默认面向 AArch64 的 clang，就不要设
+        <code>CMAKE_C_COMPILER_TARGET</code>。让二进制保持本地，设
+        <code>LLVM_DEFAULT_TARGET_TRIPLE=aarch64-linux-gnu</code>，并确保
+        <code>LLVM_TARGETS_TO_BUILD</code> 包含 <code>AArch64</code>。这是 LLVM 里最接近 GCC 交叉编译器
+        的东西，它只是一个多带一个后端的本地 clang。
+      </p>
+      <p>两种情况下，构建都需要同样三样实际的东西：</p>
+      <ul>
+        <li>
+          如果宿主不等于构建，需要一个 <strong>build-host 的 C++ sysroot</strong>。clang 是 C++ 写的；
+          产出的二进制必须链接宿主的 C++ 运行时。
+        </li>
+        <li>
+          构建期间运行的<strong>本地代码生成工具</strong>：<code>llvm-tblgen</code>、
+          <code>clang-tblgen</code>、<code>llvm-config</code>，以及 pseudo/confusable 生成器。
+          它们运行在构建机上，不能是交叉编译出来的那一份。
+        </li>
+        <li>
+          为任何要构建的运行时库（<code>compiler-rt</code>、<code>libc++</code>、<code>libc++abi</code>、
+          <code>libunwind</code>）准备带 libc 和头文件的<strong>目标 sysroot</strong>。
+          <a href="/zhcn/docs/22.canadiancompilation/02.sysroot/">22.2</a> 的 sysroot 规则原样适用。
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. CMake 配置</h2>
+      <p>用 CMake toolchain 文件表达宿主和 sysroot 是最干净的方式。参考脚本的形态是：</p>
+      <pre><code class="language-cmake">set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_C_COMPILER clang)
+set(CMAKE_CXX_COMPILER clang++)
+set(CMAKE_ASM_COMPILER clang)
+
+# 产出的 clang 运行在这个三元组上，所以 clang 为它生成代码。
+set(CMAKE_C_COMPILER_TARGET aarch64-linux-gnu)
+set(CMAKE_CXX_COMPILER_TARGET aarch64-linux-gnu)
+set(CMAKE_ASM_COMPILER_TARGET aarch64-linux-gnu)
+
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR aarch64)
+set(CMAKE_CROSSCOMPILING On)
+
+set(CMAKE_SYSROOT /home/you/toolchains/llvm/aarch64-linux-gnu/aarch64-linux-gnu)
+set(CMAKE_FIND_ROOT_PATH ${CMAKE_SYSROOT})
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)</code></pre>
+      <p>
+        运行 CMake 测试程序的编译器是构建机上的 <code>clang</code>，但
+        <code>CMAKE_C_COMPILER_TARGET</code> 让它产出 AArch64 二进制。CMake 本身运行在构建机上；
+        它构建出来的目标文件属于宿主。这就是一次加拿大构建，只是没有 <code>--host</code> 参数。
+      </p>
+      <p>然后用宿主三元组、默认目标和本地工具配置 LLVM：</p>
+      <pre><code class="language-sh">cmake -G Ninja -S llvm-project/llvm -B build-aarch64 \
+  -DCMAKE_TOOLCHAIN_FILE=$PWD/aarch64.cmake \
+  -DCMAKE_INSTALL_PREFIX=/home/you/toolchains/llvm/aarch64-linux-gnu/llvm \
+  -DLLVM_HOST_TRIPLE=aarch64-linux-gnu \
+  -DLLVM_DEFAULT_TARGET_TRIPLE=aarch64-linux-gnu \
+  -DLLVM_TARGETS_TO_BUILD="AArch64;X86" \
+  -DLLVM_NATIVE_TOOL_DIR=/home/you/toolchains/llvm/native/bin \
+  -DLLVM_ENABLE_PROJECTS="clang;lld;clang-tools-extra" \
+  -DLLVM_ENABLE_ZLIB=FORCE_ON \
+  -DZLIB_LIBRARY=$SYSROOT/usr/lib/libz.a \
+  -DZLIB_INCLUDE_DIR=$SYSROOT/usr/include \
+  -DBUILD_SHARED_LIBS=ON \
+  -DLLVM_ENABLE_LTO=Thin \
+  -DLLVM_ENABLE_TERMINFO=OFF \
+  -DLLVM_ENABLE_LIBXML2=OFF \
+  -DLLVM_INCLUDE_TESTS=OFF \
+  -DLLVM_INCLUDE_BENCHMARKS=OFF \
+  -DLLVM_ENABLE_ASSERTIONS=OFF
+
+ninja -C build-aarch64
+ninja -C build-aarch64 install/strip</code></pre>
+      <p>
+        CMake 有时会在第一次配置时忽略新的 toolchain 文件。参考脚本因此把同一条 <code>cmake</code>
+        命令跑两遍；第二次相同的调用很便宜，可以避免"它用了宿主编译器"这种令人困惑的失败。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 本地工具：真正会咬人的地方</h2>
+      <p>
+        LLVM 在构建时用 <code>llvm-tblgen</code> 和 <code>clang-tblgen</code> 生成很大一部分自己的源码。
+        这些程序必须运行在构建机上。交叉编译出来的 clang 在那里跑不了，所以 CMake 需要一份本地副本。
+      </p>
+      <p>
+        现代做法是 <code>LLVM_NATIVE_TOOL_DIR</code>，由
+        <a href="https://reviews.llvm.org/D131052">D131052</a> 引入，2023 年合入。把它指向本地 LLVM 构建的
+        <code>bin</code> 目录，CMake 就会使用那些可执行文件，而不是自己再构建：
+      </p>
+      <pre><code class="language-sh">-DLLVM_NATIVE_TOOL_DIR=/home/you/toolchains/llvm/native/bin</code></pre>
+      <p>旧的说明会逐个设置工具：</p>
+      <pre><code class="language-sh">-DLLVM_TABLEGEN=/path/to/native/bin/llvm-tblgen
+-DCLANG_TABLEGEN=/path/to/native/bin/clang-tblgen
+-DLLVM_CONFIG_PATH=/path/to/native/bin/llvm-config</code></pre>
+      <p>
+        两种都行。要点是 <code>ninja install</code> 默认不安装 <code>llvm-tblgen</code> 和
+        <code>clang-tblgen</code>，所以"先安装 clang，再用这个安装去交叉构建"的天真做法会因为找不到
+        TableGen 而失败。保留本地构建目录，或者把工具拷到一个稳定的位置。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 运行时库</h2>
+      <p>
+        "clang 编译器"和"完整的 clang 工具链"是两回事。编译器本身可以使用目标 sysroot 里 GCC 的
+        <code>libstdc++</code> 和 <code>libgcc</code>。这是得到可用交叉编译器最快的方式：
+      </p>
+      <pre><code class="language-sh">$PREFIX/bin/clang++ --target=$TARGET \
+  --gcc-toolchain=$GCC_PREFIX \
+  --sysroot=$SYSROOT \
+  hello.cc -o hello</code></pre>
+      <p>
+        自包含的 LLVM 工具链还会带上 <code>compiler-rt</code>、<code>libc++</code>、
+        <code>libc++abi</code> 和 <code>libunwind</code>。把它们作为 runtime 构建，使用刚构建好的 clang
+        和目标 sysroot：
+      </p>
+      <pre><code class="language-sh">cmake -G Ninja -S llvm-project/runtimes -B build-runtimes \
+  -DCMAKE_C_COMPILER=$PREFIX/bin/clang \
+  -DCMAKE_CXX_COMPILER=$PREFIX/bin/clang++ \
+  -DCMAKE_C_COMPILER_TARGET=$TARGET \
+  -DCMAKE_CXX_COMPILER_TARGET=$TARGET \
+  -DCMAKE_SYSROOT=$SYSROOT \
+  -DCMAKE_INSTALL_PREFIX=$PREFIX \
+  -DLLVM_ENABLE_RUNTIMES="compiler-rt;libcxx;libcxxabi;libunwind" \
+  -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON
+
+ninja -C build-runtimes
+ninja -C build-runtimes install</code></pre>
+      <p>
+        构建顺序很重要：<code>compiler-rt</code> 的 builtins 不依赖 C++ 库；<code>libunwind</code>
+        需要 C++ 头文件但不需要 C++ 库；<code>libc++abi</code> 需要 <code>libunwind</code>；
+        <code>libc++</code> 需要 <code>libc++abi</code>。如果你只需要 C，跳过这些，直接用 sysroot 的 libc。
+      </p>
+      <p>运行时装好之后，显式选择它们：</p>
+      <pre><code class="language-sh">clang++ --target=$TARGET --sysroot=$SYSROOT \
+  --rtlib=compiler-rt --stdlib=libc++ \
+  -nostdinc++ -isystem $PREFIX/include/c++/v1 \
+  -L$PREFIX/lib -Wl,-rpath,$PREFIX/lib \
+  hello.cc -o hello</code></pre>
+    </section>
+
+    <section>
+      <h2>6. 实际会遇到的失败</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>症状</th>
+            <th>原因</th>
+            <th>修复</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>构建期间 <code>llvm-tblgen: not found</code></td>
+            <td>没有本地工具；交叉构建试图运行目标二进制</td>
+            <td><code>LLVM_NATIVE_TOOL_DIR</code> 或 <code>LLVM_TABLEGEN</code>/<code>CLANG_TABLEGEN</code></td>
+          </tr>
+          <tr>
+            <td>产出的 <code>clang</code> 在构建机上不能执行</td>
+            <td>想要本地 clang，却把 <code>CMAKE_C_COMPILER_TARGET</code> 设成了目标</td>
+            <td>去掉它，或者把结果当作宿主二进制并送到宿主</td>
+          </tr>
+          <tr>
+            <td><code>libstdc++.so.6: version GLIBCXX_3.4.xx not found</code></td>
+            <td>宿主的 C++ 运行时比构建 clang 用的更旧</td>
+            <td><code>LLVM_STATIC_LINK_CXX_STDLIB=ON</code>，或随产物带新运行时，或设 <code>LD_LIBRARY_PATH</code></td>
+          </tr>
+          <tr>
+            <td><code>cannot find -lz</code>，或者压缩支持被静默关闭</td>
+            <td>没有找到目标的 zlib</td>
+            <td><code>LLVM_ENABLE_ZLIB=FORCE_ON</code> 并显式给 <code>ZLIB_LIBRARY</code>/<code>ZLIB_INCLUDE_DIR</code></td>
+          </tr>
+          <tr>
+            <td>宿主库泄漏进构建</td>
+            <td><code>pkg-config</code> 和 CMake 在宿主上搜索</td>
+            <td><code>CMAKE_FIND_ROOT_PATH</code>、<code>PKG_CONFIG_LIBDIR</code>、<code>PKG_CONFIG_PATH=""</code></td>
+          </tr>
+          <tr>
+            <td>链接时报缺少 <code>crtbegin.o</code> 或 <code>-lc</code></td>
+            <td>没有目标 sysroot，或者布局不对</td>
+            <td>读 <a href="/zhcn/docs/22.canadiancompilation/02.sysroot/">22.2</a>，检查 <code>-print-search-dirs</code></td>
+          </tr>
+          <tr>
+            <td>构建想要 Python、curses 或 libxml2</td>
+            <td>默认启用了可选项目</td>
+            <td>关掉 <code>lldb</code>，用 <code>LLVM_ENABLE_TERMINFO=OFF</code>、<code>LLVM_ENABLE_LIBXML2=OFF</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>BUILD_SHARED_LIBS=ON</code> 是一个有意的取舍。它让 LLVM 库变成动态库，减小安装体积，
+        让 clang 工具共享它们，但意味着宿主必须有兼容的 <code>libstdc++.so.6</code> 或
+        <code>libc++.so</code>。如果你要发布到无法控制的机器上，要么用
+        <code>-DLLVM_STATIC_LINK_CXX_STDLIB=ON</code> 构建，要么把运行时一起打包并设置 rpath。
+        不要因为宿主的 C 编译器能用，就假设宿主的 C++ 运行时足够新。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 验证结果</h2>
+      <pre><code class="language-sh">$PREFIX/bin/clang --version
+$PREFIX/bin/clang -print-target-triple
+$PREFIX/bin/clang -print-targets        # 启用的后端
+$PREFIX/bin/clang -dumpmachine
+
+$PREFIX/bin/clang --target=$TARGET --sysroot=$SYSROOT \
+  -v -E -x c /dev/null                  # include 搜索路径
+
+file $PREFIX/bin/clang                  # 必须匹配宿主，而不是构建机</code></pre>
+      <p>
+        最后一项检查专门抓走错的加拿大构建。如果 <code>file</code> 说
+        <code>ELF 64-bit LSB ... x86-64</code>，而你想要 AArch64 宿主，那就是构建用了本地编译器，
+        而不是面向目标的编译器。编译器仍然能运行，也仍然能编译 hello world，所以这个失败能躲过一次
+        随意的测试。打包之前，把工具链拷到目标宿主上，在那里运行 <code>clang --version</code>。
+      </p>
+      <p>
+        这一页的参考实现是
+        <a href="https://github.com/trcrsired/toolchainbuildscripts">trcrsired/toolchainbuildscripts</a>
+        里的 <code>canadian/canadian_clang_aarch64-linux-gnu.txt</code> 和
+        <code>llvm/build_common.sh</code>。那些文件把 <code>CMAKE_C_COMPILER_TARGET</code>、
+        <code>LLVM_HOST_TRIPLE</code>、<code>LLVM_DEFAULT_TARGET_TRIPLE</code>、sysroot、zlib 和本地
+        TableGen 工具放在一处；读完这一页，这些选项名应该读起来像对构建过程的描述，而不是一串参数。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/22.canadiancompilation/03.gcc/" class="prev-button">&larr; 第22.3章：GCC</a>
+      <a href="/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>

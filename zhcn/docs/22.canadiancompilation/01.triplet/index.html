@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第22.1章：三元组：给平台命名 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第22.1章：三元组：给平台命名</h1>
+    <p class="lang-switch"><a href="/docs/22.canadiancompilation/01.triplet/">English</a></p>
+
+    <section>
+      <h2>1. 一个字符串，四个字段</h2>
+      <blockquote>
+        <p>
+          <strong>定义。</strong><strong>三元组</strong>用四个字段给平台命名：
+          <code>&lt;指令集&gt;-&lt;厂商&gt;-&lt;操作系统&gt;-&lt;C 库&gt;</code>。
+          先是指令集体系结构，然后是厂商，然后是操作系统（或内核），最后是 C 库。厂商可以省略，
+          默认是 <code>pc</code> 或 <code>unknown</code>。当操作系统把 C 库当作平台的一部分提供时，
+          C 库字段也可以省略。
+        </p>
+      </blockquote>
+      <p>
+        这个命名是约定，不是法律，但它是所有工具链共用的约定。<code>config.guess</code> 猜测你
+        所在机器的三元组，<code>config.sub</code> 把别名规范化，<code>gcc -dumpmachine</code>
+        打印编译器的默认三元组，<code>clang -print-target-triple</code> 打印它的宿主三元组。
+        字段错了，构建就会在意想不到的地方失败：编译器找到错误的头文件、链接错误的启动对象，
+        或者为错误的指令集生成代码。
+      </p>
+      <p>常见三元组及其含义：</p>
+      <table>
+        <thead>
+          <tr>
+            <th>三元组</th>
+            <th>平台</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>x86_64-linux-gnu</code></td>
+            <td>64 位 x86，Linux，glibc</td>
+            <td>大多数桌面发行版的默认值</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-linux-musl</code></td>
+            <td>64 位 x86，Linux，musl</td>
+            <td>和 <code>-gnu</code> 是两个平台；静态二进制很常见</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-linux-android</code></td>
+            <td>64 位 x86，Android，bionic</td>
+            <td>和桌面 Linux 不二进制兼容</td>
+          </tr>
+          <tr>
+            <td><code>aarch64-linux-gnu</code></td>
+            <td>64 位 ARM，Linux，glibc</td>
+            <td>常见的 ARM64 Linux 服务器目标</td>
+          </tr>
+          <tr>
+            <td><code>arm-linux-gnueabihf</code></td>
+            <td>32 位 ARM，Linux，glibc，硬浮点</td>
+            <td><code>eabihf</code> 后缀固定浮点 ABI</td>
+          </tr>
+          <tr>
+            <td><code>loongarch64-linux-gnu</code></td>
+            <td>64 位龙架构，Linux，glibc</td>
+            <td>龙芯的体系结构</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-windows-gnu</code></td>
+            <td>64 位 x86，Windows，mingw-w64</td>
+            <td>Windows 上的 GNU 工具链</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-windows-msvc</code></td>
+            <td>64 位 x86，Windows，MSVC CRT</td>
+            <td>和 <code>-gnu</code> 不链接兼容</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-freebsd</code></td>
+            <td>64 位 x86，FreeBSD</td>
+            <td>C 库字段省略；操作系统自己提供</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-darwin</code></td>
+            <td>64 位 x86，macOS</td>
+            <td>同样省略 C 库；由 SDK 提供</td>
+          </tr>
+          <tr>
+            <td><code>wasm32-wasip1</code></td>
+            <td>32 位 WebAssembly，WASI preview 1</td>
+            <td><a href="/zhcn/docs/21.pwas/03.wasm/">第21.3章</a>使用的目标</td>
+          </tr>
+          <tr>
+            <td><code>wasm32-unknown-unknown</code></td>
+            <td>32 位 WebAssembly，没有操作系统</td>
+            <td>独立：没有 WASI，没有 libc</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-elf</code></td>
+            <td>64 位 x86，没有操作系统</td>
+            <td>独立；所有东西都由你提供</td>
+          </tr>
+          <tr>
+            <td><code>i586-msdosdjgpp</code></td>
+            <td>32 位 x86，MS-DOS，DJGPP</td>
+            <td>提醒你"操作系统"不一定是现代内核</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        这张表本身就是完整的论证。<code>x86_64-linux-gnu</code> 和 <code>x86_64-linux-musl</code>
+        跑在同一个内核、同一个 CPU 上，但动态链接到 glibc 的二进制在没有兼容层时不能跑在 musl 系统上，
+        反过来也一样。<code>x86_64-linux-gnu</code> 和 <code>x86_64-linux-android</code>
+        是同一件事的放大版：相同的指令集，底下都是 Linux 内核，不同的 C 库（bionic），不同的平台。
+        这就是为什么"它是 Linux"不是一句可移植性声明。
+      </p>
+      <p>
+        最容易混淆的是 C 库字段。<code>gnu</code> 指 glibc，<code>musl</code> 指 musl，
+        <code>android</code> 指 bionic，<code>msvc</code> 指微软 CRT，Windows 上的
+        <code>gnu</code> 指 mingw-w64。同一个词在不同操作系统上可能意味着不同的 ABI，
+        这正是必须写完整三元组的原因。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 构建、宿主、目标</h2>
+      <p>一次编译器构建由三个三元组描述，它们回答三个不同的问题：</p>
+      <ul>
+        <li>
+          <strong>构建（build）</strong>：<em>构建</em>编译器的机器。这里是 <code>make</code>
+          运行的地方，也是编译器自己的目标文件产生的地方。
+        </li>
+        <li>
+          <strong>宿主（host）</strong>：<em>运行</em>编译器的机器。产出的 <code>gcc</code> 或
+          <code>clang</code> 可执行文件必须是为这个平台构建的程序。
+        </li>
+        <li>
+          <strong>目标（target）</strong>：编译器<em>生成</em>的代码所面向的机器。这是你以后用
+          这个编译器编译出来的程序所在的平台。
+        </li>
+      </ul>
+      <p>
+        让 GCC 打印版本，它会给出这三个三元组。<code>Target:</code> 是它为谁编译，
+        <code>Host:</code> 是它在哪里运行，<code>Build:</code> 是谁构建了它：
+      </p>
+      <pre><code class="language-text">$ gcc -v
+...
+Target: x86_64-linux-gnu
+...
+</code></pre>
+      <p>
+        一个运行平台和目标的平台相同的编译器，对该平台来说就是<strong>本地编译器</strong>，
+        即使它是在别处构建的。这一点很容易被忽略："本地"描述的是宿主与目标的关系，
+        不是构建与宿主的关系。在 x86_64 Linux 上构建、为 x86_64 Linux 使用的编译器是本地编译器。
+        在 x86_64 Linux 上构建、为 AArch64 Linux 使用的编译器是交叉编译器；把它复制到 AArch64
+        机器上，它在那里就成了本地编译器，不需要重新构建。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 五种构建形态</h2>
+      <p>
+        GCC 手册把两个经常被塞进同一个词里的问题分开。第一个是构建与宿主的关系：编译器是由同一平台
+        上的编译器产生的，还是由另一个平台上的编译器产生的？第二个是宿主与目标的关系：编译器是否
+        运行在它所面向的平台上？组合起来得到五个名字：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>名称</th>
+            <th>关系</th>
+            <th>含义</th>
+            <th>典型场景</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>本地编译（Native）</td>
+            <td>build = host = target</td>
+            <td>一切都在同一个平台上发生</td>
+            <td>在发行版上构建发行版编译器</td>
+          </tr>
+          <tr>
+            <td>交叉编译（Cross）</td>
+            <td>build = host &ne; target</td>
+            <td>编译器运行在构建机上，为另一个平台生成代码</td>
+            <td><code>x86_64-linux-gnu</code> &rarr; <code>aarch64-linux-gnu</code></td>
+          </tr>
+          <tr>
+            <td>加拿大编译（Canadian native）</td>
+            <td>build &ne; host = target</td>
+            <td>另一台机器为这台机器产生本地编译器</td>
+            <td>在 x86_64 Linux 上构建 AArch64 Linux GCC</td>
+          </tr>
+          <tr>
+            <td>加拿大交叉编译（Canadian cross）</td>
+            <td>build &ne; host &ne; target</td>
+            <td>另一台机器为这台机器产生交叉编译器</td>
+            <td>x86_64 Linux 构建运行在 AArch64 上、目标为 RISC-V 的编译器</td>
+          </tr>
+          <tr>
+            <td>反向编译（Crossback）</td>
+            <td>build = target &ne; host</td>
+            <td>特殊的加拿大交叉编译：构建机同时也是目标机</td>
+            <td>在 Linux 上构建运行在 Windows 上、目标为 Linux 的编译器</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>加拿大编译</strong>是"加拿大本地编译"的简称。这个名字是一个历史笑话：一串跨越国界
+        的机器，第一台机器构建的编译器运行在第二台机器上，第二台机器再为第三台机器生成代码。
+        本质属性是构建机不是宿主机器。如果宿主和目标也不同，那就是加拿大<em>交叉</em>编译。
+      </p>
+      <p>
+        <strong>反向编译</strong>是那种因为太常见而让人吃惊的情况。构建等于目标，宿主不同：
+        你在 Linux 上构建一个运行在 Windows 上的编译器，而这个编译器生成 Linux 二进制。
+        当你想在 Windows 上测试 Linux 目标时，做的正是这件事。GCC 手册把它叫 "crossback" 或
+        "crossed native backwards"。它是把构建和目标对调的加拿大交叉编译，在实际使用中是仅次于
+        本地编译的第二常见配置。
+      </p>
+      <p>
+        一套编译器发行版可以是上面任何一种。对使用者来说，重要的问题只有一个：<code>host</code>
+        和 <code>target</code> 是什么？构建三元组是历史，它告诉你这个产物是怎么造出来的，
+        而不是它能做什么。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 为什么加拿大构建需要两个编译器</h2>
+      <p>
+        假设你在 <code>x86_64-linux-gnu</code> 上，想要一个运行在 <code>aarch64-linux-gnu</code>
+        上、目标也是 <code>aarch64-linux-gnu</code> 的编译器。显然的计划是"为 AArch64 构建 GCC"。
+        但你不能在构建期间于 x86_64 机器上运行 AArch64 编译器。编译器是一个程序，它自己的构建过程
+        必须执行中间工具：生成器、表构造器，以及刚构建出来、用来编译目标运行时库的
+        <code>xgcc</code> 本身。
+      </p>
+      <p>所以加拿大构建同时使用两个编译器：</p>
+      <ul>
+        <li>
+          一个面向构建机的<strong>本地编译器</strong>。它构建那些必须在构建期间运行的工具。
+        </li>
+        <li>
+          一个运行在构建机上、为目标生成代码的<strong>交叉编译器</strong>。它构建将来运行在宿主上的
+          编译器可执行文件（当宿主和目标不同时，这是一个 build&rarr;host 编译器），也构建目标库。
+        </li>
+      </ul>
+      <p>
+        在加拿大<em>本地</em>构建里，宿主和目标平台相同，所以一个交叉编译器同时扮演两个角色。
+        在加拿大<em>交叉</em>构建里，两者不同，你需要两个交叉编译器：build&rarr;host 用于编译器
+        二进制本身，build&rarr;target 用于目标运行时。GCC 的构建系统把它们叫
+        <code>CC_FOR_BUILD</code>、<code>CC</code> 和 <code>CC_FOR_TARGET</code>，把它们弄混，
+        通常就是加拿大构建产出一个在哪台机器上都不能执行的二进制的原因。
+      </p>
+      <p>
+        这不是什么罕见角落。一个新的 CPU 体系结构在有人加拿大构建出编译器之前，没有本地编译器。
+        每个发行版为新体系结构提供的第一个编译器，每个厂商为新板子提供的 SDK，都是这样造出来的。
+        第一个本地编译器永远是外来构建的产物。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 延伸阅读</h2>
+      <p>
+        中文文章
+        <a href="https://zhuanlan.zhihu.com/p/553543765">《编译器的构建基本原理》</a>
+        用图和 GCC、LLVM 的实例展开了同样的材料。那篇文章把 triplet 译作"三连音"，
+        本书统一用"三元组"。文章也是"加拿大构建同时需要本地和交叉两个编译器"以及"LLVM 绕不开先构建
+        GCC 交叉工具链"这两个实务警告的来源。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/22.canadiancompilation/" class="prev-button">&larr; 第22章：加拿大编译</a>
+      <a href="/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/22.canadiancompilation/02.sysroot/" class="next-button">第22.2章：Sysroot &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

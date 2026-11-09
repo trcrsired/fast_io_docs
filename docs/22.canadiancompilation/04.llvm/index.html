@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch22.4: LLVM: Build and Host - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch22.4: LLVM: Build and Host</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/22.canadiancompilation/04.llvm/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Clang Has No Target Build</h2>
+      <p>
+        GCC is configured for one target. A <code>gcc</code> built with
+        <code>--target=aarch64-linux-gnu</code> emits AArch64 and nothing else. LLVM is the other
+        design: one code generator with several backends, compiled into one <code>clang</code> binary.
+        The target is chosen at invocation:
+      </p>
+      <pre><code class="language-sh">clang++ --target=aarch64-linux-gnu --sysroot=$SYSROOT ...
+clang++ --target=x86_64-windows-gnu --sysroot=$MINGW ...
+clang++ --target=wasm32-wasip1 --sysroot=$WASI ...</code></pre>
+      <p>
+        So there is no "target clang" in the GCC sense. There is a clang that runs on the host,
+        containing the backends that were enabled with <code>LLVM_TARGETS_TO_BUILD</code>. If the
+        AArch64 backend is present, the same binary can produce AArch64 code from an x86_64 machine,
+        or from an AArch64 machine, or from a Windows machine. A cross compiler is not a separate
+        build; it is the same driver with a different <code>--target</code>.
+      </p>
+      <p>
+        But a compiler still has to run somewhere. That is the <strong>host</strong>. LLVM's build
+        therefore has two triples, not three:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Concept</th>
+            <th>In LLVM/CMake</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Build</td>
+            <td>The CMake/Ninja machine</td>
+            <td>Where <code>cmake</code> and <code>ninja</code> run</td>
+          </tr>
+          <tr>
+            <td>Host</td>
+            <td><code>CMAKE_C_COMPILER_TARGET</code>, <code>LLVM_HOST_TRIPLE</code></td>
+            <td>The platform the produced <code>clang</code> binary runs on</td>
+          </tr>
+          <tr>
+            <td>Default target</td>
+            <td><code>LLVM_DEFAULT_TARGET_TRIPLE</code></td>
+            <td>What clang emits when the user does not pass <code>--target</code></td>
+          </tr>
+          <tr>
+            <td>Enabled backends</td>
+            <td><code>LLVM_TARGETS_TO_BUILD</code></td>
+            <td>Which instruction sets the binary can emit</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The distinction between <code>CMAKE_C_COMPILER_TARGET</code> and
+        <code>LLVM_DEFAULT_TARGET_TRIPLE</code> is the one people get wrong.
+        <code>CMAKE_C_COMPILER_TARGET</code> tells the compiler that builds clang to emit code for
+        that triple, so the <em>clang binary itself</em> is for that triple.
+        <code>LLVM_DEFAULT_TARGET_TRIPLE</code> only changes clang's default; the binary still runs
+        on the build machine. Setting the first when you wanted the second produces a compiler that
+        will not execute on your machine.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. What a Canadian LLVM Build Is</h2>
+      <p>
+        Suppose you are on <code>x86_64-linux-gnu</code> and you want a clang that runs on
+        <code>aarch64-linux-gnu</code> and can emit AArch64. You cross-compile clang like any other
+        C++ program: the compiler you use must produce AArch64, and the sysroot must be an AArch64
+        C/C++ sysroot, because clang links libc and a C++ runtime. That is a Canadian build:
+        build is x86_64, host is aarch64. Target does not enter the CMake triple at all; it is the
+        backend and the default, chosen later by <code>--target</code>.
+      </p>
+      <p>
+        If you want a clang that runs on the build machine but defaults to AArch64, do not set
+        <code>CMAKE_C_COMPILER_TARGET</code>. Leave the binary native, set
+        <code>LLVM_DEFAULT_TARGET_TRIPLE=aarch64-linux-gnu</code>, and make sure
+        <code>LLVM_TARGETS_TO_BUILD</code> contains <code>AArch64</code>. This is the closest thing
+        LLVM has to a GCC cross compiler, and it is just a native clang with an extra backend.
+      </p>
+      <p>
+        In both cases the build needs the same three practical things:
+      </p>
+      <ul>
+        <li>
+          A <strong>build-host C++ sysroot</strong> if host differs from build. Clang is C++; the
+          produced binary must link the host's C++ runtime.
+        </li>
+        <li>
+          <strong>Native code-generation tools</strong> that run during the build:
+          <code>llvm-tblgen</code>, <code>clang-tblgen</code>, <code>llvm-config</code>, and the
+          pseudo/confusable generators. They run on the build machine and cannot be the
+          cross-compiled ones.
+        </li>
+        <li>
+          A <strong>target sysroot</strong> with libc and headers for any runtime library you build
+          (<code>compiler-rt</code>, <code>libc++</code>, <code>libc++abi</code>,
+          <code>libunwind</code>). The sysroot rules from <a href="/docs/22.canadiancompilation/02.sysroot/">22.2</a>
+          apply unchanged.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. The CMake Configuration</h2>
+      <p>
+        A CMake toolchain file is the clean way to express the host and the sysroot. This is the
+        shape used by the reference scripts:
+      </p>
+      <pre><code class="language-cmake">set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_C_COMPILER clang)
+set(CMAKE_CXX_COMPILER clang++)
+set(CMAKE_ASM_COMPILER clang)
+
+# The produced clang runs on this triple, so clang emits its code for it.
+set(CMAKE_C_COMPILER_TARGET aarch64-linux-gnu)
+set(CMAKE_CXX_COMPILER_TARGET aarch64-linux-gnu)
+set(CMAKE_ASM_COMPILER_TARGET aarch64-linux-gnu)
+
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR aarch64)
+set(CMAKE_CROSSCOMPILING On)
+
+set(CMAKE_SYSROOT /home/you/toolchains/llvm/aarch64-linux-gnu/aarch64-linux-gnu)
+set(CMAKE_FIND_ROOT_PATH ${CMAKE_SYSROOT})
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)</code></pre>
+      <p>
+        The compiler that runs CMake's test programs is <code>clang</code> on the build machine, but
+        <code>CMAKE_C_COMPILER_TARGET</code> makes it produce AArch64 binaries. CMake itself runs on
+        the build machine; the objects it builds are for the host. That is exactly a Canadian build,
+        expressed without a <code>--host</code> flag.
+      </p>
+      <p>Then configure LLVM with the host triple, the default target, and the native tools:</p>
+      <pre><code class="language-sh">cmake -G Ninja -S llvm-project/llvm -B build-aarch64 \
+  -DCMAKE_TOOLCHAIN_FILE=$PWD/aarch64.cmake \
+  -DCMAKE_INSTALL_PREFIX=/home/you/toolchains/llvm/aarch64-linux-gnu/llvm \
+  -DLLVM_HOST_TRIPLE=aarch64-linux-gnu \
+  -DLLVM_DEFAULT_TARGET_TRIPLE=aarch64-linux-gnu \
+  -DLLVM_TARGETS_TO_BUILD="AArch64;X86" \
+  -DLLVM_NATIVE_TOOL_DIR=/home/you/toolchains/llvm/native/bin \
+  -DLLVM_ENABLE_PROJECTS="clang;lld;clang-tools-extra" \
+  -DLLVM_ENABLE_ZLIB=FORCE_ON \
+  -DZLIB_LIBRARY=$SYSROOT/usr/lib/libz.a \
+  -DZLIB_INCLUDE_DIR=$SYSROOT/usr/include \
+  -DBUILD_SHARED_LIBS=ON \
+  -DLLVM_ENABLE_LTO=Thin \
+  -DLLVM_ENABLE_TERMINFO=OFF \
+  -DLLVM_ENABLE_LIBXML2=OFF \
+  -DLLVM_INCLUDE_TESTS=OFF \
+  -DLLVM_INCLUDE_BENCHMARKS=OFF \
+  -DLLVM_ENABLE_ASSERTIONS=OFF
+
+ninja -C build-aarch64
+ninja -C build-aarch64 install/strip</code></pre>
+      <p>
+        CMake sometimes ignores a new toolchain file on the first configure. The reference scripts
+        run the same <code>cmake</code> command twice for this reason; a second identical invocation
+        is cheap and avoids a confusing "it used the host compiler" failure.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Native Tools: the Part That Bites</h2>
+      <p>
+        LLVM generates a large part of its own source at build time with <code>llvm-tblgen</code> and
+        <code>clang-tblgen</code>. These programs must run on the build machine. The cross-compiled
+        clang cannot run there, so CMake needs a native copy.
+      </p>
+      <p>
+        The modern answer is <code>LLVM_NATIVE_TOOL_DIR</code>, added by
+        <a href="https://reviews.llvm.org/D131052">D131052</a> and merged in 2023. Point it at the
+        <code>bin</code> directory of a native LLVM build, and CMake uses those executables instead of
+        building its own:
+      </p>
+      <pre><code class="language-sh">-DLLVM_NATIVE_TOOL_DIR=/home/you/toolchains/llvm/native/bin</code></pre>
+      <p>
+        Older instructions set each tool by hand:
+      </p>
+      <pre><code class="language-sh">-DLLVM_TABLEGEN=/path/to/native/bin/llvm-tblgen
+-DCLANG_TABLEGEN=/path/to/native/bin/clang-tblgen
+-DLLVM_CONFIG_PATH=/path/to/native/bin/llvm-config</code></pre>
+      <p>
+        Both work. The important point is that <code>ninja install</code> does not install
+        <code>llvm-tblgen</code> and <code>clang-tblgen</code> by default, so a naive "install clang,
+        then use that installation to cross-build" fails with a missing TableGen. Keep the native
+        build directory, or copy the tools somewhere stable.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Runtime Libraries</h2>
+      <p>
+        Clang the compiler and clang the complete toolchain are different things. The compiler alone
+        can use GCC's <code>libstdc++</code> and <code>libgcc</code> from the target sysroot. That is
+        the fastest way to get a working cross compiler:
+      </p>
+      <pre><code class="language-sh">$PREFIX/bin/clang++ --target=$TARGET \
+  --gcc-toolchain=$GCC_PREFIX \
+  --sysroot=$SYSROOT \
+  hello.cc -o hello</code></pre>
+      <p>
+        A self-contained LLVM toolchain also ships <code>compiler-rt</code>, <code>libc++</code>,
+        <code>libc++abi</code> and <code>libunwind</code>. Build them as runtimes, with the newly
+        built clang and the target sysroot:
+      </p>
+      <pre><code class="language-sh">cmake -G Ninja -S llvm-project/runtimes -B build-runtimes \
+  -DCMAKE_C_COMPILER=$PREFIX/bin/clang \
+  -DCMAKE_CXX_COMPILER=$PREFIX/bin/clang++ \
+  -DCMAKE_C_COMPILER_TARGET=$TARGET \
+  -DCMAKE_CXX_COMPILER_TARGET=$TARGET \
+  -DCMAKE_SYSROOT=$SYSROOT \
+  -DCMAKE_INSTALL_PREFIX=$PREFIX \
+  -DLLVM_ENABLE_RUNTIMES="compiler-rt;libcxx;libcxxabi;libunwind" \
+  -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON
+
+ninja -C build-runtimes
+ninja -C build-runtimes install</code></pre>
+      <p>
+        Build order matters: <code>compiler-rt</code> builtins do not depend on the C++ library;
+        <code>libunwind</code> needs the C++ headers but not the C++ library;
+        <code>libc++abi</code> needs <code>libunwind</code>; <code>libc++</code> needs
+        <code>libc++abi</code>. If you only need C, skip all of this and use the sysroot's libc.
+      </p>
+      <p>
+        Once the runtimes are installed, select them explicitly:
+      </p>
+      <pre><code class="language-sh">clang++ --target=$TARGET --sysroot=$SYSROOT \
+  --rtlib=compiler-rt --stdlib=libc++ \
+  -nostdinc++ -isystem $PREFIX/include/c++/v1 \
+  -L$PREFIX/lib -Wl,-rpath,$PREFIX/lib \
+  hello.cc -o hello</code></pre>
+    </section>
+
+    <section>
+      <h2>6. Failures You Will Actually See</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Symptom</th>
+            <th>Cause</th>
+            <th>Fix</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>llvm-tblgen: not found</code> during the build</td>
+            <td>No native tools; the cross build tries to run a target binary</td>
+            <td><code>LLVM_NATIVE_TOOL_DIR</code> or <code>LLVM_TABLEGEN</code>/<code>CLANG_TABLEGEN</code></td>
+          </tr>
+          <tr>
+            <td>The produced <code>clang</code> does not execute on the build machine</td>
+            <td><code>CMAKE_C_COMPILER_TARGET</code> was set to the target while you wanted a native clang</td>
+            <td>Remove it, or treat the result as a host binary and ship it to the host</td>
+          </tr>
+          <tr>
+            <td><code>libstdc++.so.6: version GLIBCXX_3.4.xx not found</code></td>
+            <td>The host's C++ runtime is older than the one used to build clang</td>
+            <td><code>LLVM_STATIC_LINK_CXX_STDLIB=ON</code>, or ship the newer runtime, or set <code>LD_LIBRARY_PATH</code></td>
+          </tr>
+          <tr>
+            <td><code>cannot find -lz</code>, or compression silently disabled</td>
+            <td>zlib was not found for the target</td>
+            <td><code>LLVM_ENABLE_ZLIB=FORCE_ON</code> and explicit <code>ZLIB_LIBRARY</code>/<code>ZLIB_INCLUDE_DIR</code></td>
+          </tr>
+          <tr>
+            <td>Host libraries leak into the build</td>
+            <td><code>pkg-config</code> and CMake search the host</td>
+            <td><code>CMAKE_FIND_ROOT_PATH</code>, <code>PKG_CONFIG_LIBDIR</code>, <code>PKG_CONFIG_PATH=""</code></td>
+          </tr>
+          <tr>
+            <td>Link errors about missing <code>crtbegin.o</code> or <code>-lc</code></td>
+            <td>No target sysroot, or the sysroot has the wrong layout</td>
+            <td>Read <a href="/docs/22.canadiancompilation/02.sysroot/">22.2</a> and check <code>-print-search-dirs</code></td>
+          </tr>
+          <tr>
+            <td>The build wants Python, curses or libxml2</td>
+            <td>Optional projects enabled by default</td>
+            <td>Disable <code>lldb</code>, use <code>LLVM_ENABLE_TERMINFO=OFF</code>, <code>LLVM_ENABLE_LIBXML2=OFF</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>BUILD_SHARED_LIBS=ON</code> is a deliberate trade. It makes the LLVM libraries shared,
+        which reduces the install size and lets clang tools share them, but it means the host must
+        have a compatible <code>libstdc++.so.6</code> or <code>libc++.so</code>. If you are shipping
+        to a machine you do not control, either build with
+        <code>-DLLVM_STATIC_LINK_CXX_STDLIB=ON</code> or bundle the runtime and set an rpath. Do not
+        assume the host's C++ runtime is new enough just because the host's C compiler works.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Verifying the Result</h2>
+      <pre><code class="language-sh">$PREFIX/bin/clang --version
+$PREFIX/bin/clang -print-target-triple
+$PREFIX/bin/clang -print-targets        # enabled backends
+$PREFIX/bin/clang -dumpmachine
+
+$PREFIX/bin/clang --target=$TARGET --sysroot=$SYSROOT \
+  -v -E -x c /dev/null                  # include search path
+
+file $PREFIX/bin/clang                  # must match the host, not the build machine</code></pre>
+      <p>
+        The last check is the one that catches a Canadian build gone wrong. If
+        <code>file</code> says <code>ELF 64-bit LSB ... x86-64</code> and you intended an AArch64
+        host, the build used the native compiler instead of the cross-targeted one. The compiler
+        will still run, and it will still compile hello world, which is why this failure can survive
+        a casual test. Copy the toolchain to the intended host and run
+        <code>clang --version</code> there before you package it.
+      </p>
+      <p>
+        The reference implementation for this page is
+        <code>canadian/canadian_clang_aarch64-linux-gnu.txt</code> and
+        <code>llvm/build_common.sh</code> in
+        <a href="https://github.com/trcrsired/toolchainbuildscripts">trcrsired/toolchainbuildscripts</a>.
+        Those files set <code>CMAKE_C_COMPILER_TARGET</code>, <code>LLVM_HOST_TRIPLE</code>,
+        <code>LLVM_DEFAULT_TARGET_TRIPLE</code>, the sysroot, zlib and the native TableGen tools in
+        one place; after this page, the option names should read as a description of the build rather
+        than as a list of flags.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/22.canadiancompilation/03.gcc/" class="prev-button">&larr; Ch22.3: GCC</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

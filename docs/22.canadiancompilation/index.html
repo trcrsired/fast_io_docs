@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch22: Canadian Compilation - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch22: Canadian Compilation</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/22.canadiancompilation/">中文（简体）</a></p>
+
+    <section>
+      <h2>Why This Chapter Exists</h2>
+      <p>
+        Every chapter so far assumed that the compiler is already there. You write a source file, you
+        invoke <code>g++</code> or <code>clang++</code>, and a binary comes out. This chapter removes
+        that assumption. A compiler is a program too, it has to be built, and it has to be built for
+        the machine that will run it. On a new architecture, there is no compiler to build the
+        compiler with. That is the bootstrapping problem, and Canadian compilation is its answer.
+      </p>
+      <p>
+        The topic sounds like distribution plumbing. It is not. The same three triples decide whether
+        a binary can run on the machine in front of you, whether a sysroot contains the right C
+        library, and whether "cross compilation" means one thing or two. If you have ever copied a
+        toolchain to another machine and watched it fail on <code>crt1.o</code>, a missing
+        <code>ld</code>, or a <code>libstdc++.so.6</code> version, this chapter is the explanation.
+      </p>
+      <p>
+        The chapter is short and concrete: one page for the naming system, one for the sysroot, and
+        one each for the GCC and LLVM build models.
+      </p>
+    </section>
+
+    <section>
+      <h2>The Four Pages</h2>
+      <ol>
+        <li>
+          <a href="/docs/22.canadiancompilation/01.triplet/">22.1 Triplets: Naming a Platform</a>
+        </li>
+        <li>
+          <a href="/docs/22.canadiancompilation/02.sysroot/">22.2 Sysroot: libc, or Nothing</a>
+        </li>
+        <li>
+          <a href="/docs/22.canadiancompilation/03.gcc/">22.3 GCC: Build, Host, Target</a>
+        </li>
+        <li>
+          <a href="/docs/22.canadiancompilation/04.llvm/">22.4 LLVM: Build and Host</a>
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>The Short Version</h2>
+      <p>
+        A platform is named by a <strong>triplet</strong>: instruction set, vendor, operating system
+        and C library, in that order. The vendor and sometimes the C library are optional. If any
+        component differs, the platform differs and binaries do not run on each other. Desktop
+        <code>x86_64-linux-gnu</code> and Android <code>x86_64-linux-android</code> share an
+        instruction set and a kernel; they are still different platforms, because glibc and bionic
+        are different C libraries.
+      </p>
+      <p>
+        Three triples describe a compiler build: <strong>build</strong> is the machine that builds the
+        compiler, <strong>host</strong> is the machine that runs the compiler, and
+        <strong>target</strong> is the machine whose code the compiler emits. Native means all three
+        are equal. Cross means build equals host but not target. Canadian means build differs from
+        host; if host also differs from target, it is a Canadian cross. A crossback is
+        build equals target but not host, and it is the one you use every day when you test a Windows
+        build from Linux.
+      </p>
+      <p>
+        The compiler does not supply the target's C library. A <strong>sysroot</strong> does, together
+        with the startup objects, kernel headers and dynamic loader. GCC supplies libgcc and
+        libstdc++; LLVM supplies compiler-rt, libc++, libc++abi and libunwind. If you do not provide a
+        libc, the target is freestanding, and the toolchain must say so instead of pretending to be
+        Linux.
+      </p>
+      <p>
+        The build machine itself needs the same thing before any of this starts: a C/C++ development
+        environment with headers, libc and a C++ runtime, because GCC and Clang are C++ programs.
+        Python, Go and Rust do not define a second sysroot; their runtimes and native modules are
+        built against the C/C++ one. That is why a new platform gets a C/C++ toolchain first.
+      </p>
+      <p>
+        GCC is configured with <code>--build</code>, <code>--host</code> and <code>--target</code>,
+        and its Canadian build needs two compilers: one that runs on the build machine and emits host
+        code, and one that runs on the build machine and emits target code. LLVM has only build and
+        host. A single clang binary contains every backend it was configured with, and
+        <code>--target=</code> chooses one per invocation, so there is no target build of clang.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/21.pwas/04.publish/" class="prev-button">&larr; Ch21.4: Publishing a PWA</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/22.canadiancompilation/01.triplet/" class="next-button">Ch22.1: Triplets &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

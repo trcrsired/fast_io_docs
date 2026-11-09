@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch22.2: Sysroot: libc, or Nothing - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch22.2: Sysroot: libc, or Nothing</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/22.canadiancompilation/02.sysroot/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Rule</h2>
+      <blockquote>
+        <p>
+          <strong>Rule.</strong> A toolchain needs a C library for its target. You either provide
+          one in a <strong>sysroot</strong>, or the target is <strong>freestanding</strong> and the
+          toolchain must be configured as such. Everything else &mdash; the compiler runtime, the C++
+          standard library, the sanitizers &mdash; is provided by GCC or by LLVM.
+        </p>
+      </blockquote>
+      <p>
+        This is the part that is missing from most cross-compilation tutorials. They tell you to
+        install a compiler and pass <code>--target</code>, and then a link fails with
+        <code>cannot find crt1.o</code> or <code>cannot find -lc</code>. The compiler is not supposed
+        to supply those files. A compiler is a code generator plus a driver; the operating system's
+        ABI lives in the C library and in the start-up objects that come with it.
+      </p>
+      <p>
+        There is a stronger form of the rule, and it is the one that matters when you bootstrap a new
+        platform: <strong>a C/C++ sysroot is the minimum required to build a compiler at all.</strong>
+        GCC and Clang are C++ programs. Before either can be built, the build machine needs a working
+        C++ compiler, the C++ standard library, libc, and the platform headers. The compiler you are
+        building may target a freestanding board, but the compiler binary itself still runs on a
+        hosted machine and still links a C++ runtime.
+      </p>
+      <blockquote>
+        <p>
+          <strong>The floor.</strong> Every other language toolchain on the platform sits on the
+          C/C++ sysroot. CPython's interpreter and its extension modules are C and link libc; Go's
+          cgo and platform packages use the C ABI and the platform's syscall layer; Rust's standard
+          library links libc and invokes a C linker; Node.js and V8 are C++. None of them defines a
+          second sysroot. If the C/C++ sysroot is missing or wrong, they cannot be built for that
+          platform either.
+        </p>
+      </blockquote>
+      <p>
+        That is why the first thing a new operating-system port needs is not a Python port or a Rust
+        port. It is a C/C++ toolchain and a sysroot. Once those exist, the other runtimes are ordinary
+        programs built against them, and "porting Python" becomes a build of CPython rather than a new
+        platform definition. The C/C++ layer is the platform contract; everything else is a consumer.
+      </p>
+      <p>
+        In a Canadian build the same rule applies twice. The compiler binary runs on the host, so the
+        <em>host</em> sysroot must be complete enough to link a C++ program: libc, the C++ standard
+        library, and the C++ headers. The <em>target</em> sysroot must provide the C library and
+        headers that the target runtime libraries are built against. Both are C/C++ sysroots; they
+        are just for different triples.
+      </p>
+      <p>
+        The split is clean once you see it:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Component</th>
+            <th>Provided by</th>
+            <th>Examples</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>C library</td>
+            <td>The sysroot</td>
+            <td>glibc, musl, bionic, newlib, mingw-w64 CRT, Apple libSystem</td>
+          </tr>
+          <tr>
+            <td>Start-up objects</td>
+            <td>The sysroot (from libc)</td>
+            <td><code>crt1.o</code>, <code>crti.o</code>, <code>crtn.o</code>, <code>Scrt1.o</code></td>
+          </tr>
+          <tr>
+            <td>Kernel headers</td>
+            <td>The sysroot</td>
+            <td><code>linux/</code>, <code>asm/</code>, <code>asm-generic/</code></td>
+          </tr>
+          <tr>
+            <td>Dynamic loader</td>
+            <td>The sysroot (from libc)</td>
+            <td><code>ld-linux-x86-64.so.2</code>, <code>ld-musl-aarch64.so.1</code></td>
+          </tr>
+          <tr>
+            <td>Compiler runtime</td>
+            <td>GCC or LLVM</td>
+            <td><code>libgcc</code>, <code>libgcc_eh</code>, <code>compiler-rt</code> builtins</td>
+          </tr>
+          <tr>
+            <td>C++ standard library</td>
+            <td>GCC or LLVM for the target; the host's copy is part of the host C/C++ environment</td>
+            <td><code>libstdc++</code>, <code>libc++</code>, <code>libc++abi</code>, <code>libunwind</code></td>
+          </tr>
+          <tr>
+            <td>Compiler headers</td>
+            <td>GCC or LLVM</td>
+            <td><code>stddef.h</code>, <code>stdarg.h</code>, <code>stdint.h</code>, <code>limits.h</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The C++ standard library depends on the C library, which is why it is built after the libc
+        and against the sysroot. But it is still part of the compiler distribution: you install
+        <code>libstdc++</code> with GCC and <code>libc++</code> with LLVM, not with the operating
+        system. On a Canadian build, that distinction decides which artifact must be built for the
+        host and which for the target.
+      </p>
+      <p>
+        The host side is the exception that proves the rule. The C++ compiler and C++ standard
+        library used to <em>build</em> the new compiler are part of the build machine's existing
+        C/C++ environment. They are not produced by the compiler you are building. This is why the
+        first requirement on a new build machine is a working C/C++ toolchain, not a copy of the new
+        compiler.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. What a Sysroot Looks Like</h2>
+      <p>
+        A sysroot is a directory tree that pretends to be the target's root filesystem. The compiler
+        rewrites its default absolute search paths to point inside it. There are two common layouts:
+        the GCC-style layout, where the sysroot is the prefix for the target, and the
+        <code>usr</code>-merged layout used by clang and by most SDKs.
+      </p>
+      <pre><code class="language-text">GCC-style sysroot: $PREFIX/$TARGET
+$PREFIX/$TARGET/
+  include/                  libc headers, kernel headers
+  lib/                      libc.so, libm.so, crt1.o, crti.o, crtn.o
+  lib64/                    on 64-bit targets that use it
+  libexec/                  target helper programs, if any
+  sys-include/              temporary hack for Canadian builds
+
+Clang/SDK-style sysroot: /path/to/sysroot
+/path/to/sysroot/
+  usr/include/              libc headers, kernel headers
+  usr/lib/                  libc.so, libm.so, crt1.o, ...
+  usr/lib/$TARGET/          multiarch subdirectory
+  lib/                      loader and compatibility symlinks
+  lib64/</code></pre>
+      <p>
+        Both work. What matters is that the compiler's default paths and the files on disk agree.
+        GCC's default target sysroot is <code>$PREFIX/$TARGET</code> and its default include
+        directory is <code>$PREFIX/$TARGET/include</code>. Clang's default is to search the sysroot's
+        <code>usr/include</code> and <code>usr/lib</code>, or the target-specific subdirectories
+        under them. If you install glibc to <code>.../usr/include</code> but tell GCC the sysroot is
+        <code>.../</code>, GCC will look in <code>.../include</code> and find nothing.
+      </p>
+      <p>
+        The start-up objects are the usual first failure. A dynamically linked C program on Linux
+        needs <code>crt1.o</code>, <code>crti.o</code> and <code>crtn.o</code> from libc, plus
+        <code>crtbegin.o</code> and <code>crtend.o</code> from the compiler runtime, plus
+        <code>libc.so</code>. A static program needs <code>libc.a</code>, <code>libm.a</code> and the
+        static variants of the start-up objects. If any one is missing, the link fails before your
+        first line of code is involved.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Hosted or Freestanding</h2>
+      <p>
+        There are two valid answers to "where is libc", and only two:
+      </p>
+      <ul>
+        <li>
+          <strong>Hosted.</strong> The sysroot contains a real C library for the target:
+          <code>x86_64-linux-gnu</code> with glibc, <code>aarch64-linux-musl</code> with musl,
+          <code>aarch64-linux-android30</code> with bionic, <code>x86_64-w64-mingw32</code> with the
+          mingw-w64 CRT, <code>wasm32-wasip1</code> with wasi-libc. The compiler is built and
+          configured for a hosted target, and <code>__STDC_HOSTED__</code> is <code>1</code>.
+        </li>
+        <li>
+          <strong>Freestanding.</strong> There is no libc, and there is not supposed to be one:
+          <code>x86_64-elf</code>, <code>arm-none-eabi</code>, <code>wasm32-unknown-unknown</code>,
+          <code>riscv64-none-elf</code>. The program supplies its own start-up code, its own
+          <code>memcpy</code> and friends if the compiler emits calls to them, and its own I/O. The
+          compiler is built without a hosted C++ library, with <code>--without-headers</code> and
+          <code>--disable-hosted-libstdcxx</code>, and the result is a freestanding toolchain.
+          <a href="/docs/20.freestanding/">Ch20</a> is about writing the program side of this.
+        </li>
+      </ul>
+      <p>
+        The mistake is mixing the two. A triple that says <code>-linux-gnu</code> is a promise that
+        the target has glibc and a Linux ABI. If you build a compiler for that triple without a
+        sysroot, the build may succeed and every link will fail. Conversely, a triple that says
+        <code>-elf</code> or <code>-none-</code> has no libc by definition; adding a Linux sysroot to
+        it does not make it Linux, it only hides the mismatch until something calls a syscall that
+        the target does not have.
+      </p>
+      <p>
+        Some embedded targets use <strong>newlib</strong>, which is a small C library with a
+        porting layer. That is a hosted target in the C sense, but it is not POSIX and it is not
+        glibc. It still belongs in the sysroot, and the compiler still provides only its own runtime.
+        "Freestanding" means no libc at all, not "a small libc".
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Where the Sysroot Comes From</h2>
+      <p>There are three practical sources, and they fail in different ways:</p>
+      <ol>
+        <li>
+          <strong>Build the libc from source.</strong> For a Linux target this is the normal path:
+          install kernel headers, build glibc or musl with the stage-1 cross compiler, install it
+          into the sysroot, then rebuild GCC against it. The sysroot is then exactly the ABI you
+          chose, at the cost of a long build.
+        </li>
+        <li>
+          <strong>Extract it from an SDK or an OS image.</strong> Android's NDK ships a sysroot with
+          bionic headers and stub libraries. A Windows SDK ships the MSVC CRT and import libraries.
+          A macOS SDK ships libSystem and the frameworks. This is faster but ties you to the vendor's
+          layout and license.
+        </li>
+        <li>
+          <strong>Reuse another toolchain's sysroot.</strong> If a GCC cross toolchain already exists,
+          clang can use it with <code>--gcc-toolchain=$PREFIX --sysroot=$SYSROOT</code>. This is how
+          most people get a working clang cross compiler without rebuilding the world. It is also
+          how the LLVM page in this chapter works.
+        </li>
+      </ol>
+      <p>
+        For a Canadian build, the sysroot must be built for the <em>target</em>, and it must be
+        visible at the path the compiler will record. GCC's <code>--with-sysroot=$SYSROOT</code>
+        bakes that path into the compiler. If you later move the toolchain to another machine and
+        the path does not exist there, the compiler starts and then fails to find its headers. Either
+        install the sysroot at the same path on the host, or pass <code>--sysroot</code> explicitly
+        at every invocation.
+      </p>
+      <p>
+        During the build there is a second path: <code>--with-build-sysroot</code>. It tells the
+        build system where the target headers and libraries are on the <em>build</em> machine while
+        the compiler is being produced. It is not recorded in the compiler. Confusing the two is a
+        common reason a cross compiler works during <code>make</code> and fails after installation.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. The Compiler's Own Files</h2>
+      <p>
+        It is worth being precise about what "GCC provides" and "LLVM provides" means, because the
+        files are installed in different places:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>GCC</th>
+            <th>LLVM</th>
+            <th>Built for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>libgcc.a</code>, <code>libgcc_s.so</code></td>
+            <td><code>libclang_rt.builtins.a</code></td>
+            <td>Target</td>
+          </tr>
+          <tr>
+            <td><code>libstdc++.so</code>, <code>libstdc++.a</code></td>
+            <td><code>libc++.so</code>, <code>libc++.a</code></td>
+            <td>Target</td>
+          </tr>
+          <tr>
+            <td><code>crtbegin.o</code>, <code>crtend.o</code></td>
+            <td><code>crtbegin.o</code>, <code>crtend.o</code> (where compiler-rt provides them)</td>
+            <td>Target</td>
+          </tr>
+          <tr>
+            <td><code>libatomic</code>, <code>libgomp</code>, <code>libquadmath</code></td>
+            <td><code>libomp</code>, compiler-rt sanitizers</td>
+            <td>Target, optional</td>
+          </tr>
+          <tr>
+            <td><code>cc1</code>, <code>cc1plus</code>, <code>collect2</code>, <code>lto-wrapper</code></td>
+            <td><code>clang</code>, <code>lld</code>, <code>llvm-ar</code>, <code>llvm-objcopy</code></td>
+            <td>Host</td>
+          </tr>
+          <tr>
+            <td><code>libgcc</code> for the compiler itself</td>
+            <td>LLVM/Clang libraries linked into the tools</td>
+            <td>Host</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        This table is the reason a Canadian build is not one build. The host-side tools
+        (<code>cc1plus</code>, <code>clang</code>, <code>ld</code>) must run on the host. The
+        target-side runtimes (<code>libgcc</code>, <code>libstdc++</code>) must run on the target.
+        The sysroot's libc must match the target. A single <code>make</code> cannot do all three
+        at once on one machine; the build has to keep the triples straight.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Verifying a Sysroot</h2>
+      <p>
+        Before blaming the compiler, ask it what it thinks it is:
+      </p>
+      <pre><code class="language-sh">$TARGET-gcc -print-sysroot
+$TARGET-gcc -print-search-dirs
+$TARGET-gcc -v -E -x c /dev/null
+
+clang --target=$TARGET --sysroot=$SYSROOT -print-search-dirs
+clang --target=$TARGET --sysroot=$SYSROOT -v -E -x c /dev/null</code></pre>
+      <p>
+        The <code>-v -E</code> output lists the include search path. Check that the first entries are
+        inside the sysroot and that they contain the headers you expect. Then compile a trivial file
+        with <code>-nostdlib -Wl,--verbose</code> to see which start-up objects and which
+        <code>libc</code> the linker finds. If <code>-print-sysroot</code> is empty, the compiler is
+        using its default prefix layout, which may still be correct; if it prints a path that does
+        not exist on the current machine, that is your bug.
+      </p>
+      <p>
+        For a freestanding toolchain, the same commands should show no libc and no sysroot, and a
+        link should succeed only when you pass <code>-nostdlib</code> and provide your own start-up
+        code. If a freestanding toolchain silently finds the build machine's glibc, it will produce
+        binaries that link and then cannot run.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/22.canadiancompilation/01.triplet/" class="prev-button">&larr; Ch22.1: Triplets</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/22.canadiancompilation/03.gcc/" class="next-button">Ch22.3: GCC &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

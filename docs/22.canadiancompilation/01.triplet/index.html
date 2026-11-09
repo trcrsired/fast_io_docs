@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch22.1: Triplets: Naming a Platform - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch22.1: Triplets: Naming a Platform</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/22.canadiancompilation/01.triplet/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. One String, Four Fields</h2>
+      <blockquote>
+        <p>
+          <strong>Definition.</strong> A <strong>triplet</strong> names a platform with four fields:
+          <code>&lt;isa&gt;-&lt;vendor&gt;-&lt;os&gt;-&lt;libc&gt;</code>. The instruction set
+          architecture comes first, then the vendor, then the operating system (or kernel), then the
+          C library. The vendor is optional and defaults to <code>pc</code> or
+          <code>unknown</code>. The C library may also be omitted when the operating system supplies
+          it as part of the platform.
+        </p>
+      </blockquote>
+      <p>
+        The name is a convention, not a law, but it is the convention every toolchain uses.
+        <code>config.guess</code> guesses it for the machine you are on, <code>config.sub</code>
+        canonicalizes aliases, <code>gcc -dumpmachine</code> prints the compiler's default, and
+        <code>clang -print-target-triple</code> prints its host triple. When the fields are wrong,
+        the build fails in confusing places: the compiler finds the wrong headers, links the wrong
+        startup object, or emits for the wrong instruction set.
+      </p>
+      <p>Common triplets and what they name:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Triplet</th>
+            <th>Platform</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>x86_64-linux-gnu</code></td>
+            <td>64-bit x86, Linux, glibc</td>
+            <td>The default on most desktop distributions</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-linux-musl</code></td>
+            <td>64-bit x86, Linux, musl</td>
+            <td>A different platform from <code>-gnu</code>; static binaries are common</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-linux-android</code></td>
+            <td>64-bit x86, Android, bionic</td>
+            <td>Not binary-compatible with desktop Linux</td>
+          </tr>
+          <tr>
+            <td><code>aarch64-linux-gnu</code></td>
+            <td>64-bit ARM, Linux, glibc</td>
+            <td>The usual ARM64 Linux server target</td>
+          </tr>
+          <tr>
+            <td><code>arm-linux-gnueabihf</code></td>
+            <td>32-bit ARM, Linux, glibc, hard float</td>
+            <td>The <code>eabihf</code> suffix fixes the floating-point ABI</td>
+          </tr>
+          <tr>
+            <td><code>loongarch64-linux-gnu</code></td>
+            <td>64-bit LoongArch, Linux, glibc</td>
+            <td>Loongson's architecture</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-windows-gnu</code></td>
+            <td>64-bit x86, Windows, mingw-w64</td>
+            <td>The GNU toolchain for Windows</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-windows-msvc</code></td>
+            <td>64-bit x86, Windows, MSVC CRT</td>
+            <td>Not link-compatible with <code>-gnu</code></td>
+          </tr>
+          <tr>
+            <td><code>x86_64-freebsd</code></td>
+            <td>64-bit x86, FreeBSD</td>
+            <td>The libc field is omitted; the OS owns it</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-darwin</code></td>
+            <td>64-bit x86, macOS</td>
+            <td>Also omits libc; the SDK supplies it</td>
+          </tr>
+          <tr>
+            <td><code>wasm32-wasip1</code></td>
+            <td>32-bit WebAssembly, WASI preview 1</td>
+            <td>The target used in <a href="/docs/21.pwas/03.wasm/">Ch21.3</a></td>
+          </tr>
+          <tr>
+            <td><code>wasm32-unknown-unknown</code></td>
+            <td>32-bit WebAssembly, no OS</td>
+            <td>Freestanding: no WASI, no libc</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-elf</code></td>
+            <td>64-bit x86, no OS</td>
+            <td>Freestanding; you supply everything</td>
+          </tr>
+          <tr>
+            <td><code>i586-msdosdjgpp</code></td>
+            <td>32-bit x86, MS-DOS, DJGPP</td>
+            <td>A reminder that "OS" is not always a modern kernel</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The table is the whole argument in one place. <code>x86_64-linux-gnu</code> and
+        <code>x86_64-linux-musl</code> run on the same kernel and the same CPU, but a dynamically
+        linked binary built against glibc does not run on a musl system without a compatibility
+        layer, and vice versa.
+        <code>x86_64-linux-gnu</code> and <code>x86_64-linux-android</code> are the same story at a
+        larger scale: same instruction set, same Linux kernel underneath, different C library
+        (bionic), different platform. This is why "it is Linux" is not a portability statement.
+      </p>
+      <p>
+        The C library field is where most confusion lives. <code>gnu</code> means glibc,
+        <code>musl</code> means musl, <code>android</code> means bionic, <code>msvc</code> means the
+        Microsoft CRT, <code>gnu</code> on Windows means mingw-w64. The same word can mean a
+        different ABI on a different OS, which is exactly why the full triplet is required.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Build, Host, Target</h2>
+      <p>
+        A compiler build is described by three triplets, and they answer three different questions:
+      </p>
+      <ul>
+        <li>
+          <strong>Build</strong>: the machine that <em>builds</em> the compiler. This is where
+          <code>make</code> runs and where the compiler's own object files are produced.
+        </li>
+        <li>
+          <strong>Host</strong>: the machine that <em>runs</em> the compiler. The produced
+          <code>gcc</code> or <code>clang</code> executable must be a program for this platform.
+        </li>
+        <li>
+          <strong>Target</strong>: the machine whose code the compiler <em>emits</em>. This is the
+          platform of the programs you will compile later with the produced compiler.
+        </li>
+      </ul>
+      <p>
+        GCC prints all three when you ask for its version. The <code>Target:</code> line is what it
+        compiles for, <code>Host:</code> is what it runs on, and <code>Build:</code> is what built
+        it:
+      </p>
+      <pre><code class="language-text">$ gcc -v
+...
+Target: x86_64-linux-gnu
+...
+</code></pre>
+      <p>
+        A compiler that runs on the same platform it targets is a <strong>native compiler</strong>
+        for that platform, even if it was built somewhere else. This is the point that is easy to
+        miss: "native" describes the host/target relationship, not the build/host relationship.
+        A compiler built on x86_64 Linux, for x86_64 Linux, is native. A compiler built on x86_64
+        Linux, for AArch64 Linux, is a cross compiler, and when you copy it to an AArch64 machine it
+        becomes a native compiler there without being rebuilt.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Five Build Shapes</h2>
+      <p>
+        The GCC manual separates two questions that are often collapsed into one word. The first is
+        the relationship between build and host: was the compiler produced by a compiler on the same
+        platform, or by a compiler on another platform? The second is the relationship between host
+        and target: does the compiler run on the platform it targets, or not? The combinations give
+        five names:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Relationship</th>
+            <th>What it means</th>
+            <th>Typical case</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Native</td>
+            <td>build = host = target</td>
+            <td>Everything happens on one platform</td>
+            <td>Building a distro compiler on the distro</td>
+          </tr>
+          <tr>
+            <td>Cross</td>
+            <td>build = host &ne; target</td>
+            <td>The compiler runs on the build machine and emits for another platform</td>
+            <td><code>x86_64-linux-gnu</code> &rarr; <code>aarch64-linux-gnu</code></td>
+          </tr>
+          <tr>
+            <td>Canadian (Canadian native)</td>
+            <td>build &ne; host = target</td>
+            <td>Another machine produces a native compiler for this machine</td>
+            <td>Building an AArch64 Linux GCC on x86_64 Linux</td>
+          </tr>
+          <tr>
+            <td>Canadian cross</td>
+            <td>build &ne; host &ne; target</td>
+            <td>Another machine produces a cross compiler for this machine</td>
+            <td>x86_64 Linux builds an AArch64-hosted compiler targeting RISC-V</td>
+          </tr>
+          <tr>
+            <td>Crossback</td>
+            <td>build = target &ne; host</td>
+            <td>A special Canadian cross: the build machine is also the target</td>
+            <td>Building a Windows-hosted compiler on Linux, targeting Linux</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Canadian</strong> is short for "Canadian native". The name is a historical joke about
+        a chain of machines that crosses a border: one machine builds a compiler that runs on a second
+        machine, which then produces code for a third. The essential property is that the build
+        machine is not the host machine. If host and target also differ, it is a Canadian
+        <em>cross</em>.
+      </p>
+      <p>
+        <strong>Crossback</strong> is the case that surprises people by being common. Build equals
+        target, host differs: you are on Linux, you build a compiler that runs on Windows, and that
+        compiler produces Linux binaries. This is exactly what you do when you want a Windows-hosted
+        compiler for testing a Linux target. GCC's manual calls it "crossback" or "crossed native
+        backwards". It is a Canadian cross with build and target swapped, and it is the second most
+        common configuration in practice, after native.
+      </p>
+      <p>
+        A compiler distribution can be any of these. The important question for a user is only one:
+        what are <code>host</code> and <code>target</code>? The build triple is history; it tells you
+        how the artifact was produced, not what it can do.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Why a Canadian Build Needs Two Compilers</h2>
+      <p>
+        Suppose you are on <code>x86_64-linux-gnu</code> and you want a compiler that runs on
+        <code>aarch64-linux-gnu</code> and targets <code>aarch64-linux-gnu</code>. The obvious plan
+        is "build GCC for AArch64". But you cannot run the AArch64 compiler on the x86_64 machine
+        during the build. The compiler is a program, and its own build has to execute intermediate
+        tools: generators, table builders, and the freshly built <code>xgcc</code> itself when it
+        compiles the target runtime libraries.
+      </p>
+      <p>
+        So a Canadian build uses two compilers at once:
+      </p>
+      <ul>
+        <li>
+          A <strong>native compiler</strong> for the build machine. It builds the tools that must
+          run during the build.
+        </li>
+        <li>
+          A <strong>cross compiler</strong> that runs on the build machine and emits code for the
+          target. It builds the compiler executable that will run on the host (when host and target
+          differ, this is a build&rarr;host compiler), and it builds the target libraries.
+        </li>
+      </ul>
+      <p>
+        In a Canadian <em>native</em> build, host and target are the same platform, so one cross
+        compiler plays both roles. In a Canadian <em>cross</em> build, they differ, and you need two
+        cross compilers: build&rarr;host for the compiler binary, build&rarr;target for the target
+        runtime. The GCC build system names these <code>CC_FOR_BUILD</code>, <code>CC</code> and
+        <code>CC_FOR_TARGET</code>, and getting them mixed up is the usual reason a Canadian build
+        produces a binary that cannot execute on either machine.
+      </p>
+      <p>
+        This is not an exotic corner. A new CPU architecture has no native compiler until somebody
+        Canadian-builds one. Every distribution's first compiler for a new architecture, and every
+        vendor's SDK for a new board, is produced this way. The first native compiler is always the
+        output of a foreign build.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Further Reading</h2>
+      <p>
+        The Chinese article
+        <a href="https://zhuanlan.zhihu.com/p/553543765">《编译器的构建基本原理》</a>
+        develops the same material with diagrams and a walkthrough of the GCC and LLVM cases. It
+        translates <em>triplet</em> as 三连音; this book uses 三元组 for the same term. The article is
+        also the source of the practical warning that a Canadian build needs both a native and a
+        cross compiler, and that the LLVM case cannot avoid building a GCC cross toolchain first.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/22.canadiancompilation/" class="prev-button">&larr; Ch22: Canadian Compilation</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/22.canadiancompilation/02.sysroot/" class="next-button">Ch22.2: Sysroot &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

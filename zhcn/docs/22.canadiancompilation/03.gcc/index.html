@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第22.3章：GCC：构建、宿主、目标 - 使用 fast_io 的 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第22.3章：GCC：构建、宿主、目标</h1>
+    <p class="lang-switch"><a href="/docs/22.canadiancompilation/03.gcc/">English</a></p>
+
+    <section>
+      <h2>1. 三个参数，一套构建系统</h2>
+      <p>
+        GCC 顶层 <code>configure</code> 接受 <code>--build</code>、<code>--host</code> 和
+        <code>--target</code>。它们不是同义词，也没有一个是"平台"：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>参数</th>
+            <th>含义</th>
+            <th>谁运行产物</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>--build=</code></td>
+            <td>编译 GCC 的机器</td>
+            <td><code>make</code> 期间产生的构建工具</td>
+          </tr>
+          <tr>
+            <td><code>--host=</code></td>
+            <td>安装后的 GCC 运行的机器</td>
+            <td>安装出来的 <code>gcc</code>、<code>cc1plus</code>、<code>collect2</code></td>
+          </tr>
+          <tr>
+            <td><code>--target=</code></td>
+            <td>GCC 生成代码所面向的机器</td>
+            <td>你以后编译出来的程序</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        默认值：<code>--host</code> 默认等于 <code>--build</code>，<code>--target</code> 默认等于
+        <code>--host</code>。所以普通本地构建不需要参数；交叉编译器需要 <code>--target</code>；
+        加拿大构建还需要 <code>--host</code>。通常还是会显式写 <code>--build</code>，因为
+        <code>config.guess</code> 猜出来的规范名可能和你其他工具链用的名字不一样。
+      </p>
+      <p>构建系统内部区分三个编译器，这才是关键：</p>
+      <ul>
+        <li>
+          <strong><code>CC_FOR_BUILD</code></strong>：编译"构建期间运行的程序"的编译器。它必须运行在
+          <code>build</code> 上。这是构建机上的本地编译器。
+        </li>
+        <li>
+          <strong><code>CC</code></strong>：把 GCC 自己的源码编译成安装出来的编译器的编译器。它必须
+          生成 <code>host</code> 的程序。
+        </li>
+        <li>
+          <strong><code>CC_FOR_TARGET</code></strong>：构建 <code>libgcc</code>、<code>libstdc++</code>
+          这类目标库的编译器。它必须生成 <code>target</code> 的程序，而且在构建期间必须能运行在构建机上。
+        </li>
+      </ul>
+      <p>
+        本地构建里三者是同一个程序。交叉构建里 <code>CC</code> 和 <code>CC_FOR_BUILD</code> 相同，
+        <code>CC_FOR_TARGET</code> 不同。加拿大构建里三者可以全不同，把它们混为一谈的构建会产出一个
+        运行在错误机器上的编译器。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 在构建一个编译器之前，先要两个编译器</h2>
+      <p>
+        要从 <code>x86_64-linux-gnu</code> 机器产出一个运行在 <code>aarch64-linux-gnu</code> 上的编译器，
+        你首先需要一个 <code>x86_64-linux-gnu &rarr; aarch64-linux-gnu</code> 交叉编译器。这个编译器运行在
+        构建机上、生成 AArch64 代码，所以它能编译：
+      </p>
+      <ul>
+        <li>以后运行在 AArch64 宿主上的编译器二进制，以及</li>
+        <li>新编译器要用的 AArch64 <code>libgcc</code> 和 <code>libstdc++</code>。</li>
+      </ul>
+      <p>
+        在加拿大<em>本地</em>构建里，宿主等于目标，所以这一个交叉编译器同时干两件事。在加拿大<em>交叉</em>
+        构建里，宿主和目标不同，你需要两个：<code>build&rarr;host</code> 用于编译器二进制，
+        <code>build&rarr;target</code> 用于目标库。原因不只是目标运行时：GCC 本身就是 C++ 程序，
+        它将要运行的宿主需要完整的 C++ sysroot。build&rarr;host 交叉编译器负责产出链接到该宿主
+        C++ 运行时的编译器二进制。因此构建顺序是：
+      </p>
+      <pre><code class="language-text">1. build -> host 交叉工具链     （构建宿主编译器的编译器）
+2. build -> target 交叉工具链   （只在 host != target 时需要；构建目标库）
+3. host -> target 工具链        （最终产物；configure --host=HOST --target=TARGET）</code></pre>
+      <p>
+        <a href="https://github.com/trcrsired/toolchainbuildscripts">toolchainbuildscripts</a>
+        里的参考脚本正是这个顺序。三元组列表就是一组 <code>(build, host, target)</code> 行，
+        <code>build_common.sh</code> 会先构建前置项：
+      </p>
+      <pre><code class="language-sh"># 摘自 gcc/build_common.sh
+if [[ ${BUILD_GCC_TRIPLET} != ${HOST_GCC_TRIPLET} ]]; then
+    # canadian
+    build_toolchain $BUILD_GCC_TRIPLET $HOST_GCC_TRIPLET
+    if [[ ${BUILD_GCC_TRIPLET} != ${TARGET_GCC_TRIPLET} &amp;&amp;
+          ${HOST_GCC_TRIPLET}  != ${TARGET_GCC_TRIPLET} ]]; then
+        # canadian cross (non crossback)
+        build_toolchain $BUILD_GCC_TRIPLET $TARGET_GCC_TRIPLET
+    fi
+fi
+build_toolchain $HOST_GCC_TRIPLET $TARGET_GCC_TRIPLET</code></pre>
+      <p>
+        <code>build_toolchain H T</code> 用
+        <code>--build=$BUILD_TRIPLET --host=H --target=T</code> 配置，
+        安装到 <code>$ROOT/H/T</code>。最后一次调用安装到 <code>$ROOT/HOST/TARGET</code>。
+        这个 prefix 约定让各部件可以被找到：交叉编译器在
+        <code>$ROOT/$BUILD/$HOST/bin/$HOST-gcc</code>，最终产物在
+        <code>$ROOT/$HOST/$TARGET/bin</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 加拿大本地构建的完整流程</h2>
+      <p>
+        下面给出 <code>build=x86_64-linux-gnu</code>、<code>host=target=aarch64-linux-gnu</code>
+        的具体步骤。它和脚本自动化的顺序一致，只是把记账部分展开。
+      </p>
+      <pre><code class="language-sh">BUILD=x86_64-linux-gnu
+HOST=aarch64-linux-gnu
+TARGET=$HOST
+
+ROOT=$HOME/toolchains/gnu
+CROSS=$ROOT/$BUILD/$HOST          # 运行在 BUILD 上，目标 HOST
+FINAL=$ROOT/$HOST/$TARGET         # 运行在 HOST 上，目标 TARGET
+SRC=$HOME/toolchains_build
+export PATH=$CROSS/bin:$PATH</code></pre>
+
+      <h3>第一步：交叉编译器用的 binutils</h3>
+      <pre><code class="language-sh">mkdir -p $SRC/build/binutils-cross &amp;&amp; cd $SRC/build/binutils-cross
+$SRC/binutils-gdb/configure \
+  --build=$BUILD --host=$BUILD --target=$TARGET \
+  --prefix=$CROSS \
+  --disable-nls --disable-werror --disable-tui --without-debuginfod
+make -j"$(nproc)"
+make install-strip</code></pre>
+      <p>
+        这会产出 <code>$TARGET-as</code>、<code>$TARGET-ld</code>、<code>$TARGET-ar</code>、
+        <code>$TARGET-strip</code> 等，全部运行在构建机上。不要跳过这一步：没有匹配的汇编器和链接器的
+        编译器安装，不叫工具链。
+      </p>
+
+      <h3>第二步：第一阶段 GCC，还没有 libc</h3>
+      <pre><code class="language-sh">mkdir -p $SRC/build/gcc-stage1 &amp;&amp; cd $SRC/build/gcc-stage1
+$SRC/gcc/configure \
+  --build=$BUILD --host=$BUILD --target=$TARGET \
+  --prefix=$CROSS \
+  --disable-bootstrap --disable-nls --disable-werror \
+  --enable-languages=c \
+  --without-headers --disable-threads --disable-shared \
+  --disable-libssp --disable-libquadmath --disable-libatomic \
+  --disable-libsanitizer --disable-libstdcxx --disable-multilib
+make -j"$(nproc)" all-gcc all-target-libgcc
+make install-strip-gcc install-strip-target-libgcc</code></pre>
+      <p>
+        这个 GCC 能编译 C，也能构建 <code>libgcc</code>，但它没有目标头文件，也没有目标 C 库。
+        这正是重点：libc 需要编译器，编译器又需要 libc。第一阶段编译器打破了循环。
+      </p>
+
+      <h3>第三步：内核头文件和 libc 装进 sysroot</h3>
+      <pre><code class="language-sh"># Linux UAPI 头文件
+make -C $SRC/linux headers_install ARCH=arm64 \
+  INSTALL_HDR_PATH=$CROSS/$TARGET
+
+# glibc
+mkdir -p $SRC/build/glibc &amp;&amp; cd $SRC/build/glibc
+export CC=$TARGET-gcc
+export CXX=$TARGET-g++
+$SRC/glibc/configure \
+  --build=$BUILD --host=$TARGET \
+  --prefix=$PWD/install \
+  --with-headers=$CROSS/$TARGET/include \
+  --disable-nls --disable-werror --without-selinux
+make -j"$(nproc)"
+make install
+cp -a install/. $CROSS/$TARGET/</code></pre>
+      <p>
+        glibc 的 <code>libc.so</code> 往往是一个包含绝对路径的链接脚本。如果你装到临时 prefix 再复制，
+        脚本里的路径仍然指向临时目录。要么直接用 <code>--prefix=$CROSS/$TARGET</code> 安装，要么复制后
+        重写那几个小的链接脚本（<code>libc.so</code>、<code>libm.so</code>）。参考脚本采用第二种，
+        并把构建 prefix 从脚本里删掉。
+      </p>
+      <p>
+        musl 的流程更短；Android、Windows、macOS 通常直接从 SDK 的 sysroot 开始，根本不需要构建 libc。
+        不变量是一样的：头文件在 <code>$CROSS/$TARGET/include</code>，库在
+        <code>$CROSS/$TARGET/lib</code>，<code>crt1.o</code> 之类也在这个 sysroot 里。
+      </p>
+
+      <h3>第四步：第二阶段 GCC，现在是宿主模式</h3>
+      <pre><code class="language-sh">mkdir -p $SRC/build/gcc-stage2 &amp;&amp; cd $SRC/build/gcc-stage2
+$SRC/gcc/configure \
+  --build=$BUILD --host=$BUILD --target=$TARGET \
+  --prefix=$CROSS \
+  --disable-bootstrap --disable-nls --disable-werror \
+  --enable-languages=c,c++ \
+  --enable-shared --enable-threads=posix \
+  --disable-multilib
+make -j"$(nproc)"
+make install-strip</code></pre>
+      <p>
+        现在 <code>$CROSS/bin/$TARGET-g++</code> 存在了，<code>libstdc++</code> 也按 AArch64 构建好了，
+        交叉工具链完整了。如果你只想要交叉编译器，到这里就结束了。
+      </p>
+
+      <h3>第五步：宿主编译器用的 binutils</h3>
+      <pre><code class="language-sh">mkdir -p $SRC/build/binutils-host &amp;&amp; cd $SRC/build/binutils-host
+STRIP=$HOST-strip \
+$SRC/binutils-gdb/configure \
+  --build=$BUILD --host=$HOST --target=$TARGET \
+  --prefix=$FINAL \
+  --disable-nls --disable-werror --disable-tui --without-debuginfod
+make -j"$(nproc)"
+make install-strip</code></pre>
+      <p>
+        这一次工具运行在 AArch64 宿主上。<code>make install-strip</code> 需要一个运行在构建机上的
+        <code>$HOST-strip</code>；因为这里宿主等于目标，第一步构建的 <code>$TARGET-strip</code>
+        就是那个程序。在加拿大交叉构建里它就不是了，必须把 <code>STRIP</code> 指向 build&rarr;host
+        工具链的 strip。
+      </p>
+
+      <h3>第六步：宿主 GCC</h3>
+      <pre><code class="language-sh"># 最终产物需要自己的一份目标 sysroot
+mkdir -p $FINAL/$TARGET
+cp -a $CROSS/$TARGET/. $FINAL/$TARGET/
+
+# 构建期间 GCC 可能会在 $FINAL/$TARGET/sys-include 找目标头文件；
+# 参考脚本会创建这个临时符号链接。
+mkdir -p $FINAL/$TARGET
+ln -sfn $CROSS/$TARGET/include $FINAL/$TARGET/sys-include
+
+mkdir -p $SRC/build/gcc-host &amp;&amp; cd $SRC/build/gcc-host
+export CC=$HOST-gcc
+export CXX=$HOST-g++
+export CC_FOR_BUILD=$BUILD-gcc
+export STRIP=$HOST-strip
+export ac_cv_path_STRIP_FOR_TARGET=$TARGET-strip
+$SRC/gcc/configure \
+  --build=$BUILD --host=$HOST --target=$TARGET \
+  --prefix=$FINAL \
+  --disable-bootstrap --disable-nls --disable-werror \
+  --enable-languages=c,c++ \
+  --enable-shared --enable-threads=posix \
+  --disable-multilib
+make -j"$(nproc)"
+make install-strip
+rm -f $FINAL/$TARGET/sys-include</code></pre>
+      <p>仔细看三个编译器变量：</p>
+      <ul>
+        <li>
+          <code>CC=$HOST-gcc</code> 是第四步的交叉编译器。它运行在构建机上、生成 AArch64 代码，
+          所以它能编译出将来运行在 AArch64 上的 GCC 二进制。
+        </li>
+        <li>
+          <code>CC_FOR_BUILD=$BUILD-gcc</code> 是普通的本地编译器。它构建 <code>make</code> 期间
+          运行的生成器。
+        </li>
+        <li>
+          <code>CC_FOR_TARGET</code> 默认是 <code>$TARGET-gcc</code>。因为宿主等于目标，它和
+          <code>CC</code> 是同一个交叉编译器；它为目标构建 AArch64 的 <code>libgcc</code> 和
+          <code>libstdc++</code>。
+        </li>
+      </ul>
+      <p>
+        源码树内的 <code>gmp</code>、<code>mpfr</code>、<code>mpc</code>、<code>isl</code> 是宿主库：
+        编译器链接它们并在宿主上运行。它们用 <code>CC</code> 构建，不是用 <code>CC_FOR_TARGET</code>。
+        如果你从外部提供它们，要按宿主构建，并传 <code>--with-gmp</code>、<code>--with-mpfr</code>、
+        <code>--with-mpc</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 为什么 sysroot 出现两次</h2>
+      <p>
+        <code>$CROSS</code> 的交叉工具链需要 sysroot 来构建它自己的 <code>libstdc++</code>；
+        <code>$FINAL</code> 的最终工具链也需要 sysroot，因为在宿主上，头文件和库必须在那里。它们是两份拷贝：
+        <code>$CROSS/$TARGET</code> 和 <code>$FINAL/$TARGET</code>。参考脚本为每个 prefix 分别安装 libc，
+        看起来冗余，但两个编译器的生命周期不同。交叉工具链是构建工具，可以删掉；最终工具链是产物，
+        必须自包含。
+      </p>
+      <p>
+        加拿大构建期间，GCC 还会想在 <code>$FINAL/$TARGET/sys-include</code> 下找目标头文件。
+        脚本会创建一个从 <code>$FINAL/$TARGET/sys-include</code> 指向交叉工具链
+        <code>include</code> 目录的临时符号链接，安装完再删掉。这是对 GCC 默认 include 布局的
+        构建期兼容处理，不应该随产物发布。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 加拿大交叉编译与反向编译的怪癖</h2>
+      <p>如果宿主和目标不同，就加上第二个交叉工具链，并显式设置 <code>CC_FOR_TARGET</code>：</p>
+      <pre><code class="language-sh"># build -> target 交叉工具链，安装到 $ROOT/$BUILD/$TARGET
+build_toolchain $BUILD $TARGET
+
+# 加拿大交叉编译的最终产物
+export CC=$HOST-gcc
+export CXX=$HOST-g++
+export CC_FOR_TARGET=$TARGET-gcc
+export CXX_FOR_TARGET=$TARGET-g++
+export CC_FOR_BUILD=$BUILD-gcc
+configure --build=$BUILD --host=$HOST --target=$TARGET ...</code></pre>
+      <p>
+        角色现在分开了：<code>CC</code> 产出宿主编译器二进制，<code>CC_FOR_TARGET</code> 产出目标运行时，
+        <code>CC_FOR_BUILD</code> 产出构建期生成器。把 <code>CC</code> 和 <code>CC_FOR_TARGET</code>
+        弄混是经典失败：构建成功，安装出来的编译器要么在宿主上不能执行，要么为错误的机器生成代码。
+      </p>
+      <p>
+        <strong>反向编译</strong>是 <code>build = target &ne; host</code> 的特殊情况。GCC 的构建系统在这里
+        有一个已知怪癖：它可能尝试用 <code>cc</code> 而不是 <code>gcc</code> 作为
+        <code>CC_FOR_TARGET</code>，而 <code>cc</code> 可能不存在，或者根本是另一个编译器。
+        参考脚本显式修补了它：
+      </p>
+      <pre><code class="language-sh">if [[ "$BUILD_TRIPLET" == "$target_triplet" &amp;&amp;
+      "$BUILD_TRIPLET" != "$host_triplet" ]]; then
+    configure_env_vars+=(CC_FOR_TARGET="${target_triplet}-gcc")
+fi</code></pre>
+      <p>
+        这是那条通用规则的好例子：在加拿大构建里，永远不要然默认值去挑编译器。按名字设置
+        <code>CC</code>、<code>CC_FOR_BUILD</code> 和 <code>CC_FOR_TARGET</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 独立目标</h2>
+      <p>
+        对 <code>x86_64-elf</code>、<code>arm-none-eabi</code> 或 <code>wasm32-unknown-unknown</code>，
+        没有 libc 这一步。编译器按不带宿主 C++ 库、不带目标头文件的方式配置：
+      </p>
+      <pre><code class="language-sh">$SRC/gcc/configure \
+  --build=$BUILD --host=$BUILD --target=$TARGET \
+  --prefix=$PREFIX \
+  --without-headers --disable-hosted-libstdcxx \
+  --disable-threads --disable-shared \
+  --disable-libssp --disable-libquadmath --disable-libatomic \
+  --disable-libsanitizer \
+  --enable-languages=c,c++ --disable-multilib
+make -j"$(nproc)" all-gcc all-target-libgcc
+make install-strip-gcc install-strip-target-libgcc</code></pre>
+      <p>
+        <code>libgcc</code> 仍然存在：它包含整数辅助函数、编译器可能需要的 unwind 代码和软浮点例程。
+        不存在的是 C 库、<code>crt1.o</code>、动态加载器和宿主版 <code>libstdc++</code>。程序自己提供
+        入口点、内存和 I/O 原语，这正是<a href="/zhcn/docs/20.freestanding/">第20章</a>的内容。
+        同一套工具链在提供 WASI sysroot 时也可以为 <code>wasm32-wasip1</code> 构建；那就是
+        <a href="/zhcn/docs/21.pwas/03.wasm/">第21.3章</a>使用的配置。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 检查结果</h2>
+      <pre><code class="language-sh">$FINAL/bin/gcc -v
+# Build:  x86_64-linux-gnu
+# Host:   aarch64-linux-gnu
+# Target: aarch64-linux-gnu
+
+$FINAL/bin/gcc -dumpmachine
+# aarch64-linux-gnu
+
+$FINAL/bin/gcc -print-sysroot
+# 空，或者 $FINAL/$TARGET，取决于 GCC 的配置方式
+$FINAL/bin/gcc -print-search-dirs
+$FINAL/bin/gcc -v -E -x c /dev/null
+# include 条目必须在 $FINAL/$TARGET 下</code></pre>
+      <p>
+        然后编译一个最简单的程序，用 <code>-Wl,--verbose</code> 看链接行。它应该在
+        <code>$FINAL/$TARGET</code> 里找到 <code>crt1.o</code> 和 <code>libc.so</code>。如果它找到的是
+        构建机的 <code>/usr/lib/x86_64-linux-gnu</code>，sysroot 就是错的，产出的二进制不是 AArch64 程序。
+      </p>
+      <p>
+        完整自动化——包括阶段文件、sys-include 兼容处理、反向编译、独立目标和打包——在
+        <a href="https://github.com/trcrsired/toolchainbuildscripts">trcrsired/toolchainbuildscripts</a>。
+        读完这一页再去看 <code>gcc/build_common.sh</code> 和 <code>gcc/triplet-*.sh</code>；
+        脚本很密，但现在每个分支都有名字了。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/22.canadiancompilation/02.sysroot/" class="prev-button">&larr; 第22.2章：Sysroot</a>
+      <a href="/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/22.canadiancompilation/04.llvm/" class="next-button">第22.4章：LLVM &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

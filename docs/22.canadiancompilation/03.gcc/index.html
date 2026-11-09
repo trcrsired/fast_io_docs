@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch22.3: GCC: Build, Host, Target - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch22.3: GCC: Build, Host, Target</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/22.canadiancompilation/03.gcc/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Three Flags, One Build System</h2>
+      <p>
+        GCC's top-level <code>configure</code> accepts <code>--build</code>, <code>--host</code> and
+        <code>--target</code>. They are not synonyms and none of them is "the platform":
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>Meaning</th>
+            <th>Who runs the output</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>--build=</code></td>
+            <td>The machine that compiles GCC</td>
+            <td>The build tools produced during <code>make</code></td>
+          </tr>
+          <tr>
+            <td><code>--host=</code></td>
+            <td>The machine where the installed GCC runs</td>
+            <td>The installed <code>gcc</code>, <code>cc1plus</code>, <code>collect2</code></td>
+          </tr>
+          <tr>
+            <td><code>--target=</code></td>
+            <td>The machine whose code GCC emits</td>
+            <td>The programs you compile later</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Defaults: <code>--host</code> defaults to <code>--build</code>, and <code>--target</code>
+        defaults to <code>--host</code>. So a normal native build needs no flags; a cross compiler
+        needs <code>--target</code>; a Canadian build needs <code>--host</code> as well.
+        <code>--build</code> is usually set explicitly anyway, because <code>config.guess</code> can
+        guess a different canonical name than the one you use for your other toolchains.
+      </p>
+      <p>
+        The build system keeps three compilers apart internally, and this is the part that matters:
+      </p>
+      <ul>
+        <li>
+          <strong><code>CC_FOR_BUILD</code></strong>: the compiler for programs that run during the
+          build. It must run on <code>build</code>. This is the native compiler on the build machine.
+        </li>
+        <li>
+          <strong><code>CC</code></strong>: the compiler used to compile GCC's own source into the
+          installed compiler. It must produce programs for <code>host</code>.
+        </li>
+        <li>
+          <strong><code>CC_FOR_TARGET</code></strong>: the compiler used to build target libraries
+          such as <code>libgcc</code> and <code>libstdc++</code>. It must produce programs for
+          <code>target</code>, and it must run on the build machine during the build.
+        </li>
+      </ul>
+      <p>
+        In a native build all three are the same program. In a cross build <code>CC</code> and
+        <code>CC_FOR_BUILD</code> are the same and <code>CC_FOR_TARGET</code> differs. In a Canadian
+        build all three can differ, and a build that conflates them produces a compiler that runs on
+        the wrong machine.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Two Compilers Before You Can Build One</h2>
+      <p>
+        To produce a compiler that runs on <code>aarch64-linux-gnu</code> from an
+        <code>x86_64-linux-gnu</code> machine, you first need an
+        <code>x86_64-linux-gnu &rarr; aarch64-linux-gnu</code> cross compiler. That compiler runs on
+        the build machine and emits AArch64 code, so it can compile:
+      </p>
+      <ul>
+        <li>the compiler binary that will later run on the AArch64 host, and</li>
+        <li>the AArch64 <code>libgcc</code> and <code>libstdc++</code> that the new compiler will use.</li>
+      </ul>
+      <p>
+        In a Canadian <em>native</em> build, host equals target, so this one cross compiler does both
+        jobs. In a Canadian <em>cross</em> build, host and target differ, and you need two:
+        <code>build&rarr;host</code> for the compiler binary and <code>build&rarr;target</code> for the
+        target libraries. The reason is not only the target runtime: GCC is itself a C++ program, so
+        the host it will run on needs a complete C++ sysroot. The build&rarr;host compiler is what
+        produces a compiler binary linked against that host C++ runtime. The build order is therefore:
+      </p>
+      <pre><code class="language-text">1. build -> host cross toolchain     (the compiler that builds the host compiler)
+2. build -> target cross toolchain   (only if host != target; builds target libs)
+3. host -> target toolchain          (the product; configure --host=HOST --target=TARGET)</code></pre>
+      <p>
+        This is exactly the order used by the reference scripts in
+        <a href="https://github.com/trcrsired/toolchainbuildscripts">toolchainbuildscripts</a>.
+        The triplet list is a list of <code>(build, host, target)</code> rows, and
+        <code>build_common.sh</code> builds the prerequisites before the row itself:
+      </p>
+      <pre><code class="language-sh"># from gcc/build_common.sh
+if [[ ${BUILD_GCC_TRIPLET} != ${HOST_GCC_TRIPLET} ]]; then
+    # canadian
+    build_toolchain $BUILD_GCC_TRIPLET $HOST_GCC_TRIPLET
+    if [[ ${BUILD_GCC_TRIPLET} != ${TARGET_GCC_TRIPLET} &amp;&amp;
+          ${HOST_GCC_TRIPLET}  != ${TARGET_GCC_TRIPLET} ]]; then
+        # canadian cross (non crossback)
+        build_toolchain $BUILD_GCC_TRIPLET $TARGET_GCC_TRIPLET
+    fi
+fi
+build_toolchain $HOST_GCC_TRIPLET $TARGET_GCC_TRIPLET</code></pre>
+      <p>
+        <code>build_toolchain H T</code> configures with
+        <code>--build=$BUILD_TRIPLET --host=H --target=T</code>,
+        installing into <code>$ROOT/H/T</code>. The final call installs into
+        <code>$ROOT/HOST/TARGET</code>. That prefix convention is what makes the pieces findable:
+        the cross compiler is at <code>$ROOT/$BUILD/$HOST/bin/$HOST-gcc</code>, and the product is at
+        <code>$ROOT/$HOST/$TARGET/bin</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. A Canadian Native Walkthrough</h2>
+      <p>
+        The rest of this section is the concrete recipe for
+        <code>build=x86_64-linux-gnu</code>, <code>host=target=aarch64-linux-gnu</code>. It is the
+        same sequence the scripts automate, with the bookkeeping made explicit.
+      </p>
+      <pre><code class="language-sh">BUILD=x86_64-linux-gnu
+HOST=aarch64-linux-gnu
+TARGET=$HOST
+
+ROOT=$HOME/toolchains/gnu
+CROSS=$ROOT/$BUILD/$HOST          # runs on BUILD, targets HOST
+FINAL=$ROOT/$HOST/$TARGET         # runs on HOST, targets TARGET
+SRC=$HOME/toolchains_build
+export PATH=$CROSS/bin:$PATH</code></pre>
+
+      <h3>Step 1: binutils for the cross compiler</h3>
+      <pre><code class="language-sh">mkdir -p $SRC/build/binutils-cross &amp;&amp; cd $SRC/build/binutils-cross
+$SRC/binutils-gdb/configure \
+  --build=$BUILD --host=$BUILD --target=$TARGET \
+  --prefix=$CROSS \
+  --disable-nls --disable-werror --disable-tui --without-debuginfod
+make -j"$(nproc)"
+make install-strip</code></pre>
+      <p>
+        This produces <code>$TARGET-as</code>, <code>$TARGET-ld</code>, <code>$TARGET-ar</code>,
+        <code>$TARGET-strip</code> and the rest, all running on the build machine. Do not skip this:
+        a compiler installation without a matching assembler and linker is not a toolchain.
+      </p>
+
+      <h3>Step 2: stage-1 GCC, no libc yet</h3>
+      <pre><code class="language-sh">mkdir -p $SRC/build/gcc-stage1 &amp;&amp; cd $SRC/build/gcc-stage1
+$SRC/gcc/configure \
+  --build=$BUILD --host=$BUILD --target=$TARGET \
+  --prefix=$CROSS \
+  --disable-bootstrap --disable-nls --disable-werror \
+  --enable-languages=c \
+  --without-headers --disable-threads --disable-shared \
+  --disable-libssp --disable-libquadmath --disable-libatomic \
+  --disable-libsanitizer --disable-libstdcxx --disable-multilib
+make -j"$(nproc)" all-gcc all-target-libgcc
+make install-strip-gcc install-strip-target-libgcc</code></pre>
+      <p>
+        This GCC can compile C and can build <code>libgcc</code>, but it has no target headers and no
+        target C library. That is the point: a libc needs a compiler, and the compiler needs a libc.
+        The stage-1 compiler breaks the cycle.
+      </p>
+
+      <h3>Step 3: kernel headers and libc into the sysroot</h3>
+      <pre><code class="language-sh"># Linux UAPI headers
+make -C $SRC/linux headers_install ARCH=arm64 \
+  INSTALL_HDR_PATH=$CROSS/$TARGET
+
+# glibc
+mkdir -p $SRC/build/glibc &amp;&amp; cd $SRC/build/glibc
+export CC=$TARGET-gcc
+export CXX=$TARGET-g++
+$SRC/glibc/configure \
+  --build=$BUILD --host=$TARGET \
+  --prefix=$PWD/install \
+  --with-headers=$CROSS/$TARGET/include \
+  --disable-nls --disable-werror --without-selinux
+make -j"$(nproc)"
+make install
+cp -a install/. $CROSS/$TARGET/</code></pre>
+      <p>
+        glibc's <code>libc.so</code> is often a linker script containing absolute paths. If you
+        install to a temporary prefix and copy, those paths still point at the temporary directory.
+        Either install directly with <code>--prefix=$CROSS/$TARGET</code>, or rewrite the three small
+        linker scripts (<code>libc.so</code>, <code>libm.so</code>) after copying. The reference
+        scripts do the second and delete the build prefix from the scripts.
+      </p>
+      <p>
+        For musl the flow is shorter, and for Android/Windows/macOS you usually start from the SDK's
+        sysroot instead of building libc at all. The invariant is the same: headers in
+        <code>$CROSS/$TARGET/include</code>, libraries in <code>$CROSS/$TARGET/lib</code>,
+        <code>crt1.o</code> and friends in the same sysroot.
+      </p>
+
+      <h3>Step 4: stage-2 GCC, now hosted</h3>
+      <pre><code class="language-sh">mkdir -p $SRC/build/gcc-stage2 &amp;&amp; cd $SRC/build/gcc-stage2
+$SRC/gcc/configure \
+  --build=$BUILD --host=$BUILD --target=$TARGET \
+  --prefix=$CROSS \
+  --disable-bootstrap --disable-nls --disable-werror \
+  --enable-languages=c,c++ \
+  --enable-shared --enable-threads=posix \
+  --disable-multilib
+make -j"$(nproc)"
+make install-strip</code></pre>
+      <p>
+        Now <code>$CROSS/bin/$TARGET-g++</code> exists, <code>libstdc++</code> is built for AArch64,
+        and the cross toolchain is complete. If you only wanted a cross compiler, you are done.
+      </p>
+
+      <h3>Step 5: binutils for the host compiler</h3>
+      <pre><code class="language-sh">mkdir -p $SRC/build/binutils-host &amp;&amp; cd $SRC/build/binutils-host
+STRIP=$HOST-strip \
+$SRC/binutils-gdb/configure \
+  --build=$BUILD --host=$HOST --target=$TARGET \
+  --prefix=$FINAL \
+  --disable-nls --disable-werror --disable-tui --without-debuginfod
+make -j"$(nproc)"
+make install-strip</code></pre>
+      <p>
+        This time the tools run on the AArch64 host. The <code>make install-strip</code> step needs an
+        <code>$HOST-strip</code> that runs on the build machine; because host equals target here,
+        <code>$TARGET-strip</code> from step 1 is that program. In a Canadian cross build it is not,
+        and you must point <code>STRIP</code> at the build&rarr;host toolchain's strip.
+      </p>
+
+      <h3>Step 6: the host GCC</h3>
+      <pre><code class="language-sh"># the product needs its own copy of the target sysroot
+mkdir -p $FINAL/$TARGET
+cp -a $CROSS/$TARGET/. $FINAL/$TARGET/
+
+# GCC may look for target headers in $FINAL/$TARGET/sys-include during
+# the build; the reference scripts create this temporary symlink.
+mkdir -p $FINAL/$TARGET
+ln -sfn $CROSS/$TARGET/include $FINAL/$TARGET/sys-include
+
+mkdir -p $SRC/build/gcc-host &amp;&amp; cd $SRC/build/gcc-host
+export CC=$HOST-gcc
+export CXX=$HOST-g++
+export CC_FOR_BUILD=$BUILD-gcc
+export STRIP=$HOST-strip
+export ac_cv_path_STRIP_FOR_TARGET=$TARGET-strip
+$SRC/gcc/configure \
+  --build=$BUILD --host=$HOST --target=$TARGET \
+  --prefix=$FINAL \
+  --disable-bootstrap --disable-nls --disable-werror \
+  --enable-languages=c,c++ \
+  --enable-shared --enable-threads=posix \
+  --disable-multilib
+make -j"$(nproc)"
+make install-strip
+rm -f $FINAL/$TARGET/sys-include</code></pre>
+      <p>
+        Read the three compiler variables carefully:
+      </p>
+      <ul>
+        <li>
+          <code>CC=$HOST-gcc</code> is the cross compiler from step 4. It runs on the build machine
+          and produces AArch64 code, so it can compile the GCC binary that will run on AArch64.
+        </li>
+        <li>
+          <code>CC_FOR_BUILD=$BUILD-gcc</code> is the ordinary native compiler. It builds the
+          generators that run during <code>make</code>.
+        </li>
+        <li>
+          <code>CC_FOR_TARGET</code> defaults to <code>$TARGET-gcc</code>. Because host equals
+          target, it is the same cross compiler as <code>CC</code>; it builds the AArch64
+          <code>libgcc</code> and <code>libstdc++</code> for the product.
+        </li>
+      </ul>
+      <p>
+        In-tree <code>gmp</code>, <code>mpfr</code>, <code>mpc</code> and <code>isl</code> are host
+        libraries: the compiler links them and runs on the host. They are built with
+        <code>CC</code>, not with <code>CC_FOR_TARGET</code>. If you provide them externally, build
+        them for the host and pass <code>--with-gmp</code>, <code>--with-mpfr</code>,
+        <code>--with-mpc</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Why the Sysroot Appears Twice</h2>
+      <p>
+        The cross toolchain at <code>$CROSS</code> needs a sysroot to build its own
+        <code>libstdc++</code>; the final toolchain at <code>$FINAL</code> needs a sysroot because
+        that is where its headers and libraries must be on the host. They are two copies:
+        <code>$CROSS/$TARGET</code> and <code>$FINAL/$TARGET</code>. The reference scripts install
+        libc separately for each prefix, which looks redundant until you remember that the two
+        compilers have different lifetimes. The cross toolchain is a build tool and can be deleted;
+        the final toolchain is the product and must be self-contained.
+      </p>
+      <p>
+        During the Canadian build, GCC also wants to find target headers under
+        <code>$FINAL/$TARGET/sys-include</code>. The scripts create a temporary symlink from
+        <code>$FINAL/$TARGET/$TARGET/sys-include</code> to the cross toolchain's
+        <code>include</code> directory, then remove it after installation. This is a build-time
+        workaround for GCC's default include layout, not something you should ship.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Canadian Cross, and the Crossback Quirk</h2>
+      <p>
+        If host and target differ, add the second cross toolchain and set
+        <code>CC_FOR_TARGET</code> explicitly:
+      </p>
+      <pre><code class="language-sh"># build -> target cross toolchain, installed at $ROOT/$BUILD/$TARGET
+build_toolchain $BUILD $TARGET
+
+# the Canadian cross product
+export CC=$HOST-gcc
+export CXX=$HOST-g++
+export CC_FOR_TARGET=$TARGET-gcc
+export CXX_FOR_TARGET=$TARGET-g++
+export CC_FOR_BUILD=$BUILD-gcc
+configure --build=$BUILD --host=$HOST --target=$TARGET ...</code></pre>
+      <p>
+        The roles are now distinct: <code>CC</code> produces the host compiler binary,
+        <code>CC_FOR_TARGET</code> produces the target runtime, and <code>CC_FOR_BUILD</code>
+        produces the build-time generators. Mixing up <code>CC</code> and <code>CC_FOR_TARGET</code>
+        is the classic failure: the build succeeds, and the installed compiler either cannot execute
+        on the host or emits code for the wrong machine.
+      </p>
+      <p>
+        <strong>Crossback</strong> is the special case <code>build = target &ne; host</code>. GCC's
+        build system has a known quirk here: it may try to use <code>cc</code> instead of
+        <code>gcc</code> for <code>CC_FOR_TARGET</code>, and <code>cc</code> may not exist or may be
+        the wrong compiler. The reference scripts patch it explicitly:
+      </p>
+      <pre><code class="language-sh">if [[ "$BUILD_TRIPLET" == "$target_triplet" &amp;&amp;
+      "$BUILD_TRIPLET" != "$host_triplet" ]]; then
+    configure_env_vars+=(CC_FOR_TARGET="${target_triplet}-gcc")
+fi</code></pre>
+      <p>
+        That is a good example of the general rule: in a Canadian build, never let a default choose a
+        compiler. Set <code>CC</code>, <code>CC_FOR_BUILD</code> and <code>CC_FOR_TARGET</code> by
+        name.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Freestanding Targets</h2>
+      <p>
+        For <code>x86_64-elf</code>, <code>arm-none-eabi</code> or
+        <code>wasm32-unknown-unknown</code>, there is no libc step. The compiler is configured
+        without a hosted C++ library and without target headers:
+      </p>
+      <pre><code class="language-sh">$SRC/gcc/configure \
+  --build=$BUILD --host=$BUILD --target=$TARGET \
+  --prefix=$PREFIX \
+  --without-headers --disable-hosted-libstdcxx \
+  --disable-threads --disable-shared \
+  --disable-libssp --disable-libquadmath --disable-libatomic \
+  --disable-libsanitizer \
+  --enable-languages=c,c++ --disable-multilib
+make -j"$(nproc)" all-gcc all-target-libgcc
+make install-strip-gcc install-strip-target-libgcc</code></pre>
+      <p>
+        <code>libgcc</code> still exists: it contains the integer helpers, the unwinder that the
+        compiler may need, and the soft-float routines. What does not exist is a C library, a
+        <code>crt1.o</code>, a dynamic loader, or a hosted <code>libstdc++</code>. The program
+        supplies its own entry point and its own memory and I/O primitives, which is what
+        <a href="/docs/20.freestanding/">Ch20</a> is about. The same toolchain can also be built for
+        <code>wasm32-wasip1</code> when you provide a WASI sysroot; that is the configuration used in
+        <a href="/docs/21.pwas/03.wasm/">Ch21.3</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Checking the Result</h2>
+      <pre><code class="language-sh">$FINAL/bin/gcc -v
+# Build:  x86_64-linux-gnu
+# Host:   aarch64-linux-gnu
+# Target: aarch64-linux-gnu
+
+$FINAL/bin/gcc -dumpmachine
+# aarch64-linux-gnu
+
+$FINAL/bin/gcc -print-sysroot
+# empty or $FINAL/$TARGET, depending on how GCC was configured
+$FINAL/bin/gcc -print-search-dirs
+$FINAL/bin/gcc -v -E -x c /dev/null
+# the include entries must be under $FINAL/$TARGET</code></pre>
+      <p>
+        Then compile a trivial program and inspect the link line with
+        <code>-Wl,--verbose</code>. It should find <code>crt1.o</code> and <code>libc.so</code> inside
+        <code>$FINAL/$TARGET</code>. If it finds the build machine's
+        <code>/usr/lib/x86_64-linux-gnu</code>, the sysroot is wrong, and the resulting binary is not
+        an AArch64 program.
+      </p>
+      <p>
+        The full automation, including the phase files, the sys-include workaround, crossback
+        handling, freestanding targets and packaging, is in
+        <a href="https://github.com/trcrsired/toolchainbuildscripts">trcrsired/toolchainbuildscripts</a>.
+        Read <code>gcc/build_common.sh</code> and <code>gcc/triplet-*.sh</code> after this page; the
+        script is dense, but every branch now has a name.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/22.canadiancompilation/02.sysroot/" class="prev-button">&larr; Ch22.2: Sysroot</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/22.canadiancompilation/04.llvm/" class="next-button">Ch22.4: LLVM &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
