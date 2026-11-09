@@ -234,22 +234,37 @@ undefined reference to `typeinfo for char const*'</code></pre>
           <code>distance</code>。这些 traits 不需要运行时；它们只是不在清单上。
         </li>
         <li>
+          <strong><code>std::move</code> 与 <code>&lt;utility&gt;</code>（C++23）。</strong>
+          在 C++23 之前，<code>&lt;utility&gt;</code> 不是独立头文件，所以 <code>std::move</code>、
+          <code>std::forward</code>、<code>std::swap</code> 和 <code>std::pair</code> 也没有保证。
+          <code>std::move</code> 只是一个转换，不需要运行时。延迟不是因为这个转换本身有什么技术困难：
+          <code>&lt;utility&gt;</code> 是一个很大、牵扯很多的头文件，把它切出一个独立子集是没人愿意接的活，
+          直到 C++23 才做。想要 <code>move</code> 的独立程序只能自己写这个转换，或者依赖厂商扩展。
+        </li>
+        <li>
           <strong><code>std::array</code> 与 <code>&lt;algorithm&gt;</code>（C++26）。</strong>
           一个不分配、不抛异常的固定大小数组，是标准库里要求最低的容器；而 <code>&lt;algorithm&gt;</code>
           大多就是循环。两者在 C++26 之前都不是独立的。如果最简单的、无需运行时依赖的容器和操作它的算法都缺失，
           那问题就不在目标上，而在清单上。
         </li>
         <li>
-          <strong><code>std::vector</code>，所谓的"默认容器"。</strong>"默认用 <code>vector</code>"
-          这条常见建议假定了一个宿主实现。它的增长会调用全局分配器，失败模式是抛出 <code>bad_alloc</code>，
-          接口是按异常规定的。它不可能成为独立的；<code>std::string</code> 在 C++26 之前也不可能（之后也只是部分），
-          节点式容器同样不可能。语言里最被推荐的容器，恰恰是独立程序用不了的那一个。
+          <strong><code>std::vector</code> 与 <code>std::string</code>。</strong>"默认用 <code>vector</code>"
+          这条常见建议假定了一个宿主实现。标准把这两个容器设计成围绕动态分配器和异常：<code>vector</code>
+          的增长调用全局分配器，失败时抛出 <code>bad_alloc</code>；<code>string</code> 暴露分配器、容量，
+          以及同样的异常保证。这些不是改几句话就能去掉的附带属性，它们就是接口本身。所以完整的
+          <code>vector</code> 和完整的 <code>string</code> 永远不可能成为独立的；C++26 只让 <code>string</code>
+          的一部分成为独立，<code>vector</code> 则完全没有。语言里最被推荐的容器，恰恰是独立程序用不了的那一个。
+          <code>fast_io::containers::vector&lt;T, Alloc&gt;</code> 是反例：同一种容器，把分配器带在类型里，
+          它就是独立的。下一页展示具体做法。
         </li>
       </ul>
       <p>
-        每一条的模式都一样：特性在运行期不花任何代价，但标准没有要求它的头文件，所以一个符合标准的独立实现可以把它省掉。
-        代码于是在开发者的桌面上编译通过，在板子上失败。这部分问题不是交叉编译器能修的，因为头文件缺在标准里，
-        不是缺在安装里。
+        前四条的模式一样：特性本身不需要运行时，但标准没有要求它的头文件，所以一个符合标准的独立实现可以把它省掉。
+        最后一条相反：容器的接口本身就是运行时依赖，所以改头文件清单救不了它。
+      </p>
+      <p>
+        两种情况下，代码都在开发者的桌面上编译通过，在板子上失败。这部分问题不是交叉编译器能修的，
+        因为缺的是标准里的保证，不是安装里的文件。
       </p>
     </section>
 
@@ -262,6 +277,14 @@ undefined reference to `typeinfo for char const*'</code></pre>
         <code>&lt;array&gt;</code>、<code>&lt;string&gt;</code>、<code>&lt;cmath&gt;</code>、
         <code>&lt;charconv&gt;</code>、<code>&lt;system_error&gt;</code>、<code>&lt;random&gt;</code>
         等，其中许多只是部分独立。方向是真实的。
+      </p>
+      <p>
+        但 C++26 不是已发布的标准。2026 年 10 月 23 日，ISO DIS 投票未通过，公开给出的原因是
+        契约（contracts）提案。它带来的独立实现新增项——<code>&lt;array&gt;</code>、<code>&lt;string&gt;</code>、
+        <code>&lt;cmath&gt;</code>、<code>&lt;charconv&gt;</code>、<code>&lt;system_error&gt;</code>、
+        <code>&lt;random&gt;</code>——都还在一份未批准的草案里。一个接受 <code>-std=c++26</code> 的编译器
+        实现的是草案，你需要的保证要等标准真正发布之后才存在。又是同一个模式：独立实现要等一份标准，
+        而这份标准在等别的东西。
       </p>
       <p>
         有两件事没变。第一，一个头文件进入了标准，不代表你板子上的工具链就提供它；要按工具链、按目标验证。

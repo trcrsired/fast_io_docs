@@ -69,6 +69,15 @@ using vector = ::fast_io::containers::vector&lt;T, Alloc&gt;;</code></pre>
         part of the container's type.
       </p>
       <p>
+        That is the concrete difference from the standard library.
+        <code>::fast_io::containers::vector&lt;T, Alloc&gt;</code> is freestanding;
+        <code>::std::vector&lt;T&gt;</code> is not. The data structure is the same kind of thing; the
+        interface is not. fast_io puts the allocator in the type, so the container cannot reach a
+        heap the caller did not provide. <code>std::vector</code> puts the allocator in a global and
+        reports failure by throwing, which is why no amount of standard wording can make it
+        freestanding.
+      </p>
+      <p>
         The default allocator is selected by the same boundary. When the platform is hosted it is
         <code>c_malloc_allocator</code> (or the NT heap, or mimalloc); when it is freestanding it is
         <code>freestanding_global_allocator</code>. That class is only <strong>declared</strong> in

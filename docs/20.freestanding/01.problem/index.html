@@ -271,6 +271,16 @@ undefined reference to `typeinfo for char const*'</code></pre>
           type. The traits need no runtime; they were simply not on the list.
         </li>
         <li>
+          <strong><code>std::move</code> and <code>&lt;utility&gt;</code> (C++23).</strong>
+          <code>&lt;utility&gt;</code> was not a freestanding header before C++23, so
+          <code>std::move</code>, <code>std::forward</code>, <code>std::swap</code> and
+          <code>std::pair</code> were not guaranteed either. <code>std::move</code> is a cast; it
+          needs no runtime. The delay was not technical in that sense: <code>&lt;utility&gt;</code>
+          is a large, entangled header, and carving out a freestanding subset was work nobody wanted
+          to take on until C++23. A freestanding program that wanted <code>move</code> had to write
+          the cast itself or depend on a vendor extension.
+        </li>
+        <li>
           <strong><code>std::array</code> and <code>&lt;algorithm&gt;</code> (C++26).</strong>
           A fixed-size array with no allocation and no exceptions is the least demanding container
           in the library, and <code>&lt;algorithm&gt;</code> is mostly loops. Both were not
@@ -278,21 +288,31 @@ undefined reference to `typeinfo for char const*'</code></pre>
           algorithms that operate on it are missing, the problem is not the target; it is the list.
         </li>
         <li>
-          <strong><code>std::vector</code>, the "default container".</strong> The common advice to
-          use <code>vector</code> by default assumes a hosted implementation. Its growth calls the
-          global allocator, its failure mode is a thrown <code>bad_alloc</code>, and its interface
-          is specified in terms of exceptions. It cannot be freestanding, and neither can
-          <code>std::string</code> before C++26 (and then only partially) or the node-based
-          containers. The most recommended container in the language is exactly the one a
-          freestanding program cannot use.
+          <strong><code>std::vector</code> and <code>std::string</code>.</strong> The common advice
+          to use <code>vector</code> by default assumes a hosted implementation. The standard
+          designs both containers around a dynamic allocator and exceptions: <code>vector</code>
+          grows by calling the global allocator and reports failure by throwing
+          <code>bad_alloc</code>; <code>string</code> exposes allocator, capacity and the same
+          exception guarantees. These are not incidental properties that a wording change can
+          remove. They are the interface. So the full <code>vector</code> and the full
+          <code>string</code> can never be freestanding; C++26 makes only a partial
+          <code>string</code> freestanding, and <code>vector</code> not at all. The most recommended
+          container in the language is exactly the one a freestanding program cannot use.
+          <code>fast_io::containers::vector&lt;T, Alloc&gt;</code> is the counterexample: the same
+          kind of container, with the allocator carried in the type, and it is freestanding. The
+          next page shows how.
         </li>
       </ul>
       <p>
-        The pattern is the same in every bullet: the feature costs nothing at run time, but the
+        The pattern in the first four bullets is the same: the feature needs no runtime, but the
         standard did not require its header, so a conforming freestanding implementation could omit
-        it. The code then compiled on the developer's desktop and failed on the board. That is the
-        part of the problem that a cross compiler cannot fix, because the header is missing from the
-        standard, not from the installation.
+        it. The last bullet is the opposite case: the container's interface <em>is</em> the runtime
+        dependency, which is why no header-list change can rescue it.
+      </p>
+      <p>
+        In both cases the code compiled on the developer's desktop and failed on the board. That is
+        the part of the problem that a cross compiler cannot fix, because the guarantee is missing
+        from the standard, not from the installation.
       </p>
     </section>
 
@@ -306,6 +326,16 @@ undefined reference to `typeinfo for char const*'</code></pre>
         <code>&lt;array&gt;</code>, <code>&lt;string&gt;</code>, <code>&lt;cmath&gt;</code>,
         <code>&lt;charconv&gt;</code>, <code>&lt;system_error&gt;</code>, <code>&lt;random&gt;</code>
         and others, many of them partial. The direction is real.
+      </p>
+      <p>
+        But C++26 is not a published standard. On 23 October 2026 the ISO DIS ballot was
+        disapproved; the stated reason was the contracts proposal. The freestanding additions
+        &mdash; <code>&lt;array&gt;</code>, <code>&lt;string&gt;</code>, <code>&lt;cmath&gt;</code>,
+        <code>&lt;charconv&gt;</code>, <code>&lt;system_error&gt;</code>, <code>&lt;random&gt;</code>
+        &mdash; are in that unapproved draft. A compiler that accepts <code>-std=c++26</code> is
+        implementing a draft, and the guarantee you need does not exist until the standard is
+        published. That is the same pattern again: freestanding waits for a standard, and the
+        standard is waiting for something else.
       </p>
       <p>
         Two things have not changed. First, a header being in the standard does not mean your board's

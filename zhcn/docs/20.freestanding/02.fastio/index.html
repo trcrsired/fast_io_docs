@@ -62,6 +62,12 @@ using vector = ::fast_io::containers::vector&lt;T, Alloc&gt;;</code></pre>
         你写 <code>::fast_io::containers::vector&lt;int, my_allocator&gt;</code>，分配器是容器类型的一部分。
       </p>
       <p>
+        这就是与标准库的具体差别。<code>::fast_io::containers::vector&lt;T, Alloc&gt;</code> 是独立的；
+        <code>::std::vector&lt;T&gt;</code> 不是。数据结构是同一类东西；接口不是。fast_io 把分配器放进类型里，
+        所以容器不可能碰调用者没有提供的堆。<code>std::vector</code> 把分配器放在全局，失败时靠抛出报告，
+        所以无论怎么改标准措辞，它都不可能成为独立的。
+      </p>
+      <p>
         默认分配器也由同一条边界选择。平台是宿主实现时，它是 <code>c_malloc_allocator</code>（或者 NT 堆、mimalloc）；
         是独立实现时，它是 <code>freestanding_global_allocator</code>。这个类在 fast_io 里只有<strong>声明</strong>，
         它的三个函数在库中没有任何定义：
