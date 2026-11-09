@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.11章：文件系统与 OS 层 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.11章：文件系统与 OS 层</h1>
+    <p class="lang-switch"><a href="/docs/26.api/11.filesystem/">English</a></p>
+
+    <section>
+      <h2>1. 两类 API</h2>
+      <p>
+        本页覆盖两个相关表面。<strong>文件系统</strong>表面遍历目录，
+        并相对目录句柄打开条目。<strong>OS 层</strong>表面暴露各平台的原生文件类型：
+        POSIX 文件描述符、Win32 句柄、NT 句柄和 Wine 宿主描述符。
+      </p>
+      <p>
+        它们共享一条规则：目录句柄或原生句柄是拥有者；entry、observer 或
+        <code>at_entry</code> 是借用。借用不能比锚定它的句柄活得久。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 目录句柄与条目</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>名字</th>
+            <th>角色</th>
+            <th>模块</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>dir_file</code></td>
+            <td>拥有的目录句柄。打开路径，析构时关闭。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>dir_io_observer</code></td>
+            <td>目录句柄的非拥有视图。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>at(df)</code></td>
+            <td>锚定在目录上的 <code>at_entry</code>；相对打开和遍历的基址。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>current(at(df))</code></td>
+            <td>直接子条目的范围。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>recursive(at(df))</code></td>
+            <td>所有后代的范围。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+::fast_io::dir_file df(u8"data");
+
+for (auto const &ent : ::fast_io::current(::fast_io::at(df)))
+{
+    if (::fast_io::is_dot(ent)) continue;
+    println(::fast_io::mnp::code_cvt(::fast_io::u8filename(ent)));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. 目录条目函数</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>函数</th>
+            <th>返回</th>
+            <th>模块</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>u8filename(ent)</code></td>
+            <td>UTF-8 文件名视图。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>u8extension(ent)</code></td>
+            <td>UTF-8 扩展名视图。</td>
+            <td>头文件侧</td>
+          </tr>
+          <tr>
+            <td><code>u8stem(ent)</code></td>
+            <td>去掉扩展名的 UTF-8 文件名。</td>
+            <td>头文件侧</td>
+          </tr>
+          <tr>
+            <td><code>native_filename(ent)</code></td>
+            <td>平台原生编码的文件名。</td>
+            <td>头文件侧</td>
+          </tr>
+          <tr>
+            <td><code>type(ent)</code></td>
+            <td><code>file_type</code>。</td>
+            <td>头文件侧</td>
+          </tr>
+          <tr>
+            <td><code>is_dot(ent)</code></td>
+            <td>对 <code>.</code> 和 <code>..</code> 为真。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>drt(ent)</code></td>
+            <td>用于打开该条目的 (目录句柄, 名字) 对。</td>
+            <td>头文件侧</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>file_type</code> 区分 <code>regular</code>、<code>directory</code>、
+        <code>symlink</code>、<code>block</code>、<code>character</code>、<code>fifo</code>、
+        <code>socket</code>、<code>unknown</code> 和 <code>not_found</code>。
+      </p>
+      <pre><code class="language-cpp">
+for (auto const &ent : ::fast_io::current(::fast_io::at(df)))
+{
+    if (::fast_io::is_dot(ent)) continue;
+    if (::fast_io::type(ent) == ::fast_io::file_type::regular)
+    {
+        ::fast_io::native_file_loader loader(::fast_io::drt(ent));
+        println(::fast_io::mnp::code_cvt(::fast_io::u8filename(ent)),
+                ": ", loader.size(), " bytes");
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. 相对目录打开</h2>
+      <p>
+        锚定在 <code>at_entry</code> 上的相对打开，避免构造完整路径，
+        也避免“先检查路径再打开”的竞态。模式在所有平台上相同：
+        用 <code>at(df)</code> 和相对名字构造文件类型。
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::dir_file df(u8"data");
+::fast_io::native_file f(::fast_io::at(df), u8"record.bin",
+                         ::fast_io::open_mode::in);
+</code></pre>
+      <p>
+        <code>at(ent)</code> 锚定在特定目录条目上，<code>drt(ent)</code> 给出
+        文件构造函数和 loader 接受的 <code>(handle, name)</code> 对。
+        遍历发现文件后，这是首选打开方式。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 临时文件</h2>
+      <p>
+        <code>::fast_io::io_temp</code> 是标签，不是类型。把它传给任何拥有文件的构造函数。
+        文件在系统临时目录创建，对象销毁时删除：
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::iobuf_file tmp{::fast_io::io_temp};
+println(tmp, "scratch data");
+</code></pre>
+      <p>
+        它适用于 <code>native_file</code>、<code>obuf_file</code>、<code>iobuf_file</code>、
+        <code>c_file</code> 和其他拥有文件类型。删除绑定在对象生命周期上，
+        不是单独的清理调用。<code>io_temp</code> 是头文件侧，目前不在模块导出列表里。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 原生 OS 层</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>平台</th>
+            <th>句柄</th>
+            <th>模块</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>posix_file</code></td>
+            <td>POSIX</td>
+            <td>文件描述符</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>win32_file</code></td>
+            <td>Windows</td>
+            <td><code>HANDLE</code></td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>nt_file</code></td>
+            <td>Windows NT API</td>
+            <td>NT <code>HANDLE</code></td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>zw_file</code></td>
+            <td>Windows NT API</td>
+            <td>NT <code>HANDLE</code></td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>wine_file</code></td>
+            <td>POSIX 上的 Wine</td>
+            <td>宿主描述符</td>
+            <td>头文件侧</td>
+          </tr>
+          <tr>
+            <td><code>c_file</code></td>
+            <td>C stdio</td>
+            <td><code>FILE*</code></td>
+            <td><code>fast_io_legacy</code></td>
+          </tr>
+          <tr>
+            <td><code>filebuf_file</code></td>
+            <td>C++ iostream</td>
+            <td><code>basic_filebuf*</code></td>
+            <td><code>fast_io_legacy</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        需要平台自己的句柄、flags 或错误语义时用原生层。否则用带缓冲别名，
+        它隐藏平台差异。层关系记录在 <a href="/zhcn/docs/11.io/17.layers/">第11.17章</a>。
+      </p>
+      <p>
+        包装已有句柄是显式的：拥有类型接管并关闭它；观察者类型借用且不关闭。
+        不要为同一个句柄同时构造两者。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 内存映射与文件 loader</h2>
+      <p>
+        <code>native_file_loader</code> 映射文件并暴露其字节，不需要读循环。
+        加载大型只读文件时首选它：
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::native_file_loader loader("big.bin");
+auto *data{loader.data()};
+auto size{loader.size()};
+</code></pre>
+      <p>
+        loader 拥有映射，析构时释放。平台没有可用映射时，它退回具有相同可观察 API 的
+        allocation loader。需要可写映射或显式 flags 时，用平台 mmap 选项和
+        <code>allocation_file_loader</code> 家族；教程细节在
+        <a href="/zhcn/docs/11.io/08.fileloader/">第11.8章</a>。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 模块与头文件边界</h2>
+      <p>
+        <code>fast_io</code> 模块导出 <code>dir_file</code>、<code>at</code>、
+        <code>current</code>、<code>recursive</code>、<code>u8filename</code>、
+        <code>is_dot</code>、<code>file_type</code>、<code>posix_file_status</code>、
+        <code>native_file_loader</code>，以及平台文件类型
+        <code>posix_file</code>、<code>win32_file</code> 和 <code>nt_file</code>。
+        <code>u8extension</code>、<code>u8stem</code>、<code>native_filename</code>、
+        <code>type</code> 和 <code>drt</code> 等条目辅助目前在头文件侧。
+      </p>
+      <div class="note">
+        <strong>不要为一个句柄混用拥有者。</strong> 如果构造函数接管了原生句柄，
+        句柄现在就归那个对象所有。再用另一个拥有者包装会导致双重关闭。
+        只需要借用时用 observer。
+      </div>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>dir_file</code> 拥有目录；<code>at_entry</code> 和 entry 从它借用。</li>
+        <li><code>at</code>、<code>current</code> 和 <code>recursive</code> 是遍历原语。</li>
+        <li><code>u8filename</code> 和 <code>is_dot</code> 由模块导出；
+          扩展名、stem、原生名字和 <code>drt</code> 在头文件侧。</li>
+        <li>相对 <code>at(df)</code> 或 <code>drt(ent)</code> 打开条目，不要重建完整路径。</li>
+        <li><code>io_temp</code> 是任何拥有文件构造函数的标签；对象死亡时删除文件。</li>
+        <li>原生文件类型暴露平台句柄；带缓冲别名隐藏平台。</li>
+        <li><code>native_file_loader</code> 映射文件，而不是复制进缓冲区。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/10.async/" class="prev-button">&larr; 第26.10章：异步 I/O</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.11: Filesystem and OS Layers - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.11: Filesystem and OS Layers</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/11.filesystem/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Two Kinds of API</h2>
+      <p>
+        This page covers two related surfaces. The <strong>filesystem</strong> surface walks
+        directories and opens entries relative to a directory handle. The <strong>OS layer</strong>
+        surface exposes the native file types of each platform: POSIX file descriptors, Win32
+        handles, NT handles and Wine host descriptors.
+      </p>
+      <p>
+        They share one rule: a directory handle or native handle is an owner; an entry, observer
+        or <code>at_entry</code> is a borrow. The borrow must not outlive the handle that anchors
+        it.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Directory Handles and Entries</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Module</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>dir_file</code></td>
+            <td>Owning directory handle. Opens a path and closes it on destruction.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>dir_io_observer</code></td>
+            <td>Non-owning view of a directory handle.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>at(df)</code></td>
+            <td>An <code>at_entry</code> anchored at the directory; the base for relative
+              opens and traversal.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>current(at(df))</code></td>
+            <td>Range of immediate children.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>recursive(at(df))</code></td>
+            <td>Range of all descendants.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+::fast_io::dir_file df(u8"data");
+
+for (auto const &ent : ::fast_io::current(::fast_io::at(df)))
+{
+    if (::fast_io::is_dot(ent)) continue;
+    println(::fast_io::mnp::code_cvt(::fast_io::u8filename(ent)));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. Directory Entry Functions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Returns</th>
+            <th>Module</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>u8filename(ent)</code></td>
+            <td>UTF-8 filename view.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>u8extension(ent)</code></td>
+            <td>UTF-8 extension view.</td>
+            <td>header-side</td>
+          </tr>
+          <tr>
+            <td><code>u8stem(ent)</code></td>
+            <td>UTF-8 filename without the extension.</td>
+            <td>header-side</td>
+          </tr>
+          <tr>
+            <td><code>native_filename(ent)</code></td>
+            <td>Filename in the platform's native encoding.</td>
+            <td>header-side</td>
+          </tr>
+          <tr>
+            <td><code>type(ent)</code></td>
+            <td><code>file_type</code>.</td>
+            <td>header-side</td>
+          </tr>
+          <tr>
+            <td><code>is_dot(ent)</code></td>
+            <td>True for <code>.</code> and <code>..</code>.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>drt(ent)</code></td>
+            <td>A (directory handle, name) pair for opening the entry.</td>
+            <td>header-side</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>file_type</code> distinguishes <code>regular</code>, <code>directory</code>,
+        <code>symlink</code>, <code>block</code>, <code>character</code>, <code>fifo</code>,
+        <code>socket</code>, <code>unknown</code> and <code>not_found</code>.
+      </p>
+      <pre><code class="language-cpp">
+for (auto const &ent : ::fast_io::current(::fast_io::at(df)))
+{
+    if (::fast_io::is_dot(ent)) continue;
+    if (::fast_io::type(ent) == ::fast_io::file_type::regular)
+    {
+        ::fast_io::native_file_loader loader(::fast_io::drt(ent));
+        println(::fast_io::mnp::code_cvt(::fast_io::u8filename(ent)),
+                ": ", loader.size(), " bytes");
+    }
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. Opening Relative to a Directory</h2>
+      <p>
+        A relative open anchored at an <code>at_entry</code> avoids building a full path and
+        avoids the race between checking a path and opening it. The pattern is the same on every
+        platform: construct the file type with <code>at(df)</code> and the relative name.
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::dir_file df(u8"data");
+::fast_io::native_file f(::fast_io::at(df), u8"record.bin",
+                         ::fast_io::open_mode::in);
+</code></pre>
+      <p>
+        <code>at(ent)</code> anchors at a specific directory entry, and <code>drt(ent)</code>
+        gives the <code>(handle, name)</code> pair that file constructors and loaders accept.
+        This is the preferred way to open a file discovered by traversal.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Temporary Files</h2>
+      <p>
+        <code>::fast_io::io_temp</code> is a tag, not a type. Pass it to any owning file
+        constructor. The file is created in the system temporary directory and is removed when the
+        object is destroyed:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::iobuf_file tmp{::fast_io::io_temp};
+println(tmp, "scratch data");
+</code></pre>
+      <p>
+        It works with <code>native_file</code>, <code>obuf_file</code>, <code>iobuf_file</code>,
+        <code>c_file</code> and the other owning file types. <code>io_temp</code> is header-side,
+        not in the module export list yet. The removal is tied to the object's
+        lifetime, not to a separate cleanup call.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Native OS Layers</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Platform</th>
+            <th>Handle</th>
+            <th>Module</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>posix_file</code></td>
+            <td>POSIX</td>
+            <td>file descriptor</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>win32_file</code></td>
+            <td>Windows</td>
+            <td><code>HANDLE</code></td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>nt_file</code></td>
+            <td>Windows NT API</td>
+            <td>NT <code>HANDLE</code></td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>zw_file</code></td>
+            <td>Windows NT API</td>
+            <td>NT <code>HANDLE</code></td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>wine_file</code></td>
+            <td>Wine on POSIX</td>
+            <td>host descriptor</td>
+            <td>header-side</td>
+          </tr>
+          <tr>
+            <td><code>c_file</code></td>
+            <td>C stdio</td>
+            <td><code>FILE*</code></td>
+            <td><code>fast_io_legacy</code></td>
+          </tr>
+          <tr>
+            <td><code>filebuf_file</code></td>
+            <td>C++ iostream</td>
+            <td><code>basic_filebuf*</code></td>
+            <td><code>fast_io_legacy</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Use a native layer when you need the platform's own handle, flags or error semantics.
+        Otherwise use the buffered alias, which hides the platform difference. The layer
+        relationship is documented in <a href="/docs/11.io/17.layers/">Ch11.17</a>.
+      </p>
+      <p>
+        Wrapping an existing handle is explicit: the owner type adopts it and closes it. An
+        observer type borrows it and does not close it. Do not construct both for the same handle.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Memory Mapping and File Loaders</h2>
+      <p>
+        <code>native_file_loader</code> maps a file and exposes its bytes without a read loop.
+        It is the preferred way to load a large read-only file:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::native_file_loader loader("big.bin");
+auto *data{loader.data()};
+auto size{loader.size()};
+</code></pre>
+      <p>
+        The loader owns the mapping and releases it on destruction. On platforms without a usable
+        mapping it falls back to an allocation loader with the same observable API. For writable
+        mappings and explicit flags, use the platform mmap options and the
+        <code>allocation_file_loader</code> family; the tutorial covers the details in
+        <a href="/docs/11.io/08.fileloader/">Ch11.8</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Module and Header Boundary</h2>
+      <p>
+        The <code>fast_io</code> module exports <code>dir_file</code>, <code>at</code>,
+        <code>current</code>, <code>recursive</code>, <code>u8filename</code>,
+        <code>is_dot</code>, <code>file_type</code>, <code>posix_file_status</code>,
+        <code>native_file_loader</code>, and the platform file types
+        <code>posix_file</code>, <code>win32_file</code> and <code>nt_file</code>.
+        Entry helpers such as <code>u8extension</code>, <code>u8stem</code>,
+        <code>native_filename</code>, <code>type</code> and <code>drt</code> are header-side
+        today.
+      </p>
+      <div class="note">
+        <strong>Do not mix owners for one handle.</strong> If a constructor adopts a native handle,
+        the handle is now owned by that object. Wrapping it again in another owner will double-close
+        it. Use an observer when you only need to borrow.
+      </div>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li><code>dir_file</code> owns a directory; <code>at_entry</code> and entries borrow
+          from it.</li>
+        <li><code>at</code>, <code>current</code> and <code>recursive</code> are the traversal
+          primitives.</li>
+        <li><code>u8filename</code> and <code>is_dot</code> are module-exported; extension,
+          stem, native name and <code>drt</code> are header-side.</li>
+        <li>Open entries relative to <code>at(df)</code> or <code>drt(ent)</code>, not by
+          rebuilding full paths.</li>
+        <li><code>io_temp</code> is a tag for any owning file constructor; the file is removed
+          when the object dies.</li>
+        <li>Native file types expose the platform handle; buffered aliases hide the platform.</li>
+        <li><code>native_file_loader</code> maps a file instead of copying it into a buffer.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/10.async/" class="prev-button">&larr; Ch26.10: Async I/O</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>
