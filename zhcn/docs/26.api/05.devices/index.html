@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.5章：设备 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.5章：设备</h1>
+    <p class="lang-switch"><a href="/docs/26.api/05.devices/">English</a></p>
+
+    <section>
+      <h2>1. 设备是什么</h2>
+      <p>
+        设备是 I/O 操作的端点。它不是格式化器，也不是容器。这个概念由类型提供的操作定义：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>能力</th>
+            <th>操作</th>
+            <th>例子</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>输入</td>
+            <td><code>read_some</code>、<code>read_all</code>、<code>pread_*</code>、
+              scatter 变体</td>
+            <td><code>native_file</code>、<code>ibuf_file</code>、<code>iobuf_file</code>、
+              <code>iobuf_pipe</code>、socket 文件</td>
+          </tr>
+          <tr>
+            <td>输出</td>
+            <td><code>write_some</code>、<code>write_all</code>、<code>pwrite_*</code>、
+              scatter 变体</td>
+            <td><code>native_file</code>、<code>obuf_file</code>、<code>iobuf_file</code>、
+              控制台 observer</td>
+          </tr>
+          <tr>
+            <td>定位</td>
+            <td>位置查询与 seek</td>
+            <td>文件；管道和 socket 不支持</td>
+          </tr>
+          <tr>
+            <td>传输</td>
+            <td><code>transmit_some_bytes</code>、<code>transmit_all_bytes</code></td>
+            <td>带 transmit handle 的文件、管道和 socket</td>
+          </tr>
+          <tr>
+            <td>缓冲</td>
+            <td><code>basic_ibuf</code>、<code>basic_obuf</code>、<code>basic_iobuf</code></td>
+            <td>包在设备外面的带缓冲包装</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        一个类型不必实现所有能力。socket 不能 seek；管道是单向的；控制台不是普通文件。
+        类型系统会在你请求缺失能力的地方报错，而不是假装每个设备都是行为一致的文件描述符。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 拥有设备的类型 vs 观察者</h2>
+      <p>
+        fast_io 把“拥有句柄的东西”和“仅仅引用句柄的东西”分开。
+        拥有类型在析构时关闭句柄；观察者类型不会。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>角色</th>
+            <th>例子</th>
+            <th>生命周期规则</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>拥有者</td>
+            <td><code>native_file</code>、<code>ibuf_file</code>、<code>obuf_file</code>、
+              <code>iobuf_file</code>、<code>iobuf_pipe</code>、<code>iobuf_socket_file</code>、
+              <code>c_file</code>、<code>filebuf_file</code></td>
+            <td>析构时关闭；只能移动。</td>
+          </tr>
+          <tr>
+            <td>观察者</td>
+            <td><code>native_io_observer</code>、<code>c_io_observer</code>、
+              <code>filebuf_io_observer</code>、<code>in()</code>、<code>out()</code>、
+              <code>err()</code> 的结果</td>
+            <td>借用；不能比拥有者活得更久。</td>
+          </tr>
+          <tr>
+            <td>缓冲包装</td>
+            <td><code>basic_ibuf</code>、<code>basic_obuf</code>、<code>basic_iobuf</code>、
+              <code>ibuf_file</code>、<code>obuf_file</code>、<code>iobuf_file</code></td>
+            <td>拥有底层设备并增加缓冲。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        函数返回观察者，是 fast_io 在不转移所有权的情况下暴露设备的方式；
+        返回拥有者，是工厂把一个你必须关闭的资源交给你。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 文件家族</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>缓冲</th>
+            <th>方向</th>
+            <th>用途</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::native_file</code></td>
+            <td>不带缓冲</td>
+            <td>双向、可定位</td>
+            <td>大块传输、mmap、直接 OS 语义。</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::ibuf_file</code></td>
+            <td>带缓冲</td>
+            <td>输入</td>
+            <td>逐行/逐 token 扫描、小读。</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::obuf_file</code></td>
+            <td>带缓冲</td>
+            <td>输出</td>
+            <td>大量小写、格式化输出。</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::iobuf_file</code></td>
+            <td>带缓冲</td>
+            <td>双向</td>
+            <td>同一个文件读写、修补头部。</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::ibuf_file_lockable</code> 等</td>
+            <td>带缓冲 + 互斥</td>
+            <td>同基础类型</td>
+            <td>跨线程共享一个流。</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::c_file</code></td>
+            <td>遗留 <code>FILE*</code></td>
+            <td>双向</td>
+            <td>C 库互操作；新代码只读。</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::filebuf_file</code></td>
+            <td>遗留 <code>basic_filebuf</code></td>
+            <td>双向</td>
+            <td>iostream 互操作；新代码只读。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        带缓冲文件类型有五种字符变体：<code>char</code>、<code>char8_t</code>、
+        <code>char16_t</code>、<code>char32_t</code> 和 <code>wchar_t</code>。
+        原生文件类型面向字节；带缓冲包装携带 <code>print</code>/<code>scan</code>
+        使用的字符类型。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::io;
+
+    ::fast_io::obuf_file out("out.txt");
+    println(out, "value = ", 42);
+
+    ::fast_io::ibuf_file in("out.txt");
+    ::fast_io::string line;
+    scan(in, ::fast_io::mnp::strlike_line_get(line));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. 缓冲是一层包装</h2>
+      <p>
+        <code>basic_ibuf</code>、<code>basic_obuf</code> 和 <code>basic_iobuf</code>
+        是通用包装。命名的文件类型是“原生文件 + 包装 + 选定字符类型”的别名。
+        所以同一套缓冲规则适用于文件、管道和 socket：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>包装</th>
+            <th>增加什么</th>
+            <th>典型别名</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>basic_ibuf&lt;T&gt;</code></td>
+            <td>输入缓冲与重新填充</td>
+            <td><code>ibuf_file</code></td>
+          </tr>
+          <tr>
+            <td><code>basic_obuf&lt;T&gt;</code></td>
+            <td>输出缓冲与刷新</td>
+            <td><code>obuf_file</code></td>
+          </tr>
+          <tr>
+            <td><code>basic_iobuf&lt;T&gt;</code></td>
+            <td>两侧缓冲</td>
+            <td><code>iobuf_file</code>、<code>iobuf_pipe</code>、
+              <code>iobuf_socket_file</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        包装仍然是设备。它满足和底层类型相同的输入/输出流概念，外加缓冲操作。
+        这就是为什么 <code>scan</code> 可以要求带缓冲输入并接受 <code>ibuf_file</code>，
+        却拒绝不带缓冲的 <code>native_file</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 管道、socket 与控制台</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>设备</th>
+            <th>模块</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>native_pipe</code></td>
+            <td>头文件侧</td>
+            <td>不带缓冲的句柄对；有 <code>in()</code> 和 <code>out()</code> 两端。
+              目前不在模块导出列表里。</td>
+          </tr>
+          <tr>
+            <td><code>iobuf_pipe</code></td>
+            <td><code>fast_io</code></td>
+            <td>带缓冲管道，用于 <code>print</code>/<code>scan</code> 和进程输出。</td>
+          </tr>
+          <tr>
+            <td><code>native_socket_file</code></td>
+            <td><code>fast_io</code></td>
+            <td>原始 socket 句柄；方向取决于协议。</td>
+          </tr>
+          <tr>
+            <td><code>iobuf_socket_file</code></td>
+            <td><code>fast_io</code></td>
+            <td>带缓冲 socket，用于格式化协议。</td>
+          </tr>
+          <tr>
+            <td><code>tls_socket</code>、<code>iobuf_tls_socket_file</code></td>
+            <td><code>fast_io.tls</code></td>
+            <td>socket 上面的 TLS 层；I/O 操作相同。</td>
+          </tr>
+          <tr>
+            <td><code>in()</code>、<code>out()</code>、<code>err()</code></td>
+            <td><code>fast_io</code></td>
+            <td>原生标准流上的 observer。</td>
+          </tr>
+          <tr>
+            <td><code>dir_file</code></td>
+            <td><code>fast_io</code></td>
+            <td>目录句柄；可以迭代，或相对它打开文件。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        管道与进程见 <a href="/zhcn/docs/11.io/20.process/">第11.20章</a>；socket 见
+        <a href="/zhcn/docs/11.io/10.socket/">第11.10章</a>；TLS 见
+        <code>fast_io.tls</code> 模块。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 选择设备</h2>
+      <ol>
+        <li><strong>需要格式化文本？</strong> 用 <code>ibuf_file</code> /
+          <code>obuf_file</code> / <code>iobuf_file</code>。如果还要适配非文件流，
+          用对应的带缓冲管道或 socket 类型。</li>
+        <li><strong>搬大块数据？</strong> 用 <code>native_file</code> 和
+          <code>transmit</code>，或者 <a href="/zhcn/docs/11.io/08.fileloader/">第11.8章</a>
+          的内存映射。</li>
+        <li><strong>需要一个借用的句柄？</strong> 用 observer 类型，不要用拥有者。</li>
+        <li><strong>需要跨线程共享一个流？</strong> 用可加锁的带缓冲别名，
+          不要用普通缓冲加外部锁。</li>
+        <li><strong>在读 C 或 iostream 代码？</strong> 在边界处用 <code>c_file</code> 或
+          <code>filebuf_file</code>；不要在新代码上继续搭。</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>7. 模块导出了什么</h2>
+      <p>
+        <code>fast_io</code> 模块导出文件家族、管道家族、socket 文件、
+        <code>dir_file</code>、缓冲包装和可加锁别名。<code>c_file</code> 和
+        <code>filebuf_file</code> 来自 <code>fast_io_legacy</code>。TLS socket 类型来自
+        <code>fast_io.tls</code>。不在 <code>device.inc</code> 或 <code>io_buffer.inc</code>
+        里的头文件设备辅助，不属于模块表面。
+      </p>
+      <div class="note">
+        <strong>所有权规则。</strong> 如果类型有会关闭句柄的析构函数，它就是拥有者。
+        如果它由 <code>in()</code>、<code>out()</code>、<code>err()</code> 或
+        <code>*_io_observer</code> 产生，它就是借用。不要把借用保存到拥有者生命周期之后。
+      </div>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>设备由能力定义：输入、输出、定位、传输和缓冲。</li>
+        <li>拥有者在析构时关闭且只能移动；观察者借用句柄。</li>
+        <li><code>native_file</code> 不带缓冲；<code>ibuf_file</code>、
+          <code>obuf_file</code> 和 <code>iobuf_file</code> 增加缓冲。</li>
+        <li><code>basic_ibuf</code>、<code>basic_obuf</code> 和 <code>basic_iobuf</code>
+          是命名别名背后的通用包装。</li>
+        <li>管道、socket 和 TLS socket 都是同一套操作下的设备，不是另一个 API 宇宙。</li>
+        <li><code>c_file</code> 和 <code>filebuf_file</code> 是遗留互操作类型；
+          <code>fast_io_legacy</code> 导出它们。</li>
+        <li>按访问模式选择缓冲，不要只看文件大小。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/04.transmit/" class="prev-button">&larr; 第26.4章：transmit</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>

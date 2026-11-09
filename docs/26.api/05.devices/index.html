@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.5: Devices - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.5: Devices</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/05.devices/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. What a Device Is</h2>
+      <p>
+        A device is the endpoint of an I/O operation. It is not a formatter and not a container.
+        The concept is defined by the operations a type provides:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>Operation</th>
+            <th>Examples</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Input</td>
+            <td><code>read_some</code>, <code>read_all</code>, <code>pread_*</code>, scatter
+              variants</td>
+            <td><code>native_file</code>, <code>ibuf_file</code>, <code>iobuf_file</code>,
+              <code>iobuf_pipe</code>, socket files</td>
+          </tr>
+          <tr>
+            <td>Output</td>
+            <td><code>write_some</code>, <code>write_all</code>, <code>pwrite_*</code>, scatter
+              variants</td>
+            <td><code>native_file</code>, <code>obuf_file</code>, <code>iobuf_file</code>,
+              console observers</td>
+          </tr>
+          <tr>
+            <td>Seek</td>
+            <td>position queries and seeks</td>
+            <td>files; not pipes or sockets</td>
+          </tr>
+          <tr>
+            <td>Transmit</td>
+            <td><code>transmit_some_bytes</code>, <code>transmit_all_bytes</code></td>
+            <td>files, pipes and sockets with a transmit handle</td>
+          </tr>
+          <tr>
+            <td>Buffer</td>
+            <td><code>basic_ibuf</code>, <code>basic_obuf</code>, <code>basic_iobuf</code></td>
+            <td>buffered wrappers around a device</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        A type does not have to implement all capabilities. A socket is not seekable. A pipe is
+        unidirectional. A console is not a regular file. The type system reports the missing
+        capability at the point where you ask for it, instead of pretending every device is a
+        file descriptor with the same behaviour.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Owning Device vs Observer</h2>
+      <p>
+        fast_io separates the thing that owns a handle from the thing that merely refers to one.
+        The owning type closes the handle in its destructor; the observer type does not.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Examples</th>
+            <th>Lifetime rule</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Owner</td>
+            <td><code>native_file</code>, <code>ibuf_file</code>, <code>obuf_file</code>,
+              <code>iobuf_file</code>, <code>iobuf_pipe</code>, <code>iobuf_socket_file</code>,
+              <code>c_file</code>, <code>filebuf_file</code></td>
+            <td>Closes on destruction; move-only.</td>
+          </tr>
+          <tr>
+            <td>Observer</td>
+            <td><code>native_io_observer</code>, <code>c_io_observer</code>,
+              <code>filebuf_io_observer</code>, the result of <code>in()</code>,
+              <code>out()</code>, <code>err()</code></td>
+            <td>Borrowed; must not outlive the owner.</td>
+          </tr>
+          <tr>
+            <td>Buffer wrapper</td>
+            <td><code>basic_ibuf</code>, <code>basic_obuf</code>, <code>basic_iobuf</code>,
+              <code>ibuf_file</code>, <code>obuf_file</code>, <code>iobuf_file</code></td>
+            <td>Owns the underlying device and adds buffering.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Returning an observer from a function is how fast_io exposes a device without transferring
+        ownership. Returning an owner is how a factory hands you a resource you must close.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The File Family</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Buffering</th>
+            <th>Direction</th>
+            <th>Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::native_file</code></td>
+            <td>Unbuffered</td>
+            <td>Bidirectional, seekable</td>
+            <td>Large bulk transfers, mmap, direct OS semantics.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::ibuf_file</code></td>
+            <td>Buffered</td>
+            <td>Input</td>
+            <td>Line/token scanning, small reads.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::obuf_file</code></td>
+            <td>Buffered</td>
+            <td>Output</td>
+            <td>Many small writes, formatted output.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::iobuf_file</code></td>
+            <td>Buffered</td>
+            <td>Bidirectional</td>
+            <td>Read/write in one file, patching headers.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::ibuf_file_lockable</code> etc.</td>
+            <td>Buffered + mutex</td>
+            <td>Same as base</td>
+            <td>One shared stream across threads.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::c_file</code></td>
+            <td>Legacy <code>FILE*</code></td>
+            <td>Bidirectional</td>
+            <td>C library interoperation; read-only for new code.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::filebuf_file</code></td>
+            <td>Legacy <code>basic_filebuf</code></td>
+            <td>Bidirectional</td>
+            <td>iostream interoperation; read-only for new code.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The five character variants exist for the buffered file types:
+        <code>char</code>, <code>char8_t</code>, <code>char16_t</code>, <code>char32_t</code> and
+        <code>wchar_t</code>. The native file type is byte-oriented; the buffered wrappers carry
+        the character type used by <code>print</code>/<code>scan</code>.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::io;
+
+    ::fast_io::obuf_file out("out.txt");
+    println(out, "value = ", 42);
+
+    ::fast_io::ibuf_file in("out.txt");
+    ::fast_io::string line;
+    scan(in, ::fast_io::mnp::strlike_line_get(line));
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. Buffering Is a Wrapper</h2>
+      <p>
+        <code>basic_ibuf</code>, <code>basic_obuf</code> and <code>basic_iobuf</code> are the
+        generic wrappers. The named file types are aliases that combine a native file with the
+        wrapper and choose a character type. This is why the same buffering rules apply to files,
+        pipes and sockets:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Wrapper</th>
+            <th>Adds</th>
+            <th>Typical alias</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>basic_ibuf&lt;T&gt;</code></td>
+            <td>Input buffer and refill</td>
+            <td><code>ibuf_file</code></td>
+          </tr>
+          <tr>
+            <td><code>basic_obuf&lt;T&gt;</code></td>
+            <td>Output buffer and flush</td>
+            <td><code>obuf_file</code></td>
+          </tr>
+          <tr>
+            <td><code>basic_iobuf&lt;T&gt;</code></td>
+            <td>Both buffers</td>
+            <td><code>iobuf_file</code>, <code>iobuf_pipe</code>,
+              <code>iobuf_socket_file</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        A wrapper is still a device. It satisfies the same input/output stream concepts as the
+        underlying type, plus buffer operations. That is why <code>scan</code> can require a
+        buffered input and accept <code>ibuf_file</code> while rejecting an unbuffered
+        <code>native_file</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Pipes, Sockets and Consoles</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>Module</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>native_pipe</code></td>
+            <td>header-side</td>
+            <td>Unbuffered pair; <code>in()</code> and <code>out()</code> ends. Not in the
+              module export list yet.</td>
+          </tr>
+          <tr>
+            <td><code>iobuf_pipe</code></td>
+            <td><code>fast_io</code></td>
+            <td>Buffered pipe for <code>print</code>/<code>scan</code> and process output.</td>
+          </tr>
+          <tr>
+            <td><code>native_socket_file</code></td>
+            <td><code>fast_io</code></td>
+            <td>Raw socket handle; unidirectional or bidirectional depending on protocol.</td>
+          </tr>
+          <tr>
+            <td><code>iobuf_socket_file</code></td>
+            <td><code>fast_io</code></td>
+            <td>Buffered socket for formatted protocols.</td>
+          </tr>
+          <tr>
+            <td><code>tls_socket</code>, <code>iobuf_tls_socket_file</code></td>
+            <td><code>fast_io.tls</code></td>
+            <td>TLS layer over a socket; same I/O operations.</td>
+          </tr>
+          <tr>
+            <td><code>in()</code>, <code>out()</code>, <code>err()</code></td>
+            <td><code>fast_io</code></td>
+            <td>Observers over the native standard streams.</td>
+          </tr>
+          <tr>
+            <td><code>dir_file</code></td>
+            <td><code>fast_io</code></td>
+            <td>Directory handle; iterate or open files relative to it.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Pipes and processes are covered in <a href="/docs/11.io/20.process/">Ch11.20</a>; sockets
+        in <a href="/docs/11.io/10.socket/">Ch11.10</a>; TLS in the <code>fast_io.tls</code>
+        module.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Choosing a Device</h2>
+      <ol>
+        <li><strong>Do you need formatted text?</strong> Use <code>ibuf_file</code> /
+          <code>obuf_file</code> / <code>iobuf_file</code>. If you also need portability to a
+          non-file stream, use the matching pipe or socket buffered type.</li>
+        <li><strong>Are you moving a large blob?</strong> Use <code>native_file</code> and
+          <code>transmit</code>, or a memory map from <a href="/docs/11.io/08.fileloader/">Ch11.8</a>.</li>
+        <li><strong>Do you need a borrowed handle?</strong> Use the observer type, not the owner.</li>
+        <li><strong>Do you need one shared stream across threads?</strong> Use the lockable
+          buffered alias, not a plain buffer plus an external lock.</li>
+        <li><strong>Are you reading C or iostream code?</strong> Use <code>c_file</code> or
+          <code>filebuf_file</code> at the boundary; do not build new code on them.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>7. What the Module Exports</h2>
+      <p>
+        The <code>fast_io</code> module exports the file family, the pipe family, socket files,
+        <code>dir_file</code>, the buffer wrappers and the lockable aliases. <code>c_file</code>
+        and <code>filebuf_file</code> come from <code>fast_io_legacy</code>. TLS socket types come
+        from <code>fast_io.tls</code>. Header-only device helpers that are not in
+        <code>device.inc</code> or <code>io_buffer.inc</code> are not part of the module surface.
+      </p>
+      <div class="note">
+        <strong>Ownership rule.</strong> If a type has a destructor that closes a handle, it is an
+        owner. If it is produced by <code>in()</code>, <code>out()</code>, <code>err()</code> or a
+        <code>*_io_observer</code>, it is a borrow. Do not store a borrow past the lifetime of the
+        owner.
+      </div>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>A device is defined by capabilities: input, output, seek, transmit and buffering.</li>
+        <li>Owners close on destruction and are move-only; observers borrow a handle.</li>
+        <li><code>native_file</code> is unbuffered; <code>ibuf_file</code>,
+          <code>obuf_file</code> and <code>iobuf_file</code> add buffering.</li>
+        <li><code>basic_ibuf</code>, <code>basic_obuf</code> and <code>basic_iobuf</code> are the
+          generic wrappers behind the named aliases.</li>
+        <li>Pipes, sockets and TLS sockets are devices with the same operations, not a separate
+          API universe.</li>
+        <li><code>c_file</code> and <code>filebuf_file</code> are legacy interoperation types;
+          <code>fast_io_legacy</code> exports them.</li>
+        <li>Choose buffering by access pattern, not by file size alone.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/04.transmit/" class="prev-button">&larr; Ch26.4: transmit</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>
