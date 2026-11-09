@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第24.1章：为什么需要反射 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第24.1章：为什么需要反射</h1>
+    <p class="lang-switch"><a href="/docs/24.reflection/01.why/">English</a></p>
+
+    <section>
+      <h2>1. 编译器回答不了的问题</h2>
+      <p>
+        假设你有这个类型：
+      </p>
+      <pre><code class="language-cpp">struct person
+{
+    std::string name;
+    int age;
+    double height;
+};</code></pre>
+      <p>
+        你想把它打印成 JSON：
+      </p>
+      <pre><code class="language-json">{"name":"Ada","age":36,"height":1.68}</code></pre>
+      <p>
+        在大多数语言里，这是一个库调用。在 C++26 之前，这是手工劳动。编译器知道成员名字、成员类型、
+        顺序和布局。程序却问不到其中任何一项。信息在翻译期间存在，却从语言的表达式文法里消失了。
+      </p>
+      <p>
+        常见的变通办法都把知识搬到别处：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>变通办法</th>
+            <th>知识住在哪里</th>
+            <th>哪里会出错</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>手写序列化器</td>
+            <td>类型旁边的第二个函数</td>
+            <td>会漂移。加一个字段忘了改序列化器，bug 是静默的。</td>
+          </tr>
+          <tr>
+            <td>宏列表</td>
+            <td>展开进结构体和访问器的文本列表</td>
+            <td>仍然是第二份声明。它看不到类型、基类或注解。</td>
+          </tr>
+          <tr>
+            <td>外部代码生成器</td>
+            <td>解析头文件的构建步骤</td>
+            <td>又一个解析器、又一个构建依赖、又一份会过期的输出。</td>
+          </tr>
+          <tr>
+            <td>编译器专用内建</td>
+            <td><code>__builtin_...</code> 或插件</td>
+            <td>不可移植、不标准，而且不是每个目标都有。</td>
+          </tr>
+          <tr>
+            <td>运行时类型信息</td>
+            <td>RTTI、调试信息、注册宏</td>
+            <td>运行时成本，没有成员名字，而且只适用于多态类型。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        反射就是缺失的那个操作：<strong>程序向编译器询问它正在编译的程序</strong>。它不是运行时库，
+        也不是调试器。它是一个编译期查询，而查询的答案可以再变回代码。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 编译期，不是运行时</h2>
+      <p>
+        Java 和 C# 有运行时反射：对象携带类描述符，程序可以在运行时枚举字段、调用方法、创建实例。
+        C++26 反射不同。它发生在编译期间，在常量求值器里。结果要么是一个常量值，要么是生成的代码。
+        程序运行时，反射已经消失，除非你显式生成了表。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>属性</th>
+            <th>运行时反射（Java/C#）</th>
+            <th>C++26 反射</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>何时运行</td>
+            <td>运行时</td>
+            <td>翻译期间，在 <code>consteval</code> 里</td>
+          </tr>
+          <tr>
+            <td>能看到什么</td>
+            <td>已加载的类型和元数据</td>
+            <td>这个翻译单元里编译器能命名的任何东西</td>
+          </tr>
+          <tr>
+            <td>运行时成本</td>
+            <td>元数据、查找、分配</td>
+            <td>如果生成的代码是直接访问，则没有额外成本</td>
+          </tr>
+          <tr>
+            <td>能创建新类型吗</td>
+            <td>通常不能</td>
+            <td>能，通过 <code>define_aggregate</code> 创建简单聚合体</td>
+          </tr>
+          <tr>
+            <td>能看到私有成员吗</td>
+            <td>有足够权限时可以</td>
+            <td>只能通过显式的访问上下文</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        编译期限制是特性，不是缺陷。编译器已经拥有完整的类型信息；在编译期询问意味着答案可以被类型检查、
+        内联和优化。运行时没有字符串查找，二进制里也没有元数据块。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 反射与生成是同一个特性</h2>
+      <p>
+        C++26 反射实际上是两种能力绑在一起：
+      </p>
+      <ol>
+        <li>
+          <strong>反射：</strong>把程序实体变成 <code>std::meta::info</code> 类型的值。这个值可以保存、
+          比较、放进 vector，并被 <code>consteval</code> 函数查询。
+        </li>
+        <li>
+          <strong>拼接与生成：</strong>把反射变回文法元素——类型、名字、表达式、成员访问——或者从一组
+          反射成员定义一个聚合体。
+        </li>
+      </ol>
+      <p>
+        只有第一种能力，就是一个没有使用答案方式的编译期查询语言。只有第二种，就是一个类型更好的宏系统。
+        两者结合，JSON 例子才可能：反射成员，查询名字和类型，然后生成字段访问。
+      </p>
+      <pre><code class="language-text">grammar  ──^^──►  reflection value  ──std::meta::...──►  new reflection value
+   ▲                                                              │
+   └──────────────────────  [: ... :]  ───────────────────────────┘</code></pre>
+      <p>
+        上面的箭头是反射运算符 <code>^^</code>。下面的箭头是<strong>拼接（splice）</strong>：
+        <code>[: r :]</code> 把 <code>r</code> 表示的实体插回程序。中间是普通的
+        <code>consteval</code> 代码：循环、<code>if</code>、<code>std::vector</code>、函数。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 第一眼：枚举转字符串</h2>
+      <p>
+        最经典的动机例子是把枚举值打印成名字。反射之前，每个项目都有一个 switch、一张宏表，
+        或者一个解析枚举声明的第三方库。
+      </p>
+      <pre><code class="language-cpp">enum class color { red, green, blue };
+
+template &lt;typename E&gt;
+    requires std::is_enum_v&lt;E&gt;
+constexpr std::string_view enum_to_string(E value)
+{
+    template for (constexpr auto e :
+                  std::define_static_array(std::meta::enumerators_of(^^E)))
+    {
+        if (value == [:e:])
+        {
+            return std::meta::identifier_of(e);
+        }
+    }
+    return "&lt;unnamed&gt;";
+}
+
+static_assert(enum_to_string(color::green) == "green");</code></pre>
+      <p>
+        先不要担心语法。看这三个步骤：
+      </p>
+      <ol>
+        <li>
+          <code>^^E</code> 反射枚举类型。<code>std::meta::enumerators_of</code> 返回一组反射，
+          每个枚举值一个。
+        </li>
+        <li>
+          <code>template for</code> 在编译期展开循环。每个 <code>e</code> 是一个
+          <code>constexpr</code> 反射值。
+        </li>
+        <li>
+          <code>[:e:]</code> 把枚举值拼回表达式，所以 <code>value == [:e:]</code> 是普通比较。
+          <code>identifier_of(e)</code> 给出拼写。
+        </li>
+      </ol>
+      <p>
+        编译器为每个枚举值生成一个比较。没有表查找、没有字符串解析、没有注册。如果你加一个枚举值，
+        函数自动看到它。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 为什么模板和类型萃取不够</h2>
+      <p>
+        C++ 已经有编译期计算。模板是图灵完备的，<code>&lt;type_traits&gt;</code> 回答数百个问题。
+        为什么那不算反射？
+      </p>
+      <p>
+        类型萃取回答的是库作者预先想到的问题：<code>is_integral_v&lt;T&gt;</code>、
+        <code>is_base_of_v&lt;A, B&gt;</code>、<code>tuple_size_v&lt;T&gt;</code>。它回答不了
+        “<code>T</code> 的成员名字按声明顺序是什么？”，因为语言里没有表达这个答案的语法形式。
+        这个萃取必须返回一组字符串和类型，而语言没有一种类型能容纳异构的程序实体列表。
+      </p>
+      <p>
+        模板也不能从一个看起来像运行时的列表生成新类型。你可以用参数包特化模板，但不能写一个循环，
+        把 <code>data_member_spec</code> 推进 vector，然后从它定义一个结构体。这正是
+        <code>std::meta::info</code> 和 <code>define_aggregate</code> 增加的东西。
+      </p>
+      <p>
+        宏是文本的，不是语义的。它们看到 token，看不到类型。宏不能问一个成员是不是位域、基类是不是虚的、
+        枚举的底层类型是什么。它也不能遍历一个不是自己声明的类型的成员。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 反射适合做什么</h2>
+      <p>
+        动机用例都很无聊，而且到处都是：
+      </p>
+      <ul>
+        <li>
+          <strong>序列化。</strong>JSON、YAML、二进制格式、数据库行。反射一次成员，生成字段访问。
+        </li>
+        <li>
+          <strong>枚举名字。</strong>日志、命令行解析、配置文件、协议转储。
+        </li>
+        <li>
+          <strong>绑定。</strong>C++ 到 Python、Lua、JavaScript、C ABI。从 C++ 声明生成包装，
+          而不是手工维护。
+        </li>
+        <li>
+          <strong>测试与 mock。</strong>从成员生成结构相等、哈希、调试打印器或 builder。
+        </li>
+        <li>
+          <strong>布局与 ABI 工具。</strong>在编译期检查偏移、大小和对齐；生成静态断言或二进制布局描述。
+        </li>
+        <li>
+          <strong>命令行与配置解析器。</strong>从成员名推导选项名，从成员类型推导类型。
+        </li>
+      </ul>
+      <p>
+        共同点是<em>一份已经包含信息的声明，和一份重复它的第二声明</em>。反射删除第二份声明。
+        这就是全部价值主张。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 反射不是什么</h2>
+      <ul>
+        <li>
+          <strong>不是运行时自省。</strong>你不能反射运行时从共享库加载的类型，也不能从
+          <code>void*</code> 问出一个成员名字。
+        </li>
+        <li>
+          <strong>不替代模板。</strong>模板按类型实例化代码；反射检查和生成声明。它们组合使用：
+          反射可以为模板实例化产生参数。
+        </li>
+        <li>
+          <strong>不让私有成员变公开。</strong>访问控制仍然有效。成员查询接受
+          <code>access_context</code>；从错误的上下文询问是错误，不是漏洞。
+        </li>
+        <li>
+          <strong>不消除 API 设计。</strong>生成的序列化器仍然需要可选字段、版本、未知键和错误的策略。
+          反射删除样板，不删除设计。
+        </li>
+        <li>
+          <strong>不是没有编译期成本。</strong>每次查询和每个生成的声明都是编译器的工作。反射密集的头文件
+          会拖慢构建。成本在编译期，不在运行期。
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>8. 标准的状态</h2>
+      <p>
+        反射于 2025 年 6 月作为 P2996 进入 C++26，同时还有注解、consteval 块、展开语句和
+        <code>&lt;meta&gt;</code> 库的支撑论文。语言特性包括：
+      </p>
+      <ul>
+        <li>反射运算符 <code>^^</code>；</li>
+        <li>不透明类型 <code>std::meta::info</code> 和 <code>std::meta</code> 命名空间；</li>
+        <li>拼接符 <code>[: ... :]</code>、<code>typename[: ... :]</code>、
+          <code>template[: ... :]</code>；</li>
+        <li><code>template for</code> 展开语句；</li>
+        <li><code>consteval { ... }</code> 块和注入声明；</li>
+        <li><code>std::meta::define_aggregate</code> 和 <code>data_member_spec</code>。</li>
+      </ul>
+      <p>
+        编译器支持仍然不均衡。GCC 16 有一个实现；Bloomberg 的 <code>clang-p2996</code> 分支是参考
+        Clang 实现；EDG 有一个；写作时 MSVC 没有公开实现。这一章的代码是 C++26，不是库模拟。
+        在生产构建里使用之前，先查编译器支持表。
+      </p>
+      <p>
+        本章其余部分先讲模型，再讲模式。语法一开始看起来奇怪，因为它是新的。心智模型很小：
+        用 <code>^^</code> 反射，用 <code>std::meta</code> 查询，用 <code>[: :]</code> 拼接，
+        用 <code>define_aggregate</code> 生成。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/24.reflection/" class="prev-button">&larr; 第24章：反射</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/24.reflection/02.model/" class="next-button">第24.2章：C++26 反射模型 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

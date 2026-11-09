@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第23章：协程 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第23章：协程</h1>
+    <p class="lang-switch"><a href="/docs/23.coroutine/">English</a></p>
+
+    <section>
+      <h2>为什么有这一章</h2>
+      <p>
+        前面章节里的每个服务器都有同一个隐藏限制：一个线程一次只能做一件事。同步 echo 服务器接受一个
+        客户端，写给它，关闭它，然后才接受下一个。慢客户端会阻塞服务器。通常的答案是每连接一个线程，
+        这在连接数超过机器能负担的线程数之前都有效。
+      </p>
+      <p>
+        协程是另一个答案。协程是一个可以在中间暂停、之后再恢复的函数，等待时不拥有线程。代码仍然看起来像
+        一串语句：接受、读、写、循环。由调度器而不是程序员决定下一个运行哪个暂停的协程。
+      </p>
+      <p>
+        这一章先讲语言机制，再讲 fast_io 的异步模型，最后写一个真实的 TCP 服务器。最后一页把 echo 服务器
+        变成 HTTP 服务器，在那里格式化 I/O 与裸字节传输相遇。
+      </p>
+    </section>
+
+    <section>
+      <h2>四页</h2>
+      <ol>
+        <li>
+          <a href="/zhcn/docs/23.coroutine/01.mechanics/">第23.1章：协程机器</a>
+        </li>
+        <li>
+          <a href="/zhcn/docs/23.coroutine/02.asyncmodel/">第23.2章：fast_io 的异步模型</a>
+        </li>
+        <li>
+          <a href="/zhcn/docs/23.coroutine/03.tcpserver/">第23.3章：异步 TCP echo 服务器</a>
+        </li>
+        <li>
+          <a href="/zhcn/docs/23.coroutine/04.protocols/">第23.4章：从 echo 到 HTTP</a>
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>简短版本</h2>
+      <p>
+        C++20 协程是含有 <code>co_await</code>、<code>co_yield</code> 或 <code>co_return</code> 的函数。
+        编译器把它变成一个帧加一个 promise。帧保存参数、跨越暂停点的局部变量和恢复点。promise 决定协程
+        返回什么、是否惰性启动、结束时发生什么，以及错误如何保存。
+      </p>
+      <p>
+        <code>co_await</code> 使用 awaiter 协议：<code>await_ready</code>、<code>await_suspend</code>、
+        <code>await_resume</code>。异步 I/O 就是这个协议加一个调度器。协程提交操作并暂停；事件循环等待
+        内核，然后恢复保存的句柄。代码读起来像阻塞序列，但操作在途时线程是自由的。
+      </p>
+      <p>
+        fast_io 的异步层是四个对象：拥有型 <code>io_async_scheduler</code>、非拥有型
+        <code>io_async_observer</code>、惰性 <code>io_async_task&lt;T&gt;</code>，以及
+        <code>io_async_wait</code> 事件泵。调度器在 Linux 上是 io_uring，在 Windows 上是 IOCP，
+        在其他 POSIX 系统上是线程池。源码不变。
+      </p>
+      <p>
+        结构化输入用 <code>async_scan</code>，结构化输出用 <code>async_print</code>，字节移动用
+        <code>async_transmit_some_bytes</code> / <code>async_transmit_all_bytes</code>。只有在你实现
+        这些操作下面那一层时，才降到 <code>async_pread_some_bytes</code> /
+        <code>async_pwrite_some_bytes</code>。读行的服务器不应该调用 <code>pread</code>。
+      </p>
+      <p>
+        协程不是线程。暂停是协作式的；在协程里阻塞会阻塞同一事件循环上的所有协程。帧有生命周期：
+        让拥有任务活到 <code>done()</code>，或者 <code>detach()</code> 它，让它自行销毁。错误通过
+        <code>unhandled_exception</code> 或 <code>unhandled_herbception</code> 传递，并在
+        <code>co_await</code> 处或由 <code>rethrow_if_error()</code> 重新抛出。
+      </p>
+      <p>
+        服务器模式是两个协程：拥有监听器的 accept 循环，以及每个连接一个 detached 会话。
+        <code>async_accept</code> 返回拥有的 socket；按值传递把所有权转移进会话帧。监听器死亡时，
+        监督者重启 accept 循环。这就是整个架构，它能扩展是因为大多数会话在暂停，而不是因为程序创建了更多线程。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/22.canadiancompilation/04.llvm/" class="prev-button">&larr; 第22.4章：LLVM：构建与宿主</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/23.coroutine/01.mechanics/" class="next-button">第23.1章：协程机器 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

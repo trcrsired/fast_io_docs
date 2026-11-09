@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第24.2章：C++26 反射模型 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第24.2章：C++26 反射模型</h1>
+    <p class="lang-switch"><a href="/docs/24.reflection/02.model/">English</a></p>
+
+    <section>
+      <h2>1. 两个域</h2>
+      <p>
+        C++26 反射恰好有两个域：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>域</th>
+            <th>包含</th>
+            <th>如何进入</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>文法域</td>
+            <td>
+              类型、名字、表达式、声明、语句、成员、枚举值、模板。你能在源码里写的一切。
+            </td>
+            <td>写普通 C++。</td>
+          </tr>
+          <tr>
+            <td>反射域</td>
+            <td>
+              <code>std::meta::info</code> 类型的值。一个值表示一个实体或表达式。
+            </td>
+            <td><code>^^</code> 把文法元素反射成值。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        你用 <code>^^</code> 从文法进入反射。用拼接 <code>[: ... :]</code> 回来。中间是操作
+        <code>std::meta::info</code> 值的普通 <code>consteval</code> 代码。
+      </p>
+      <pre><code class="language-text">type T  ──^^T──►  info{^T}  ──nonstatic_data_members_of──►  [info, info, ...]
+                                                        │
+                                                        ▼
+field access  ◄──[:m:]──  info{m}  ◄──template for──────┘</code></pre>
+    </section>
+
+    <section>
+      <h2>2. 反射运算符 <code>^^</code></h2>
+      <p>
+        <code>^^</code> 接受一个文法元素，产生一个反射值。它不是 <code>^</code>（异或），也不是对值
+        的一元运算符。语法是：
+      </p>
+      <pre><code class="language-cpp">constexpr auto r1 = ^^int;             // a type
+constexpr auto r2 = ^^std::vector;     // a template
+constexpr auto r3 = ^^std::vector&lt;int&gt;; // a specialization
+constexpr auto r4 = ^^person::name;    // a non-static data member
+constexpr auto r5 = ^^color::green;    // an enumerator
+constexpr auto r6 = ^^std::printf;     // a function
+constexpr auto r7 = ^^std;             // a namespace
+constexpr auto r8 = std::meta::reflect_constant(42); // a value
+constexpr auto r9 = ^^std::is_same_v&lt;int, int&gt;; // a variable template specialization</code></pre>
+      <p>
+        结果是 <code>std::meta::info</code> 类型的常量表达式。它是不透明的：不能索引、不能转换成指针、
+        不能当文本打印。你用 <code>std::meta</code> 函数提问。注意 <code>^^</code> 反射的是实体
+        （类型、名字、变量、成员、枚举值），不是任意字面量；常量值用
+        <code>std::meta::reflect_constant</code> 反射，如 <code>r8</code>。
+      </p>
+      <p>
+        <code>std::meta::info</code> 可以比较。同一实体的两个反射相等；不同实体的反射不相等。
+        默认构造的 <code>info{}</code> 是空反射，不是 <code>void</code> 的反射。
+      </p>
+      <pre><code class="language-cpp">static_assert(^^int == ^^int);
+static_assert(^^int != ^^long);
+static_assert(std::meta::info{} == std::meta::info{});</code></pre>
+      <p>
+        这个类型刻意不透明。委员会不想把 <code>meta::type</code>、<code>meta::variable</code>、
+        <code>meta::function</code> 这一族类型固定进类型系统，因为那会把语言的实体分类冻结在类型里。
+        一个类型加谓词更容易扩展。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>std::meta</code> 命名空间</h2>
+      <p>
+        <code>&lt;meta&gt;</code> 提供 <code>consteval</code> 函数，接受反射并返回反射、值，或两者。
+        名字很长但很规则。最先用到的：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>函数</th>
+            <th>回答</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>type_of(r)</code></td>
+            <td><code>r</code> 表示的实体或表达式的类型。</td>
+          </tr>
+          <tr>
+            <td><code>identifier_of(r)</code></td>
+            <td>声明的名字，类型是 <code>std::string_view</code>。</td>
+          </tr>
+          <tr>
+            <td><code>display_string_of(r)</code></td>
+            <td>人类可读的拼写，不一定是合法标识符。</td>
+          </tr>
+          <tr>
+            <td><code>nonstatic_data_members_of(T, ctx)</code></td>
+            <td>类的非静态数据成员，按声明顺序。</td>
+          </tr>
+          <tr>
+            <td><code>enumerators_of(E)</code></td>
+            <td>枚举的枚举值，按声明顺序。</td>
+          </tr>
+          <tr>
+            <td><code>bases_of(T, ctx)</code></td>
+            <td>类的直接基类。</td>
+          </tr>
+          <tr>
+            <td><code>members_of(T, ctx)</code></td>
+            <td>所有成员：数据、函数、类型、构造函数等。</td>
+          </tr>
+          <tr>
+            <td><code>is_enum_type(r)</code>、<code>is_class_type(r)</code>、...</td>
+            <td>对反射的谓词。</td>
+          </tr>
+          <tr>
+            <td><code>dealias(r)</code></td>
+            <td>类型别名或命名空间别名背后的实体。</td>
+          </tr>
+          <tr>
+            <td><code>substitute(template, args)</code></td>
+            <td>用给定参数特化模板后的反射。</td>
+          </tr>
+          <tr>
+            <td><code>extract&lt;T&gt;(r)</code></td>
+            <td>常量、枚举值或对象反射所代表的值。</td>
+          </tr>
+          <tr>
+            <td><code>reflect_constant(v)</code></td>
+            <td>常量值 <code>v</code> 的反射。</td>
+          </tr>
+          <tr>
+            <td><code>data_member_spec(type, opts)</code></td>
+            <td>一个数据成员的描述，供 <code>define_aggregate</code> 注入。</td>
+          </tr>
+          <tr>
+            <td><code>define_aggregate(T, specs)</code></td>
+            <td>用给定成员补全不完整类 <code>T</code>。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        如果你用过 <code>&lt;type_traits&gt;</code>，很多谓词看着眼熟：
+        <code>is_integral_type</code>、<code>is_same_type</code>、<code>is_base_of_type</code>、
+        <code>is_convertible_type</code>。它们是同样的问题，只是表达在反射上而不是模板参数上。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 拼接：回到文法</h2>
+      <p>
+        拼接把反射变回源码。上下文决定需要哪种文法元素：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>形式</th>
+            <th>产生</th>
+            <th>例子</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>[: r :]</code></td>
+            <td>表达式、名字或值，取决于上下文。</td>
+            <td><code>int x = [: r :];</code></td>
+          </tr>
+          <tr>
+            <td><code>typename[: r :]</code></td>
+            <td>类型。</td>
+            <td><code>typename[: r :] x = 42;</code></td>
+          </tr>
+          <tr>
+            <td><code>[: r :]::name</code></td>
+            <td>作用域限定名。</td>
+            <td><code>[: r :]::value</code></td>
+          </tr>
+          <tr>
+            <td><code>template[: r :]&lt;T&gt;</code></td>
+            <td>模板特化。</td>
+            <td><code>template[: r :]&lt;int&gt;::value</code></td>
+          </tr>
+          <tr>
+            <td><code>obj.[: m :]</code></td>
+            <td>成员访问。</td>
+            <td><code>p.[: member :] = 42;</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        提案里的第一个例子就是完整的来回：
+      </p>
+      <pre><code class="language-cpp">constexpr auto r = ^^int;
+typename[:r:] x = 42;          // int x = 42;
+typename[:^^char:] c = '*';    // char c = '*';</code></pre>
+      <p>
+        拼接不是字符串替换。编译器检查反射表示的实体类型是否符合文法要求。在需要类型的地方拼接函数反射
+        是错误，不是文本替换。
+      </p>
+      <p>
+        成员访问拼接比名字查找更直接。它不执行普通成员查找或重载决议；它访问反射表示的那个成员。
+        这就是它能在调用点不知道成员名字的情况下访问成员的原因。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. <code>template for</code>：编译期迭代</h2>
+      <p>
+        <code>template for</code> 是展开语句。它看起来像范围 <code>for</code>，但在翻译期间展开。
+        每次迭代有自己的 <code>constexpr</code> 变量。
+      </p>
+      <pre><code class="language-cpp">template &lt;typename T&gt;
+void print_members(T const &amp;obj)
+{
+    constexpr auto ctx = std::meta::access_context::current();
+    constexpr auto members = std::define_static_array(
+        std::meta::nonstatic_data_members_of(^^T, ctx));
+
+    template for (constexpr auto m : members)
+    {
+        std::print("{} = {}\n", std::meta::identifier_of(m), obj.[:m:]);
+    }
+}</code></pre>
+      <p>
+        三个细节很重要：
+      </p>
+      <ul>
+        <li>
+          <code>std::define_static_array</code> 把 <code>nonstatic_data_members_of</code> 返回的
+          编译期 vector 提升到静态存储。展开语句需要一个元素能作为常量表达式使用的范围。
+        </li>
+        <li>
+          <code>constexpr auto m</code> 是每次迭代新的反射值。它不是运行时循环变量。
+        </li>
+        <li>
+          <code>obj.[:m:]</code> 是成员访问拼接。生成的代码访问真实成员；运行时没有字符串到成员的查找。
+        </li>
+      </ul>
+      <p>
+        <code>template for</code> 也支持索引和多个范围：
+      </p>
+      <pre><code class="language-cpp">template for (constexpr std::size_t i{}; auto m : members)
+{
+    std::print("{}: {}\n", i, std::meta::identifier_of(m));
+}</code></pre>
+    </section>
+
+    <section>
+      <h2>6. 生成类型：<code>define_aggregate</code></h2>
+      <p>
+        反射不仅能检查已有声明。它还能从一组成员描述补全一个不完整聚合体。最小的形式：
+      </p>
+      <pre><code class="language-cpp">#include &lt;meta&gt;
+#include &lt;print&gt;
+
+struct point;
+
+consteval
+{
+    std::meta::info members[]
+    {
+        std::meta::data_member_spec(^^int, {.name = "x"}),
+        std::meta::data_member_spec(^^int, {.name = "y"})
+    };
+
+    std::meta::define_aggregate(^^point, members);
+}
+
+int main()
+{
+    point p{.x = 3, .y = 4};
+    std::println("({}, {})", p.x, p.y);
+}</code></pre>
+      <p>
+        <code>point</code> 声明为不完整。那个 <code>consteval</code> 块在翻译期间运行，构建两个成员描述，
+        注入一个定义。从此以后，<code>point</code> 是一个有两个 <code>int</code> 成员的普通聚合体。
+      </p>
+      <p>
+        成员列表可以计算。一个常见模式是“结构体的数组版”：
+      </p>
+      <pre><code class="language-cpp">template &lt;typename T, std::size_t N&gt;
+struct struct_of_arrays
+{
+    struct impl;
+
+    consteval
+    {
+        auto ctx = std::meta::access_context::current();
+        std::vector&lt;std::meta::info&gt; specs;
+
+        template for (constexpr auto m :
+                      std::define_static_array(
+                          std::meta::nonstatic_data_members_of(^^T, ctx)))
+        {
+            auto array_type = std::meta::substitute(
+                ^^std::array,
+                {std::meta::type_of(m), std::meta::reflect_constant(N)});
+            specs.push_back(std::meta::data_member_spec(
+                array_type, {.name = std::meta::identifier_of(m)}));
+        }
+
+        std::meta::define_aggregate(^^impl, specs);
+    }
+
+    impl data;
+};</code></pre>
+      <p>
+        <code>substitute</code> 构建 <code>std::array&lt;MemberType, N&gt;</code> 的反射；
+        <code>data_member_spec</code> 用原成员的名字命名它；<code>define_aggregate</code> 补全
+        <code>impl</code>。这类代码过去需要外部生成器。限制是真实的：生成的聚合体是简单聚合体，
+        不是带构造函数、虚函数或访问说明符的任意类。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 访问上下文与取值</h2>
+      <p>
+        成员查询接受 <code>std::meta::access_context</code>。它说明查询从哪里发出，因为访问控制是语言的一部分：
+      </p>
+      <pre><code class="language-cpp">constexpr auto here = std::meta::access_context::current();
+constexpr auto all  = std::meta::access_context::unchecked();</code></pre>
+      <p>
+        <code>current()</code> 用当前函数或类作为访问上下文。这是安全默认：反射看不到当前代码不能命名的
+        私有成员。<code>unchecked()</code> 绕过访问检查，应该只留给确实需要布局的工具，比如调试器，
+        或者类自身实现里的二进制序列化器。
+      </p>
+      <p>
+        要从反射里取出值，用 <code>extract&lt;T&gt;</code>：
+      </p>
+      <pre><code class="language-cpp">enum class color { red, green, blue };
+
+constexpr auto e = std::meta::enumerators_of(^^color)[1];
+static_assert(std::meta::extract&lt;color&gt;(e) == color::green);</code></pre>
+      <p>
+        <code>extract</code> 也是把常量反射变成模板参数或 <code>switch</code> 分支所需的真实值的方式。
+        它是 <code>reflect_constant</code> 的逆操作。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 配方</h2>
+      <p>
+        本章每个反射算法都遵循同样的四步：
+      </p>
+      <ol>
+        <li><strong>反射。</strong>从 <code>^^T</code> 或 <code>^^member</code> 开始。</li>
+        <li>
+          <strong>查询。</strong>向 <code>std::meta</code> 询问成员、名字、类型、基类、枚举值、属性。
+        </li>
+        <li>
+          <strong>决定。</strong>用普通 <code>if</code>、循环和 <code>consteval</code> 函数。
+          这是正常的编译期代码，不是特殊 DSL。
+        </li>
+        <li>
+          <strong>拼接或生成。</strong>把结果变回表达式、类型，或新的聚合体。
+        </li>
+      </ol>
+      <p>
+        语法不熟悉，控制流不是。如果你能写遍历 vector 的循环和对类型萃取做 <code>if</code>，
+        你就能写反射代码。唯一的新规则是：vector 装的是 <code>std::meta::info</code> 值，结果必须拼回文法。
+      </p>
+    </section>
+
+    <section>
+      <h2>9. 不能做什么</h2>
+      <ul>
+        <li>反射构造函数或析构函数，并把它当表达式拼接。构造函数和析构函数不是可拼接表达式。</li>
+        <li>反射局部实体并在作用域外使用。反射不延长生命周期。</li>
+        <li>对已经完整的类、带基类、虚函数或用户声明构造函数的类使用 <code>define_aggregate</code>。</li>
+        <li>查询不完整类型的成员。编译器必须知道成员列表；前置声明不够。</li>
+        <li>把 <code>std::meta::info</code> 当运行时值序列化再加载。它是编译期句柄，不是可移植描述符。</li>
+      </ul>
+      <p>
+        下一页把模型用起来：枚举名字、字段访问器、JSON 和生成聚合体。代码更长，但每一行都是上面四步之一。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/24.reflection/01.why/" class="prev-button">&larr; 第24.1章：为什么需要反射</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/24.reflection/03.practice/" class="next-button">第24.3章：反射实践 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch23.2: fast_io's Async Model - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch23.2: fast_io's Async Model</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/23.coroutine/02.asyncmodel/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Four Objects, One Loop</h2>
+      <p>
+        fast_io's async layer is small. Almost every program in this chapter is built from four
+        objects:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Object</th>
+            <th>What it is</th>
+            <th>Who owns it</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>io_async_scheduler</code></td>
+            <td>
+              The OS backend: an io_uring ring on Linux, an I/O completion port on Windows, or a
+              thread pool on other POSIX systems.
+            </td>
+            <td>The program; usually one per event loop.</td>
+          </tr>
+          <tr>
+            <td><code>io_async_observer</code></td>
+            <td>
+              A small, copyable, non-owning view of the scheduler. It is the first parameter of every
+              async operation.
+            </td>
+            <td>Passed by value; the scheduler outlives it.</td>
+          </tr>
+          <tr>
+            <td><code>io_async_task&lt;T&gt;</code></td>
+            <td>
+              The coroutine return type. A lazy task that owns its frame, can be awaited, resumed,
+              detached, and reports errors through the herbception channel.
+            </td>
+            <td>The task object, until it is detached or destroyed.</td>
+          </tr>
+          <tr>
+            <td><code>io_async_wait(sched)</code></td>
+            <td>
+              The event pump. It waits for one completion, dispatches it, and resumes the coroutine
+              that was waiting for it.
+            </td>
+            <td>Called by <code>main</code> or by a supervisor loop.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The scheduler is created with the <code>io_async</code> tag. The tag selects the platform's
+        best backend; the type alias <code>io_async_scheduler</code> resolves to the concrete owning
+        type, and <code>io_async_observer</code> resolves to its observer.
+      </p>
+      <pre><code class="language-cpp">fast_io::io_async_scheduler sched{fast_io::io_async};
+fast_io::io_async_observer observer{sched};</code></pre>
+      <p>
+        You rarely write the second line. Passing <code>sched</code> to an async function decays it to
+        the observer automatically, exactly as an owning file decays to its observer.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. The Smallest Complete Program</h2>
+      <p>
+        This is <code>examples/0045.async_io/a+b.cc</code> from the fast_io repository. It reads two
+        integers from a file, adds them, and writes the result to another file, all without blocking
+        the event loop.
+      </p>
+      <pre><code class="language-cpp">#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+namespace fi = ::fast_io;
+
+static fi::io_async_task&lt;&gt; work(fi::io_async_observer sched) throws
+{
+    fast_io::ibuf_file inb{
+        "input.txt", fast_io::open_mode::in | fast_io::open_mode::no_block};
+    fast_io::obuf_file outb{
+        "output.txt", fast_io::open_mode::out | fast_io::open_mode::no_block};
+
+    std::size_t a{}, b{};
+    co_await fi::async_scan(sched, {}, inb, a, b);
+    co_await fi::async_println(sched, {}, outb, a + b);
+    co_await fi::operations::async_output_stream_flush(sched, {}, outb);
+}
+
+int main()
+try
+{
+    fi::io_async_scheduler scheduler{fi::io_async};
+
+    auto task{work(scheduler)};
+    task.resume();
+    while (!task.done())
+    {
+        fi::io_async_wait(scheduler);
+    }
+    task.rethrow_if_error();
+}
+catch throws(::std::error e)
+{
+    fi::perrln(e);
+    return 1;
+}</code></pre>
+      <p>
+        Read the control flow, not the syntax. <code>work(scheduler)</code> creates a frame and
+        returns a lazy task. It has not run yet. <code>task.resume()</code> enters the body. The first
+        <code>co_await</code> submits a read and suspends. Control returns to <code>main</code>, which
+        calls <code>io_async_wait</code>. When the read completes, the pump resumes the frame, the
+        scan finishes, the print submits a write and suspends again, and the loop continues until the
+        task is done.
+      </p>
+      <p>
+        The main loop is the entire scheduler. It is single-threaded. The kernel does the waiting; the
+        program only reaps completions and resumes coroutines.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Operations You Should Use</h2>
+      <p>
+        fast_io provides the same I/O vocabulary in synchronous and asynchronous form. Use the
+        high-level operation that matches the protocol. Do not start with raw
+        <code>pread</code>/<code>pwrite</code> unless you are implementing a codec or a parser that
+        genuinely needs a byte window.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Use it for</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>async_scan(sched, timeout, in, args...)</code></td>
+            <td>
+              Formatted input: integers, strings, HTTP headers, tokens, line-oriented protocols. It
+              refills the input buffer asynchronously when the pending window runs out.
+            </td>
+            <td>The scanned values; errors through the channel.</td>
+          </tr>
+          <tr>
+            <td><code>async_print</code> / <code>async_println</code></td>
+            <td>
+              Formatted output: numbers, strings, manipulators, HTTP responses. Formatting runs
+              eagerly; the write is submitted to the scheduler.
+            </td>
+            <td>Void; call <code>async_output_stream_flush</code> when you need the bytes out.</td>
+          </tr>
+          <tr>
+            <td><code>async_transmit_some_bytes</code></td>
+            <td>
+              A byte pump in one direction: read a round from an input stream and write it to an
+              output stream. Perfect for echo servers, proxies and file-to-socket copies.
+            </td>
+            <td>The number of bytes moved in this round; zero means end of input.</td>
+          </tr>
+          <tr>
+            <td><code>async_transmit_all_bytes</code></td>
+            <td>
+              The same pump, but continue until the input ends or the optional bound is reached.
+            </td>
+            <td>Void when the whole transfer is complete.</td>
+          </tr>
+          <tr>
+            <td><code>async_accept</code></td>
+            <td>Wait for a TCP connection on a listening socket.</td>
+            <td>An owning accepted socket handle; wrap it in a socket file.</td>
+          </tr>
+          <tr>
+            <td><code>async_connect</code></td>
+            <td>Connect a socket to a peer address.</td>
+            <td>Void when connected.</td>
+          </tr>
+          <tr>
+            <td><code>async_output_stream_flush</code></td>
+            <td>Drain buffered output to the device.</td>
+            <td>Void when every pending byte reached the handle.</td>
+          </tr>
+          <tr>
+            <td><code>async_pread_some_bytes</code> / <code>async_pwrite_some_bytes</code></td>
+            <td>
+              Low-level byte windows. Use only when the protocol needs exact byte counts or when you
+              are building the layer that <code>async_scan</code>, <code>async_print</code> and
+              <code>async_transmit</code> sit on.
+            </td>
+            <td>Bytes transferred in this round.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The rule is simple: <strong>scan for input, print for output, transmit for byte movement</strong>.
+        These three operations already handle buffering, partial transfers and the suspend/resume
+        protocol. Dropping to <code>pread</code>/<code>pwrite</code> throws that away and makes you
+        reimplement the hard parts.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Backends: One API, Three Engines</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Platform</th>
+            <th><code>io_async_scheduler</code></th>
+            <th>How completion works</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Linux (non-Android)</td>
+            <td><code>linux_io_uring</code></td>
+            <td>
+              An io_uring ring. Submission queue entries carry reads, writes, accepts, connects and
+              timeouts; completion queue entries drive the callbacks. SQPOLL is tried first and a
+              plain ring is used if the kernel or seccomp policy refuses it.
+            </td>
+          </tr>
+          <tr>
+            <td>Windows</td>
+            <td><code>win32_file</code> holding an I/O completion port</td>
+            <td>
+              Every async-capable stream is opened with <code>open_mode::no_block</code>, which maps
+              to <code>FILE_FLAG_OVERLAPPED</code> or <code>WSA_FLAG_OVERLAPPED</code>. Completions
+              arrive on the port; the pump dispatches them to the coroutine.
+            </td>
+          </tr>
+          <tr>
+            <td>Other POSIX</td>
+            <td><code>posix_thread_pool</code></td>
+            <td>
+              A pool performs the blocking syscall on a worker and posts the completion back to the
+              event loop. The coroutine still suspends and resumes; only the engine differs.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The source code does not change between these backends. That is the point of the operation
+        layer. What changes is the requirement on the handle: on Windows, a socket or file used with
+        the async layer must be opened with <code>open_mode::no_block</code> so it is overlapped. On
+        Linux, io_uring does not need the flag, but passing it is harmless and keeps the code
+        portable. On a thread-pool backend, the flag is also harmless.
+      </p>
+      <p>
+        The <code>no_block</code> name is historical. It does not mean "use non-blocking syscalls
+        everywhere"; it means "make this handle usable by the asynchronous engine". Read it as
+        <em>async-capable</em>.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Errors: Exceptions and Herbceptions</h2>
+      <p>
+        Every async operation reports failure through the same error channel as its synchronous
+        counterpart. There are two promise hooks:
+      </p>
+      <ul>
+        <li>
+          <code>unhandled_exception()</code> receives an ordinary C++ exception that escaped the
+          coroutine body. It must not return normally.
+        </li>
+        <li>
+          <code>unhandled_herbception(std::cxx_std_error)</code> receives a fast_io herbception. It
+          stores the error handle in the promise instead of unwinding through the runtime. The
+          parameter is the raw two-word form, <code>{domain, code}</code>, introduced in
+          <a href="/docs/19.exceptionsandherbceptions/01.customdomains/">Ch19.1</a>; the public
+          <code>::std::error</code> handle used in <code>catch throws (::std::error e)</code> is
+          introduced in <a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>. They describe the
+          same error at different layers.
+        </li>
+      </ul>
+      <p>
+        When a coroutine is awaited, <code>await_resume()</code> rethrows the stored error at the
+        <code>co_await</code> site. When a coroutine is driven from <code>main</code>,
+        <code>rethrow_if_error()</code> does the same after <code>done()</code> becomes true. A
+        detached coroutine has nobody to report to: the promise's destructor releases an unreceived
+        error payload, and the failure is silent unless the coroutine handled it itself. That is the
+        correct behavior for a per-connection session that has already disconnected, and the wrong
+        behavior for a supervisor that needs to restart a listener.
+      </p>
+      <p>
+        The <code>throws</code> marker after the parameter list is this book's herbception syntax. On
+        a compiler without herbceptions, use the ordinary exception syntax; the coroutine structure
+        and the async calls are unchanged. <a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>
+        explains the model in detail.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Task Ownership and Detachment</h2>
+      <p>
+        <code>io_async_task</code> owns its frame. The destructor destroys the frame if the task
+        object still holds it. This gives you two safe patterns and one unsafe one:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Pattern</th>
+            <th>What happens</th>
+            <th>When to use it</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Keep the task, drive it to <code>done()</code></td>
+            <td>
+              <code>resume()</code> starts it; the event loop resumes it; after completion,
+              <code>rethrow_if_error()</code> reports failure. The task destructor frees the frame.
+            </td>
+            <td>The top-level operation in <code>main</code>, or a child you need to await.</td>
+          </tr>
+          <tr>
+            <td><code>task.detach()</code></td>
+            <td>
+              The task releases ownership, marks the frame detached, and resumes it. The frame
+              destroys itself at <code>final_suspend</code>. Errors are not reported to the caller.
+            </td>
+            <td>A per-connection session that owns its socket and has no supervisor.</td>
+          </tr>
+          <tr>
+            <td>Drop a suspended task</td>
+            <td>
+              The frame is destroyed while an operation may still hold a pointer to its awaiter.
+            </td>
+            <td>
+              <strong>Do not do this.</strong> Keep the task alive until it is done, or detach it.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        A coroutine parameter is copied or moved into the frame. Passing a socket by value to a
+        session coroutine therefore transfers ownership to the frame: when the session finishes, the
+        socket closes. Passing a reference would be a bug, because the referenced object may die
+        before the coroutine resumes.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Timeouts, Blocking and Flow Control</h2>
+      <p>
+        Every operation takes a <code>posix_statx_timestamp_opt</code> as its second argument.
+        <code>{}</code> means no timeout; a value means the operation fails with a timeout error when
+        the deadline elapses. The timeout is per operation, not per connection. If you want an idle
+        timeout, arm it on each read; if you want a total deadline, compute the remaining time before
+        each operation.
+      </p>
+      <p>
+        The event loop is cooperative. A CPU-bound loop, a synchronous file read, a mutex wait or a
+        <code>sleep</code> inside a coroutine stops every other coroutine on the same scheduler. Move
+        CPU work to a worker, or break it into chunks that <code>co_await</code> a yield. The async
+        layer schedules I/O; it does not preempt your code.
+      </p>
+      <p>
+        Flow control is explicit. <code>async_print</code> formats into a buffer and submits the
+        write; if the peer is slow, the write completes slowly or partially. The operation layer
+        handles the partial write, but it does not invent an unbounded queue for you. If you read a
+        stream and write to a slower stream, use <code>async_transmit_*</code> so the read side is
+        throttled by the write side, or add your own bounded queue. An unbounded queue turns a slow
+        client into a memory leak.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. What to Remember</h2>
+      <ul>
+        <li>
+          One scheduler, one observer, one task type, one event pump. That is the whole model.
+        </li>
+        <li>
+          <code>async_scan</code>, <code>async_print</code> and <code>async_transmit</code> are the
+          default tools. Use <code>pread</code>/<code>pwrite</code> only when you are building the
+          layer beneath them.
+        </li>
+        <li>
+          <code>open_mode::no_block</code> means async-capable, not "never blocks".
+        </li>
+        <li>
+          <code>unhandled_herbception</code> stores the error; <code>co_await</code> or
+          <code>rethrow_if_error()</code> delivers it. Detached tasks are silent.
+        </li>
+        <li>
+          Keep an owned task alive until it is done, or detach it. Never drop a suspended task with
+          an operation in flight.
+        </li>
+        <li>
+          The loop is single-threaded and cooperative. Blocking work belongs somewhere else.
+        </li>
+      </ul>
+      <p>
+        The next page writes the server: a listener, an accept loop, one detached session per
+        connection, and a supervisor that survives a dead listener.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/23.coroutine/01.mechanics/" class="prev-button">&larr; Ch23.1: The Coroutine Machine</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/23.coroutine/03.tcpserver/" class="next-button">Ch23.3: An Async TCP Echo Server &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

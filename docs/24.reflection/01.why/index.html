@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch24.1: Why Reflection - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch24.1: Why Reflection</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/24.reflection/01.why/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Question the Compiler Cannot Answer</h2>
+      <p>
+        Suppose you have this type:
+      </p>
+      <pre><code class="language-cpp">struct person
+{
+    std::string name;
+    int age;
+    double height;
+};</code></pre>
+      <p>
+        You want to print it as JSON:
+      </p>
+      <pre><code class="language-json">{"name":"Ada","age":36,"height":1.68}</code></pre>
+      <p>
+        In most languages this is a library call. In C++ before C++26, it is manual work. The compiler
+        knows the member names, the member types, their order and their layout. The program cannot ask
+        for any of it. The information exists during translation and disappears from the language's
+        expression grammar.
+      </p>
+      <p>
+        The usual workarounds all move the knowledge somewhere else:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Workaround</th>
+            <th>Where the knowledge lives</th>
+            <th>What goes wrong</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Hand-written serializer</td>
+            <td>A second function next to the type</td>
+            <td>It drifts. Add a field and forget the serializer; the bug is silent.</td>
+          </tr>
+          <tr>
+            <td>Macro list</td>
+            <td>A textual list expanded into both the struct and the visitor</td>
+            <td>It is still a second declaration. It cannot see types, bases or attributes.</td>
+          </tr>
+          <tr>
+            <td>External code generator</td>
+            <td>A build step that parses the header</td>
+            <td>Another parser, another build dependency, another source of stale output.</td>
+          </tr>
+          <tr>
+            <td>Compiler-specific intrinsic</td>
+            <td><code>__builtin_...</code> or a plugin</td>
+            <td>Not portable, not standard, often not available on every target.</td>
+          </tr>
+          <tr>
+            <td>Runtime type information</td>
+            <td>RTTI, debug info, a registration macro</td>
+            <td>Runtime cost, no member names, and only for polymorphic types.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Reflection is the missing operation: <strong>a program asking the compiler about the program
+        it is compiling</strong>. It is not a runtime library and it is not a debugger. It is a
+        compile-time query whose answers can be turned back into code.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Compile-Time, Not Runtime</h2>
+      <p>
+        Java and C# have runtime reflection: an object carries a class descriptor, and the program can
+        enumerate fields, call methods and create instances while it runs. C++26 reflection is
+        different. It happens during compilation, in the constant evaluator. The result is either a
+        constant value or generated code. By the time the program runs, the reflection is gone unless
+        you explicitly generated a table.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>Runtime reflection (Java/C#)</th>
+            <th>C++26 reflection</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>When it runs</td>
+            <td>At run time</td>
+            <td>During translation, in <code>consteval</code></td>
+          </tr>
+          <tr>
+            <td>What it can see</td>
+            <td>Loaded types and metadata</td>
+            <td>Anything the compiler can name in this translation unit</td>
+          </tr>
+          <tr>
+            <td>Cost at run time</td>
+            <td>Metadata, lookups, allocations</td>
+            <td>None if the generated code is a direct access</td>
+          </tr>
+          <tr>
+            <td>Can it create new types?</td>
+            <td>Usually not</td>
+            <td>Yes, a simple aggregate through <code>define_aggregate</code></td>
+          </tr>
+          <tr>
+            <td>Can it see private members?</td>
+            <td>With enough privilege</td>
+            <td>Only through an explicit access context</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The compile-time restriction is a feature, not a limitation. The compiler already has the
+        complete type information; asking at compile time means the answer can be type-checked,
+        inlined and optimized. There is no string lookup at run time and no metadata blob in the
+        binary.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Reflection and Generation Are One Feature</h2>
+      <p>
+        C++26 reflection is really two capabilities joined at the hip:
+      </p>
+      <ol>
+        <li>
+          <strong>Reflection:</strong> turn a program entity into a value of type
+          <code>std::meta::info</code>. The value can be stored, compared, put in a vector, and
+          queried by <code>consteval</code> functions.
+        </li>
+        <li>
+          <strong>Splicing and generation:</strong> turn a reflection back into a grammatical element
+          — a type, a name, an expression, a member access — or define a new aggregate from a list of
+          reflected members.
+        </li>
+      </ol>
+      <p>
+        The first capability without the second would be a compile-time query language with no way to
+        use the answer. The second without the first would be a macro system with better types. The
+        combination is what makes the JSON example possible: reflect the members, query their names
+        and types, then generate the field accesses.
+      </p>
+      <pre><code class="language-text">grammar  ──^^──►  reflection value  ──std::meta::...──►  new reflection value
+   ▲                                                              │
+   └──────────────────────  [: ... :]  ───────────────────────────┘</code></pre>
+      <p>
+        The top arrow is the reflection operator <code>^^</code>. The bottom arrow is a
+        <strong>splice</strong>: <code>[: r :]</code> inserts the entity represented by
+        <code>r</code> back into the program. The middle is ordinary <code>consteval</code> code:
+        loops, <code>if</code>, <code>std::vector</code>, functions.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. A First Look: Enum to String</h2>
+      <p>
+        The classic motivating example is an enum whose name you want to print. Before reflection,
+        every project had a switch, a macro table, or a third-party library that parsed the enum
+        declaration.
+      </p>
+      <pre><code class="language-cpp">enum class color { red, green, blue };
+
+template &lt;typename E&gt;
+    requires std::is_enum_v&lt;E&gt;
+constexpr std::string_view enum_to_string(E value)
+{
+    template for (constexpr auto e :
+                  std::define_static_array(std::meta::enumerators_of(^^E)))
+    {
+        if (value == [:e:])
+        {
+            return std::meta::identifier_of(e);
+        }
+    }
+    return "&lt;unnamed&gt;";
+}
+
+static_assert(enum_to_string(color::green) == "green");</code></pre>
+      <p>
+        Do not worry about the syntax yet. Look at the three steps:
+      </p>
+      <ol>
+        <li>
+          <code>^^E</code> reflects the enum type. <code>std::meta::enumerators_of</code> returns a
+          list of reflections, one per enumerator.
+        </li>
+        <li>
+          <code>template for</code> unrolls the loop at compile time. Each <code>e</code> is a
+          <code>constexpr</code> reflection value.
+        </li>
+        <li>
+          <code>[:e:]</code> splices the enumerator back into an expression, so
+          <code>value == [:e:]</code> is a normal comparison. <code>identifier_of(e)</code> gives the
+          spelling.
+        </li>
+      </ol>
+      <p>
+        The compiler generates one comparison per enumerator. There is no table lookup, no string
+        parsing, no registration. If you add an enumerator, the function sees it automatically.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Why Templates and Type Traits Are Not Enough</h2>
+      <p>
+        C++ already has compile-time computation. Templates are Turing-complete, and
+        <code>&lt;type_traits&gt;</code> answers hundreds of questions. Why is that not reflection?
+      </p>
+      <p>
+        A type trait answers a question the library author anticipated:
+        <code>is_integral_v&lt;T&gt;</code>, <code>is_base_of_v&lt;A, B&gt;</code>,
+        <code>tuple_size_v&lt;T&gt;</code>. It cannot answer "what are the member names of
+        <code>T</code>, in declaration order?" because there is no syntactic form for that answer.
+        The trait would have to return a list of strings and types, and the language had no type that
+        could hold a heterogeneous list of program entities.
+      </p>
+      <p>
+        Templates also cannot generate a new type from a runtime-looking list. You can specialize a
+        template on a parameter pack, but you cannot write a loop that pushes a
+        <code>data_member_spec</code> into a vector and then defines a struct from it. That is exactly
+        what <code>std::meta::info</code> and <code>define_aggregate</code> add.
+      </p>
+      <p>
+        Macros are textual, not semantic. They see tokens, not types. A macro cannot ask whether a
+        member is a bit-field, whether a base is virtual, or what the underlying type of an enum is.
+        It also cannot iterate over the members of a type it did not declare.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. What Reflection Is Good For</h2>
+      <p>
+        The motivating use cases are boring and everywhere:
+      </p>
+      <ul>
+        <li>
+          <strong>Serialization.</strong> JSON, YAML, binary formats, database rows. Reflect the
+          members once; generate the field accesses.
+        </li>
+        <li>
+          <strong>Enum names.</strong> Logging, command-line parsers, configuration files, protocol
+          dumps.
+        </li>
+        <li>
+          <strong>Bindings.</strong> C++ to Python, Lua, JavaScript, C ABI. Generate the wrapper from
+          the C++ declaration instead of maintaining it by hand.
+        </li>
+        <li>
+          <strong>Testing and mocking.</strong> Generate a structural equality, a hash, a debug
+          printer, or a builder from the members.
+        </li>
+        <li>
+          <strong>Layout and ABI tools.</strong> Inspect offsets, sizes and alignments at compile
+          time; generate a static assertion or a binary layout description.
+        </li>
+        <li>
+          <strong>Command-line and configuration parsers.</strong> Derive option names from member
+          names and types from member types.
+        </li>
+      </ul>
+      <p>
+        The common thread is <em>a declaration that already contains the information, and a second
+        declaration that repeats it</em>. Reflection deletes the second declaration. That is the
+        entire value proposition.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. What Reflection Is Not</h2>
+      <ul>
+        <li>
+          <strong>It is not runtime introspection.</strong> You cannot reflect a type that was
+          loaded from a shared library at run time, and you cannot ask for a member name from a
+          <code>void*</code>.
+        </li>
+        <li>
+          <strong>It does not replace templates.</strong> Templates instantiate code over types;
+          reflection inspects and generates declarations. They compose: reflection can produce the
+          arguments for a template instantiation.
+        </li>
+        <li>
+          <strong>It does not make private members public.</strong> Access control still applies.
+          Member queries take an <code>access_context</code>; asking from the wrong context is an
+          error, not a loophole.
+        </li>
+        <li>
+          <strong>It does not remove the need to design an API.</strong> A generated serializer still
+          needs a policy for optional fields, versions, unknown keys and errors. Reflection removes
+          the boilerplate, not the design.
+        </li>
+        <li>
+          <strong>It is not free of compile-time cost.</strong> Every query and every generated
+          declaration is work the compiler does. A reflection-heavy header can slow a build. The cost
+          is at compile time, not run time.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>8. The State of the Standard</h2>
+      <p>
+        Reflection was voted into C++26 in June 2025 as P2996, together with supporting papers for
+        annotations, consteval blocks, expansion statements and the <code>&lt;meta&gt;</code>
+        library. The language features are:
+      </p>
+      <ul>
+        <li>the reflection operator <code>^^</code>;</li>
+        <li>the opaque type <code>std::meta::info</code> and the <code>std::meta</code> namespace;</li>
+        <li>the splice specifiers <code>[: ... :]</code>, <code>typename[: ... :]</code>,
+          <code>template[: ... :]</code>;</li>
+        <li><code>template for</code> expansion statements;</li>
+        <li><code>consteval { ... }</code> blocks and injected declarations;</li>
+        <li><code>std::meta::define_aggregate</code> and <code>data_member_spec</code>.</li>
+      </ul>
+      <p>
+        Compiler support is still uneven. GCC 16 has an implementation; Bloomberg's
+        <code>clang-p2996</code> fork is the reference Clang implementation; EDG has one; MSVC had no
+        public implementation at the time of writing. The code in this chapter is C++26, not a
+        library emulation. Check the compiler support table before you put it in a production build.
+      </p>
+      <p>
+        The rest of the chapter teaches the model, then the patterns. The syntax looks strange at
+        first because it is new. The mental model is small: reflect with <code>^^</code>, query with
+        <code>std::meta</code>, splice with <code>[: :]</code>, generate with
+        <code>define_aggregate</code>.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/24.reflection/" class="prev-button">&larr; Ch24: Reflection</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/24.reflection/02.model/" class="next-button">Ch24.2: The C++26 Reflection Model &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

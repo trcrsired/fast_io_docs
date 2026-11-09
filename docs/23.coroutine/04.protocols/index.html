@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch23.4: From Echo to HTTP - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch23.4: From Echo to HTTP</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/23.coroutine/04.protocols/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Boundary: Bytes vs Structure</h2>
+      <p>
+        The echo server moved bytes. An HTTP server reads structure and writes structure, with a
+        byte body in the middle. That changes the operation you should use:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Part of the protocol</th>
+            <th>Operation</th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Request line and headers</td>
+            <td><code>async_scan</code></td>
+            <td>
+              They are formatted tokens: method, target, version, header names and values. The scan
+              layer refills the input buffer when a token crosses the pending window.
+            </td>
+          </tr>
+          <tr>
+            <td>Status line and response headers</td>
+            <td><code>async_print</code></td>
+            <td>
+              They are formatted output. The print layer formats into the output buffer and submits
+              the write.
+            </td>
+          </tr>
+          <tr>
+            <td>Body with a known length</td>
+            <td><code>async_transmit_all_bytes</code></td>
+            <td>
+              It is a byte range, not a formatted value. Pass the Content-Length as the bound and let
+              the transmit engine move it in chunks.
+            </td>
+          </tr>
+          <tr>
+            <td>Body with a structured format</td>
+            <td><code>async_scan</code> / <code>async_print</code></td>
+            <td>
+              JSON, form fields and line protocols are parsed and produced by the formatted layer.
+              The body is only bytes to the transport.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The rule from the previous page still holds: <strong>scan for input, print for output,
+        transmit for byte movement</strong>. HTTP is not an exception; it is the clearest example of
+        all three in one session.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. The Client: Print, Scan, Transmit</h2>
+      <p>
+        This is the shape of <code>examples/0017.network/async/http.cc</code>, reduced to the part
+        that matters here:
+      </p>
+      <pre><code class="language-cpp">static fi::io_async_task&lt;&gt; fetch(
+    fi::io_async_observer sched, fi::u8iobuf_socket_file sock,
+    fi::u8native_file out, char const *host) throws
+{
+    co_await fi::async_print(
+        sched, {}, sock,
+        u8"GET / HTTP/1.1\r\n"
+        u8"Host: ", fi::mnp::os_c_str(host), u8"\r\n"
+        u8"User-Agent: fast_io\r\n"
+        u8"Accept: */*\r\n"
+        u8"Connection: close\r\n\r\n");
+
+    fi::u8http_header_buffer hdr{};
+    co_await fi::async_scan(sched, {}, sock, hdr);
+
+    for (auto [key, value] : fi::line_generator(hdr))
+    {
+        if (::std::u8string_view(key) == u8"Content-Length")
+        {
+            auto length{fi::u8to&lt;::std::uint_least64_t&gt;(value)};
+            co_await fi::operations::async_transmit_all_bytes(
+                sched, {}, out, {}, sock, {}, fi::size_t_opt{length});
+            co_return;
+        }
+    }
+}</code></pre>
+      <p>
+        Three operations, three levels:
+      </p>
+      <ol>
+        <li>
+          <code>async_print</code> writes the request head. The socket is a buffered
+          <code>u8iobuf_socket_file</code>, so the bytes may still be in the output buffer when the
+          call returns.
+        </li>
+        <li>
+          <code>async_scan</code> reads the response head. The input side's tie handling flushes the
+          pending output before the first read, so the request is on the wire before the scan waits
+          for an answer. This is the same ordering guarantee as the synchronous layer.
+        </li>
+        <li>
+          <code>async_transmit_all_bytes</code> copies exactly Content-Length bytes from the socket
+          to the output file. The bound is the length from the header; the transmit engine stops at
+          that bound even if the peer keeps the connection open.
+        </li>
+      </ol>
+      <p>
+        The host string is formatted through <code>mnp::os_c_str</code>, not concatenated into the
+        request with <code>std::string</code>. The formatting layer handles the encoding and the
+        write; there is no temporary string and no manual buffer management. The real example also
+        uses <code>mnp::string_filters::host</code> to reject a hostile Host value before a single
+        byte is written.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Server: One Session Per Connection</h2>
+      <p>
+        The server keeps the echo architecture: one accept loop, one detached session per connection.
+        Only the session body changes.
+      </p>
+      <pre><code class="language-cpp">static fi::io_async_task&lt;&gt; http_session(
+    fi::io_async_observer sched, fi::u8iobuf_socket_file sock) throws
+{
+    fi::u8http_header_buffer hdr{};
+    co_await fi::async_scan(sched, {}, sock, hdr);
+
+    auto const target{hdr.code()};
+    fi::u8string_view path{target.data(), target.size()};
+
+    if (path == fi::u8string_view{u8"/health"})
+    {
+        co_await fi::async_print(
+            sched, {}, sock,
+            u8"HTTP/1.1 200 OK\r\n"
+            u8"Content-Type: text/plain\r\n"
+            u8"Content-Length: 3\r\n"
+            u8"Connection: close\r\n\r\n"
+            u8"ok\n");
+        co_await fi::operations::async_output_stream_flush(sched, {}, sock);
+        co_return;
+    }
+
+    co_await fi::async_print(
+        sched, {}, sock,
+        u8"HTTP/1.1 404 Not Found\r\n"
+        u8"Content-Type: text/plain\r\n"
+        u8"Content-Length: 10\r\n"
+        u8"Connection: close\r\n\r\n"
+        u8"not found\n");
+    co_await fi::operations::async_output_stream_flush(sched, {}, sock);
+}</code></pre>
+      <p>
+        The session is still a coroutine that owns its socket. The accept loop is unchanged: accept,
+        wrap, pass by value, detach. The only difference is that the session now understands the
+        request instead of echoing it.
+      </p>
+      <p>
+        <code>async_scan(sched, {}, sock, hdr)</code> scans a complete HTTP head. The
+        <code>u8http_header_buffer</code> owns the parsed header storage, so the strings returned by
+        <code>hdr.code()</code> and <code>line_generator(hdr)</code> point into that buffer. They
+        stay valid until the next scan or until the buffer is destroyed. Do not store them in a
+        detached task that outlives the session, and do not return them to the caller.
+      </p>
+      <p>
+        <code>async_print</code> formats the response head and body into the socket's output buffer.
+        <code>async_output_stream_flush</code> drains the buffer before the session returns. Without
+        the flush, the buffered bytes might still be in user space when the socket is closed; the
+        peer would see a truncated response. The flush is the async equivalent of the synchronous
+        <code>flush(out)</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Serving a File: Content-Length and Transmit</h2>
+      <p>
+        A static file response is a formatted head followed by a byte body. Do not read the file into
+        a <code>std::string</code>. Ask the filesystem for its size, write the head, and transmit the
+        file:
+      </p>
+      <pre><code class="language-cpp">static fi::io_async_task&lt;&gt; serve_file(
+    fi::io_async_observer sched, fi::u8iobuf_socket_file sock,
+    fi::u8native_file file, ::std::uint_least64_t size) throws
+{
+    co_await fi::async_print(
+        sched, {}, sock,
+        u8"HTTP/1.1 200 OK\r\n"
+        u8"Content-Type: application/octet-stream\r\n"
+        u8"Content-Length: ", size, u8"\r\n"
+        u8"Connection: close\r\n\r\n");
+
+    co_await fi::operations::async_transmit_all_bytes(
+        sched, {}, sock, {}, file, {}, fi::size_t_opt{size});
+    co_await fi::operations::async_output_stream_flush(sched, {}, sock);
+}</code></pre>
+      <p>
+        The output is the socket, the input is the file. The bound is the exact Content-Length. The
+        transmit engine reads a chunk, writes it, and repeats until the bound is exhausted. If the
+        client disconnects early, the write fails, the error escapes the session, and the detached
+        frame is destroyed. Nobody needs to catch it: the connection is already gone.
+      </p>
+      <p>
+        The same pattern works in the other direction: a request body with Content-Length is
+        transmitted from the socket into a file or a memory stream. If the body is structured, scan
+        it instead. If it is only bytes, transmit it. Do not mix the two models in the same body.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Keep-Alive, Pipelining and the Loop</h2>
+      <p>
+        The examples above answer one request and close. HTTP/1.1 can keep the connection open for
+        more requests. The session then becomes a loop:
+      </p>
+      <pre><code class="language-cpp">static fi::io_async_task&lt;&gt; http_session(
+    fi::io_async_observer sched, fi::u8iobuf_socket_file sock) throws
+{
+    for (;;)
+    {
+        fi::u8http_header_buffer hdr{};
+        co_await fi::async_scan(sched, {}, sock, hdr);
+
+        bool const keep_alive{/* inspect Connection: and the version */};
+        co_await fi::async_print(sched, {}, sock, /* response */);
+        co_await fi::operations::async_output_stream_flush(sched, {}, sock);
+
+        if (!keep_alive)
+        {
+            co_return;
+        }
+    }
+}</code></pre>
+      <p>
+        The loop is safe only if the scan consumes exactly one request head. The buffer must not be
+        reused across iterations until the previous request's strings are no longer needed. Declaring
+        <code>hdr</code> inside the loop gives each iteration a fresh buffer; that is the simplest
+        correct lifetime.
+      </p>
+      <p>
+        Pipelining is harder: a client may send two requests before reading the first response. The
+        scan layer reads from the socket's input buffer, so the second request is already pending
+        when the first response is written. The loop handles that naturally as long as the protocol
+        state is per request, not per connection. Do not assume "one read equals one request"; the
+        scan layer already decouples those.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Timeouts, Limits and Backpressure</h2>
+      <p>
+        A public server needs limits. The async layer gives you the mechanism; the policy is yours.
+      </p>
+      <ul>
+        <li>
+          <strong>Header timeout.</strong> Pass a deadline to <code>async_scan</code> so a client
+          that sends one byte per minute cannot hold a session forever.
+        </li>
+        <li>
+          <strong>Body limit.</strong> Never trust Content-Length blindly. Reject a body larger than
+          your configured maximum before allocating or transmitting.
+        </li>
+        <li>
+          <strong>Header count and size.</strong> <code>u8http_header_buffer</code> has a fixed
+          capacity; decide what happens when it overflows and return a 431 or 400, not a crash.
+        </li>
+        <li>
+          <strong>Slow readers.</strong> A response body larger than the socket buffer will suspend
+          in the write. That is correct: the session stops reading and stops allocating more output
+          until the peer drains. Do not create an unbounded queue to "avoid blocking".
+        </li>
+        <li>
+          <strong>Idle connections.</strong> If you support keep-alive, arm a read timeout per
+          request, not one global timeout for the connection.
+        </li>
+      </ul>
+      <p>
+        Backpressure is the reason the transmit operation is preferable to a hand-written
+        read-all-then-write-all loop. The transmit engine reads the next chunk only after the
+        previous chunk has been written. A slow client slows the producer instead of growing a
+        buffer in memory.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. The Mistakes That Actually Happen</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Mistake</th>
+            <th>Symptom</th>
+            <th>Fix</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Using synchronous <code>print</code> / <code>scan</code> inside an async session</td>
+            <td>The whole event loop stalls; other connections freeze.</td>
+            <td>Use <code>async_print</code> / <code>async_scan</code>.</td>
+          </tr>
+          <tr>
+            <td>Forgetting <code>async_output_stream_flush</code></td>
+            <td>The response is truncated or never arrives.</td>
+            <td>Flush before returning or before waiting for the next request.</td>
+          </tr>
+          <tr>
+            <td>Storing a <code>u8string_view</code> from the header buffer past the next scan</td>
+            <td>Garbage paths, corrupted responses, or a crash.</td>
+            <td>Copy the value, or keep the buffer alive for the whole use.</td>
+          </tr>
+          <tr>
+            <td>Passing a reference to a local socket into a detached session</td>
+            <td>Use-after-free when the caller returns.</td>
+            <td>Pass the socket by value; the frame owns it.</td>
+          </tr>
+          <tr>
+            <td>Trusting Content-Length without a limit</td>
+            <td>A single request exhausts memory or disk.</td>
+            <td>Check the limit before allocating or transmitting.</td>
+          </tr>
+          <tr>
+            <td>Doing CPU work in the session</td>
+            <td>Every other connection waits.</td>
+            <td>Offload, chunk, or use a worker pool.</td>
+          </tr>
+          <tr>
+            <td>Dropping a suspended task</td>
+            <td>The frame dies while the completion still points into it.</td>
+            <td>Drive it to <code>done()</code> or <code>detach()</code> it.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>8. Where to Go Next</h2>
+      <p>
+        The repository has the complete versions of these patterns:
+      </p>
+      <ul>
+        <li>
+          <code>examples/0017.network/async/tcp_echo_server.cc</code> — the two-coroutine echo
+          server from the previous page.
+        </li>
+        <li>
+          <code>examples/0017.network/async/tcp_client.cc</code> — a client that prints to a socket
+          and transmits the reply to stdout.
+        </li>
+        <li>
+          <code>examples/0017.network/async/http.cc</code> — an HTTP/1.1 GET client with header
+          scanning and a Content-Length-bounded body transfer.
+        </li>
+        <li>
+          <code>examples/0017.network/async/http-server.cc</code> — a static file server with
+          percent-decoded paths, directory listings, ETag, ranges and keep-alive.
+        </li>
+        <li>
+          <code>examples/0017.network/async/ws_echo_server.cc</code> and
+          <code>ws_client.cc</code> — WebSocket framing, including the places where a binary frame
+          needs an exact byte window instead of a formatted scan.
+        </li>
+      </ul>
+      <p>
+        Read them in that order. Each one adds one idea: a connection, a request, a response body, a
+        protocol state machine. The async machinery underneath stays the same.
+      </p>
+      <p>
+        The next chapter changes subject completely: reflection. Instead of asking the operating
+        system for bytes, it asks the compiler for the shape of your program.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/23.coroutine/03.tcpserver/" class="prev-button">&larr; Ch23.3: An Async TCP Echo Server</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/24.reflection/" class="next-button">Ch24: Reflection &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

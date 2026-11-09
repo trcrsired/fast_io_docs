@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第23.4章：从 echo 到 HTTP - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第23.4章：从 echo 到 HTTP</h1>
+    <p class="lang-switch"><a href="/docs/23.coroutine/04.protocols/">English</a></p>
+
+    <section>
+      <h2>1. 边界：字节与结构</h2>
+      <p>
+        echo 服务器移动字节。HTTP 服务器读结构、写结构，中间夹着字节 body。这改变了应该使用的操作：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>协议部分</th>
+            <th>操作</th>
+            <th>为什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>请求行和头</td>
+            <td><code>async_scan</code></td>
+            <td>
+              它们是格式化 token：方法、目标、版本、头名和头值。当 token 跨越待处理窗口时，scan 层会
+              补充输入缓冲区。
+            </td>
+          </tr>
+          <tr>
+            <td>状态行和响应头</td>
+            <td><code>async_print</code></td>
+            <td>
+              它们是格式化输出。print 层格式化进输出缓冲区并提交写。
+            </td>
+          </tr>
+          <tr>
+            <td>已知长度的 body</td>
+            <td><code>async_transmit_all_bytes</code></td>
+            <td>
+              它是字节范围，不是格式化值。把 Content-Length 作为上界，让 transmit 引擎分块移动它。
+            </td>
+          </tr>
+          <tr>
+            <td>结构化格式的 body</td>
+            <td><code>async_scan</code> / <code>async_print</code></td>
+            <td>
+              JSON、表单字段和行协议由格式化层解析和产生。对传输层来说，body 只是字节。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        上一页的规则仍然成立：<strong>输入用 scan，输出用 print，字节移动用 transmit</strong>。
+        HTTP 不是例外；它是在一个会话里同时出现三者的最清晰例子。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 客户端：print、scan、transmit</h2>
+      <p>
+        这是 <code>examples/0017.network/async/http.cc</code> 的形状，只保留这里重要的部分：
+      </p>
+      <pre><code class="language-cpp">static fi::io_async_task&lt;&gt; fetch(
+    fi::io_async_observer sched, fi::u8iobuf_socket_file sock,
+    fi::u8native_file out, char const *host) throws
+{
+    co_await fi::async_print(
+        sched, {}, sock,
+        u8"GET / HTTP/1.1\r\n"
+        u8"Host: ", fi::mnp::os_c_str(host), u8"\r\n"
+        u8"User-Agent: fast_io\r\n"
+        u8"Accept: */*\r\n"
+        u8"Connection: close\r\n\r\n");
+
+    fi::u8http_header_buffer hdr{};
+    co_await fi::async_scan(sched, {}, sock, hdr);
+
+    for (auto [key, value] : fi::line_generator(hdr))
+    {
+        if (::std::u8string_view(key) == u8"Content-Length")
+        {
+            auto length{fi::u8to&lt;::std::uint_least64_t&gt;(value)};
+            co_await fi::operations::async_transmit_all_bytes(
+                sched, {}, out, {}, sock, {}, fi::size_t_opt{length});
+            co_return;
+        }
+    }
+}</code></pre>
+      <p>
+        三个操作，三个层次：
+      </p>
+      <ol>
+        <li>
+          <code>async_print</code> 写请求头。socket 是带缓冲的
+          <code>u8iobuf_socket_file</code>，所以调用返回时字节可能还在输出缓冲区里。
+        </li>
+        <li>
+          <code>async_scan</code> 读响应头。输入侧的 tie 处理会在第一次读之前把待处理输出刷出去，
+          所以请求在 scan 等待回答之前已经上线。这和同步层有相同的顺序保证。
+        </li>
+        <li>
+          <code>async_transmit_all_bytes</code> 从 socket 精确复制 Content-Length 个字节到输出文件。
+          上界来自头部；即使对端保持连接，transmit 引擎也会在上界处停下。
+        </li>
+      </ol>
+      <p>
+        host 字符串通过 <code>mnp::os_c_str</code> 格式化，而不是用 <code>std::string</code>
+        拼进请求。格式化层处理编码和写；没有临时字符串，也没有手工缓冲区管理。真实例子还使用
+        <code>mnp::string_filters::host</code>，在写出一个字节之前拒绝恶意的 Host 值。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 服务器：每连接一个会话</h2>
+      <p>
+        服务器保持 echo 架构：一个 accept 循环，每个连接一个 detached 会话。只有会话体改变。
+      </p>
+      <pre><code class="language-cpp">static fi::io_async_task&lt;&gt; http_session(
+    fi::io_async_observer sched, fi::u8iobuf_socket_file sock) throws
+{
+    fi::u8http_header_buffer hdr{};
+    co_await fi::async_scan(sched, {}, sock, hdr);
+
+    auto const target{hdr.code()};
+    fi::u8string_view path{target.data(), target.size()};
+
+    if (path == fi::u8string_view{u8"/health"})
+    {
+        co_await fi::async_print(
+            sched, {}, sock,
+            u8"HTTP/1.1 200 OK\r\n"
+            u8"Content-Type: text/plain\r\n"
+            u8"Content-Length: 3\r\n"
+            u8"Connection: close\r\n\r\n"
+            u8"ok\n");
+        co_await fi::operations::async_output_stream_flush(sched, {}, sock);
+        co_return;
+    }
+
+    co_await fi::async_print(
+        sched, {}, sock,
+        u8"HTTP/1.1 404 Not Found\r\n"
+        u8"Content-Type: text/plain\r\n"
+        u8"Content-Length: 10\r\n"
+        u8"Connection: close\r\n\r\n"
+        u8"not found\n");
+    co_await fi::operations::async_output_stream_flush(sched, {}, sock);
+}</code></pre>
+      <p>
+        会话仍然是拥有自己 socket 的协程。accept 循环不变：接受、包装、按值传递、detach。唯一的区别是
+        会话现在理解请求，而不是回显它。
+      </p>
+      <p>
+        <code>async_scan(sched, {}, sock, hdr)</code> 扫描完整的 HTTP 头。
+        <code>u8http_header_buffer</code> 拥有解析后的头存储，所以
+        <code>hdr.code()</code> 和 <code>line_generator(hdr)</code> 返回的字符串指向那个缓冲区。
+        它们在下一次 scan 或缓冲区销毁之前有效。不要把字符串存进比会话活得更久的 detached 任务，
+        也不要返回给调用者。
+      </p>
+      <p>
+        <code>async_print</code> 把响应头和 body 格式化进 socket 的输出缓冲区。
+        <code>async_output_stream_flush</code> 在会话返回前排空缓冲区。没有 flush，缓冲的字节可能在
+        socket 关闭时还留在用户空间；对端会看到截断的响应。flush 是同步 <code>flush(out)</code>
+        的异步对应物。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 提供文件：Content-Length 与 transmit</h2>
+      <p>
+        静态文件响应是格式化头加字节 body。不要把文件读进 <code>std::string</code>。向文件系统询问大小，
+        写头，然后 transmit 文件：
+      </p>
+      <pre><code class="language-cpp">static fi::io_async_task&lt;&gt; serve_file(
+    fi::io_async_observer sched, fi::u8iobuf_socket_file sock,
+    fi::u8native_file file, ::std::uint_least64_t size) throws
+{
+    co_await fi::async_print(
+        sched, {}, sock,
+        u8"HTTP/1.1 200 OK\r\n"
+        u8"Content-Type: application/octet-stream\r\n"
+        u8"Content-Length: ", size, u8"\r\n"
+        u8"Connection: close\r\n\r\n");
+
+    co_await fi::operations::async_transmit_all_bytes(
+        sched, {}, sock, {}, file, {}, fi::size_t_opt{size});
+    co_await fi::operations::async_output_stream_flush(sched, {}, sock);
+}</code></pre>
+      <p>
+        输出是 socket，输入是文件。上界是精确的 Content-Length。transmit 引擎读一块，写一块，
+        重复到上界用完。如果客户端提前断开，写失败，错误逃出会话，detached 帧被销毁。没有人需要捕获它：
+        连接已经没了。
+      </p>
+      <p>
+        同样的模式反方向也成立：带 Content-Length 的请求 body 从 socket 传输到文件或内存流。
+        如果 body 是结构化的，用 scan；如果只是字节，用 transmit。不要在同一个 body 里混用两种模型。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Keep-Alive、流水线与循环</h2>
+      <p>
+        上面的例子回答一个请求然后关闭。HTTP/1.1 可以让连接保持打开，处理更多请求。会话就变成一个循环：
+      </p>
+      <pre><code class="language-cpp">static fi::io_async_task&lt;&gt; http_session(
+    fi::io_async_observer sched, fi::u8iobuf_socket_file sock) throws
+{
+    for (;;)
+    {
+        fi::u8http_header_buffer hdr{};
+        co_await fi::async_scan(sched, {}, sock, hdr);
+
+        bool const keep_alive{/* inspect Connection: and the version */};
+        co_await fi::async_print(sched, {}, sock, /* response */);
+        co_await fi::operations::async_output_stream_flush(sched, {}, sock);
+
+        if (!keep_alive)
+        {
+            co_return;
+        }
+    }
+}</code></pre>
+      <p>
+        只有 scan 精确消费一个请求头时，循环才安全。在上一请求的字符串不再需要之前，缓冲区不能复用。
+        在循环内声明 <code>hdr</code> 会让每次迭代有新的缓冲区；这是最简单正确的生命周期。
+      </p>
+      <p>
+        流水线更难：客户端可能在读第一个响应之前发送两个请求。scan 层从 socket 的输入缓冲区读，
+        所以第二个请求在第一个响应写出时已经待处理。只要协议状态是按请求而不是按连接，循环就能自然处理。
+        不要假设“一次读等于一个请求”；scan 层已经把两者解耦了。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 超时、限制与背压</h2>
+      <p>
+        公开服务器需要限制。异步层提供机制；策略由你决定。
+      </p>
+      <ul>
+        <li>
+          <strong>头部超时。</strong>给 <code>async_scan</code> 传截止时间，这样每分钟发一个字节的客户端
+          不能永远占住会话。
+        </li>
+        <li>
+          <strong>Body 限制。</strong>不要盲目相信 Content-Length。在分配或传输之前拒绝超过配置上限的
+          body。
+        </li>
+        <li>
+          <strong>头数量和大小。</strong><code>u8http_header_buffer</code> 有固定容量；决定溢出时做什么，
+          返回 431 或 400，而不是崩溃。
+        </li>
+        <li>
+          <strong>慢读者。</strong>比 socket 缓冲区大的响应 body 会在写中暂停。这是正确的：会话停止读，
+          停止分配更多输出，直到对端排空。不要为了“避免阻塞”而创建无界队列。
+        </li>
+        <li>
+          <strong>空闲连接。</strong>如果支持 keep-alive，为每个请求设置读超时，而不是整个连接一个全局超时。
+        </li>
+      </ul>
+      <p>
+        背压是 transmit 操作比手写“全读再全写”循环更好的原因。transmit 引擎只有在前一块写完之后才读下一块。
+        慢客户端会减慢生产者，而不是让内存里的缓冲区增长。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 真正会发生的错误</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>错误</th>
+            <th>症状</th>
+            <th>修复</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>在异步会话里用同步 <code>print</code> / <code>scan</code></td>
+            <td>整个事件循环停住；其他连接冻结。</td>
+            <td>用 <code>async_print</code> / <code>async_scan</code>。</td>
+          </tr>
+          <tr>
+            <td>忘记 <code>async_output_stream_flush</code></td>
+            <td>响应被截断或根本不到达。</td>
+            <td>返回前或等待下一请求前 flush。</td>
+          </tr>
+          <tr>
+            <td>把头部缓冲区的 <code>u8string_view</code> 存过下一次 scan</td>
+            <td>路径乱码、响应损坏或崩溃。</td>
+            <td>复制值，或让缓冲区在整个使用期间存活。</td>
+          </tr>
+          <tr>
+            <td>把局部 socket 的引用传进 detached 会话</td>
+            <td>调用者返回后 use-after-free。</td>
+            <td>按值传 socket；帧拥有它。</td>
+          </tr>
+          <tr>
+            <td>不设上限地相信 Content-Length</td>
+            <td>一个请求耗尽内存或磁盘。</td>
+            <td>分配或传输前检查上限。</td>
+          </tr>
+          <tr>
+            <td>在会话里做 CPU 工作</td>
+            <td>其他所有连接等待。</td>
+            <td>卸载、分块，或用工作线程池。</td>
+          </tr>
+          <tr>
+            <td>丢弃一个暂停的任务</td>
+            <td>帧死亡，而完成事件仍指向它。</td>
+            <td>驱动到 <code>done()</code>，或者 <code>detach()</code> 它。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>8. 接下来读什么</h2>
+      <p>
+        仓库里有这些模式的完整版本：
+      </p>
+      <ul>
+        <li>
+          <code>examples/0017.network/async/tcp_echo_server.cc</code> —— 上一页的两协程 echo 服务器。
+        </li>
+        <li>
+          <code>examples/0017.network/async/tcp_client.cc</code> —— 向 socket 打印并把回复传到 stdout 的客户端。
+        </li>
+        <li>
+          <code>examples/0017.network/async/http.cc</code> —— HTTP/1.1 GET 客户端，带头部扫描和
+          Content-Length 限定的 body 传输。
+        </li>
+        <li>
+          <code>examples/0017.network/async/http-server.cc</code> —— 静态文件服务器，支持百分号解码路径、
+          目录列表、ETag、范围和 keep-alive。
+        </li>
+        <li>
+          <code>examples/0017.network/async/ws_echo_server.cc</code> 和
+          <code>ws_client.cc</code> —— WebSocket 帧，包括二进制帧需要精确字节窗口而不是格式化 scan 的地方。
+        </li>
+      </ul>
+      <p>
+        按这个顺序读。每个例子加一个想法：一个连接、一个请求、一个响应 body、一个协议状态机。
+        底下的异步机制保持不变。
+      </p>
+      <p>
+        下一章完全换主题：反射。它不再向操作系统要字节，而是向编译器要程序自身的形状。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/23.coroutine/03.tcpserver/" class="prev-button">&larr; 第23.3章：异步 TCP echo 服务器</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/24.reflection/" class="next-button">第24章：反射 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch24: Reflection - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch24: Reflection</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/24.reflection/">中文（简体）</a></p>
+
+    <section>
+      <h2>Why This Chapter Exists</h2>
+      <p>
+        C++ has always known more about your program than your program can ask. The compiler sees the
+        member names, the field types, the enum constants, the base classes and the layout. Before
+        C++26, none of that was available as a value. You wrote the serializer by hand, maintained a
+        macro list, or ran an external generator.
+      </p>
+      <p>
+        C++26 reflection changes that. A program can reflect a type or a member into a
+        <code>std::meta::info</code> value, query it with <code>consteval</code> functions, and splice
+        the result back into source code. The same feature can complete an incomplete aggregate from
+        a list of reflected members.
+      </p>
+      <p>
+        This chapter assumes no prior knowledge of reflection. It starts from the problem, teaches
+        the C++26 model, writes real patterns (enum names, field visitors, JSON, generated types), and
+        ends with the compiler support and adoption strategy. The code is C++26, not a library
+        emulation; the last page explains what to do when your compiler does not have it yet.
+      </p>
+    </section>
+
+    <section>
+      <h2>The Four Pages</h2>
+      <ol>
+        <li>
+          <a href="/docs/24.reflection/01.why/">24.1 Why Reflection</a>
+        </li>
+        <li>
+          <a href="/docs/24.reflection/02.model/">24.2 The C++26 Reflection Model</a>
+        </li>
+        <li>
+          <a href="/docs/24.reflection/03.practice/">24.3 Reflection in Practice</a>
+        </li>
+        <li>
+          <a href="/docs/24.reflection/04.support/">24.4 Support and Adoption</a>
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>The Short Version</h2>
+      <p>
+        Reflection is a compile-time operation. <code>^^</code> turns a grammatical element — a type,
+        a member, an enumerator, a namespace, a variable — into a reflection value of type
+        <code>std::meta::info</code>. The <code>std::meta</code> namespace contains
+        <code>consteval</code> functions that query those values: names, types, members, bases,
+        enumerators, layout, properties. A splice <code>[: r :]</code> turns a reflection back into
+        an expression, a type, a scope or a template argument.
+      </p>
+      <p>
+        <code>template for</code> is the expansion statement. It unrolls a loop at compile time, with
+        a <code>constexpr</code> reflection per iteration. <code>define_aggregate</code> and
+        <code>data_member_spec</code> complete an incomplete aggregate from a list of member
+        descriptions. That is the generation half of the feature.
+      </p>
+      <p>
+        The mental model has four steps: reflect with <code>^^</code>, query with
+        <code>std::meta</code>, decide with ordinary <code>if</code> and loops, splice or generate.
+        The control flow is normal C++ constexpr code. Only the data type and the splice syntax are
+        new.
+      </p>
+      <p>
+        Reflection does not replace templates, and it is not runtime introspection. It removes the
+        second declaration: the hand-written serializer, the enum switch, the macro table, the
+        generated wrapper. It does not remove policy. Escaping, optional fields, versions, unknown
+        keys and error handling are still design decisions.
+      </p>
+      <p>
+        C++26 has the feature, but compilers are still catching up. GCC 16 has an implementation;
+        Bloomberg's Clang fork and EDG have implementations; upstream Clang and MSVC do not have a
+        complete public implementation at the time of writing. Guard the feature with
+        <code>__cpp_impl_reflection</code>, <code>__cpp_lib_reflection</code> and
+        <code>__cpp_lib_define_static</code>, keep a fallback, and start with the smallest use case
+        that pays for itself.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/23.coroutine/04.protocols/" class="prev-button">&larr; Ch23.4: From Echo to HTTP</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/24.reflection/01.why/" class="next-button">Ch24.1: Why Reflection &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

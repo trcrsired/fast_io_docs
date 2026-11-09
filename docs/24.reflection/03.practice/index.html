@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch24.3: Reflection in Practice - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch24.3: Reflection in Practice</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/24.reflection/03.practice/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Enum Names, Both Directions</h2>
+      <p>
+        The enum example from the first page is worth writing completely, because it shows the
+        guard for an incomplete enum and the reverse direction:
+      </p>
+      <pre><code class="language-cpp">#include &lt;meta&gt;
+#include &lt;optional&gt;
+#include &lt;string_view&gt;
+#include &lt;type_traits&gt;
+
+template &lt;typename E&gt;
+    requires std::is_enum_v&lt;E&gt;
+constexpr std::string_view enum_to_string(E value)
+{
+    if constexpr (std::meta::is_enumerable_type(^^E))
+    {
+        template for (constexpr auto e :
+                      std::define_static_array(std::meta::enumerators_of(^^E)))
+        {
+            if (value == [:e:])
+            {
+                return std::meta::identifier_of(e);
+            }
+        }
+    }
+    return "&lt;unnamed&gt;";
+}
+
+template &lt;typename E&gt;
+    requires std::is_enum_v&lt;E&gt;
+constexpr std::optional&lt;E&gt; string_to_enum(std::string_view name)
+{
+    if constexpr (std::meta::is_enumerable_type(^^E))
+    {
+        template for (constexpr auto e :
+                      std::define_static_array(std::meta::enumerators_of(^^E)))
+        {
+            if (name == std::meta::identifier_of(e))
+            {
+                return [:e:];
+            }
+        }
+    }
+    return std::nullopt;
+}</code></pre>
+      <p>
+        <code>is_enumerable_type</code> is the guard for a forward-declared enum. An enum can be
+        declared before its enumerators are known; querying <code>enumerators_of</code> at that
+        point is an error. The <code>if constexpr</code> makes the function compile for both cases and
+        return the fallback when the list is not available.
+      </p>
+      <p>
+        The generated code is a chain of comparisons, one per enumerator. It is not a hash table and
+        it does not allocate. For a small enum that is exactly what you want. For a large enum, you
+        can build a static lookup table instead:
+      </p>
+      <pre><code class="language-cpp">template &lt;typename E&gt;
+    requires std::is_enum_v&lt;E&gt;
+constexpr auto make_enum_table()
+{
+    constexpr auto names = std::define_static_array(
+        std::meta::enumerators_of(^^E));
+    std::array&lt;std::pair&lt;E, std::string_view&gt;, names.size()&gt; table{};
+    template for (constexpr std::size_t i{}; auto e : names)
+    {
+        table[i] = {[:e:], std::meta::identifier_of(e)};
+    }
+    return table;
+}</code></pre>
+      <p>
+        The table is a normal <code>constexpr</code> array. You can sort it, binary-search it, or
+        generate a perfect hash in a later build step. Reflection gives you the data; the algorithm
+        is ordinary C++.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. A Field Visitor</h2>
+      <p>
+        The generic field printer is the "hello world" of reflection:
+      </p>
+      <pre><code class="language-cpp">#include &lt;meta&gt;
+#include &lt;print&gt;
+
+template &lt;typename T&gt;
+void print_fields(T const &amp;obj)
+{
+    constexpr auto ctx = std::meta::access_context::current();
+    constexpr auto members = std::define_static_array(
+        std::meta::nonstatic_data_members_of(^^T, ctx));
+
+    template for (constexpr auto m : members)
+    {
+        std::print("{} = {}\n",
+                   std::meta::identifier_of(m),
+                   obj.[:m:]);
+    }
+}</code></pre>
+      <p>
+        It works for any aggregate whose members are printable. It skips nothing: static members are
+        not in <code>nonstatic_data_members_of</code>, but base classes are not automatically
+        traversed. If you need bases, recurse over <code>bases_of</code>.
+      </p>
+      <p>
+        The generated code is exactly what you would have written by hand:
+      </p>
+      <pre><code class="language-cpp">std::print("name = {}\n", obj.name);
+std::print("age = {}\n", obj.age);
+std::print("height = {}\n", obj.height);</code></pre>
+      <p>
+        The difference is that adding a member does not require editing the printer. The compiler
+        sees the new member and generates the new line. That is the whole return on investment.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. JSON: A Complete Small Serializer</h2>
+      <p>
+        JSON is a good stress test because it needs names, types and recursion. Here is a compact
+        version for aggregates of strings, numbers, booleans and nested aggregates:
+      </p>
+      <pre><code class="language-cpp">#include &lt;concepts&gt;
+#include &lt;meta&gt;
+#include &lt;string&gt;
+#include &lt;string_view&gt;
+#include &lt;type_traits&gt;
+
+template &lt;typename T&gt;
+std::string to_json(T const &amp;obj);
+
+inline void append_json(std::string &amp;out, std::string const &amp;v)
+{
+    out += '"';
+    out += v;
+    out += '"';
+}
+
+inline void append_json(std::string &amp;out, std::string_view v)
+{
+    out += '"';
+    out += v;
+    out += '"';
+}
+
+inline void append_json(std::string &amp;out, char const *v)
+{
+    append_json(out, std::string_view{v});
+}
+
+inline void append_json(std::string &amp;out, bool v)
+{
+    out += v ? "true" : "false";
+}
+
+template &lt;std::integral T&gt;
+void append_json(std::string &amp;out, T v)
+{
+    out += std::to_string(v);
+}
+
+template &lt;std::floating_point T&gt;
+void append_json(std::string &amp;out, T v)
+{
+    out += std::to_string(v);
+}
+
+template &lt;typename T&gt;
+void append_json(std::string &amp;out, T const &amp;v)
+{
+    out += to_json(v);
+}
+
+template &lt;typename T&gt;
+std::string to_json(T const &amp;obj)
+{
+    std::string out{"{"};
+    constexpr auto ctx = std::meta::access_context::current();
+    constexpr auto members = std::define_static_array(
+        std::meta::nonstatic_data_members_of(^^T, ctx));
+
+    bool first{true};
+    template for (constexpr auto m : members)
+    {
+        if (!first)
+        {
+            out += ',';
+        }
+        first = false;
+        out += '"';
+        out += std::meta::identifier_of(m);
+        out += "\":";
+        append_json(out, obj.[:m:]);
+    }
+    out += '}';
+    return out;
+}</code></pre>
+      <p>
+        The overload set is the policy layer. Reflection supplies the member names and the field
+        accesses; the overloads decide how a <code>std::string</code>, an <code>int</code> or a
+        nested aggregate becomes JSON. Add a type and you add an overload, not a member list.
+      </p>
+      <p>
+        This serializer deliberately ignores escaping. A real JSON writer must escape quotes,
+        backslashes and control characters, reject non-finite floating-point values, and decide what
+        to do with unknown types. Reflection does not make those decisions for you. It only removes
+        the "walk the fields" boilerplate.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Generating a Config Type</h2>
+      <p>
+        <code>define_aggregate</code> is useful when the shape of a type is data. A configuration
+        schema, a database row, a protocol message with a fixed field list — all of these can be
+        described as a list of members and turned into a real C++ aggregate:
+      </p>
+      <pre><code class="language-cpp">#include &lt;meta&gt;
+#include &lt;string&gt;
+
+struct config;
+
+consteval
+{
+    std::meta::info fields[]
+    {
+        std::meta::data_member_spec(^^std::string, {.name = "host"}),
+        std::meta::data_member_spec(^^int, {.name = "port"}),
+        std::meta::data_member_spec(^^bool, {.name = "tls"})
+    };
+
+    std::meta::define_aggregate(^^config, fields);
+}
+
+int main()
+{
+    config c{.host = "example.com", .port = 443, .tls = true};
+    return c.port == 443 ? 0 : 1;
+}</code></pre>
+      <p>
+        A schema-driven generator would read the field list from a file at build time, but the
+        compile-time core is the same: build a <code>std::vector&lt;std::meta::info&gt;</code> of
+        <code>data_member_spec</code> results, then call <code>define_aggregate</code>. The result is
+        a normal aggregate, usable with designated initializers and with the JSON serializer above.
+      </p>
+      <p>
+        The limits are important: <code>define_aggregate</code> produces a simple aggregate. It does
+        not generate constructors, member functions, virtual functions, access specifiers or bases.
+        If the generated type needs behavior, write a separate wrapper or a free function that takes
+        the aggregate.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Layout and ABI Checks</h2>
+      <p>
+        Reflection can answer layout questions at compile time:
+      </p>
+      <pre><code class="language-cpp">template &lt;typename T&gt;
+consteval bool has_padding()
+{
+    constexpr auto ctx = std::meta::access_context::current();
+    auto members = std::meta::nonstatic_data_members_of(^^T, ctx);
+    std::size_t end{};
+    for (auto m : members)
+    {
+        auto off = static_cast&lt;std::size_t&gt;(std::meta::offset_of(m).bytes);
+        auto size = std::meta::size_of(m);
+        if (off != end)
+        {
+            return true;
+        }
+        end = off + size;
+    }
+    return end != std::meta::size_of(^^T);
+}</code></pre>
+      <p>
+        This is not a replacement for a platform ABI document. It is a compile-time guard: if a
+        struct that must be layout-compatible with a wire format or a C ABI changes, the assertion
+        fires at build time instead of producing a corrupt packet at run time.
+      </p>
+      <p>
+        The same data supports a generated description, a static assertion on offsets, or a test that
+        compares the C++ layout with a C header. Reflection turns "we hope the compiler lays this out
+        the same way" into a check the compiler performs.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Designing a Reflection Library</h2>
+      <p>
+        A production reflection library is mostly policy, not syntax. The structure that works is:
+      </p>
+      <ol>
+        <li>
+          <strong>One generic traversal.</strong> Reflect the members once; call a customization
+          point for each member. Do not write a separate loop in every serializer.
+        </li>
+        <li>
+          <strong>One customization point.</strong> A function or a concept that says how to handle
+          a leaf type. The traversal decides the order; the customization decides the representation.
+        </li>
+        <li>
+          <strong>Bases as a separate traversal.</strong> <code>nonstatic_data_members_of</code> does
+          not include bases. If the format is flat, visit bases explicitly with
+          <code>bases_of</code> and recurse.
+        </li>
+        <li>
+          <strong>Annotations for policy.</strong> Annotations can mark a field as optional, renamed,
+          secret or versioned. The traversal reads them; the serializer obeys them. Keep the
+          annotation vocabulary small.
+        </li>
+        <li>
+          <strong>Static storage for tables.</strong> Use <code>define_static_array</code> or
+          <code>define_static_string</code> when a generated table must outlive a single constant
+          expression.
+        </li>
+      </ol>
+      <p>
+        The anti-pattern is a different reflection loop per format. That is just hand-written code
+        with extra steps. The point of reflection is to have one traversal and many formats.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Compile-Time Cost and Debugging</h2>
+      <p>
+        Reflection is compile-time work. A header that reflects a large type graph in every
+        translation unit will slow the build, and a deeply recursive serializer can hit constexpr
+        evaluation limits. A few habits keep it manageable:
+      </p>
+      <ul>
+        <li>Keep the reflected type set small in headers that many translation units include.</li>
+        <li>
+          Cache generated tables in a <code>static constexpr</code> variable or a variable template,
+          so the compiler evaluates them once per specialization.
+        </li>
+        <li>
+          Use <code>if constexpr</code> to guard incomplete types and unsupported categories before
+          querying them.
+        </li>
+        <li>
+          Prefer one traversal with a customization point over many specialized traversals.
+        </li>
+        <li>
+          When a diagnostic points at a splice, reduce it to the smallest reflection expression and
+          print the reflection's <code>display_string_of</code> in a test.
+        </li>
+      </ul>
+      <p>
+        Debugging reflection is different from debugging templates. The error often appears at the
+        splice site, not at the query that produced the bad reflection. A small
+        <code>static_assert</code> on <code>is_class_type</code>, <code>is_enum_type</code> or
+        <code>has_identifier</code> before the splice turns a wall of errors into one clear message.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. What to Remember</h2>
+      <ul>
+        <li>
+          Reflect with <code>^^</code>, query with <code>std::meta</code>, splice with
+          <code>[: :]</code>, unroll with <code>template for</code>.
+        </li>
+        <li>
+          <code>std::define_static_array</code> promotes a compile-time list into static storage so
+          an expansion statement can use it.
+        </li>
+        <li>
+          <code>is_enumerable_type</code> guards enums that are only forward-declared.
+        </li>
+        <li>
+          <code>define_aggregate</code> generates simple aggregates, not arbitrary classes.
+        </li>
+        <li>
+          One traversal, one customization point, many formats. That is the library design that
+          pays off.
+        </li>
+        <li>
+          Reflection removes boilerplate, not policy. Escaping, optional fields, versions and errors
+          are still your design.
+        </li>
+      </ul>
+      <p>
+        The final page covers compiler support, feature-test macros, the limits of the current
+        implementations, and how to adopt reflection without betting the build on it.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/24.reflection/02.model/" class="prev-button">&larr; Ch24.2: The C++26 Reflection Model</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/24.reflection/04.support/" class="next-button">Ch24.4: Support and Adoption &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

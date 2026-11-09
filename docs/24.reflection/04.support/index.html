@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch24.4: Support and Adoption - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch24.4: Support and Adoption</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/24.reflection/04.support/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. What Actually Implements It</h2>
+      <p>
+        Reflection is in C++26, but "in the standard" is not the same as "in your compiler". The
+        support table at the time of writing:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Implementation</th>
+            <th>Reflection</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>GCC 16</td>
+            <td>Yes, partial library support</td>
+            <td>
+              The first mainstream compiler with a C++26 reflection implementation. The language
+              features and most of <code>&lt;meta&gt;</code> are present; some library facilities and
+              corner cases are still being completed. Use <code>-std=c++26</code> and check the
+              release notes for your exact build.
+            </td>
+          </tr>
+          <tr>
+            <td>Bloomberg <code>clang-p2996</code></td>
+            <td>Yes, reference implementation</td>
+            <td>
+              A fork of Clang maintained alongside the proposal. It is the implementation used to
+              demonstrate many P2996 examples. It is not upstream Clang; do not assume the same flags
+              or the same completeness.
+            </td>
+          </tr>
+          <tr>
+            <td>EDG</td>
+            <td>Yes, implementation available</td>
+            <td>
+              EDG's front end implements the proposal and is available on Compiler Explorer. It is a
+              front end, not a complete toolchain you can drop into a normal build.
+            </td>
+          </tr>
+          <tr>
+            <td>MSVC</td>
+            <td>No public implementation</td>
+            <td>
+              At the time of writing there is no public reflection implementation in MSVC. Code that
+              uses reflection does not build there.
+            </td>
+          </tr>
+          <tr>
+            <td>Upstream Clang</td>
+            <td>No complete implementation</td>
+            <td>
+              Reflection has not landed as a complete feature in upstream Clang. Check the current
+              compiler support table before relying on it.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The practical consequence: reflection is ready for experiments, internal tools, and projects
+        that can pin a compiler. It is not yet a feature you can put in a library that must build on
+        every compiler your users have.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Feature-Test Macros</h2>
+      <p>
+        The feature-test macros tell you whether the language and the library are present:
+      </p>
+      <ul>
+        <li>
+          <code>__cpp_impl_reflection</code> — the language feature. The C++26 value is
+          <code>202506L</code>.
+        </li>
+        <li>
+          <code>__cpp_lib_reflection</code> — the <code>&lt;meta&gt;</code> library. The C++26 value
+          is <code>202506L</code>.
+        </li>
+        <li>
+          <code>__cpp_lib_define_static</code> — <code>define_static_string</code>,
+          <code>define_static_array</code>, <code>define_static_object</code>. The C++26 value is
+          <code>202506L</code>.
+        </li>
+      </ul>
+      <pre><code class="language-cpp">#if defined(__has_include)
+#  if __has_include(&lt;meta&gt;)
+#    include &lt;meta&gt;
+#  endif
+#endif
+
+#if defined(__cpp_impl_reflection) &amp;&amp; __cpp_impl_reflection &gt;= 202506L &amp;&amp; \
+    defined(__cpp_lib_reflection) &amp;&amp; __cpp_lib_reflection &gt;= 202506L
+#  define HAS_CXX26_REFLECTION 1
+#else
+#  define HAS_CXX26_REFLECTION 0
+#endif</code></pre>
+      <p>
+        Do not guess from the compiler name. A vendor may ship a partial implementation, and a fork
+        may define the macro while missing a function you need. Guard the language feature and the
+        library feature separately, and guard the specific facility if it has its own macro.
+      </p>
+      <p>
+        A feature-test macro is a promise about the feature, not a promise about every corner case.
+        Test the code you actually use. A small compile-only test in CI is worth more than a matrix of
+        version numbers.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. A Portability Boundary</h2>
+      <p>
+        The clean way to adopt reflection is to isolate it behind one header and one interface:
+      </p>
+      <pre><code class="language-text">reflection/
+  detect.h        // feature macros, HAS_CXX26_REFLECTION
+  enum_names.h    // enum_to_string, string_to_enum
+  json.h          // generic serializer
+  json_fallback.h // hand-written or macro-based implementation
+  api.h           // includes one of the two, same public names</code></pre>
+      <p>
+        The rest of the program includes <code>api.h</code> and never sees <code>^^</code> or
+        <code>[: :]</code>. On a compiler with reflection, the implementation is generated. On a
+        compiler without it, the fallback is the old hand-written or macro-based code. The public API
+        is identical, so the rest of the program does not care.
+      </p>
+      <p>
+        This boundary also contains the compile-time cost. A header that reflects every type in the
+        project slows every translation unit that includes it. Keep the reflection-heavy code in a
+        small number of translation units, and expose ordinary functions or types to the rest of the
+        program.
+      </p>
+      <p>
+        Do not put reflection in a public ABI. A reflection value is a compile-time handle; it is not
+        a stable binary interface. Generated aggregates are fine in an ABI if their layout is stable,
+        but the reflection machinery that produced them is an implementation detail.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. What to Use Today</h2>
+      <p>
+        If you need the functionality now and cannot pin a reflection-capable compiler, the existing
+        tools still work:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Tool</th>
+            <th>What it does</th>
+            <th>Limit</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><a href="https://github.com/boostorg/pfr">Boost.PFR</a></td>
+            <td>Aggregate field access and tuple-like iteration without macros</td>
+            <td>Aggregates only; no names, no enum reflection, no type generation</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/Neargye/magic_enum">magic_enum</a></td>
+            <td>Enum names and parsing by scanning the compiler's own diagnostics</td>
+            <td>Compiler-specific tricks, limits on enum size and flags</td>
+          </tr>
+          <tr>
+            <td>Macro tables (X-macros)</td>
+            <td>One list expands into declarations and visitors</td>
+            <td>Textual, no type information, still a second declaration</td>
+          </tr>
+          <tr>
+            <td>External generators</td>
+            <td>Parse headers or schemas and emit C++</td>
+            <td>Build step, another parser, stale output when the input changes</td>
+          </tr>
+          <tr>
+            <td>Compiler plugins</td>
+            <td>Full access to the AST</td>
+            <td>Compiler-specific, fragile across versions, hard to distribute</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        These are not wasted skills. A reflection-based implementation still needs the same policy
+        decisions, and the fallback path is often one of these tools. The difference is who writes
+        the member list: you or the compiler.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. An Adoption Plan</h2>
+      <p>
+        Do not start by rewriting the serializer. Start with the smallest place where duplication
+        hurts and a failure is easy to detect:
+      </p>
+      <ol>
+        <li>
+          <strong>Enum names.</strong> Replace a hand-written <code>to_string</code> switch. The
+          generated function is easy to compare with the old one, and a missing enumerator is a
+          compile-time or test-time failure.
+        </li>
+        <li>
+          <strong>Debug printing.</strong> Generate a field printer for internal types. It is not on
+          the hot path, and the output is easy to inspect.
+        </li>
+        <li>
+          <strong>Serialization for a bounded format.</strong> JSON or a configuration file. Keep the
+          policy layer explicit: escaping, optional fields, versions, unknown keys.
+        </li>
+        <li>
+          <strong>Bindings or a schema.</strong> Generate the repetitive wrapper from the declaration
+          only after the first three steps have proven the toolchain stable in your build.
+        </li>
+        <li>
+          <strong>Public API.</strong> Only when every compiler you support has a complete
+          implementation, or when the reflection code is hidden behind a non-reflective ABI.
+        </li>
+      </ol>
+      <p>
+        At every step, keep a fallback. The cost of a fallback is small compared with the cost of
+        discovering that one supported compiler cannot build the release.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. What "Partial" Means in Practice</h2>
+      <p>
+        A partial implementation usually fails in one of these places:
+      </p>
+      <ul>
+        <li>
+          A library function is missing even though the language operator works. For example,
+          <code>define_static_array</code> may be absent while <code>^^</code> and
+          <code>nonstatic_data_members_of</code> are present.
+        </li>
+        <li>
+          A corner of the grammar is not implemented: a namespace splice, a template splice, a
+          dependent splice in a template.
+        </li>
+        <li>
+          A diagnostic is poor. The code is rejected, but the error points at the wrong line or
+          prints an internal type name.
+        </li>
+        <li>
+          A constexpr limit is lower than you expect. A large recursive serializer hits the
+          evaluation depth or the step limit.
+        </li>
+      </ul>
+      <p>
+        The mitigation is the same for all four: keep the reflection code small, test it in
+        isolation, and have a fallback for the facility that is missing. Do not build a
+        reflection-heavy framework on a partial implementation and then discover the gap in a
+        release build.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. The Direction of the Language</h2>
+      <p>
+        Reflection for C++26 is deliberately a core, not the final form. The proposal itself says
+        that more powerful code injection and generation are desirable directions. The pieces that
+        shipped are the ones the committee could specify and implement:
+      </p>
+      <ul>
+        <li>reflection values and the <code>std::meta</code> query library;</li>
+        <li>splicers for expressions, types, scopes and templates;</li>
+        <li>expansion statements;</li>
+        <li>consteval blocks and injected declarations;</li>
+        <li>simple aggregate generation.</li>
+      </ul>
+      <p>
+        That is already enough for serialization, enum names, bindings and layout checks. The absence
+        of general code injection is why <code>define_aggregate</code> only produces simple
+        aggregates. Future standards may widen the generation side; the mental model — reflect,
+        query, splice — will not change.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Further Reading</h2>
+      <ul>
+        <li>
+          <a href="https://isocpp.org/files/papers/P2996R13.html">P2996R13: Reflection for C++26</a>
+          — the proposal, with the examples that became this chapter's patterns.
+        </li>
+        <li>
+          <a href="https://en.cppreference.com/cpp/meta/reflection">cppreference: Reflection library</a>
+          — the function-by-function reference for <code>&lt;meta&gt;</code>.
+        </li>
+        <li>
+          <a href="https://en.cppreference.com/cpp/compiler_support/26">cppreference: C++26 compiler support</a>
+          — the current implementation matrix. Check it before you rely on a feature.
+        </li>
+        <li>
+          <a href="https://github.com/bloomberg/clang-p2996">Bloomberg clang-p2996</a>
+          — the reference Clang implementation.
+        </li>
+        <li>
+          <a href="https://learnmoderncpp.com/2025/07/31/reflection-in-c26-p2996/">Reflection in C++26 (P2996)</a>
+          — a tutorial walkthrough with additional examples.
+        </li>
+        <li>
+          <a href="https://en.cppreference.com/cpp/language/splice_specifiers">cppreference: Splice specifiers</a>
+          — the grammar of <code>[: ... :]</code>.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>9. What to Remember</h2>
+      <ul>
+        <li>
+          Reflection is C++26, but compiler support is uneven. GCC 16 has an implementation;
+          Bloomberg's Clang fork and EDG have implementations; MSVC does not.
+        </li>
+        <li>
+          Guard with <code>__cpp_impl_reflection</code>, <code>__cpp_lib_reflection</code> and
+          <code>__cpp_lib_define_static</code>, not with compiler names.
+        </li>
+        <li>
+          Put reflection behind one header and one public interface. Keep a fallback for compilers
+          that cannot build it.
+        </li>
+        <li>
+          Start with enum names and debug printers. Move to serialization and bindings only after the
+          toolchain is stable in your build.
+        </li>
+        <li>
+          Reflection removes boilerplate, not design. Policy, errors, escaping and versions are still
+          your job.
+        </li>
+      </ul>
+      <p>
+        That is the chapter. The language model is three operators and a library; the engineering
+        work is choosing where to put the boundary and how to fall back.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/24.reflection/03.practice/" class="prev-button">&larr; Ch24.3: Reflection in Practice</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

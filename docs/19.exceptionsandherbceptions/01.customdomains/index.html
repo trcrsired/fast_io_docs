@@ -126,6 +126,31 @@ struct error_domain_singleton
       <p>
         Four of the five may be left <code>nullptr</code>. One may not.
       </p>
+
+      <h3>The raw carrier: <code>::std::cxx_std_error</code></h3>
+      <p>
+        The public handle you catch and inspect is <code>::std::error</code>, but the value that
+        actually crosses a function boundary is the raw two-word carrier,
+        <code>::std::cxx_std_error</code>:
+      </p>
+      <pre><code class="language-cpp">
+struct cxx_std_error
+{
+	void const *domain;   // which error_domain_singleton, or nullptr for success
+	::std::size_t code;   // the code inside that domain
+};
+</code></pre>
+      <p>
+        <code>::std::error</code> is the public API type built on the same
+        <code>{domain, code}</code> pair. The distinction matters at the edges of the language
+        runtime: a coroutine promise receives the raw carrier in
+        <code>unhandled_herbception(::std::cxx_std_error)</code>, not the public handle, and the
+        legacy-exception bridge stores the raw pair in
+        <code>::std::cxx_std_error_legacy_exception</code>
+        (<a href="/docs/19.exceptionsandherbceptions/06.interop/">Ch19.6</a>). There is no allocation
+        and no hidden object in between: the carrier is two words, and the domain pointer is what
+        gives the code its meaning.
+      </p>
       <table>
         <thead>
           <tr>

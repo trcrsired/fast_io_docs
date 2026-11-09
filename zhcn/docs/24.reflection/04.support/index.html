@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第24.4章：支持与采用 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第24.4章：支持与采用</h1>
+    <p class="lang-switch"><a href="/docs/24.reflection/04.support/">English</a></p>
+
+    <section>
+      <h2>1. 到底谁实现了它</h2>
+      <p>
+        反射进了 C++26，但“在标准里”不等于“在你的编译器里”。写作时的支持表：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>实现</th>
+            <th>反射</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>GCC 16</td>
+            <td>是，库支持部分</td>
+            <td>
+              第一个有 C++26 反射实现的主流编译器。语言特性和大部分 <code>&lt;meta&gt;</code> 已存在；
+              一些库设施和边角还在完成。用 <code>-std=c++26</code>，并查你那个构建的发布说明。
+            </td>
+          </tr>
+          <tr>
+            <td>Bloomberg <code>clang-p2996</code></td>
+            <td>是，参考实现</td>
+            <td>
+              跟随提案维护的 Clang 分支。P2996 的许多例子用它演示。它不是上游 Clang；不要假设相同的
+              选项或相同的完整度。
+            </td>
+          </tr>
+          <tr>
+            <td>EDG</td>
+            <td>是，有实现</td>
+            <td>
+              EDG 前端实现了提案，并在 Compiler Explorer 上可用。它是前端，不是能直接塞进普通构建的
+              完整工具链。
+            </td>
+          </tr>
+          <tr>
+            <td>MSVC</td>
+            <td>没有公开实现</td>
+            <td>写作时 MSVC 没有公开的反射实现。使用反射的代码在那里不能构建。</td>
+          </tr>
+          <tr>
+            <td>上游 Clang</td>
+            <td>没有完整实现</td>
+            <td>
+              反射还没有作为完整特性进入上游 Clang。依赖它之前先查当前编译器支持表。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        实际后果：反射已经可以用于实验、内部工具，以及能固定编译器的项目。它还不是那种可以放进库、
+        并要求所有用户的编译器都能构建的特性。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 特性测试宏</h2>
+      <p>
+        特性测试宏告诉你语言和库是否存在：
+      </p>
+      <ul>
+        <li>
+          <code>__cpp_impl_reflection</code> —— 语言特性。C++26 的值是 <code>202506L</code>。
+        </li>
+        <li>
+          <code>__cpp_lib_reflection</code> —— <code>&lt;meta&gt;</code> 库。C++26 的值是
+          <code>202506L</code>。
+        </li>
+        <li>
+          <code>__cpp_lib_define_static</code> —— <code>define_static_string</code>、
+          <code>define_static_array</code>、<code>define_static_object</code>。C++26 的值是
+          <code>202506L</code>。
+        </li>
+      </ul>
+      <pre><code class="language-cpp">#if defined(__has_include)
+#  if __has_include(&lt;meta&gt;)
+#    include &lt;meta&gt;
+#  endif
+#endif
+
+#if defined(__cpp_impl_reflection) &amp;&amp; __cpp_impl_reflection &gt;= 202506L &amp;&amp; \
+    defined(__cpp_lib_reflection) &amp;&amp; __cpp_lib_reflection &gt;= 202506L
+#  define HAS_CXX26_REFLECTION 1
+#else
+#  define HAS_CXX26_REFLECTION 0
+#endif</code></pre>
+      <p>
+        不要根据编译器名字猜。厂商可能发布部分实现，分支可能定义了宏却缺少你需要的函数。分别保护语言特性和
+        库特性；如果某个设施有自己的宏，也保护它。
+      </p>
+      <p>
+        特性测试宏是对特性的承诺，不是对每个边角情况的承诺。测试你实际使用的代码。CI 里一个只编译的小测试，
+        比一串版本号矩阵更有价值。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 可移植性边界</h2>
+      <p>
+        采用反射的干净方式，是把它关在一个头文件和一个接口后面：
+      </p>
+      <pre><code class="language-text">reflection/
+  detect.h        // feature macros, HAS_CXX26_REFLECTION
+  enum_names.h    // enum_to_string, string_to_enum
+  json.h          // generic serializer
+  json_fallback.h // hand-written or macro-based implementation
+  api.h           // includes one of the two, same public names</code></pre>
+      <p>
+        程序其余部分包含 <code>api.h</code>，永远看不到 <code>^^</code> 或 <code>[: :]</code>。
+        在支持反射的编译器上，实现是生成的。在不支持的编译器上，回退是原来的手写或宏代码。公开 API 相同，
+        所以程序其余部分不关心。
+      </p>
+      <p>
+        这个边界也限制编译期成本。反射项目里每个类型的头文件会拖慢每个包含它的翻译单元。把反射密集的代码
+        放在少量翻译单元里，向程序其余部分暴露普通函数或类型。
+      </p>
+      <p>
+        不要把反射放进公开 ABI。反射值是编译期句柄，不是稳定的二进制接口。如果布局稳定，生成的聚合体可以
+        出现在 ABI 里，但产生它们的反射机制是实现细节。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 今天能用什么</h2>
+      <p>
+        如果你现在就需要功能，又不能固定一个支持反射的编译器，现有工具仍然可用：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>工具</th>
+            <th>做什么</th>
+            <th>限制</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><a href="https://github.com/boostorg/pfr">Boost.PFR</a></td>
+            <td>不用宏的聚合体字段访问和 tuple 式迭代</td>
+            <td>只支持聚合体；没有名字、没有枚举反射、没有类型生成</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/Neargye/magic_enum">magic_enum</a></td>
+            <td>通过扫描编译器诊断来获得枚举名字和解析</td>
+            <td>编译器专用技巧，对枚举大小和 flags 有限制</td>
+          </tr>
+          <tr>
+            <td>宏表（X-macros）</td>
+            <td>一张列表展开成声明和访问器</td>
+            <td>文本的，没有类型信息，仍然是第二份声明</td>
+          </tr>
+          <tr>
+            <td>外部生成器</td>
+            <td>解析头文件或 schema 并生成 C++</td>
+            <td>构建步骤、又一个解析器、输入变化时输出过期</td>
+          </tr>
+          <tr>
+            <td>编译器插件</td>
+            <td>完整访问 AST</td>
+            <td>编译器专用、跨版本脆弱、难以分发</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        这些技能没有白学。基于反射的实现仍然需要同样的策略决定，回退路径往往就是这些工具之一。
+        区别是谁写成员列表：你还是编译器。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 采用计划</h2>
+      <p>
+        不要从重写序列化器开始。从重复最痛、失败最容易发现的最小地方开始：
+      </p>
+      <ol>
+        <li>
+          <strong>枚举名字。</strong>替换手写的 <code>to_string</code> switch。生成的函数容易和旧的比较，
+          漏掉枚举值是编译期或测试期失败。
+        </li>
+        <li>
+          <strong>调试打印。</strong>为内部类型生成字段打印器。它不在热路径上，输出容易检查。
+        </li>
+        <li>
+          <strong>有界格式的序列化。</strong>JSON 或配置文件。策略层保持显式：转义、可选字段、版本、
+          未知键。
+        </li>
+        <li>
+          <strong>绑定或 schema。</strong>只有前三步证明工具链在你的构建里稳定后，才从声明生成重复的包装。
+        </li>
+        <li>
+          <strong>公开 API。</strong>只有你支持的所有编译器都有完整实现，或者反射代码藏在非反射 ABI 后面时，
+          才做这一步。
+        </li>
+      </ol>
+      <p>
+        每一步都保留回退。回退的成本很小，比发现某个支持的编译器构建不了发布版小得多。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. “部分实现”在实践中意味着什么</h2>
+      <p>
+        部分实现通常在这些地方失败：
+      </p>
+      <ul>
+        <li>
+          库函数缺失，尽管语言运算符能用。例如 <code>define_static_array</code> 可能不存在，而
+          <code>^^</code> 和 <code>nonstatic_data_members_of</code> 存在。
+        </li>
+        <li>
+          文法的一角没实现：命名空间拼接、模板拼接、模板里的依赖拼接。
+        </li>
+        <li>
+          诊断很差。代码被拒绝，但错误指向错误的行，或打印内部类型名。
+        </li>
+        <li>
+          constexpr 限制比你预期低。大的递归序列化器撞上求值深度或步数限制。
+        </li>
+      </ul>
+      <p>
+        四者的缓解方式相同：保持反射代码小，隔离测试，为缺失的设施准备回退。不要在半成品实现上构建
+        反射密集的框架，然后在发布构建里发现缺口。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 语言的方向</h2>
+      <p>
+        C++26 的反射刻意是核心，不是最终形态。提案本身说，更强大的代码注入和生成是值得追求的方向。
+        已经发布的，是委员会能够规范和实现的部分：
+      </p>
+      <ul>
+        <li>反射值和 <code>std::meta</code> 查询库；</li>
+        <li>表达式、类型、作用域和模板的拼接；</li>
+        <li>展开语句；</li>
+        <li>consteval 块和注入声明；</li>
+        <li>简单聚合体生成。</li>
+      </ul>
+      <p>
+        这已经足够做序列化、枚举名字、绑定和布局检查。缺少通用代码注入，正是
+        <code>define_aggregate</code> 只产生简单聚合体的原因。未来标准可能拓宽生成侧；
+        心智模型——反射、查询、拼接——不会变。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 延伸阅读</h2>
+      <ul>
+        <li>
+          <a href="https://isocpp.org/files/papers/P2996R13.html">P2996R13: Reflection for C++26</a>
+          —— 提案，包含成为本章模式的例子。
+        </li>
+        <li>
+          <a href="https://en.cppreference.com/cpp/meta/reflection">cppreference: Reflection library</a>
+          —— <code>&lt;meta&gt;</code> 的逐函数参考。
+        </li>
+        <li>
+          <a href="https://en.cppreference.com/cpp/compiler_support/26">cppreference: C++26 compiler support</a>
+          —— 当前实现矩阵。依赖某个特性前先查它。
+        </li>
+        <li>
+          <a href="https://github.com/bloomberg/clang-p2996">Bloomberg clang-p2996</a>
+          —— 参考 Clang 实现。
+        </li>
+        <li>
+          <a href="https://learnmoderncpp.com/2025/07/31/reflection-in-c26-p2996/">Reflection in C++26 (P2996)</a>
+          —— 带更多例子的教程。
+        </li>
+        <li>
+          <a href="https://en.cppreference.com/cpp/language/splice_specifiers">cppreference: Splice specifiers</a>
+          —— <code>[: ... :]</code> 的文法。
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>9. 需要记住什么</h2>
+      <ul>
+        <li>
+          反射是 C++26，但编译器支持不均衡。GCC 16 有实现；Bloomberg 的 Clang 分支和 EDG 有实现；
+          MSVC 没有。
+        </li>
+        <li>
+          用 <code>__cpp_impl_reflection</code>、<code>__cpp_lib_reflection</code> 和
+          <code>__cpp_lib_define_static</code> 保护，不要用编译器名字。
+        </li>
+        <li>把反射放在一个头文件和一个公开接口后面。为不能构建它的编译器保留回退。</li>
+        <li>从枚举名字和调试打印器开始。工具链在你的构建里稳定后，再转向序列化和绑定。</li>
+        <li>反射删除样板，不删除设计。策略、错误、转义和版本仍然是你的工作。</li>
+      </ul>
+      <p>
+        这就是本章。语言模型是三个运算符加一个库；工程工作是选择边界放在哪里，以及如何回退。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/24.reflection/03.practice/" class="prev-button">&larr; 第24.3章：反射实践</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>

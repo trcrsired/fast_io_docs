@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第23.3章：异步 TCP echo 服务器 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第23.3章：异步 TCP echo 服务器</h1>
+    <p class="lang-switch"><a href="/docs/23.coroutine/03.tcpserver/">English</a></p>
+
+    <section>
+      <h2>1. 先看同步版本</h2>
+      <p>
+        仓库里的同步 echo 服务器几乎不值一提：
+      </p>
+      <pre><code class="language-cpp">fast_io::net_service service;
+fast_io::native_socket_file listener{fast_io::tcp_listen(2000)};
+
+for (;;)
+{
+    fast_io::iobuf_socket_file client{fast_io::tcp_accept(listener)};
+    fast_io::println(client, "hello");
+}</code></pre>
+      <p>
+        一个线程接受一个连接，写入，关闭，然后循环。它一次只能服务一个客户端。如果客户端读得慢，
+        服务器会阻塞在 <code>println</code> 里，停止接受新连接。解决办法不是“每个客户端加一个线程”，
+        而是让连接暂停，而不是阻塞线程。
+      </p>
+      <p>
+        异步服务器保持同样的形状——监听器、accept、会话——但每个等待都变成
+        <code>co_await</code>。accept 循环不阻塞，会话不阻塞，一个线程可以拥有成千上万个暂停的会话。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 完整的服务器</h2>
+      <p>
+        这是 <code>examples/0017.network/async/tcp_echo_server.cc</code>。先读一遍，不要纠结细节；
+        后面的小节会拆开它。
+      </p>
+      <pre><code class="language-cpp">#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+namespace fi = ::fast_io;
+namespace fop = ::fast_io::operations;
+
+static fi::io_async_task&lt;&gt; echo_session(
+    fi::io_async_observer sched, fi::native_socket_file sock) throws
+{
+    co_await fop::async_transmit_some_bytes(sched, {}, sock, {}, sock, {}, {});
+}
+
+static fi::io_async_task&lt;&gt; accept_loop(
+    fi::io_async_observer sched, fi::native_socket_file listener) throws
+{
+    for (;;)
+    {
+        echo_session(
+            sched,
+            co_await fop::async_accept(
+                sched, {}, listener, fi::open_mode::no_block))
+            .detach();
+    }
+}
+
+int main()
+{
+    fi::net_service service;
+    fi::io_async_scheduler scheduler{fi::io_async};
+
+    for (;;)
+    try
+    {
+        auto acceptor{accept_loop(
+            scheduler,
+            fi::native_socket_file{
+                fi::tcp_listen(2000, fi::open_mode::no_block)})};
+        acceptor.resume();
+        while (!acceptor.done())
+        {
+            fi::io_async_wait(scheduler);
+        }
+        acceptor.rethrow_if_error();
+    }
+    catch throws(::std::error e)
+    {
+        fi::perrln(e);
+    }
+}</code></pre>
+      <p>
+        恰好有两个协程：<code>accept_loop</code> 和 <code>echo_session</code>。accept 循环活到监听器
+        的生命周期结束。每个会话活到一个连接的生命周期结束。<code>main</code> 是监督者和事件泵。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 会话：一次 transmit，没有缓冲区</h2>
+      <pre><code class="language-cpp">static fi::io_async_task&lt;&gt; echo_session(
+    fi::io_async_observer sched, fi::native_socket_file sock) throws
+{
+    co_await fop::async_transmit_some_bytes(sched, {}, sock, {}, sock, {}, {});
+}</code></pre>
+      <p>
+        <code>async_transmit_some_bytes</code> 的参数是：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>参数</th>
+            <th>这里的值</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>调度器</td>
+            <td><code>sched</code></td>
+            <td>将恢复这个协程的事件循环。</td>
+          </tr>
+          <tr>
+            <td>超时</td>
+            <td><code>{}</code></td>
+            <td>没有截止时间。</td>
+          </tr>
+          <tr>
+            <td>输出流</td>
+            <td><code>sock</code></td>
+            <td>字节写到哪里。</td>
+          </tr>
+          <tr>
+            <td>输出偏移</td>
+            <td><code>{}</code></td>
+            <td>没有显式文件位置；socket 自己的位置无关紧要。</td>
+          </tr>
+          <tr>
+            <td>输入流</td>
+            <td><code>sock</code></td>
+            <td>从哪里读。同一个 socket。</td>
+          </tr>
+          <tr>
+            <td>输入偏移</td>
+            <td><code>{}</code></td>
+            <td>没有显式位置。</td>
+          </tr>
+          <tr>
+            <td>上界</td>
+            <td><code>{}</code></td>
+            <td>没有字节上限；读到一轮完成或 EOF。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>async_transmit_some_bytes</code> 是一个字节泵。它从输入读一块，把这块写到输出，
+        返回移动的字节数。transmit 引擎拥有自己的临时缓冲区，所以这个协程没有缓冲区要分配，
+        没有缓冲区大小要定，也没有部分写的循环要写。这正是 echo 服务器需要的。
+      </p>
+      <p>
+        上游例子每个连接只做一轮。真正的 echo 服务应该一直泵到对端关闭：
+      </p>
+      <pre><code class="language-cpp">static fi::io_async_task&lt;&gt; echo_session(
+    fi::io_async_observer sched, fi::native_socket_file sock) throws
+{
+    for (;;)
+    {
+        std::size_t moved{
+            co_await fop::async_transmit_some_bytes(
+                sched, {}, sock, {}, sock, {}, {})};
+        if (moved == 0)
+        {
+            co_return;   // EOF: the peer closed its side
+        }
+    }
+}</code></pre>
+      <p>
+        循环仍然只有一行 I/O。<code>async_transmit_some_bytes</code> 执行一轮读/写；循环重复到输入返回
+        零字节。应用代码里没有 <code>pread</code>，也没有 <code>pwrite</code>。高层操作拥有这些机制。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Accept 循环：一个协程，很多连接</h2>
+      <pre><code class="language-cpp">static fi::io_async_task&lt;&gt; accept_loop(
+    fi::io_async_observer sched, fi::native_socket_file listener) throws
+{
+    for (;;)
+    {
+        echo_session(
+            sched,
+            co_await fop::async_accept(
+                sched, {}, listener, fi::open_mode::no_block))
+            .detach();
+    }
+}</code></pre>
+      <p>
+        <code>async_accept</code> 暂停 accept 循环，直到连接到达。恢复时，它产出一个拥有的原生 socket
+        句柄。句柄被包进 <code>native_socket_file</code>，按值传给 <code>echo_session</code>。
+        会话协程的帧拥有 socket；会话结束时 socket 关闭。
+      </p>
+      <p>
+        <code>detach()</code> 是关键调用。它释放任务对象，把帧标记为 detached，并启动它。会话现在独立运行：
+        accept 循环不等待它，会话在 <code>final_suspend</code> 处销毁自己的帧。这就是一个 accept 协程
+        能拥有任意多连接、而不必为每个连接保存任务对象的原因。
+      </p>
+      <p>
+        接受的 socket 用 <code>open_mode::no_block</code> 打开。在 Windows 上，这让 socket 成为
+        overlapped，从而能用于 IOCP。在 POSIX 上它无害；io_uring 不需要它。只要 socket 会被异步使用，
+        就传它，这样代码可移植。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 监督者：在监听器死亡后存活</h2>
+      <p>
+        <code>main</code> 在协程调用内部构造监听器，所以监听器被移动进 <code>accept_loop</code> 的帧。
+        帧在 accept 循环的生命周期内拥有它。如果 <code>async_accept</code> 失败，错误逃出协程体，
+        由 <code>unhandled_herbception</code> 保存，accept 循环变为 done。监督者调用
+        <code>rethrow_if_error()</code>，捕获错误，记录它，然后用新的监听器启动新的 accept 循环。
+      </p>
+      <pre><code class="language-cpp">for (;;)
+try
+{
+    auto acceptor{accept_loop(
+        scheduler,
+        fi::native_socket_file{
+            fi::tcp_listen(2000, fi::open_mode::no_block)})};
+    acceptor.resume();
+    while (!acceptor.done())
+    {
+        fi::io_async_wait(scheduler);
+    }
+    acceptor.rethrow_if_error();
+}
+catch throws(::std::error e)
+{
+    fi::perrln(e);
+}</code></pre>
+      <p>
+        内层 <code>while</code> 是事件循环。<code>io_async_wait</code> 阻塞到一个完成事件就绪，分发它，
+        然后返回。循环在每次分发后检查 accept 协程是否结束。监听器死亡时，循环退出，监督者重启。
+      </p>
+      <p>
+        这刻意不是“任何错误都永远重启”的策略。生产服务器会区分暂时性 accept 错误和永久错误，加延迟，
+        也许在连续失败后停止。结构才是重点：监听器是协程拥有的资源，监督者决定协程结束时做什么。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 构建与运行</h2>
+      <p>
+        这个例子是普通的 fast_io 程序。使用<a href="/zhcn/docs/01.compile/">第1章</a>的编译器配置；
+        <code>throws</code> 标记需要本书的赫布异常工具链。标准编译器可以用普通异常语法代替。
+      </p>
+      <pre><code class="language-text">$ g++ -std=c++26 -O2 tcp_echo_server.cc -o tcp_echo_server
+$ ./tcp_echo_server</code></pre>
+      <p>
+        在 Linux 上，内核允许时程序使用 io_uring，否则退回线程池。在 Windows 上，它使用 IOCP。
+        例子本身没有条件编译；调度器别名选择后端。
+      </p>
+      <p>
+        从另一个终端测试：
+      </p>
+      <pre><code class="language-text">$ nc 127.0.0.1 2000
+hello
+hello
+world
+world</code></pre>
+      <p>
+        上游的一轮版本可能在第一次 echo 后关闭连接。用上面的循环版本，每一行都会回显，直到你关闭连接。
+        如果你看到第一行回显后连接关闭，那是单轮例子，不是调度器的 bug。
+      </p>
+      <p>
+        想观察事件循环，就同时运行多个客户端。每个客户端得到自己的 detached 会话。服务器仍然使用一个线程。
+        当一个客户端空闲时，它的会话暂停，不消耗 CPU；其他客户端继续。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 为什么没有缓冲区管理</h2>
+      <p>
+        同步服务器使用 <code>iobuf_socket_file</code>，因为 <code>println</code> 需要格式化输出缓冲区。
+        异步 echo 服务器使用裸的 <code>native_socket_file</code>，因为它不格式化任何东西；它移动字节。
+        <code>async_transmit_some_bytes</code> 内部拥有一个 bounce buffer，并在每轮复用。
+      </p>
+      <p>
+        这是字节泵的正确默认。不要为了 echo 而给每个连接分配一个
+        <code>std::vector&lt;char&gt;</code>。不要读进栈缓冲区再写出去。transmit 操作已经知道如何暂存部分读、
+        完成部分写。应用代码停留在“把字节从这里移到那里”的层次。
+      </p>
+      <p>
+        一旦协议有结构——行、头、整数、帧——就切换到输入用 <code>async_scan</code>、输出用
+        <code>async_print</code>。那是下一页。边界很简单：字节用 transmit，结构化数据用 scan/print。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 需要记住什么</h2>
+      <ul>
+        <li>两个协程：一个 accept 循环，每个连接一个会话。</li>
+        <li>
+          <code>async_accept</code> 返回拥有的 socket；按值传递把所有权转移进会话帧。
+        </li>
+        <li>
+          <code>detach()</code> 把会话变成自拥有的帧；accept 循环从不等待它。
+        </li>
+        <li>
+          <code>async_transmit_some_bytes</code> 是高层字节泵；真正的 echo 要循环到它返回零。
+        </li>
+        <li>
+          <code>open_mode::no_block</code> 标记 socket 具备异步能力，尤其是在 Windows 上。
+        </li>
+        <li>监督者拥有监听器的生命周期，并在 accept 循环死亡时重启它。</li>
+      </ul>
+      <p>
+        下一页保持同样的架构，但换协议：HTTP 请求、格式化响应、body 传输，以及 scan/print/transmit
+        取代裸字节窗口的地方。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/23.coroutine/02.asyncmodel/" class="prev-button">&larr; 第23.2章：fast_io 的异步模型</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/23.coroutine/04.protocols/" class="next-button">第23.4章：从 echo 到 HTTP &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

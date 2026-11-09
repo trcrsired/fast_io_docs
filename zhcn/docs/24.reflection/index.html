@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第24章：反射 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第24章：反射</h1>
+    <p class="lang-switch"><a href="/docs/24.reflection/">English</a></p>
+
+    <section>
+      <h2>为什么有这一章</h2>
+      <p>
+        C++ 一直知道比你程序能问到的更多。编译器看到成员名字、字段类型、枚举常量、基类和布局。在 C++26 之前，
+        这些都不能作为值使用。你手写序列化器、维护宏列表，或者运行外部生成器。
+      </p>
+      <p>
+        C++26 反射改变了这一点。程序可以把类型或成员反射成 <code>std::meta::info</code> 值，用
+        <code>consteval</code> 函数查询它，并把结果拼回源码。同一个特性还能从一组反射成员补全一个
+        不完整聚合体。
+      </p>
+      <p>
+        这一章不假设你有任何反射基础。它从问题开始，讲 C++26 模型，写真实模式（枚举名字、字段访问器、
+        JSON、生成类型），最后讲编译器支持和采用策略。代码是 C++26，不是库模拟；最后一页讲你的编译器
+        还没有它时怎么办。
+      </p>
+    </section>
+
+    <section>
+      <h2>四页</h2>
+      <ol>
+        <li><a href="/zhcn/docs/24.reflection/01.why/">第24.1章：为什么需要反射</a></li>
+        <li><a href="/zhcn/docs/24.reflection/02.model/">第24.2章：C++26 反射模型</a></li>
+        <li><a href="/zhcn/docs/24.reflection/03.practice/">第24.3章：反射实践</a></li>
+        <li><a href="/zhcn/docs/24.reflection/04.support/">第24.4章：支持与采用</a></li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>简短版本</h2>
+      <p>
+        反射是编译期操作。<code>^^</code> 把文法元素——类型、成员、枚举值、命名空间、变量——变成
+        <code>std::meta::info</code> 类型的反射值。<code>std::meta</code> 命名空间包含查询这些值的
+        <code>consteval</code> 函数：名字、类型、成员、基类、枚举值、布局、属性。拼接
+        <code>[: r :]</code> 把反射变回表达式、类型、作用域或模板参数。
+      </p>
+      <p>
+        <code>template for</code> 是展开语句。它在编译期展开循环，每次迭代有一个 <code>constexpr</code>
+        反射。<code>define_aggregate</code> 和 <code>data_member_spec</code> 从一组成员描述补全不完整
+        聚合体。这是特性的生成那一半。
+      </p>
+      <p>
+        心智模型有四步：用 <code>^^</code> 反射，用 <code>std::meta</code> 查询，用普通 <code>if</code>
+        和循环决定，然后拼接或生成。控制流是普通的 C++ constexpr 代码。只有数据类型和拼接语法是新的。
+      </p>
+      <p>
+        反射不替代模板，也不是运行时自省。它删除第二份声明：手写序列化器、枚举 switch、宏表、生成的包装。
+        它不删除策略。转义、可选字段、版本、未知键和错误处理仍然是设计决定。
+      </p>
+      <p>
+        C++26 有特性，但编译器还在追赶。GCC 16 有实现；Bloomberg 的 Clang 分支和 EDG 有实现；
+        写作时上游 Clang 和 MSVC 没有完整的公开实现。用 <code>__cpp_impl_reflection</code>、
+        <code>__cpp_lib_reflection</code> 和 <code>__cpp_lib_define_static</code> 保护特性，
+        保留回退，从最小、最划算的用例开始。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/23.coroutine/04.protocols/" class="prev-button">&larr; 第23.4章：从 echo 到 HTTP</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/24.reflection/01.why/" class="next-button">第24.1章：为什么需要反射 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

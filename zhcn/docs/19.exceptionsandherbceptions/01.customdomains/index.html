@@ -109,6 +109,27 @@ struct error_domain_singleton
       <p>
         五个之中可以有四个留成 <code>nullptr</code>。有一个不行。
       </p>
+
+      <h3>原始的载体：<code>::std::cxx_std_error</code></h3>
+      <p>
+        你捕获并检查的公开句柄是 <code>::std::error</code>，但真正跨过函数边界的值，是原始的两字载体
+        <code>::std::cxx_std_error</code>：
+      </p>
+      <pre><code class="language-cpp">
+struct cxx_std_error
+{
+	void const *domain;   // which error_domain_singleton, or nullptr for success
+	::std::size_t code;   // the code inside that domain
+};
+</code></pre>
+      <p>
+        <code>::std::error</code> 是建立在同一对 <code>{domain, code}</code> 之上的公开 API 类型。
+        这个区别在语言运行时的边界上很重要：协程的 promise 在
+        <code>unhandled_herbception(::std::cxx_std_error)</code> 里收到的是原始载体，不是公开句柄；
+        传统异常桥接则把这对原始值装进
+        <code>::std::cxx_std_error_legacy_exception</code>（<a href="/zhcn/docs/19.exceptionsandherbceptions/06.interop/">第19.6章</a>）。
+        中间没有分配，也没有隐藏对象：载体就是两个机器字，而错误域指针赋予错误码意义。
+      </p>
       <table>
         <thead>
           <tr>

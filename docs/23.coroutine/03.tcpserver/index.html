@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch23.3: An Async TCP Echo Server - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch23.3: An Async TCP Echo Server</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/23.coroutine/03.tcpserver/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Synchronous Version First</h2>
+      <p>
+        The repository's synchronous echo server is almost trivial:
+      </p>
+      <pre><code class="language-cpp">fast_io::net_service service;
+fast_io::native_socket_file listener{fast_io::tcp_listen(2000)};
+
+for (;;)
+{
+    fast_io::iobuf_socket_file client{fast_io::tcp_accept(listener)};
+    fast_io::println(client, "hello");
+}</code></pre>
+      <p>
+        One thread accepts one connection, writes, closes, and loops. It can serve exactly one client
+        at a time. If the client is slow to read, the server blocks in <code>println</code> and stops
+        accepting. The fix is not "add a thread per client"; the fix is to suspend the connection
+        instead of blocking the thread.
+      </p>
+      <p>
+        The async server keeps the same shape — listener, accept, session — but every wait becomes a
+        <code>co_await</code>. The accept loop never blocks, the session never blocks, and one thread
+        can own thousands of suspended sessions.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. The Whole Server</h2>
+      <p>
+        This is <code>examples/0017.network/async/tcp_echo_server.cc</code>. Read it once without
+        worrying about the details; the next sections take it apart.
+      </p>
+      <pre><code class="language-cpp">#include &lt;fast_io.h&gt;
+#include &lt;fast_io_device.h&gt;
+
+namespace fi = ::fast_io;
+namespace fop = ::fast_io::operations;
+
+static fi::io_async_task&lt;&gt; echo_session(
+    fi::io_async_observer sched, fi::native_socket_file sock) throws
+{
+    co_await fop::async_transmit_some_bytes(sched, {}, sock, {}, sock, {}, {});
+}
+
+static fi::io_async_task&lt;&gt; accept_loop(
+    fi::io_async_observer sched, fi::native_socket_file listener) throws
+{
+    for (;;)
+    {
+        echo_session(
+            sched,
+            co_await fop::async_accept(
+                sched, {}, listener, fi::open_mode::no_block))
+            .detach();
+    }
+}
+
+int main()
+{
+    fi::net_service service;
+    fi::io_async_scheduler scheduler{fi::io_async};
+
+    for (;;)
+    try
+    {
+        auto acceptor{accept_loop(
+            scheduler,
+            fi::native_socket_file{
+                fi::tcp_listen(2000, fi::open_mode::no_block)})};
+        acceptor.resume();
+        while (!acceptor.done())
+        {
+            fi::io_async_wait(scheduler);
+        }
+        acceptor.rethrow_if_error();
+    }
+    catch throws(::std::error e)
+    {
+        fi::perrln(e);
+    }
+}</code></pre>
+      <p>
+        There are exactly two coroutines: <code>accept_loop</code> and <code>echo_session</code>. The
+        accept loop lives for the lifetime of the listener. Each session lives for the lifetime of
+        one connection. <code>main</code> is the supervisor and the event pump.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Session: One transmit, No Buffer</h2>
+      <pre><code class="language-cpp">static fi::io_async_task&lt;&gt; echo_session(
+    fi::io_async_observer sched, fi::native_socket_file sock) throws
+{
+    co_await fop::async_transmit_some_bytes(sched, {}, sock, {}, sock, {}, {});
+}</code></pre>
+      <p>
+        The parameters of <code>async_transmit_some_bytes</code> are:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Argument</th>
+            <th>Value here</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Scheduler</td>
+            <td><code>sched</code></td>
+            <td>The event loop that will resume this coroutine.</td>
+          </tr>
+          <tr>
+            <td>Timeout</td>
+            <td><code>{}</code></td>
+            <td>No deadline.</td>
+          </tr>
+          <tr>
+            <td>Output stream</td>
+            <td><code>sock</code></td>
+            <td>Where the bytes are written.</td>
+          </tr>
+          <tr>
+            <td>Output offset</td>
+            <td><code>{}</code></td>
+            <td>No explicit file position; the socket's own position is irrelevant.</td>
+          </tr>
+          <tr>
+            <td>Input stream</td>
+            <td><code>sock</code></td>
+            <td>Where the bytes are read from. The same socket.</td>
+          </tr>
+          <tr>
+            <td>Input offset</td>
+            <td><code>{}</code></td>
+            <td>No explicit position.</td>
+          </tr>
+          <tr>
+            <td>Bound</td>
+            <td><code>{}</code></td>
+            <td>No byte limit; read until one round is complete or EOF.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>async_transmit_some_bytes</code> is a byte pump. It reads a chunk from the input,
+        writes that chunk to the output, and returns the number of bytes moved. The transmit engine
+        owns its scratch buffer, so this coroutine has no buffer to allocate, no buffer to size, and
+        no partial-write loop to write. That is exactly what an echo server needs.
+      </p>
+      <p>
+        The upstream example does one round per connection. A real echo service should keep pumping
+        until the peer closes:
+      </p>
+      <pre><code class="language-cpp">static fi::io_async_task&lt;&gt; echo_session(
+    fi::io_async_observer sched, fi::native_socket_file sock) throws
+{
+    for (;;)
+    {
+        std::size_t moved{
+            co_await fop::async_transmit_some_bytes(
+                sched, {}, sock, {}, sock, {}, {})};
+        if (moved == 0)
+        {
+            co_return;   // EOF: the peer closed its side
+        }
+    }
+}</code></pre>
+      <p>
+        The loop is still one line of I/O. <code>async_transmit_some_bytes</code> performs one
+        read/write round; the loop repeats until the input returns zero bytes. There is no
+        <code>pread</code> and no <code>pwrite</code> in the application code. The high-level
+        operation owns the mechanics.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The Accept Loop: One Coroutine, Many Connections</h2>
+      <pre><code class="language-cpp">static fi::io_async_task&lt;&gt; accept_loop(
+    fi::io_async_observer sched, fi::native_socket_file listener) throws
+{
+    for (;;)
+    {
+        echo_session(
+            sched,
+            co_await fop::async_accept(
+                sched, {}, listener, fi::open_mode::no_block))
+            .detach();
+    }
+}</code></pre>
+      <p>
+        <code>async_accept</code> suspends the accept loop until a connection arrives. When it
+        resumes, it yields an owning native socket handle. The handle is wrapped in
+        <code>native_socket_file</code> and passed by value to <code>echo_session</code>. The
+        session coroutine's frame owns the socket; when the session finishes, the socket closes.
+      </p>
+      <p>
+        <code>detach()</code> is the important call. It releases the task object, marks the frame as
+        detached, and starts it. The session now runs independently: the accept loop does not await
+        it, and the session destroys its own frame at <code>final_suspend</code>. This is how one
+        accept coroutine can own an unbounded number of connections without storing a task object for
+        each one.
+      </p>
+      <p>
+        The accepted socket is opened with <code>open_mode::no_block</code>. On Windows this is what
+        makes the socket overlapped and therefore usable with IOCP. On POSIX it is harmless; io_uring
+        does not need it. Always pass it when the socket will be used asynchronously, so the code is
+        portable.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. The Supervisor: Surviving a Dead Listener</h2>
+      <p>
+        <code>main</code> constructs the listener inside the coroutine call, so the listener is moved
+        into <code>accept_loop</code>'s frame. The frame owns it for the lifetime of the accept loop.
+        If <code>async_accept</code> fails, the error escapes the coroutine body, is stored by
+        <code>unhandled_herbception</code>, and the accept loop becomes done. The supervisor then
+        calls <code>rethrow_if_error()</code>, catches the error, logs it, and starts a new accept
+        loop with a fresh listener.
+      </p>
+      <pre><code class="language-cpp">for (;;)
+try
+{
+    auto acceptor{accept_loop(
+        scheduler,
+        fi::native_socket_file{
+            fi::tcp_listen(2000, fi::open_mode::no_block)})};
+    acceptor.resume();
+    while (!acceptor.done())
+    {
+        fi::io_async_wait(scheduler);
+    }
+    acceptor.rethrow_if_error();
+}
+catch throws(::std::error e)
+{
+    fi::perrln(e);
+}</code></pre>
+      <p>
+        The inner <code>while</code> is the event loop. <code>io_async_wait</code> blocks until one
+        completion is ready, dispatches it, and returns. The loop checks whether the accept coroutine
+        is done after each dispatch. When the listener dies, the loop exits and the supervisor
+        restarts.
+      </p>
+      <p>
+        This is deliberately not a "restart forever on any error" policy. A production server would
+        distinguish a transient accept error from a permanent one, add a delay, and maybe stop after
+        repeated failures. The structure is the important part: the listener is a resource owned by a
+        coroutine, and the supervisor decides what to do when that coroutine ends.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Build and Run</h2>
+      <p>
+        The example is a normal fast_io program. Use the compiler setup from
+        <a href="/docs/01.compile/">Ch1</a>; the <code>throws</code> markers require the book's
+        herbception-enabled toolchain. A standard compiler can use ordinary exception syntax instead.
+      </p>
+      <pre><code class="language-text">$ g++ -std=c++26 -O2 tcp_echo_server.cc -o tcp_echo_server
+$ ./tcp_echo_server</code></pre>
+      <p>
+        On Linux, the program uses io_uring when the kernel allows it and falls back to a thread pool
+        otherwise. On Windows, it uses IOCP. There is no conditional compilation in the example
+        itself; the scheduler alias picks the backend.
+      </p>
+      <p>
+        Test it from another terminal:
+      </p>
+      <pre><code class="language-text">$ nc 127.0.0.1 2000
+hello
+hello
+world
+world</code></pre>
+      <p>
+        With the one-round upstream version, the connection may close after the first echo. With the
+        loop version above, every line is echoed until you close the connection. If you see the first
+        line echoed and then the connection closes, you are looking at the one-round example, not a
+        bug in the scheduler.
+      </p>
+      <p>
+        To watch the event loop, run several clients at once. Each client gets its own detached
+        session. The server still uses one thread. When one client is idle, its session is suspended
+        and consumes no CPU; the others continue.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Why There Is No Buffer Management</h2>
+      <p>
+        The synchronous server used <code>iobuf_socket_file</code> because <code>println</code> needs
+        a formatted output buffer. The async echo server uses a raw <code>native_socket_file</code>
+        because it does not format anything; it moves bytes. <code>async_transmit_some_bytes</code>
+        owns a bounce buffer internally and reuses it for each round.
+      </p>
+      <p>
+        This is the right default for a byte pump. Do not allocate a per-connection
+        <code>std::vector&lt;char&gt;</code> just to echo. Do not call <code>read</code> into a
+        stack buffer and then <code>write</code> it. The transmit operation already knows how to
+        stage a partial read and finish a partial write. The application code stays at the level of
+        "move bytes from here to there".
+      </p>
+      <p>
+        The moment the protocol has structure — lines, headers, integers, frames — switch to
+        <code>async_scan</code> for input and <code>async_print</code> for output. That is the next
+        page. The boundary is simple: bytes use transmit, structured data uses scan/print.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. What to Remember</h2>
+      <ul>
+        <li>Two coroutines: one accept loop, one session per connection.</li>
+        <li>
+          <code>async_accept</code> returns an owning socket; passing it by value transfers ownership
+          into the session frame.
+        </li>
+        <li>
+          <code>detach()</code> turns the session into a self-owning frame; the accept loop never
+          waits for it.
+        </li>
+        <li>
+          <code>async_transmit_some_bytes</code> is the high-level byte pump; loop until it returns
+          zero for a real echo.
+        </li>
+        <li>
+          <code>open_mode::no_block</code> marks a socket async-capable, especially on Windows.
+        </li>
+        <li>
+          The supervisor owns the listener's lifetime and restarts the accept loop when it dies.
+        </li>
+      </ul>
+      <p>
+        The next page keeps the same architecture but changes the protocol: HTTP requests, formatted
+        responses, body transfer, and the places where scan/print/transmit replace raw byte windows.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/23.coroutine/02.asyncmodel/" class="prev-button">&larr; Ch23.2: fast_io's Async Model</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/23.coroutine/04.protocols/" class="next-button">Ch23.4: From Echo to HTTP &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

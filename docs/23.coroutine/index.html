@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch23: Coroutines - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch23: Coroutines</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/23.coroutine/">中文（简体）</a></p>
+
+    <section>
+      <h2>Why This Chapter Exists</h2>
+      <p>
+        Every server in the previous chapters had the same hidden limitation: a thread can only do
+        one thing at a time. The synchronous echo server accepts one client, writes to it, closes it,
+        and only then accepts the next. A slow client blocks the server. The usual answer is a thread
+        per connection, which works until the connections outnumber the threads the machine can
+        afford.
+      </p>
+      <p>
+        Coroutines are the other answer. A coroutine is a function that can suspend in the middle and
+        resume later, without owning a thread while it waits. The code still looks like a sequence of
+        statements: accept, read, write, loop. The scheduler, not the programmer, decides which
+        suspended coroutine runs next.
+      </p>
+      <p>
+        This chapter teaches the language mechanism first, then fast_io's async model, then a real
+        TCP server. The last page turns the echo server into an HTTP server, where formatted I/O and
+        raw byte transfer meet.
+      </p>
+    </section>
+
+    <section>
+      <h2>The Four Pages</h2>
+      <ol>
+        <li>
+          <a href="/docs/23.coroutine/01.mechanics/">23.1 The Coroutine Machine</a>
+        </li>
+        <li>
+          <a href="/docs/23.coroutine/02.asyncmodel/">23.2 fast_io's Async Model</a>
+        </li>
+        <li>
+          <a href="/docs/23.coroutine/03.tcpserver/">23.3 An Async TCP Echo Server</a>
+        </li>
+        <li>
+          <a href="/docs/23.coroutine/04.protocols/">23.4 From Echo to HTTP</a>
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>The Short Version</h2>
+      <p>
+        A C++20 coroutine is a function containing <code>co_await</code>, <code>co_yield</code> or
+        <code>co_return</code>. The compiler turns it into a frame plus a promise. The frame holds
+        the parameters, the locals that cross a suspend point, and the resume point. The promise
+        decides what the coroutine returns, whether it starts lazily, what happens at the end, and
+        how errors are stored.
+      </p>
+      <p>
+        <code>co_await</code> uses the awaiter protocol: <code>await_ready</code>,
+        <code>await_suspend</code>, <code>await_resume</code>. Async I/O is that protocol plus a
+        scheduler. The coroutine submits an operation and suspends; the event loop waits for the
+        kernel, then resumes the stored handle. The code reads like a blocking sequence, but the
+        thread is free while the operation is in flight.
+      </p>
+      <p>
+        fast_io's async layer is four objects: an owning <code>io_async_scheduler</code>, a
+        non-owning <code>io_async_observer</code>, a lazy <code>io_async_task&lt;T&gt;</code>, and
+        the <code>io_async_wait</code> pump. The scheduler is io_uring on Linux, IOCP on Windows, or
+        a thread pool on other POSIX systems. The source code does not change.
+      </p>
+      <p>
+        Use <code>async_scan</code> for structured input, <code>async_print</code> for structured
+        output, and <code>async_transmit_some_bytes</code> / <code>async_transmit_all_bytes</code>
+        for byte movement. Drop to <code>async_pread_some_bytes</code> /
+        <code>async_pwrite_some_bytes</code> only when you are implementing the layer beneath those
+        operations. A server that reads lines should not be calling <code>pread</code>.
+      </p>
+      <p>
+        A coroutine is not a thread. Suspension is cooperative; blocking inside a coroutine blocks
+        every coroutine on the same event loop. The frame has a lifetime: keep an owned task alive
+        until it is <code>done()</code>, or <code>detach()</code> it and let it destroy itself.
+        Errors travel through <code>unhandled_exception</code> or
+        <code>unhandled_herbception</code> and are rethrown at the <code>co_await</code> site or by
+        <code>rethrow_if_error()</code>.
+      </p>
+      <p>
+        The server pattern is two coroutines: an accept loop that owns the listener, and one detached
+        session per connection. <code>async_accept</code> returns an owning socket; passing it by
+        value transfers ownership into the session frame. The supervisor restarts the accept loop
+        when the listener dies. That is the whole architecture, and it scales because most sessions
+        are suspended, not because the program created more threads.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/22.canadiancompilation/04.llvm/" class="prev-button">&larr; Ch22.4: LLVM: Build and Host</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/23.coroutine/01.mechanics/" class="next-button">Ch23.1: The Coroutine Machine &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

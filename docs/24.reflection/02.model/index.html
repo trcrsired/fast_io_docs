@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch24.2: The C++26 Reflection Model - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch24.2: The C++26 Reflection Model</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/24.reflection/02.model/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Two Domains</h2>
+      <p>
+        C++26 reflection has exactly two domains:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Domain</th>
+            <th>Contains</th>
+            <th>How you enter it</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>The grammatical domain</td>
+            <td>
+              Types, names, expressions, declarations, statements, members, enumerators, templates.
+              Everything you can write in source code.
+            </td>
+            <td>Write ordinary C++.</td>
+          </tr>
+          <tr>
+            <td>The reflection domain</td>
+            <td>
+              Values of type <code>std::meta::info</code>. One value represents one entity or
+              expression.
+            </td>
+            <td><code>^^</code> reflects a grammatical element into a value.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        You move from grammar to reflection with <code>^^</code>. You move back with a splice,
+        <code>[: ... :]</code>. Everything in between is ordinary <code>consteval</code> code that
+        manipulates <code>std::meta::info</code> values.
+      </p>
+      <pre><code class="language-text">type T  ──^^T──►  info{^T}  ──nonstatic_data_members_of──►  [info, info, ...]
+                                                        │
+                                                        ▼
+field access  ◄──[:m:]──  info{m}  ◄──template for──────┘</code></pre>
+    </section>
+
+    <section>
+      <h2>2. The Reflection Operator <code>^^</code></h2>
+      <p>
+        <code>^^</code> takes a grammatical element and produces a reflection value. It is not
+        <code>^</code> (xor) and not a unary operator on values. The syntax is:
+      </p>
+      <pre><code class="language-cpp">constexpr auto r1 = ^^int;             // a type
+constexpr auto r2 = ^^std::vector;     // a template
+constexpr auto r3 = ^^std::vector&lt;int&gt;; // a specialization
+constexpr auto r4 = ^^person::name;    // a non-static data member
+constexpr auto r5 = ^^color::green;    // an enumerator
+constexpr auto r6 = ^^std::printf;     // a function
+constexpr auto r7 = ^^std;             // a namespace
+constexpr auto r8 = std::meta::reflect_constant(42); // a value
+constexpr auto r9 = ^^std::is_same_v&lt;int, int&gt;; // a variable template specialization</code></pre>
+      <p>
+        The result is a constant expression of type <code>std::meta::info</code>. It is opaque: you
+        cannot index it, cast it to a pointer, or print it as text. You ask questions with
+        <code>std::meta</code> functions. Note that <code>^^</code> reflects entities (types, names,
+        variables, members, enumerators), not arbitrary literals; a constant value is reflected with
+        <code>std::meta::reflect_constant</code>, as in <code>r8</code>.
+      </p>
+      <p>
+        <code>std::meta::info</code> is comparable. Two reflections of the same entity compare equal;
+        reflections of different entities compare unequal. A default-constructed
+        <code>info{}</code> is a null reflection, not a reflection of <code>void</code>.
+      </p>
+      <pre><code class="language-cpp">static_assert(^^int == ^^int);
+static_assert(^^int != ^^long);
+static_assert(std::meta::info{} == std::meta::info{});</code></pre>
+      <p>
+        The type is deliberately opaque. The committee did not want a family of
+        <code>meta::type</code>, <code>meta::variable</code>, <code>meta::function</code> types,
+        because that would freeze the language's ontology into the type system. One type plus
+        predicates is easier to extend.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The <code>std::meta</code> Namespace</h2>
+      <p>
+        <code>&lt;meta&gt;</code> provides <code>consteval</code> functions that take reflections and
+        return reflections, values, or both. The names are long but regular. The ones you will use
+        first:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Answer</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>type_of(r)</code></td>
+            <td>The type of the entity or expression represented by <code>r</code>.</td>
+          </tr>
+          <tr>
+            <td><code>identifier_of(r)</code></td>
+            <td>The declared name, as a <code>std::string_view</code>.</td>
+          </tr>
+          <tr>
+            <td><code>display_string_of(r)</code></td>
+            <td>A human-readable spelling, not necessarily a valid identifier.</td>
+          </tr>
+          <tr>
+            <td><code>nonstatic_data_members_of(T, ctx)</code></td>
+            <td>The non-static data members of a class, in declaration order.</td>
+          </tr>
+          <tr>
+            <td><code>enumerators_of(E)</code></td>
+            <td>The enumerators of an enum, in declaration order.</td>
+          </tr>
+          <tr>
+            <td><code>bases_of(T, ctx)</code></td>
+            <td>The direct base classes of a class.</td>
+          </tr>
+          <tr>
+            <td><code>members_of(T, ctx)</code></td>
+            <td>All members: data, functions, types, constructors, and so on.</td>
+          </tr>
+          <tr>
+            <td><code>is_enum_type(r)</code>, <code>is_class_type(r)</code>, ...</td>
+            <td>Predicates on reflections.</td>
+          </tr>
+          <tr>
+            <td><code>dealias(r)</code></td>
+            <td>The underlying entity of a type or namespace alias.</td>
+          </tr>
+          <tr>
+            <td><code>substitute(template, args)</code></td>
+            <td>A reflection of the template specialization with the given arguments.</td>
+          </tr>
+          <tr>
+            <td><code>extract&lt;T&gt;(r)</code></td>
+            <td>The value represented by a reflection of a constant, enumerator or object.</td>
+          </tr>
+          <tr>
+            <td><code>reflect_constant(v)</code></td>
+            <td>A reflection of the constant value <code>v</code>.</td>
+          </tr>
+          <tr>
+            <td><code>data_member_spec(type, opts)</code></td>
+            <td>A description of a data member to be injected by <code>define_aggregate</code>.</td>
+          </tr>
+          <tr>
+            <td><code>define_aggregate(T, specs)</code></td>
+            <td>Complete the incomplete class <code>T</code> with the given members.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        If you have used <code>&lt;type_traits&gt;</code>, many predicates will look familiar:
+        <code>is_integral_type</code>, <code>is_same_type</code>, <code>is_base_of_type</code>,
+        <code>is_convertible_type</code>. They are the same questions, expressed over reflections
+        instead of template arguments.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Splices: Going Back to Grammar</h2>
+      <p>
+        A splice turns a reflection back into source. The context decides what kind of grammatical
+        element is needed:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Form</th>
+            <th>Produces</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>[: r :]</code></td>
+            <td>An expression, name or value, depending on context.</td>
+            <td><code>int x = [: r :];</code></td>
+          </tr>
+          <tr>
+            <td><code>typename[: r :]</code></td>
+            <td>A type.</td>
+            <td><code>typename[: r :] x = 42;</code></td>
+          </tr>
+          <tr>
+            <td><code>[: r :]::name</code></td>
+            <td>A scope-qualified name.</td>
+            <td><code>[: r :]::value</code></td>
+          </tr>
+          <tr>
+            <td><code>template[: r :]&lt;T&gt;</code></td>
+            <td>A template specialization.</td>
+            <td><code>template[: r :]&lt;int&gt;::value</code></td>
+          </tr>
+          <tr>
+            <td><code>obj.[: m :]</code></td>
+            <td>A member access.</td>
+            <td><code>p.[: member :] = 42;</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The first example from the proposal is the whole back-and-forth:
+      </p>
+      <pre><code class="language-cpp">constexpr auto r = ^^int;
+typename[:r:] x = 42;          // int x = 42;
+typename[:^^char:] c = '*';    // char c = '*';</code></pre>
+      <p>
+        A splice is not a string substitution. The compiler checks that the reflection represents
+        the kind of entity the grammar requires. Splicing a reflection of a function where a type is
+        required is an error, not a text replacement.
+      </p>
+      <p>
+        A member access splice is more direct than a name lookup. It does not perform ordinary
+        member lookup or overload resolution; it accesses exactly the member represented by the
+        reflection. That is why it can reach a member whose name is not known at the call site.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. <code>template for</code>: Compile-Time Iteration</h2>
+      <p>
+        <code>template for</code> is the expansion statement. It looks like a range-based
+        <code>for</code>, but it is unrolled during translation. Each iteration has its own
+        <code>constexpr</code> variable.
+      </p>
+      <pre><code class="language-cpp">template &lt;typename T&gt;
+void print_members(T const &amp;obj)
+{
+    constexpr auto ctx = std::meta::access_context::current();
+    constexpr auto members = std::define_static_array(
+        std::meta::nonstatic_data_members_of(^^T, ctx));
+
+    template for (constexpr auto m : members)
+    {
+        std::print("{} = {}\n", std::meta::identifier_of(m), obj.[:m:]);
+    }
+}</code></pre>
+      <p>
+        Three details matter:
+      </p>
+      <ul>
+        <li>
+          <code>std::define_static_array</code> promotes the compile-time vector returned by
+          <code>nonstatic_data_members_of</code> into static storage. The expansion statement needs a
+          range whose elements are usable as constant expressions.
+        </li>
+        <li>
+          <code>constexpr auto m</code> is a new reflection value per iteration. It is not a runtime
+          loop variable.
+        </li>
+        <li>
+          <code>obj.[:m:]</code> is a member access splice. The generated code accesses the actual
+          member; there is no string-to-member lookup at run time.
+        </li>
+      </ul>
+      <p>
+        <code>template for</code> also works with an index and with multiple ranges:
+      </p>
+      <pre><code class="language-cpp">template for (constexpr std::size_t i{}; auto m : members)
+{
+    std::print("{}: {}\n", i, std::meta::identifier_of(m));
+}</code></pre>
+    </section>
+
+    <section>
+      <h2>6. Generating a Type: <code>define_aggregate</code></h2>
+      <p>
+        Reflection can do more than inspect existing declarations. It can complete an incomplete
+        aggregate from a list of member descriptions. This is the smallest form:
+      </p>
+      <pre><code class="language-cpp">#include &lt;meta&gt;
+#include &lt;print&gt;
+
+struct point;
+
+consteval
+{
+    std::meta::info members[]
+    {
+        std::meta::data_member_spec(^^int, {.name = "x"}),
+        std::meta::data_member_spec(^^int, {.name = "y"})
+    };
+
+    std::meta::define_aggregate(^^point, members);
+}
+
+int main()
+{
+    point p{.x = 3, .y = 4};
+    std::println("({}, {})", p.x, p.y);
+}</code></pre>
+      <p>
+        <code>point</code> is declared incomplete. The <code>consteval</code> block runs during
+        translation, builds two member descriptions, and injects a definition. From that point on,
+        <code>point</code> is a normal aggregate with two <code>int</code> members.
+      </p>
+      <p>
+        The member list can be computed. A common pattern is a "struct of arrays":
+      </p>
+      <pre><code class="language-cpp">template &lt;typename T, std::size_t N&gt;
+struct struct_of_arrays
+{
+    struct impl;
+
+    consteval
+    {
+        auto ctx = std::meta::access_context::current();
+        std::vector&lt;std::meta::info&gt; specs;
+
+        template for (constexpr auto m :
+                      std::define_static_array(
+                          std::meta::nonstatic_data_members_of(^^T, ctx)))
+        {
+            auto array_type = std::meta::substitute(
+                ^^std::array,
+                {std::meta::type_of(m), std::meta::reflect_constant(N)});
+            specs.push_back(std::meta::data_member_spec(
+                array_type, {.name = std::meta::identifier_of(m)}));
+        }
+
+        std::meta::define_aggregate(^^impl, specs);
+    }
+
+    impl data;
+};</code></pre>
+      <p>
+        <code>substitute</code> builds the reflection of <code>std::array&lt;MemberType, N&gt;</code>;
+        <code>data_member_spec</code> names it after the original member;
+        <code>define_aggregate</code> completes <code>impl</code>. This is the kind of code that
+        used to require an external generator. The constraints are real: generated aggregates are
+        simple aggregates, not arbitrary classes with constructors, virtual functions or access
+        specifiers.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Access Context and Value Extraction</h2>
+      <p>
+        Member queries take an <code>std::meta::access_context</code>. It says from where the query
+        is made, because access control is part of the language:
+      </p>
+      <pre><code class="language-cpp">constexpr auto here = std::meta::access_context::current();
+constexpr auto all  = std::meta::access_context::unchecked();</code></pre>
+      <p>
+        <code>current()</code> uses the current function or class as the access context. It is the
+        safe default: a reflection cannot see a private member that the current code could not name.
+        <code>unchecked()</code> bypasses access checking and should be reserved for tools that
+        genuinely need the layout, such as a debugger or a binary serializer that is part of the
+        class's own implementation.
+      </p>
+      <p>
+        To get a value out of a reflection, use <code>extract&lt;T&gt;</code>:
+      </p>
+      <pre><code class="language-cpp">enum class color { red, green, blue };
+
+constexpr auto e = std::meta::enumerators_of(^^color)[1];
+static_assert(std::meta::extract&lt;color&gt;(e) == color::green);</code></pre>
+      <p>
+        <code>extract</code> is also how you turn a reflection of a constant into a real value for a
+        template argument or a <code>switch</code> case. It is the inverse of
+        <code>reflect_constant</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. The Recipe</h2>
+      <p>
+        Every reflection algorithm in this chapter follows the same four steps:
+      </p>
+      <ol>
+        <li>
+          <strong>Reflect.</strong> Start from <code>^^T</code> or <code>^^member</code>.
+        </li>
+        <li>
+          <strong>Query.</strong> Ask <code>std::meta</code> for members, names, types, bases,
+          enumerators, properties.
+        </li>
+        <li>
+          <strong>Decide.</strong> Use ordinary <code>if</code>, loops and <code>consteval</code>
+          functions. This is normal compile-time code, not a special DSL.
+        </li>
+        <li>
+          <strong>Splice or generate.</strong> Turn the result back into expressions, types, or a new
+          aggregate.
+        </li>
+      </ol>
+      <p>
+        The syntax is unfamiliar, but the control flow is not. If you can write a loop over a vector
+        and an <code>if</code> on a type trait, you can write reflection code. The only new rule is
+        that the vector holds <code>std::meta::info</code> values and the result must be spliced back
+        into the grammar.
+      </p>
+    </section>
+
+    <section>
+      <h2>9. What You Cannot Do</h2>
+      <ul>
+        <li>
+          Reflect a constructor or destructor and splice it as an expression. Constructors and
+          destructors are not spliceable expressions.
+        </li>
+        <li>
+          Reflect a local entity and use it outside its scope. Reflection does not extend lifetimes.
+        </li>
+        <li>
+          Use <code>define_aggregate</code> on a class that is already complete, or on a class with
+          bases, virtual functions or user-declared constructors.
+        </li>
+        <li>
+          Query members of an incomplete type. The compiler must know the member list; a forward
+          declaration is not enough.
+        </li>
+        <li>
+          Treat <code>std::meta::info</code> as a runtime value that can be serialized and reloaded.
+          It is a compile-time handle, not a portable descriptor.
+        </li>
+      </ul>
+      <p>
+        The next page puts the model to work: enum names, field visitors, JSON, and generated
+        aggregates. The code is longer, but every line is one of the four steps above.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/24.reflection/01.why/" class="prev-button">&larr; Ch24.1: Why Reflection</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/24.reflection/03.practice/" class="next-button">Ch24.3: Reflection in Practice &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

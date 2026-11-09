@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch23.1: The Coroutine Machine - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch23.1: The Coroutine Machine</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/23.coroutine/01.mechanics/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Shape of the Problem</h2>
+      <p>
+        A normal function has one entrance and one exit. It runs until it returns. If it needs data
+        that is not ready yet, it has three choices: block the thread, return a handle and ask the
+        caller to poll, or split itself into callbacks. All three are visible in the source code, and
+        all three make the program harder to read.
+      </p>
+      <p>
+        A <strong>coroutine</strong> is a function that can stop in the middle, give control back to
+        its caller, and later continue from exactly where it stopped. The local variables, the
+        current statement and the call stack of the coroutine survive the pause. The caller does not
+        block. The operating system thread is not consumed while the coroutine waits.
+      </p>
+      <blockquote>
+        <p>
+          <strong>Definition.</strong> A coroutine is a function whose execution can be suspended and
+          resumed. In C++20 and later, a function is a coroutine if its body contains
+          <code>co_await</code>, <code>co_yield</code> or <code>co_return</code>. The compiler
+          rewrites that function into a state machine, allocates its state in a
+          <strong>coroutine frame</strong>, and connects it to a user-defined
+          <strong>promise</strong> type.
+        </p>
+      </blockquote>
+      <p>
+        The important word is <em>function</em>. A coroutine is not a thread, not a task queue and not
+        a callback. It is a function with a saved state. Something still has to resume it: a scheduler,
+        an event loop, another coroutine, or the caller itself.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Three Keywords, One Machine</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Keyword</th>
+            <th>Meaning</th>
+            <th>What the compiler emits</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>co_await expr</code></td>
+            <td>Suspend here until <code>expr</code> is ready.</td>
+            <td>
+              Calls the awaiter protocol: <code>await_ready</code>, then <code>await_suspend</code>,
+              then <code>await_resume</code>.
+            </td>
+          </tr>
+          <tr>
+            <td><code>co_yield expr</code></td>
+            <td>Produce a value and suspend, for a generator.</td>
+            <td>
+              Equivalent to <code>co_await promise.yield_value(expr)</code>. The promise stores the
+              value or exposes it to the consumer.
+            </td>
+          </tr>
+          <tr>
+            <td><code>co_return expr</code></td>
+            <td>Finish the coroutine and deliver a result.</td>
+            <td>
+              Calls <code>promise.return_value(expr)</code>, or <code>promise.return_void()</code>
+              for <code>co_return;</code>.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The three keywords are not three independent features. They are three ways to reach the same
+        promise object. The promise is the coroutine's control block: it decides what the coroutine
+        returns, what happens on the first suspend, what happens on the last suspend, and how an
+        exception is handled.
+      </p>
+      <pre><code class="language-cpp">#include &lt;generator&gt;
+#include &lt;print&gt;
+
+std::generator&lt;int&gt; iota(int n)
+{
+    for (int i{}; i != n; ++i)
+    {
+        co_yield i;
+    }
+}
+
+int main()
+{
+    for (int value : iota(5))
+    {
+        std::print("{} ", value);
+    }
+    std::print("\n");
+}</code></pre>
+      <p>
+        This prints <code>0 1 2 3 4</code>. The function <code>iota</code> is not called five times.
+        It is called once, creates one coroutine frame, and then resumes five times. Each
+        <code>co_yield</code> suspends at the same point; the loop and the variable <code>i</code>
+        live in the frame, not on the caller's stack.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. What the Compiler Builds</h2>
+      <p>
+        For every coroutine, the compiler creates a frame. The frame is a hidden object that contains
+        at least:
+      </p>
+      <ul>
+        <li>the coroutine parameters, copied or moved into the frame;</li>
+        <li>the local variables whose lifetime crosses a suspend point;</li>
+        <li>the promise object;</li>
+        <li>a resume point, so the next <code>resume()</code> knows which statement to continue;</li>
+        <li>the current state: running, suspended, or finished.</li>
+      </ul>
+      <p>
+        The frame is usually allocated with <code>operator new</code> and freed when the coroutine
+        frame is destroyed. The compiler is allowed to elide the allocation when it can see the whole
+        lifetime, but you cannot rely on that in a library API. This is why a coroutine return type
+        such as fast_io's <code>io_async_task</code> takes an allocator as a template parameter: the
+        frame is allocated through the same allocator discipline as the rest of the library, not
+        through a global default.
+      </p>
+      <p>
+        The promise type is the customization point. A coroutine return type
+        <code>task&lt;T&gt;</code> must provide a nested <code>promise_type</code>. The compiler calls
+        the promise at fixed moments:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Promise hook</th>
+            <th>When it runs</th>
+            <th>What it controls</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>get_return_object()</code></td>
+            <td>Before the body starts</td>
+            <td>Builds the object the caller receives.</td>
+          </tr>
+          <tr>
+            <td><code>initial_suspend()</code></td>
+            <td>Before the body starts</td>
+            <td>
+              <code>suspend_always</code> makes the task lazy;
+              <code>suspend_never</code> starts it immediately.
+            </td>
+          </tr>
+          <tr>
+            <td><code>final_suspend()</code></td>
+            <td>After the body finishes</td>
+            <td>
+              Decides whether the frame stays alive for the caller to read the result, or destroys
+              itself.
+            </td>
+          </tr>
+          <tr>
+            <td><code>return_value</code> / <code>return_void</code></td>
+            <td>At <code>co_return</code></td>
+            <td>Stores the result in the promise.</td>
+          </tr>
+          <tr>
+            <td><code>yield_value</code></td>
+            <td>At <code>co_yield</code></td>
+            <td>Publishes a value to the consumer.</td>
+          </tr>
+          <tr>
+            <td><code>unhandled_exception</code></td>
+            <td>When an ordinary C++ exception escapes the body</td>
+            <td>Stores or terminates; it must not return normally.</td>
+          </tr>
+          <tr>
+            <td><code>unhandled_herbception</code></td>
+            <td>When a fast_io herbception escapes the body</td>
+            <td>
+              Stores the raw two-word error in the promise so an awaiting caller or
+              <code>rethrow_if_error()</code> can deliver it later.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        A coroutine with no <code>promise_type</code> is a compile error. The promise is not a detail
+        you can ignore: it is the part that turns the language's suspend/resume primitive into a
+        generator, a task, or an async operation.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The Awaiter Protocol</h2>
+      <p>
+        <code>co_await expr</code> does not call <code>expr</code> directly. It asks the result for an
+        <strong>awaiter</strong> and then calls up to three member functions:
+      </p>
+      <ol>
+        <li>
+          <code>await_ready()</code> — if it returns <code>true</code>, the operation is already
+          complete and the coroutine does not suspend.
+        </li>
+        <li>
+          <code>await_suspend(handle)</code> — called when the coroutine is about to suspend. It may
+          return <code>void</code> (suspend), <code>bool</code> (suspend if true), or another
+          coroutine handle (transfer control to it).
+        </li>
+        <li>
+          <code>await_resume()</code> — produces the value of the whole
+          <code>co_await</code> expression after resumption.
+        </li>
+      </ol>
+      <pre><code class="language-cpp">#include &lt;coroutine&gt;
+
+struct immediate
+{
+    bool await_ready() const noexcept { return true; }
+    void await_suspend(std::coroutine_handle&lt;&gt;) const noexcept {}
+    int await_resume() const noexcept { return 42; }
+};
+
+some_task&lt;int&gt; use()
+{
+    int value = co_await immediate{};
+    co_return value;
+}</code></pre>
+      <p>
+        <code>some_task</code> is a placeholder for a coroutine return type with a
+        <code>promise_type</code>; fast_io's is <code>io_async_task</code>. This example never
+        suspends, because <code>await_ready</code> returns <code>true</code>. The
+        interesting case is <code>false</code>: the coroutine stores its resume point, calls
+        <code>await_suspend</code>, and returns control to whoever resumed it. Later, the operation's
+        completion calls <code>handle.resume()</code>, and execution continues inside
+        <code>await_resume</code>.
+      </p>
+      <p>
+        That is the whole trick behind async I/O. The coroutine does not wait on a socket. It submits
+        an operation, stores its own handle, and suspends. The event loop waits for the kernel to say
+        the operation is complete, then resumes the stored handle. From inside the coroutine, the code
+        reads like a blocking call: read, then print, then read again.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Stackful and Stackless</h2>
+      <p>
+        C++ coroutines are <strong>stackless</strong>. A suspended coroutine does not keep a separate
+        call stack. Its state is the frame, and only the coroutine's own locals are preserved. You
+        cannot suspend inside an ordinary function called by the coroutine and expect the ordinary
+        function's stack to survive; only the coroutine body has suspend points.
+      </p>
+      <p>
+        This is different from a stackful coroutine or a green thread, where the whole stack is saved
+        and restored. Stackful designs make suspension possible anywhere, but they need a stack per
+        coroutine and a context switch. Stackless designs are cheaper and more explicit: the compiler
+        knows exactly which state crosses a suspend point, and the programmer writes
+        <code>co_await</code> at the points where suspension is allowed.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>Stackless C++ coroutine</th>
+            <th>Stackful coroutine / thread</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>State kept on suspend</td>
+            <td>One frame with parameters, locals and promise</td>
+            <td>The whole call stack</td>
+          </tr>
+          <tr>
+            <td>Can suspend anywhere?</td>
+            <td>Only at <code>co_await</code> / <code>co_yield</code></td>
+            <td>Usually anywhere</td>
+          </tr>
+          <tr>
+            <td>Cost per instance</td>
+            <td>Frame size, often one allocation</td>
+            <td>Stack size, often much larger</td>
+          </tr>
+          <tr>
+            <td>Who resumes it?</td>
+            <td>Explicit handle, scheduler or event loop</td>
+            <td>Scheduler or context switch</td>
+          </tr>
+          <tr>
+            <td>Concurrency by itself?</td>
+            <td>No</td>
+            <td>No</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>6. A Coroutine Is Not a Thread</h2>
+      <p>
+        This is the point that causes the most confusion. A coroutine provides
+        <em>suspension</em>, not <em>parallelism</em>. Two coroutines can be alive at the same time on
+        one thread, but only one of them runs at any instant. They interleave cooperatively at
+        suspend points. There is no preemption and no data race unless you introduce another thread.
+      </p>
+      <pre><code class="language-text">caller:      resume A ──► A runs ──► A suspends ──► caller continues
+event loop:  wait ──► completion ──► resume A ──► A runs ──► A finishes</code></pre>
+      <p>
+        A thread is a scheduling unit owned by the operating system. A coroutine is a function state
+        owned by your program. A server can handle ten thousand connections with a handful of threads
+        because most connections are suspended waiting for I/O, not because it created ten thousand
+        threads. The concurrency comes from the event loop and the kernel, not from the coroutine
+        keyword.
+      </p>
+      <p>
+        The corollary is just as important: a coroutine that performs a blocking operation blocks the
+        whole event loop. Calling <code>read</code>, <code>sleep</code> or a synchronous fast_io
+        operation inside an async coroutine stops every other coroutine on that scheduler. Async code
+        is a discipline, not a decoration.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Lifetime, Cost and Failure</h2>
+      <p>
+        A coroutine frame lives until it is destroyed. For a lazy task, the task object usually owns
+        the frame and destroys it in its destructor. For a detached task, the frame destroys itself at
+        <code>final_suspend</code>. Destroying a frame while an asynchronous operation still holds a
+        pointer into it is a use-after-free; the operation's callback will resume a frame that no
+        longer exists. This is why the async layer distinguishes owned tasks from detached tasks and
+        why you must keep an owned task alive until it is <code>done()</code>.
+      </p>
+      <p>
+        The cost has three parts: the frame allocation, the frame size, and the resume. None of them
+        is hidden by the syntax. A coroutine that allocates a frame per request is not free just
+        because it is a coroutine. fast_io lets the scheduler supply the allocator so the frame comes
+        from the same pool as the rest of the I/O state, and the async task type can be parameterized
+        on that allocator.
+      </p>
+      <p>
+        Failure has two channels in this book. Ordinary C++ exceptions can escape a coroutine and are
+        delivered to <code>promise.unhandled_exception()</code>. fast_io's herbceptions use the
+        <code>throws</code> marker and the <code>throw throws</code> form; an error escaping an
+        <code>io_async_task</code> body is stored in the promise by
+        <code>unhandled_herbception</code> and rethrown at the <code>co_await</code> site, or by
+        <code>rethrow_if_error()</code> for a non-coroutine caller. The hook receives the raw
+        two-word error value, spelled <code>::std::cxx_std_error</code> in the current
+        implementation (<a href="/docs/19.exceptionsandherbceptions/01.customdomains/">Ch19.1</a>);
+        the public handle used in <code>catch throws (::std::error e)</code> is introduced in
+        <a href="/docs/03.statements/16.herbceptions/">Ch3.16</a>. They are the same
+        domain-pointer-plus-code pair at different layers. This chapter only needs the rule: an async
+        operation reports failure through the same channel as its synchronous counterpart.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. What to Remember</h2>
+      <ul>
+        <li>A coroutine is a function that can suspend and resume; it is not a thread.</li>
+        <li>
+          <code>co_await</code>, <code>co_yield</code> and <code>co_return</code> are the only
+          coroutine keywords; any one of them makes the function a coroutine.
+        </li>
+        <li>
+          The compiler builds a frame and calls a promise. The promise decides laziness, results,
+          yielding and error handling.
+        </li>
+        <li>
+          <code>co_await</code> uses the awaiter protocol: ready, suspend, resume. Async I/O is the
+          protocol plus a scheduler that resumes the handle when the kernel reports completion.
+        </li>
+        <li>
+          Suspension is cooperative. Blocking inside a coroutine blocks every coroutine on the same
+          event loop.
+        </li>
+        <li>
+          The frame has a lifetime. Keep an owned task alive until it is done, or detach it and let it
+          destroy itself.
+        </li>
+      </ul>
+      <p>
+        The next page turns this language machinery into fast_io's async model: tasks, schedulers,
+        observers, operations and the event loop.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/23.coroutine/" class="prev-button">&larr; Ch23: Coroutines</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/23.coroutine/02.asyncmodel/" class="next-button">Ch23.2: fast_io's Async Model &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

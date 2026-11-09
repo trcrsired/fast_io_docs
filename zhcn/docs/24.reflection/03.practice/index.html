@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第24.3章：反射实践 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第24.3章：反射实践</h1>
+    <p class="lang-switch"><a href="/docs/24.reflection/03.practice/">English</a></p>
+
+    <section>
+      <h2>1. 枚举名字，两个方向</h2>
+      <p>
+        第一页的枚举例子值得完整写出来，因为它展示了不完整枚举的保护和反方向：
+      </p>
+      <pre><code class="language-cpp">#include &lt;meta&gt;
+#include &lt;optional&gt;
+#include &lt;string_view&gt;
+#include &lt;type_traits&gt;
+
+template &lt;typename E&gt;
+    requires std::is_enum_v&lt;E&gt;
+constexpr std::string_view enum_to_string(E value)
+{
+    if constexpr (std::meta::is_enumerable_type(^^E))
+    {
+        template for (constexpr auto e :
+                      std::define_static_array(std::meta::enumerators_of(^^E)))
+        {
+            if (value == [:e:])
+            {
+                return std::meta::identifier_of(e);
+            }
+        }
+    }
+    return "&lt;unnamed&gt;";
+}
+
+template &lt;typename E&gt;
+    requires std::is_enum_v&lt;E&gt;
+constexpr std::optional&lt;E&gt; string_to_enum(std::string_view name)
+{
+    if constexpr (std::meta::is_enumerable_type(^^E))
+    {
+        template for (constexpr auto e :
+                      std::define_static_array(std::meta::enumerators_of(^^E)))
+        {
+            if (name == std::meta::identifier_of(e))
+            {
+                return [:e:];
+            }
+        }
+    }
+    return std::nullopt;
+}</code></pre>
+      <p>
+        <code>is_enumerable_type</code> 是前置声明枚举的保护。枚举可以在枚举值已知之前声明；这时查询
+        <code>enumerators_of</code> 是错误。<code>if constexpr</code> 让函数在两种情况下都能编译，
+        列表不可用时返回回退值。
+      </p>
+      <p>
+        生成的代码是一串比较，每个枚举值一个。它不是哈希表，也不分配。小枚举正是你想要的。大枚举可以
+        构建静态查找表：
+      </p>
+      <pre><code class="language-cpp">template &lt;typename E&gt;
+    requires std::is_enum_v&lt;E&gt;
+constexpr auto make_enum_table()
+{
+    constexpr auto names = std::define_static_array(
+        std::meta::enumerators_of(^^E));
+    std::array&lt;std::pair&lt;E, std::string_view&gt;, names.size()&gt; table{};
+    template for (constexpr std::size_t i{}; auto e : names)
+    {
+        table[i] = {[:e:], std::meta::identifier_of(e)};
+    }
+    return table;
+}</code></pre>
+      <p>
+        表是普通的 <code>constexpr</code> 数组。你可以排序、二分查找，或在后续构建步骤里生成完美哈希。
+        反射给你数据；算法是普通 C++。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 字段访问器</h2>
+      <p>
+        通用字段打印器是反射的“hello world”：
+      </p>
+      <pre><code class="language-cpp">#include &lt;meta&gt;
+#include &lt;print&gt;
+
+template &lt;typename T&gt;
+void print_fields(T const &amp;obj)
+{
+    constexpr auto ctx = std::meta::access_context::current();
+    constexpr auto members = std::define_static_array(
+        std::meta::nonstatic_data_members_of(^^T, ctx));
+
+    template for (constexpr auto m : members)
+    {
+        std::print("{} = {}\n",
+                   std::meta::identifier_of(m),
+                   obj.[:m:]);
+    }
+}</code></pre>
+      <p>
+        它对任何成员可打印的聚合体都有效。它不跳过任何东西：静态成员不在
+        <code>nonstatic_data_members_of</code> 里，但基类不会自动遍历。如果你需要基类，对
+        <code>bases_of</code> 递归。
+      </p>
+      <p>
+        生成的代码正是你手写的：
+      </p>
+      <pre><code class="language-cpp">std::print("name = {}\n", obj.name);
+std::print("age = {}\n", obj.age);
+std::print("height = {}\n", obj.height);</code></pre>
+      <p>
+        区别是加成员不需要改打印器。编译器看到新成员并生成新行。这就是全部投资回报。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. JSON：完整的小型序列化器</h2>
+      <p>
+        JSON 是很好的压力测试，因为它需要名字、类型和递归。这里是一个紧凑版本，支持字符串、数字、布尔和
+        嵌套聚合体：
+      </p>
+      <pre><code class="language-cpp">#include &lt;concepts&gt;
+#include &lt;meta&gt;
+#include &lt;string&gt;
+#include &lt;string_view&gt;
+#include &lt;type_traits&gt;
+
+template &lt;typename T&gt;
+std::string to_json(T const &amp;obj);
+
+inline void append_json(std::string &amp;out, std::string const &amp;v)
+{
+    out += '"';
+    out += v;
+    out += '"';
+}
+
+inline void append_json(std::string &amp;out, std::string_view v)
+{
+    out += '"';
+    out += v;
+    out += '"';
+}
+
+inline void append_json(std::string &amp;out, char const *v)
+{
+    append_json(out, std::string_view{v});
+}
+
+inline void append_json(std::string &amp;out, bool v)
+{
+    out += v ? "true" : "false";
+}
+
+template &lt;std::integral T&gt;
+void append_json(std::string &amp;out, T v)
+{
+    out += std::to_string(v);
+}
+
+template &lt;std::floating_point T&gt;
+void append_json(std::string &amp;out, T v)
+{
+    out += std::to_string(v);
+}
+
+template &lt;typename T&gt;
+void append_json(std::string &amp;out, T const &amp;v)
+{
+    out += to_json(v);
+}
+
+template &lt;typename T&gt;
+std::string to_json(T const &amp;obj)
+{
+    std::string out{"{"};
+    constexpr auto ctx = std::meta::access_context::current();
+    constexpr auto members = std::define_static_array(
+        std::meta::nonstatic_data_members_of(^^T, ctx));
+
+    bool first{true};
+    template for (constexpr auto m : members)
+    {
+        if (!first)
+        {
+            out += ',';
+        }
+        first = false;
+        out += '"';
+        out += std::meta::identifier_of(m);
+        out += "\":";
+        append_json(out, obj.[:m:]);
+    }
+    out += '}';
+    return out;
+}</code></pre>
+      <p>
+        重载集是策略层。反射提供成员名字和字段访问；重载决定 <code>std::string</code>、<code>int</code>
+        或嵌套聚合体如何变成 JSON。加一个类型就加一个重载，不是加一份成员列表。
+      </p>
+      <p>
+        这个序列化器刻意忽略了转义。真正的 JSON 写入器必须转义引号、反斜杠和控制字符，拒绝非有限浮点值，
+        并决定未知类型怎么办。反射不替你做这些决定。它只删除“遍历字段”的样板。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 生成配置类型</h2>
+      <p>
+        当类型的形状是数据时，<code>define_aggregate</code> 很有用。配置 schema、数据库行、固定字段列表的
+        协议消息——这些都可以描述成成员列表，然后变成真正的 C++ 聚合体：
+      </p>
+      <pre><code class="language-cpp">#include &lt;meta&gt;
+#include &lt;string&gt;
+
+struct config;
+
+consteval
+{
+    std::meta::info fields[]
+    {
+        std::meta::data_member_spec(^^std::string, {.name = "host"}),
+        std::meta::data_member_spec(^^int, {.name = "port"}),
+        std::meta::data_member_spec(^^bool, {.name = "tls"})
+    };
+
+    std::meta::define_aggregate(^^config, fields);
+}
+
+int main()
+{
+    config c{.host = "example.com", .port = 443, .tls = true};
+    return c.port == 443 ? 0 : 1;
+}</code></pre>
+      <p>
+        schema 驱动的生成器会在构建时从文件读取字段列表，但编译期核心是一样的：构建
+        <code>std::vector&lt;std::meta::info&gt;</code> 的 <code>data_member_spec</code> 结果，
+        然后调用 <code>define_aggregate</code>。结果是普通聚合体，可以用指定初始化器，也可以配合上面的
+        JSON 序列化器。
+      </p>
+      <p>
+        限制很重要：<code>define_aggregate</code> 产生简单聚合体。它不生成构造函数、成员函数、虚函数、
+        访问说明符或基类。如果生成的类型需要行为，写一个单独的包装或接受该聚合体的自由函数。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 布局与 ABI 检查</h2>
+      <p>
+        反射可以在编译期回答布局问题：
+      </p>
+      <pre><code class="language-cpp">template &lt;typename T&gt;
+consteval bool has_padding()
+{
+    constexpr auto ctx = std::meta::access_context::current();
+    auto members = std::meta::nonstatic_data_members_of(^^T, ctx);
+    std::size_t end{};
+    for (auto m : members)
+    {
+        auto off = static_cast&lt;std::size_t&gt;(std::meta::offset_of(m).bytes);
+        auto size = std::meta::size_of(m);
+        if (off != end)
+        {
+            return true;
+        }
+        end = off + size;
+    }
+    return end != std::meta::size_of(^^T);
+}</code></pre>
+      <p>
+        这不是平台 ABI 文档的替代品。它是编译期守卫：如果必须与线格式或 C ABI 布局兼容的结构体变了，
+        断言在构建时触发，而不是在运行时产生损坏的包。
+      </p>
+      <p>
+        同样的数据支持生成描述、对偏移的静态断言，或比较 C++ 布局与 C 头文件的测试。反射把
+        “我们希望编译器这样布局”变成编译器执行的检查。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 设计反射库</h2>
+      <p>
+        生产级反射库主要是策略，不是语法。有效的结构是：
+      </p>
+      <ol>
+        <li>
+          <strong>一个通用遍历。</strong>反射成员一次；对每个成员调用定制点。不要在每种序列化器里
+          写一个单独的循环。
+        </li>
+        <li>
+          <strong>一个定制点。</strong>一个函数或 concept，说明如何处理叶子类型。遍历决定顺序；
+          定制决定表示。
+        </li>
+        <li>
+          <strong>基类单独遍历。</strong><code>nonstatic_data_members_of</code> 不包含基类。
+          如果格式是扁平的，用 <code>bases_of</code> 显式访问基类并递归。
+        </li>
+        <li>
+          <strong>用注解表达策略。</strong>注解可以标记字段为可选、重命名、保密或带版本。遍历读取它们；
+          序列化器遵守它们。注解词汇保持小。
+        </li>
+        <li>
+          <strong>表用静态存储。</strong>当生成的表必须活过单个常量表达式时，用
+          <code>define_static_array</code> 或 <code>define_static_string</code>。
+        </li>
+      </ol>
+      <p>
+        反模式是每种格式一个反射循环。那只是多绕几步的手写代码。反射的意义是一个遍历、多种格式。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 编译期成本与调试</h2>
+      <p>
+        反射是编译期工作。每个翻译单元都反射大类型图的头文件会拖慢构建，深度递归的序列化器会撞上 constexpr
+        求值限制。几个习惯能让它可控：
+      </p>
+      <ul>
+        <li>在大量翻译单元包含的头文件里，保持被反射的类型集合小。</li>
+        <li>把生成的表缓存在 <code>static constexpr</code> 变量或变量模板里，让编译器每个特化只求值一次。</li>
+        <li>用 <code>if constexpr</code> 在查询前保护不完整类型和不支持的类别。</li>
+        <li>优先一个遍历加定制点，而不是很多专门遍历。</li>
+        <li>诊断指向拼接时，把它缩减到最小的反射表达式，并在测试里打印反射的
+          <code>display_string_of</code>。</li>
+      </ul>
+      <p>
+        调试反射不同于调试模板。错误通常出现在拼接处，而不是产生坏反射的查询处。在拼接前对
+        <code>is_class_type</code>、<code>is_enum_type</code> 或 <code>has_identifier</code>
+        做一个小 <code>static_assert</code>，能把一墙错误变成一条清晰消息。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 需要记住什么</h2>
+      <ul>
+        <li>
+          用 <code>^^</code> 反射，用 <code>std::meta</code> 查询，用 <code>[: :]</code> 拼接，
+          用 <code>template for</code> 展开。
+        </li>
+        <li>
+          <code>std::define_static_array</code> 把编译期列表提升到静态存储，让展开语句可以使用。
+        </li>
+        <li><code>is_enumerable_type</code> 保护只前置声明的枚举。</li>
+        <li><code>define_aggregate</code> 生成简单聚合体，不是任意类。</li>
+        <li>一个遍历、一个定制点、多种格式。这是有回报的库设计。</li>
+        <li>反射删除样板，不删除策略。转义、可选字段、版本和错误仍然是你的设计。</li>
+      </ul>
+      <p>
+        最后一页讲编译器支持、特性测试宏、当前实现的限制，以及如何在不把构建押上去的情况下采用反射。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/24.reflection/02.model/" class="prev-button">&larr; 第24.2章：C++26 反射模型</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/24.reflection/04.support/" class="next-button">第24.4章：支持与采用 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
