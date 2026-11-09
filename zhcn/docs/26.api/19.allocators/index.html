@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.19章：分配器 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.19章：分配器</h1>
+    <p class="lang-switch"><a href="/docs/26.api/19.allocators/">English</a></p>
+
+    <section>
+      <h2>1. 分配器是类型的一部分</h2>
+      <p>
+        fast_io 容器把分配器作为模板参数。没有全局分配器开关，
+        也没有悄悄退回 <code>malloc</code>：
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::containers::vector&lt;int, ::fast_io::native_global_allocator&gt; v;
+</code></pre>
+      <p>
+        便利别名 <code>::fast_io::vector&lt;T&gt;</code> 就是填入
+        <code>native_global_allocator</code> 的同一个容器。
+        Freestanding 目标显式写分配器，并选择自己的策略。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 标准分配器</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>名字</th>
+            <th>角色</th>
+            <th>模块</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>native_global_allocator</code></td>
+            <td>平台默认：c_malloc、NT 堆、Win32 堆、mimalloc 或 freestanding 分配器，
+              取决于构建。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>native_typed_global_allocator&lt;T&gt;</code></td>
+            <td>全局分配器的类型化视图。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>native_thread_local_allocator</code></td>
+            <td>线程局部分配器；未覆盖时默认是全局分配器。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>native_typed_thread_local_allocator&lt;T&gt;</code></td>
+            <td>线程局部分配器的类型化视图。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>generic_allocator_adapter&lt;A&gt;</code></td>
+            <td>把原始分配器变成容器接口。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>typed_generic_allocator_adapter&lt;A, T&gt;</code></td>
+            <td>套在另一个适配器外面的类型化适配器。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>freestanding_global_allocator</code></td>
+            <td>fast_io 声明，目标定义。</td>
+            <td>头文件侧</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        平台特定分配器由构建选择：
+        <code>c_malloc_allocator</code>、<code>nt_rtlallocateheap_allocator</code>、
+        <code>win32_heapalloc_allocator</code>、<code>wincrt_malloc_dbg_allocator</code>、
+        <code>linux_kmalloc_allocator</code> 和 <code>mimalloc_allocator</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 适配器 Flags</h2>
+      <p>
+        <code>allocator_adapter_flags</code> 控制失败和安全策略：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>效果</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>none</code></td><td>默认：分配失败和越界快速失败。</td></tr>
+          <tr><td><code>secure_clear</code></td><td>释放前擦除内存。</td></tr>
+          <tr><td><code>throws_on_allocation_failure</code></td><td>分配失败通过 herbception
+            报告，而不是终止。</td></tr>
+          <tr><td><code>throws_on_violations</code></td><td>容器越界通过 herbception 报告。</td></tr>
+          <tr><td><code>throws_on_overflow</code></td><td>大小溢出通过 herbception 报告。</td></tr>
+          <tr><td><code>prefer_big_allocation_on_stack</code></td><td>大临时分配优先用栈空间。</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Flags 可以按位或。策略是分配器类型的一部分，
+        所以容器的失败行为是编译期属性，不是全局设置。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 分配结果</h2>
+      <p>
+        底层契约返回 <code>allocation_least_result</code>：指针加可用数量。
+        “least” 表示分配器可以返回多于请求的数量。自定义分配器实现它支持的操作；
+        适配器分派到 <code>_die</code> 或 <code>_try</code> 形式。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>操作形状</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>allocate_*</code></td><td>分配，不清零。</td></tr>
+          <tr><td><code>allocate_zero_*</code></td><td>分配并清零。</td></tr>
+          <tr><td><code>allocate_aligned_*</code></td><td>按请求对齐分配。</td></tr>
+          <tr><td><code>allocate_aligned_conditional_zero_at_least_*</code></td>
+            <td>通用形式：对齐、大小和清零标志。</td></tr>
+          <tr><td><code>reallocate_*</code></td><td>扩大/缩小已有块。</td></tr>
+          <tr><td><code>deallocate_*</code></td><td>释放块。</td></tr>
+        </tbody>
+      </table>
+      <p>
+        <code>_die</code> 变体失败时终止。<code>_try</code> 变体通过 herbception 通道报告
+        <code>std::errc::not_enough_memory</code>。适配器在两者之间转换：
+        die 模式下，只提供 try 的分配器错误会被捕获并终止程序；
+        try 模式下，只提供 die 的分配器是编译期错误。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 编写自定义分配器</h2>
+      <p>
+        实现目标需要的最小集合，然后包一层：
+      </p>
+      <pre><code class="language-cpp">
+class my_arena
+{
+public:
+    static ::fast_io::allocation_least_result
+    allocate_aligned_conditional_zero_at_least_die(
+        ::std::size_t alignment, ::std::size_t n, bool) noexcept;
+
+    static void deallocate_aligned_n(
+        void *p, ::std::size_t alignment, ::std::size_t n) noexcept;
+};
+
+using arena_alloc = ::fast_io::generic_allocator_adapter&lt;my_arena&gt;;
+::fast_io::containers::vector&lt;int, arena_alloc&gt; v;
+</code></pre>
+      <p>
+        适配器通过调用通用形式补齐缺失的便利操作。分配器有 handle 或状态时，
+        用 <code>typed_generic_allocator_adapter</code> 或状态适配器。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 选择分配器</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th>使用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>普通 hosted 代码</td><td><code>native_global_allocator</code></td></tr>
+          <tr><td>每线程 scratch</td><td><code>native_thread_local_allocator</code></td></tr>
+          <tr><td>内核或嵌入式 arena</td><td>自定义分配器 +
+            <code>generic_allocator_adapter</code></td></tr>
+          <tr><td>秘密和密钥材料</td><td>带 <code>secure_clear</code> 的分配器</td></tr>
+          <tr><td>可恢复的分配失败</td><td>带
+            <code>throws_on_allocation_failure</code> 的分配器</td></tr>
+          <tr><td>带边界检查的容器</td><td>带 <code>throws_on_violations</code> 的分配器</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>7. 模块与头文件边界</h2>
+      <p>
+        <code>fast_io</code> 模块导出 <code>generic_allocator_adapter</code>、
+        <code>typed_generic_allocator_adapter</code>、<code>native_global_allocator</code>、
+        <code>native_typed_global_allocator</code>、<code>native_thread_local_allocator</code>
+        和 <code>native_typed_thread_local_allocator</code>，以及构建选中的平台分配器。
+        <code>freestanding_global_allocator</code>、<code>allocation_least_result</code> 和
+        <code>allocator_adapter_flags</code> 目前在头文件侧。
+      </p>
+      <div class="note">
+        <strong>分配器不匹配是类型错误。</strong> 用一个分配器实例化的容器不能赋给另一个
+        分配器的容器。这是刻意的：失败策略和内存来源随类型走。
+      </div>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>分配器是容器模板参数，不是全局开关。</li>
+        <li><code>native_global_allocator</code> 选择平台默认来源。</li>
+        <li><code>generic_allocator_adapter</code> 和
+          <code>typed_generic_allocator_adapter</code> 适配原始分配器。</li>
+        <li><code>allocator_adapter_flags</code> 控制安全擦除、抛出和边界策略。</li>
+        <li><code>allocation_least_result</code> 返回指针加可用大小。</li>
+        <li><code>_die</code> 终止，<code>_try</code> 通过 herbception 报告。</li>
+        <li><code>freestanding_global_allocator</code> 由 fast_io 声明、目标定义。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/18.json/" class="prev-button">&larr; 第26.18章：JSON</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>

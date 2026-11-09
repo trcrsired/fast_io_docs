@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.19: Allocators - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.19: Allocators</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/19.allocators/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Allocator Is Part of the Type</h2>
+      <p>
+        fast_io containers take the allocator as a template parameter. There is no global
+        allocator switch and no hidden fallback to <code>malloc</code>:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::containers::vector&lt;int, ::fast_io::native_global_allocator&gt; v;
+</code></pre>
+      <p>
+        The convenient alias <code>::fast_io::vector&lt;T&gt;</code> is the same container with
+        <code>native_global_allocator</code> filled in. A freestanding target writes the allocator
+        explicitly and chooses its own policy.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. The Standard Allocators</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Module</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>native_global_allocator</code></td>
+            <td>The platform default: c_malloc, NT heap, Win32 heap, mimalloc or the freestanding
+              allocator depending on the build.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>native_typed_global_allocator&lt;T&gt;</code></td>
+            <td>Typed view of the global allocator.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>native_thread_local_allocator</code></td>
+            <td>Thread-local allocator; defaults to the global allocator unless overridden.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>native_typed_thread_local_allocator&lt;T&gt;</code></td>
+            <td>Typed view of the thread-local allocator.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>generic_allocator_adapter&lt;A&gt;</code></td>
+            <td>Turns a raw allocator into the container interface.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>typed_generic_allocator_adapter&lt;A, T&gt;</code></td>
+            <td>Typed adapter over another adapter.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>freestanding_global_allocator</code></td>
+            <td>Declared by fast_io, defined by the target.</td>
+            <td>header-side</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The platform-specific allocators are selected by the build:
+        <code>c_malloc_allocator</code>, <code>nt_rtlallocateheap_allocator</code>,
+        <code>win32_heapalloc_allocator</code>, <code>wincrt_malloc_dbg_allocator</code>,
+        <code>linux_kmalloc_allocator</code> and <code>mimalloc_allocator</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Adapter Flags</h2>
+      <p>
+        <code>allocator_adapter_flags</code> controls failure and security policy:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>Effect</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>none</code></td><td>Default: fail fast on allocation failure and bounds
+            violations.</td></tr>
+          <tr><td><code>secure_clear</code></td><td>Wipe memory before deallocation.</td></tr>
+          <tr><td><code>throws_on_allocation_failure</code></td><td>Report allocation failure as a
+            herbception instead of terminating.</td></tr>
+          <tr><td><code>throws_on_violations</code></td><td>Report container bounds violations as
+            herbceptions.</td></tr>
+          <tr><td><code>throws_on_overflow</code></td><td>Report size overflow as a herbception.</td></tr>
+          <tr><td><code>prefer_big_allocation_on_stack</code></td><td>Prefer stack scratch space for
+            large temporary allocations.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The flags are OR-ed. A policy is part of the allocator type, so a container's failure
+        behaviour is a compile-time property, not a global setting.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Allocation Result</h2>
+      <p>
+        The low-level contract returns <code>allocation_least_result</code>: a pointer and the
+        usable count. The “least” means the allocator may return more than requested. A custom
+        allocator implements the operations it supports; the adapter dispatches to its
+        <code>_die</code> or <code>_try</code> flavour.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation shape</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>allocate_*</code></td><td>Allocate without zeroing.</td></tr>
+          <tr><td><code>allocate_zero_*</code></td><td>Allocate and zero.</td></tr>
+          <tr><td><code>allocate_aligned_*</code></td><td>Allocate with a requested alignment.</td></tr>
+          <tr><td><code>allocate_aligned_conditional_zero_at_least_*</code></td>
+            <td>The general form: alignment, size and a zero flag.</td></tr>
+          <tr><td><code>reallocate_*</code></td><td>Grow/shrink an existing block.</td></tr>
+          <tr><td><code>deallocate_*</code></td><td>Release a block.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The <code>_die</code> variant terminates on failure. The <code>_try</code> variant reports
+        <code>std::errc::not_enough_memory</code> through the herbception channel. An adapter
+        converts between the two: in die mode a try-only allocator's error is caught and the
+        program terminates; in try mode a die-only allocator is a compile-time error.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Writing a Custom Allocator</h2>
+      <p>
+        Implement the smallest set your target needs and wrap it:
+      </p>
+      <pre><code class="language-cpp">
+class my_arena
+{
+public:
+    static ::fast_io::allocation_least_result
+    allocate_aligned_conditional_zero_at_least_die(
+        ::std::size_t alignment, ::std::size_t n, bool) noexcept;
+
+    static void deallocate_aligned_n(
+        void *p, ::std::size_t alignment, ::std::size_t n) noexcept;
+};
+
+using arena_alloc = ::fast_io::generic_allocator_adapter&lt;my_arena&gt;;
+::fast_io::containers::vector&lt;int, arena_alloc&gt; v;
+</code></pre>
+      <p>
+        The adapter fills in the missing convenience operations by calling the general form. If
+        the allocator has a handle or status, use <code>typed_generic_allocator_adapter</code> or
+        the status adapter.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Choosing an Allocator</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Situation</th>
+            <th>Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Normal hosted code</td><td><code>native_global_allocator</code></td></tr>
+          <tr><td>Per-thread scratch</td><td><code>native_thread_local_allocator</code></td></tr>
+          <tr><td>Kernel or embedded arena</td><td>A custom allocator +
+            <code>generic_allocator_adapter</code></td></tr>
+          <tr><td>Secrets and key material</td><td>An allocator with
+            <code>secure_clear</code></td></tr>
+          <tr><td>Recoverable allocation failure</td><td>An allocator with
+            <code>throws_on_allocation_failure</code></td></tr>
+          <tr><td>Bounds-checked containers</td><td>An allocator with
+            <code>throws_on_violations</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>7. Module and Header Boundary</h2>
+      <p>
+        The <code>fast_io</code> module exports <code>generic_allocator_adapter</code>,
+        <code>typed_generic_allocator_adapter</code>, <code>native_global_allocator</code>,
+        <code>native_typed_global_allocator</code>, <code>native_thread_local_allocator</code> and
+        <code>native_typed_thread_local_allocator</code>, plus the platform allocators where the
+        build selects them. <code>freestanding_global_allocator</code>,
+        <code>allocation_least_result</code> and <code>allocator_adapter_flags</code> are
+        header-side today.
+      </p>
+      <div class="note">
+        <strong>Allocator mismatch is a type error.</strong> A container instantiated with one
+        allocator cannot be assigned to a container with another. This is deliberate: the failure
+        policy and the memory source travel with the type.
+      </div>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>The allocator is a container template parameter, not a global switch.</li>
+        <li><code>native_global_allocator</code> selects the platform's default source.</li>
+        <li><code>generic_allocator_adapter</code> and
+          <code>typed_generic_allocator_adapter</code> adapt raw allocators.</li>
+        <li><code>allocator_adapter_flags</code> controls secure clear, throwing and bounds
+          policy.</li>
+        <li><code>allocation_least_result</code> returns a pointer plus usable size.</li>
+        <li><code>_die</code> terminates, <code>_try</code> reports through herbceptions.</li>
+        <li><code>freestanding_global_allocator</code> is declared by fast_io and defined by the
+          target.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/18.json/" class="prev-button">&larr; Ch26.18: JSON</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>
