@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.6: Locale - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.6: Locale</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/06.locale/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. What the Locale Layer Is</h2>
+      <p>
+        The locale layer answers questions that are not part of a value: which character is the
+        thousands separator, how digits are grouped, what a date format string expands to, what
+        the currency symbol is, and which weekday names the locale uses. fast_io keeps that data
+        in a separate module, <code>fast_io.i18n</code>, because most programs do not need it and
+        because locale data is large.
+      </p>
+      <p>
+        The layer is not a global stream state. A locale is a pointer to an immutable image; you
+        pass it explicitly to <code>imbue</code> or <code>lc_concat</code>. Two threads can print
+        through two different locales at the same time.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. The Locale Image</h2>
+      <p>
+        <code>l10n::lc_locale</code> is a flat, position-independent image. It contains offsets,
+        not absolute pointers:
+      </p>
+      <ul>
+        <li><code>lc_rva&lt;T&gt;</code> — a relative offset that resolves to a pointer when
+          combined with the image base.</li>
+        <li><code>lc_scatter&lt;T&gt;</code> — a relative offset plus a length, resolving to a
+          <code>basic_io_scatter_t</code>.</li>
+        <li><code>lc_get_rva</code>, <code>lc_get_scatter</code>, <code>lc_get_all</code> — the
+          accessors that resolve those offsets.</li>
+      </ul>
+      <p>
+        This is why the same bytes work from a file mapping, an embedded array, a WebAssembly
+        module or a resource. There is no relocation step and no pointer fixup. The image has a
+        magic value and a version; <code>lc_verify</code> checks the whole image once before it is
+        published.
+      </p>
+      <p>
+        <code>lc_locale</code> carries one section per character width:
+        <code>all</code> (the declared codeset, usually UTF-8 or GB18030), <code>u8all</code>,
+        <code>u16all</code> and <code>u32all</code>. <code>lc_get_all&lt;char_type&gt;</code>
+        selects the section that matches the output character type.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Loading a Locale</h2>
+      <p>
+        <code>l10n::load_l10n(name, flags)</code> maps a locale blob, verifies it and returns an
+        <code>lc_locale const *</code>. The name is a UTF-8 string. An empty name resolves the
+        operating system's current locale.
+      </p>
+      <pre><code class="language-cpp">
+auto const *loc{::fast_io::l10n::load_l10n(u8"de_DE.UTF-8")};
+</code></pre>
+      <p>
+        The loader keeps a process-wide cache: a thread-local map first, then a global map under
+        a mutex. Mappings live forever, so a reload is a pointer lookup rather than a remap. The
+        loader opens files relative to a single process-lifetime directory handle and does not
+        concatenate paths by hand.
+      </p>
+      <p>
+        <code>l10n_load_flags::ignore_system_settings</code> tells the loader not to consult the
+        OS user-locale data when resolving an empty name. On Windows this avoids reading the
+        <code>HKCU\Control Panel\International</code> registry value; the normal OS lookup still
+        resolves the empty name. On POSIX, <code>FAST_IO_L10N_LANG</code>, <code>LC_ALL</code>,
+        <code>LANG</code> and <code>FAST_IO_L10N_PATH</code> remain the normal mechanism.
+      </p>
+      <p>
+        Sandboxed callers do not have to use the loader. They can pass a pointer to an
+        <code>lc_locale</code> image they already mapped or embedded. That is the freestanding
+        path, and it is why the locale pointer type — not a loader object — is the API.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. <code>lc_ctx</code> and <code>imbue</code></h2>
+      <p>
+        <code>lc_ctx&lt;char_type&gt;</code> is the runtime view used by the formatting hooks. It
+        holds the locale pointer, the selected section, and the decoded numeric hot fields
+        (separator and grouping). <code>lc_load_ctx&lt;char_type&gt;(loc)</code> builds it.
+      </p>
+      <p>
+        <code>imbue(loc, out)</code> wraps an output stream. The context is built lazily, only
+        when an argument actually needs locale formatting:
+      </p>
+      <pre><code class="language-cpp">
+import fast_io.i18n;
+
+int main()
+{
+    using namespace ::fast_io::io;
+
+    auto const *loc{::fast_io::l10n::load_l10n(u8"de_DE.UTF-8")};
+
+    println(::fast_io::imbue(loc, ::fast_io::out()), 1234567);
+}
+</code></pre>
+      <p>
+        This prints the number with the locale's grouping and separator. An argument that has no
+        locale-sensitive representation takes the ordinary print path; the wrapper adds no
+        formatting cost to it. A locale with no grouping never builds the context at all.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Locale Categories</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Section</th>
+            <th>What it carries</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>identification</td>
+            <td>Locale name, encoding, title and related metadata.</td>
+          </tr>
+          <tr>
+            <td>numeric</td>
+            <td>Decimal point, thousands separator, grouping, positive/negative signs.</td>
+          </tr>
+          <tr>
+            <td>monetary</td>
+            <td>Currency symbol, international symbol, decimal and grouping rules.</td>
+          </tr>
+          <tr>
+            <td>time</td>
+            <td><code>d_t_fmt</code>, <code>d_fmt</code>, <code>t_fmt</code>,
+              <code>t_fmt_ampm</code>, <code>date_fmt</code>, era formats, weekday and month
+              names.</td>
+          </tr>
+          <tr>
+            <td>messages</td>
+            <td>Yes/no expressions and message catalogs.</td>
+          </tr>
+          <tr>
+            <td>paper, telephone, name, address, measurement, keyboard</td>
+            <td>The remaining POSIX locale sections, carried in the same image.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>lc_time_flag</code> selects a time format inside the time section:
+        <code>d_t_fmt</code>, <code>d_fmt</code>, <code>t_fmt</code>,
+        <code>t_fmt_ampm</code>, <code>date_fmt</code>, <code>era_d_t_fmt</code>,
+        <code>era_d_fmt</code> and <code>era_t_fmt</code>. The
+        <code>mnp::d_t_fmt</code>, <code>mnp::d_fmt</code>, <code>mnp::t_fmt</code> and related
+        time manipulators are header-side helpers today; the module exports
+        <code>lc_dump</code> but not the time manipulators yet.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Locale-Aware Concatenation</h2>
+      <p>
+        <code>lc_concat</code> formats arguments into a new string using the locale, without
+        wrapping a stream:
+      </p>
+      <pre><code class="language-cpp">
+auto s{::fast_io::lc_concat(loc, "total: ", 1234567, " items")};
+</code></pre>
+      <p>
+        <code>lc_concatln</code> appends a newline. <code>basic_lc_concat</code> lets you choose
+        the destination string type; <code>basic_lc_general_concat</code> is the general form.
+        Arguments with no locale-sensitive representation go through the plain print path, so the
+        function does not impose locale formatting on strings or characters.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Dumping a Locale</h2>
+      <p>
+        <code>mnp::lc_dump(loc)</code> prints the whole locale in a textual, sectioned form. It
+        is a debugging and inspection tool, not a serialization format for reloading:
+      </p>
+      <pre><code class="language-cpp">
+println(::fast_io::imbue(loc, ::fast_io::out()), ::fast_io::mnp::lc_dump(loc));
+</code></pre>
+      <p>
+        The dump is produced from the wrapped locale's own image, so the locale being dumped does
+        not have to be the locale currently imbued on the stream. The raw
+        <code>lc_locale const *</code> is deliberately not printable; wrapping it in
+        <code>lc_dump</code> is the explicit request.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Module and Header Boundary</h2>
+      <p>
+        <code>fast_io.i18n</code> exports <code>fast_io</code> and the locale core:
+        <code>l10n::lc_locale</code>, the wire types, <code>load_l10n</code>,
+        <code>lc_ctx</code>, <code>lc_load_ctx</code>, <code>lc_imbuer</code>,
+        <code>imbue</code>, <code>lc_concat</code>, <code>lc_concatln</code> and
+        <code>mnp::lc_dump</code>. The loader is compiled into the module, so importing it does
+        not require a separate <code>fast_io_i18n</code> library.
+      </p>
+      <p>
+        The header interface is <code>#include &lt;fast_io_i18n.h&gt;</code>. It exposes the same
+        core plus the header-side time manipulators and any helpers not yet in
+        <code>i18n.inc</code>. If a locale helper is missing from the module, use the header until
+        the export list grows.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>A locale is an immutable, position-independent image, addressed by
+          <code>lc_locale const *</code>.</li>
+        <li><code>load_l10n</code> maps and verifies a blob, then caches the pointer; sandboxes can
+          pass an image directly.</li>
+        <li><code>imbue(loc, out)</code> is the explicit, per-stream binding; there is no global
+          locale state.</li>
+        <li><code>lc_ctx</code> is built lazily and carries the decoded numeric hot fields.</li>
+        <li><code>lc_concat</code> produces locale-formatted strings;
+          <code>mnp::lc_dump</code> inspects a locale.</li>
+        <li>The module exports the locale core and <code>lc_dump</code>; time manipulators and
+          some helpers remain header-side.</li>
+        <li>An empty locale name means the OS locale; <code>ignore_system_settings</code> suppresses
+          user-locale lookup on Windows.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/05.devices/" class="prev-button">&larr; Ch26.5: Devices</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

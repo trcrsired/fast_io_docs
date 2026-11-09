@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.6章：locale - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.6章：locale</h1>
+    <p class="lang-switch"><a href="/docs/26.api/06.locale/">English</a></p>
+
+    <section>
+      <h2>1. locale 层是什么</h2>
+      <p>
+        locale 层回答那些不属于值本身的问题：哪个字符是千位分隔符、数字怎么分组、
+        日期格式串展开成什么、货币符号是什么、locale 使用哪些星期名。
+        fast_io 把这些数据放在单独的 <code>fast_io.i18n</code> 模块里，
+        因为大多数程序不需要它，而且 locale 数据很大。
+      </p>
+      <p>
+        这一层不是全局流状态。locale 是一个指向不可变镜像的指针；
+        你把它显式传给 <code>imbue</code> 或 <code>lc_concat</code>。
+        两个线程可以同时通过两个不同的 locale 打印。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. locale 镜像</h2>
+      <p>
+        <code>l10n::lc_locale</code> 是一张扁平的、位置无关的镜像。它存的是偏移，不是绝对指针：
+      </p>
+      <ul>
+        <li><code>lc_rva&lt;T&gt;</code> —— 相对偏移，和镜像基址相加后解析为指针。</li>
+        <li><code>lc_scatter&lt;T&gt;</code> —— 相对偏移加长度，解析为
+          <code>basic_io_scatter_t</code>。</li>
+        <li><code>lc_get_rva</code>、<code>lc_get_scatter</code>、<code>lc_get_all</code>
+          —— 解析这些偏移的访问器。</li>
+      </ul>
+      <p>
+        这就是为什么同一份字节可以从文件映射、嵌入数组、WebAssembly 模块或资源里使用。
+        没有重定位步骤，也没有指针修复。镜像带 magic 和版本；
+        <code>lc_verify</code> 在发布之前把整张镜像检查一次。
+      </p>
+      <p>
+        <code>lc_locale</code> 为每种字符宽度携带一个 section：
+        <code>all</code>（声明的 codeset，通常是 UTF-8 或 GB18030）、<code>u8all</code>、
+        <code>u16all</code> 和 <code>u32all</code>。<code>lc_get_all&lt;char_type&gt;</code>
+        选择与输出字符类型匹配的 section。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 加载 locale</h2>
+      <p>
+        <code>l10n::load_l10n(name, flags)</code> 映射 locale blob，验证它，
+        返回 <code>lc_locale const *</code>。名字是 UTF-8 字符串。
+        空名字解析操作系统当前的 locale。
+      </p>
+      <pre><code class="language-cpp">
+auto const *loc{::fast_io::l10n::load_l10n(u8"de_DE.UTF-8")};
+</code></pre>
+      <p>
+        loader 维护进程级缓存：先是线程局部映射，然后是互斥量保护下的全局映射。
+        映射永远存活，所以重新加载只是指针查找，不是重新映射。
+        loader 相对一个进程生命周期的目录句柄打开文件，不手工拼接路径。
+      </p>
+      <p>
+        <code>l10n_load_flags::ignore_system_settings</code> 告诉 loader 在解析空名字时
+        不要查询 OS 用户 locale 数据。在 Windows 上，这避免读取
+        <code>HKCU\Control Panel\International</code> 注册表值；
+        正常的 OS 查找仍然会解析空名字。在 POSIX 上，
+        <code>FAST_IO_L10N_LANG</code>、<code>LC_ALL</code>、<code>LANG</code> 和
+        <code>FAST_IO_L10N_PATH</code> 仍然是正常机制。
+      </p>
+      <p>
+        沙箱调用者不必使用 loader。它们可以传入一个已经映射或嵌入的
+        <code>lc_locale</code> 镜像指针。这就是 freestanding 路径，
+        也是为什么 API 是 locale 指针类型，而不是 loader 对象。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. <code>lc_ctx</code> 与 <code>imbue</code></h2>
+      <p>
+        <code>lc_ctx&lt;char_type&gt;</code> 是格式化钩子使用的运行时视图。
+        它持有 locale 指针、选中的 section，以及解码后的数字热字段（分隔符和分组）。
+        <code>lc_load_ctx&lt;char_type&gt;(loc)</code> 构建它。
+      </p>
+      <p>
+        <code>imbue(loc, out)</code> 包装一个输出流。上下文延迟构建，
+        只有参数真的需要 locale 格式化时才建立：
+      </p>
+      <pre><code class="language-cpp">
+import fast_io.i18n;
+
+int main()
+{
+    using namespace ::fast_io::io;
+
+    auto const *loc{::fast_io::l10n::load_l10n(u8"de_DE.UTF-8")};
+
+    println(::fast_io::imbue(loc, ::fast_io::out()), 1234567);
+}
+</code></pre>
+      <p>
+        这会按 locale 的分组和分隔符打印数字。没有 locale 敏感表示形式的参数走普通打印路径；
+        包装不会给它们增加格式化成本。没有分组的 locale 根本不会构建上下文。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. locale 类别</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Section</th>
+            <th>携带什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>identification</td>
+            <td>locale 名称、编码、标题和相关元数据。</td>
+          </tr>
+          <tr>
+            <td>numeric</td>
+            <td>小数点、千位分隔符、分组、正负号。</td>
+          </tr>
+          <tr>
+            <td>monetary</td>
+            <td>货币符号、国际符号、小数和分组规则。</td>
+          </tr>
+          <tr>
+            <td>time</td>
+            <td><code>d_t_fmt</code>、<code>d_fmt</code>、<code>t_fmt</code>、
+              <code>t_fmt_ampm</code>、<code>date_fmt</code>、纪元格式、星期名和月份名。</td>
+          </tr>
+          <tr>
+            <td>messages</td>
+            <td>是/否表达式和消息目录。</td>
+          </tr>
+          <tr>
+            <td>paper、telephone、name、address、measurement、keyboard</td>
+            <td>其余 POSIX locale section，装在同一张镜像里。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>lc_time_flag</code> 在 time section 里选择时间格式：
+        <code>d_t_fmt</code>、<code>d_fmt</code>、<code>t_fmt</code>、
+        <code>t_fmt_ampm</code>、<code>date_fmt</code>、<code>era_d_t_fmt</code>、
+        <code>era_d_fmt</code> 和 <code>era_t_fmt</code>。
+        <code>mnp::d_t_fmt</code>、<code>mnp::d_fmt</code>、<code>mnp::t_fmt</code>
+        等时间操纵器目前是头文件侧辅助；模块导出 <code>lc_dump</code>，但还没有导出时间操纵器。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. locale 感知的拼接</h2>
+      <p>
+        <code>lc_concat</code> 使用 locale 把参数格式化进一个新字符串，不需要包装流：
+      </p>
+      <pre><code class="language-cpp">
+auto s{::fast_io::lc_concat(loc, "total: ", 1234567, " items")};
+</code></pre>
+      <p>
+        <code>lc_concatln</code> 追加换行。<code>basic_lc_concat</code> 让你选择目标字符串类型；
+        <code>basic_lc_general_concat</code> 是通用形式。
+        没有 locale 敏感表示形式的参数走普通打印路径，所以这个函数不会把 locale 格式化
+        强加给字符串或字符。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 转储 locale</h2>
+      <p>
+        <code>mnp::lc_dump(loc)</code> 按文本、分 section 的形式打印整个 locale。
+        它是调试和检查工具，不是可重新加载的序列化格式：
+      </p>
+      <pre><code class="language-cpp">
+println(::fast_io::imbue(loc, ::fast_io::out()), ::fast_io::mnp::lc_dump(loc));
+</code></pre>
+      <p>
+        转储由被包装 locale 自己的镜像产生，所以被转储的 locale 不必是当前流上 imbue 的 locale。
+        原始 <code>lc_locale const *</code> 刻意不可打印；把它包进
+        <code>lc_dump</code> 才是显式请求。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 模块与头文件边界</h2>
+      <p>
+        <code>fast_io.i18n</code> 导出 <code>fast_io</code> 和 locale 核心：
+        <code>l10n::lc_locale</code>、线格式类型、<code>load_l10n</code>、
+        <code>lc_ctx</code>、<code>lc_load_ctx</code>、<code>lc_imbuer</code>、
+        <code>imbue</code>、<code>lc_concat</code>、<code>lc_concatln</code> 和
+        <code>mnp::lc_dump</code>。loader 编译进模块，所以导入它不需要额外链接
+        <code>fast_io_i18n</code> 库。
+      </p>
+      <p>
+        头文件接口是 <code>#include &lt;fast_io_i18n.h&gt;</code>。它暴露同样的核心，
+        外加头文件侧时间操纵器和 <code>i18n.inc</code> 还没有的辅助。
+        如果模块缺少某个 locale 辅助，在导出列表增长之前用头文件。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>locale 是一张不可变、位置无关的镜像，用 <code>lc_locale const *</code> 寻址。</li>
+        <li><code>load_l10n</code> 映射并验证 blob，然后缓存指针；沙箱可以直接传镜像。</li>
+        <li><code>imbue(loc, out)</code> 是显式的、按流的绑定；没有全局 locale 状态。</li>
+        <li><code>lc_ctx</code> 延迟构建，携带解码后的数字热字段。</li>
+        <li><code>lc_concat</code> 生成 locale 格式的字符串；
+          <code>mnp::lc_dump</code> 检查 locale。</li>
+        <li>模块导出 locale 核心和 <code>lc_dump</code>；时间操纵器和部分辅助仍在头文件侧。</li>
+        <li>空 locale 名表示 OS locale；<code>ignore_system_settings</code> 在 Windows 上
+          抑制用户 locale 查询。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/05.devices/" class="prev-button">&larr; 第26.5章：设备</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>
