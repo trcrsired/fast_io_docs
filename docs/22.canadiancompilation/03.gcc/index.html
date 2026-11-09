@@ -94,12 +94,14 @@
         In a Canadian <em>native</em> build, host equals target, so this one cross compiler does both
         jobs. In a Canadian <em>cross</em> build, host and target differ, and you need two:
         <code>build&rarr;host</code> for the compiler binary and <code>build&rarr;target</code> for the
-        target libraries. The reason is not only the target runtime: GCC is itself a C++ program, so
-        the host it will run on needs a complete C++ sysroot. The build&rarr;host compiler is what
-        produces a compiler binary linked against that host C++ runtime. The build order is therefore:
+        target libraries. For a crossback (<code>build = target</code>), the second is the native
+        compiler; for an ordinary Canadian cross it is a second cross compiler. The reason is not
+        only the target runtime: GCC is itself a C++ program, so the host it will run on needs a
+        complete C++ sysroot. The build&rarr;host compiler is what produces a compiler binary linked
+        against that host C++ runtime. The build order is therefore:
       </p>
       <pre><code class="language-text">1. build -> host cross toolchain     (the compiler that builds the host compiler)
-2. build -> target cross toolchain   (only if host != target; builds target libs)
+2. build -> target compiler          (only if host != target; builds target libs)
 3. host -> target toolchain          (the product; configure --host=HOST --target=TARGET)</code></pre>
       <p>
         This is exactly the order used by the reference scripts in
@@ -316,8 +318,9 @@ rm -f $FINAL/$TARGET/sys-include</code></pre>
     <section>
       <h2>5. Canadian Cross, and the Crossback Quirk</h2>
       <p>
-        If host and target differ, add the second cross toolchain and set
-        <code>CC_FOR_TARGET</code> explicitly:
+        If host and target differ, add the build&rarr;target compiler and set
+        <code>CC_FOR_TARGET</code> explicitly. In an ordinary Canadian cross this is a second cross
+        toolchain; in a crossback it is the native compiler, because build equals target.
       </p>
       <pre><code class="language-sh"># build -> target cross toolchain, installed at $ROOT/$BUILD/$TARGET
 build_toolchain $BUILD $TARGET
@@ -337,7 +340,8 @@ configure --build=$BUILD --host=$HOST --target=$TARGET ...</code></pre>
         on the host or emits code for the wrong machine.
       </p>
       <p>
-        <strong>Crossback</strong> is the special case <code>build = target &ne; host</code>. GCC's
+        <strong>Crossback</strong> is the special case of Canadian cross where
+        <code>build = target &ne; host</code>. GCC's
         build system has a known quirk here: it may try to use <code>cc</code> instead of
         <code>gcc</code> for <code>CC_FOR_TARGET</code>, and <code>cc</code> may not exist or may be
         the wrong compiler. The reference scripts patch it explicitly:

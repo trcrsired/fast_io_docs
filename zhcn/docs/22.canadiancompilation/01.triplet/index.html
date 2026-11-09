@@ -164,16 +164,47 @@ Target: x86_64-linux-gnu
     </section>
 
     <section>
-      <h2>3. 五种构建形态</h2>
+      <h2>3. 构建形态及其层级</h2>
       <p>
-        GCC 手册把两个经常被塞进同一个词里的问题分开。第一个是构建与宿主的关系：编译器是由同一平台
-        上的编译器产生的，还是由另一个平台上的编译器产生的？第二个是宿主与目标的关系：编译器是否
-        运行在它所面向的平台上？组合起来得到五个名字：
+        GCC 手册把两个经常被塞进同一个词里的问题分开。第一个是 <strong>build</strong> 与
+        <strong>host</strong> 的关系；第二个是 <strong>host</strong> 与 <strong>target</strong> 的关系。
+        第一个问题定义加拿大类别。第二个问题定义产物是本地还是交叉。两个问题互相独立。
       </p>
+      <blockquote>
+        <p>
+          <strong>加拿大编译就是 <code>build &ne; host</code>。</strong>定义只有这一句。加拿大构建，
+          就是生产编译器的机器不是运行编译器的机器。
+        </p>
+      </blockquote>
+      <p>
+        加拿大编译是父类别，不是"加拿大本地编译"的同义词。它有两个子类，其中一个还有命名的特例：
+      </p>
+      <ul>
+        <li>
+          <strong>加拿大本地编译（Canadian native）</strong>：<code>build &ne; host = target</code>。
+          另一台机器为这台机器产生了本地编译器。例子：在 x86_64 Linux 上构建 AArch64 Linux GCC。
+        </li>
+        <li>
+          <strong>加拿大交叉编译（Canadian cross）</strong>：<code>build &ne; host</code> 且
+          <code>host &ne; target</code>。另一台机器为这台机器产生了交叉编译器。
+          例子：x86_64 Linux 构建运行在 AArch64 上、目标为 RISC-V 的编译器。
+        </li>
+        <li>
+          <strong>反向编译（Crossback）</strong>：<code>build = target &ne; host</code>。它是
+          <em>加拿大交叉编译的特例</em>，不是与它并列的类别。构建机同时也是目标机，所以编译器运行在
+          宿主上、为构建它的那台机器生成代码。例子：在 Linux 上构建运行在 Windows 上、目标为 Linux
+          的编译器。
+        </li>
+      </ul>
+      <p>加拿大类别之外只有两种形态：</p>
+      <ul>
+        <li><strong>本地编译（Native）</strong>：<code>build = host = target</code>。</li>
+        <li><strong>交叉编译（Cross）</strong>：<code>build = host &ne; target</code>。</li>
+      </ul>
       <table>
         <thead>
           <tr>
-            <th>名称</th>
+            <th>类别</th>
             <th>关系</th>
             <th>含义</th>
             <th>典型场景</th>
@@ -193,35 +224,46 @@ Target: x86_64-linux-gnu
             <td><code>x86_64-linux-gnu</code> &rarr; <code>aarch64-linux-gnu</code></td>
           </tr>
           <tr>
-            <td>加拿大编译（Canadian native）</td>
+            <td><strong>加拿大编译（Canadian）</strong></td>
+            <td>build &ne; host</td>
+            <td>父类别；构建机不是宿主机器</td>
+            <td>任何在另一台机器上生产的编译器</td>
+          </tr>
+          <tr>
+            <td>&nbsp;&nbsp;加拿大本地编译</td>
             <td>build &ne; host = target</td>
             <td>另一台机器为这台机器产生本地编译器</td>
             <td>在 x86_64 Linux 上构建 AArch64 Linux GCC</td>
           </tr>
           <tr>
-            <td>加拿大交叉编译（Canadian cross）</td>
-            <td>build &ne; host &ne; target</td>
+            <td>&nbsp;&nbsp;加拿大交叉编译</td>
+            <td>build &ne; host，host &ne; target</td>
             <td>另一台机器为这台机器产生交叉编译器</td>
             <td>x86_64 Linux 构建运行在 AArch64 上、目标为 RISC-V 的编译器</td>
           </tr>
           <tr>
-            <td>反向编译（Crossback）</td>
+            <td>&nbsp;&nbsp;&nbsp;&nbsp;反向编译</td>
             <td>build = target &ne; host</td>
-            <td>特殊的加拿大交叉编译：构建机同时也是目标机</td>
+            <td>加拿大交叉编译的特例：构建机同时也是目标机</td>
             <td>在 Linux 上构建运行在 Windows 上、目标为 Linux 的编译器</td>
           </tr>
         </tbody>
       </table>
       <p>
-        <strong>加拿大编译</strong>是"加拿大本地编译"的简称。这个名字是一个历史笑话：一串跨越国界
-        的机器，第一台机器构建的编译器运行在第二台机器上，第二台机器再为第三台机器生成代码。
-        本质属性是构建机不是宿主机器。如果宿主和目标也不同，那就是加拿大<em>交叉</em>编译。
+        表格里的缩进就是层级。反向编译在加拿大交叉编译下面，加拿大交叉编译在加拿大编译下面。
+        反向编译是加拿大编译，因为 <code>build &ne; host</code>；它是加拿大交叉编译，因为
+        <code>host &ne; target</code>。它不是第三个并列类别。
+      </p>
+      <p>
+        <strong>加拿大编译</strong>这个名字是一个历史笑话：一串跨越国界的机器，第一台机器构建的
+        编译器运行在第二台机器上，第二台机器再为第三台机器生成代码。本质属性只有一条：构建机不是
+        宿主机器。产物是本地还是交叉，是第二个独立的问题。
       </p>
       <p>
         <strong>反向编译</strong>是那种因为太常见而让人吃惊的情况。构建等于目标，宿主不同：
         你在 Linux 上构建一个运行在 Windows 上的编译器，而这个编译器生成 Linux 二进制。
         当你想在 Windows 上测试 Linux 目标时，做的正是这件事。GCC 手册把它叫 "crossback" 或
-        "crossed native backwards"。它是把构建和目标对调的加拿大交叉编译，在实际使用中是仅次于
+        "crossed native backwards"。它是构建和目标重合的那种加拿大交叉编译，在实际使用中是仅次于
         本地编译的第二常见配置。
       </p>
       <p>
@@ -252,8 +294,9 @@ Target: x86_64-linux-gnu
       </ul>
       <p>
         在加拿大<em>本地</em>构建里，宿主和目标平台相同，所以一个交叉编译器同时扮演两个角色。
-        在加拿大<em>交叉</em>构建里，两者不同，你需要两个交叉编译器：build&rarr;host 用于编译器
-        二进制本身，build&rarr;target 用于目标运行时。GCC 的构建系统把它们叫
+        在加拿大<em>交叉</em>构建里，两者不同，你需要两个编译器：build&rarr;host 用于编译器
+        二进制本身，build&rarr;target 用于目标运行时。普通加拿大交叉编译里两个都是交叉编译器；
+        反向编译里构建等于目标，所以第二个是本地编译器。GCC 的构建系统把它们叫
         <code>CC_FOR_BUILD</code>、<code>CC</code> 和 <code>CC_FOR_TARGET</code>，把它们弄混，
         通常就是加拿大构建产出一个在哪台机器上都不能执行的二进制的原因。
       </p>

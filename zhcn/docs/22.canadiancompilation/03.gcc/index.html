@@ -87,12 +87,13 @@
       <p>
         在加拿大<em>本地</em>构建里，宿主等于目标，所以这一个交叉编译器同时干两件事。在加拿大<em>交叉</em>
         构建里，宿主和目标不同，你需要两个：<code>build&rarr;host</code> 用于编译器二进制，
-        <code>build&rarr;target</code> 用于目标库。原因不只是目标运行时：GCC 本身就是 C++ 程序，
-        它将要运行的宿主需要完整的 C++ sysroot。build&rarr;host 交叉编译器负责产出链接到该宿主
+        <code>build&rarr;target</code> 用于目标库。对反向编译（<code>build = target</code>），第二个是
+        本地编译器；对普通加拿大交叉编译，它是另一个交叉编译器。原因不只是目标运行时：GCC 本身就是
+        C++ 程序，它将要运行的宿主需要完整的 C++ sysroot。build&rarr;host 交叉编译器负责产出链接到该宿主
         C++ 运行时的编译器二进制。因此构建顺序是：
       </p>
       <pre><code class="language-text">1. build -> host 交叉工具链     （构建宿主编译器的编译器）
-2. build -> target 交叉工具链   （只在 host != target 时需要；构建目标库）
+2. build -> target 编译器       （只在 host != target 时需要；构建目标库）
 3. host -> target 工具链        （最终产物；configure --host=HOST --target=TARGET）</code></pre>
       <p>
         <a href="https://github.com/trcrsired/toolchainbuildscripts">toolchainbuildscripts</a>
@@ -297,7 +298,10 @@ rm -f $FINAL/$TARGET/sys-include</code></pre>
 
     <section>
       <h2>5. 加拿大交叉编译与反向编译的怪癖</h2>
-      <p>如果宿主和目标不同，就加上第二个交叉工具链，并显式设置 <code>CC_FOR_TARGET</code>：</p>
+      <p>
+        如果宿主和目标不同，加上 build&rarr;target 编译器，并显式设置 <code>CC_FOR_TARGET</code>。
+        普通加拿大交叉编译里这是第二个交叉工具链；反向编译里它是本地编译器，因为构建等于目标。
+      </p>
       <pre><code class="language-sh"># build -> target 交叉工具链，安装到 $ROOT/$BUILD/$TARGET
 build_toolchain $BUILD $TARGET
 
@@ -314,7 +318,8 @@ configure --build=$BUILD --host=$HOST --target=$TARGET ...</code></pre>
         弄混是经典失败：构建成功，安装出来的编译器要么在宿主上不能执行，要么为错误的机器生成代码。
       </p>
       <p>
-        <strong>反向编译</strong>是 <code>build = target &ne; host</code> 的特殊情况。GCC 的构建系统在这里
+        <strong>反向编译</strong>是加拿大交叉编译中 <code>build = target &ne; host</code> 的特例。
+        GCC 的构建系统在这里
         有一个已知怪癖：它可能尝试用 <code>cc</code> 而不是 <code>gcc</code> 作为
         <code>CC_FOR_TARGET</code>，而 <code>cc</code> 可能不存在，或者根本是另一个编译器。
         参考脚本显式修补了它：

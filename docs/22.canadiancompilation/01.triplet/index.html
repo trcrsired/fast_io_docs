@@ -172,18 +172,52 @@ Target: x86_64-linux-gnu
     </section>
 
     <section>
-      <h2>3. The Five Build Shapes</h2>
+      <h2>3. The Build Shapes and Their Hierarchy</h2>
       <p>
         The GCC manual separates two questions that are often collapsed into one word. The first is
-        the relationship between build and host: was the compiler produced by a compiler on the same
-        platform, or by a compiler on another platform? The second is the relationship between host
-        and target: does the compiler run on the platform it targets, or not? The combinations give
-        five names:
+        the relationship between <strong>build</strong> and <strong>host</strong>; the second is the
+        relationship between <strong>host</strong> and <strong>target</strong>. The first question
+        defines the Canadian category. The second question defines whether the result is native or
+        cross. The two questions are independent.
       </p>
+      <blockquote>
+        <p>
+          <strong>Canadian means <code>build &ne; host</code>.</strong> That is the whole definition.
+          A Canadian build is one where the machine that produces the compiler is not the machine
+          that will run it.
+        </p>
+      </blockquote>
+      <p>
+        Canadian is a parent category, not a synonym for Canadian native. It has two children, and
+        one of those has a named special case:
+      </p>
+      <ul>
+        <li>
+          <strong>Canadian native</strong>: <code>build &ne; host = target</code>. Another machine
+          produced a native compiler for this machine. Example: building an AArch64 Linux GCC on
+          x86_64 Linux.
+        </li>
+        <li>
+          <strong>Canadian cross</strong>: <code>build &ne; host</code> and
+          <code>host &ne; target</code>. Another machine produced a cross compiler for this machine.
+          Example: x86_64 Linux builds an AArch64-hosted compiler targeting RISC-V.
+        </li>
+        <li>
+          <strong>Crossback</strong>: <code>build = target &ne; host</code>. This is a
+          <em>special case of Canadian cross</em>, not a sibling of it. The build machine is also the
+          target, so the compiler runs on the host and emits for the machine that built it. Example:
+          on Linux, build a Windows-hosted compiler that targets Linux.
+        </li>
+      </ul>
+      <p>Outside the Canadian category there are only two shapes:</p>
+      <ul>
+        <li><strong>Native</strong>: <code>build = host = target</code>.</li>
+        <li><strong>Cross</strong>: <code>build = host &ne; target</code>.</li>
+      </ul>
       <table>
         <thead>
           <tr>
-            <th>Name</th>
+            <th>Category</th>
             <th>Relationship</th>
             <th>What it means</th>
             <th>Typical case</th>
@@ -203,39 +237,50 @@ Target: x86_64-linux-gnu
             <td><code>x86_64-linux-gnu</code> &rarr; <code>aarch64-linux-gnu</code></td>
           </tr>
           <tr>
-            <td>Canadian (Canadian native)</td>
+            <td><strong>Canadian</strong></td>
+            <td>build &ne; host</td>
+            <td>Parent category; the build machine is not the host machine</td>
+            <td>Any compiler produced on another machine</td>
+          </tr>
+          <tr>
+            <td>&nbsp;&nbsp;Canadian native</td>
             <td>build &ne; host = target</td>
             <td>Another machine produces a native compiler for this machine</td>
             <td>Building an AArch64 Linux GCC on x86_64 Linux</td>
           </tr>
           <tr>
-            <td>Canadian cross</td>
-            <td>build &ne; host &ne; target</td>
+            <td>&nbsp;&nbsp;Canadian cross</td>
+            <td>build &ne; host, host &ne; target</td>
             <td>Another machine produces a cross compiler for this machine</td>
             <td>x86_64 Linux builds an AArch64-hosted compiler targeting RISC-V</td>
           </tr>
           <tr>
-            <td>Crossback</td>
+            <td>&nbsp;&nbsp;&nbsp;&nbsp;Crossback</td>
             <td>build = target &ne; host</td>
-            <td>A special Canadian cross: the build machine is also the target</td>
+            <td>Special case of Canadian cross: the build machine is also the target</td>
             <td>Building a Windows-hosted compiler on Linux, targeting Linux</td>
           </tr>
         </tbody>
       </table>
       <p>
-        <strong>Canadian</strong> is short for "Canadian native". The name is a historical joke about
-        a chain of machines that crosses a border: one machine builds a compiler that runs on a second
-        machine, which then produces code for a third. The essential property is that the build
-        machine is not the host machine. If host and target also differ, it is a Canadian
-        <em>cross</em>.
+        The indentation in the table is the hierarchy. Crossback is under Canadian cross, and
+        Canadian cross is under Canadian. A crossback is Canadian because
+        <code>build &ne; host</code>, and it is a Canadian cross because
+        <code>host &ne; target</code>. It is not a third sibling category.
+      </p>
+      <p>
+        <strong>Canadian</strong> itself is a historical joke about a chain of machines that crosses
+        a border: one machine builds a compiler that runs on a second machine, which then produces
+        code for a third. The essential property is only that the build machine is not the host
+        machine. Whether the product is native or cross is a second, independent question.
       </p>
       <p>
         <strong>Crossback</strong> is the case that surprises people by being common. Build equals
         target, host differs: you are on Linux, you build a compiler that runs on Windows, and that
         compiler produces Linux binaries. This is exactly what you do when you want a Windows-hosted
         compiler for testing a Linux target. GCC's manual calls it "crossback" or "crossed native
-        backwards". It is a Canadian cross with build and target swapped, and it is the second most
-        common configuration in practice, after native.
+        backwards". It is the Canadian cross in which build and target coincide, and it is the second
+        most common configuration in practice, after native.
       </p>
       <p>
         A compiler distribution can be any of these. The important question for a user is only one:
@@ -271,10 +316,12 @@ Target: x86_64-linux-gnu
       <p>
         In a Canadian <em>native</em> build, host and target are the same platform, so one cross
         compiler plays both roles. In a Canadian <em>cross</em> build, they differ, and you need two
-        cross compilers: build&rarr;host for the compiler binary, build&rarr;target for the target
-        runtime. The GCC build system names these <code>CC_FOR_BUILD</code>, <code>CC</code> and
-        <code>CC_FOR_TARGET</code>, and getting them mixed up is the usual reason a Canadian build
-        produces a binary that cannot execute on either machine.
+        compilers: build&rarr;host for the compiler binary, build&rarr;target for the target runtime.
+        In an ordinary Canadian cross both are cross compilers; in a crossback, build equals target,
+        so the second is the native compiler. The GCC build system names these
+        <code>CC_FOR_BUILD</code>, <code>CC</code> and <code>CC_FOR_TARGET</code>, and getting them
+        mixed up is the usual reason a Canadian build produces a binary that cannot execute on either
+        machine.
       </p>
       <p>
         This is not an exotic corner. A new CPU architecture has no native compiler until somebody
