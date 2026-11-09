@@ -1,4 +1,4 @@
-const CACHE_NAME = "fast_io-docs-v81.8";
+const CACHE_NAME = "fast_io-docs-v81.9";
 const urlsToCache = [
   "/",
   "/style.css",
@@ -250,6 +250,8 @@ const urlsToCache = [
   "/zhcn/docs/18.virtual/07.operatornew/",
   "/docs/18.virtual/08.gui/",
   "/zhcn/docs/18.virtual/08.gui/",
+  "/docs/18.virtual/09.virtualinheritance/",
+  "/zhcn/docs/18.virtual/09.virtualinheritance/",
   "/docs/17.operatoroverloading/",
   "/zhcn/docs/17.operatoroverloading/",
   "/docs/17.operatoroverloading/01.whatoperatorsare/",

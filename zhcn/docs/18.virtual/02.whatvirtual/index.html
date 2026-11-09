@@ -72,131 +72,9 @@ sizeof(drawable)=8 sizeof(point)=24 sizeof(square)=16 through base=point through
       </p>
 
     </section>
+
     <section>
-      <h2>3. 虚继承：菱形</h2>
-
-      <p>
-        基类列表里的 <code>virtual</code> 和函数上的 <code>virtual</code> 是两个不同的特性。它解决另一个问题：
-        多重继承可能把同一个公共基类的一份以上副本放进同一个对象。
-      </p>
-      <pre><code class="language-cpp">struct base
-{
-    int id{};
-    virtual ~base() = default;
-};
-
-struct left : base
-{
-    int l{};
-};
-
-struct right : base
-{
-    int r{};
-};
-
-struct bottom : left, right
-{
-    int b{};
-};</code></pre>
-      <p>
-        现在一个 <code>bottom</code> 对象包含两个 <code>base</code> 子对象：一个来自
-        <code>left</code>，一个来自 <code>right</code>。名字 <code>id</code> 有歧义，转换成
-        <code>base&amp;</code> 也有歧义：
-      </p>
-      <pre><code class="language-cpp">bottom x;
-// x.id = 1;            // error: ambiguous, which base?
-// base &amp;br = x;        // error: ambiguous base
-
-left &amp;l = x;
-right &amp;r = x;
-base &amp;bl = l;           // the base inside left
-base &amp;br = r;           // the base inside right</code></pre>
-      <p>
-        两个基类也有各自的状态。如果 <code>base</code> 里有一个 <code>id</code>，通过
-        <code>bl</code> 修改它不会通过 <code>br</code> 看到。对于真正的“是一个”菱形——一个共享的基类
-        子对象——把对 <code>base</code> 的继承声明为虚继承：
-      </p>
-      <pre><code class="language-cpp">struct left : virtual base
-{
-    int l{};
-};
-
-struct right : virtual base
-{
-    int r{};
-};
-
-struct bottom : left, right
-{
-    int b{};
-};</code></pre>
-      <p>
-        现在 <code>bottom</code> 恰好有一个 <code>base</code> 子对象，由 <code>left</code> 和
-        <code>right</code> 两个分支共享。名字不再有歧义：
-      </p>
-      <pre><code class="language-cpp">bottom x;
-x.id = 1;               // OK: one shared base
-base &amp;br = x;           // OK: one shared base
-left &amp;l = x;
-base &amp;bl = l;           // still refers to the same shared base
-</code></pre>
-      <p>
-        代价在布局。虚基类不能在每个完整对象里都放在固定偏移，因为通向它的路径取决于最派生类型。实现通常给类
-        加一个指针或偏移表（<em>virtual base pointer</em>，或 <em>vbptr</em>），访问虚基类成员变成间接访问。
-        标准不规定布局；<code>sizeof</code>、偏移和隐藏指针的数量都是 ABI 细节。不要在这些东西上构建线格式。
-      </p>
-      <p>
-        另一个锋利边缘是构造顺序。虚基类先于非虚基类构造，最派生类负责初始化虚基类。当中间类不是最派生对象时，
-        它对虚基类的初始化器会被忽略：
-      </p>
-      <pre><code class="language-cpp">struct base
-{
-    base() { std::print("base\n"); }
-};
-
-struct left : virtual base
-{
-    left() : base{} { std::print("left\n"); }
-};
-
-struct right : virtual base
-{
-    right() : base{} { std::print("right\n"); }
-};
-
-struct bottom : left, right
-{
-    bottom() { std::print("bottom\n"); }
-};
-
-bottom x; // base, left, right, bottom</code></pre>
-      <p>
-        析构按相反顺序：<code>bottom</code>、<code>right</code>、<code>left</code>、<code>base</code>。
-        如果你写了一个假设自己控制虚基类的构造函数，要分别把它当独立对象和更派生对象的基类来测试。同一个构造函数
-        在这两种情况下可能看到不同的基类初始化。
-      </p>
-      <p>
-        兄弟分支之间的交叉转换需要 RTTI。从 <code>left*</code> 到 <code>right*</code> 的
-        <code>static_cast</code> 不允许，因为编译器在没有完整对象时不知道偏移。<code>dynamic_cast</code>
-        可以找到共享基类或兄弟子对象，但它要求多态类型和一次运行时搜索：
-      </p>
-      <pre><code class="language-cpp">bottom x;
-left *lp = &amp;x;
-base *bp = dynamic_cast&lt;base *&gt;(lp); // shared virtual base
-right *rp = dynamic_cast&lt;right *&gt;(lp); // sibling subobject, or nullptr
-</code></pre>
-      <p>
-        这正是本章其余部分反对的代码：用运行时转换恢复一个本可以用组合表达的关系。如果你需要共享接口，优先用
-        没有数据的纯接口，或者组合加引用。如果你需要共享状态，用一个指针或引用成员显式表达共享，不要用虚基类。
-      </p>
-      <p>
-        虚继承不是通用的代码复用工具。它只适用于菱形确实是领域模型的一部分、并且一个共享基类子对象在语义上正确的
-        狭窄场景。它在布局、构造顺序和转换上都很昂贵，而且很容易写错。在新代码里，组合几乎总是更清晰。
-      </p>
-    </section>
-    <section>
-      <h2>4. 为什么 <code>virtual</code> 只有配合分配才“划算”</h2>
+      <h2>3. 为什么 <code>virtual</code> 只有配合分配才“划算”</h2>
 
       <p>有一种不用堆的 <code>virtual</code> 用法：把派生对象按值放进容器，通过引用调用。</p>
       <pre><code class="language-cpp">
@@ -222,7 +100,7 @@ drawable &amp;d = p;                  // dispatch through a reference
 
     </section>
     <section>
-      <h2>5. 诚实的代价模型</h2>
+      <h2>4. 诚实的代价模型</h2>
 
       <table>
         <thead>
@@ -276,7 +154,7 @@ drawable &amp;d = p;                  // dispatch through a reference
 
     </section>
     <section>
-      <h2>6. 那什么时候可以接受 <code>virtual</code></h2>
+      <h2>5. 那什么时候可以接受 <code>virtual</code></h2>
 
       <ul>
         <li><strong>当你在读遗留代码时。</strong>这是整个第18章最诚实的答案：
@@ -297,7 +175,7 @@ drawable &amp;d = p;                  // dispatch through a reference
 
     </section>
     <section>
-      <h2>7. 经验法则</h2>
+      <h2>6. 经验法则</h2>
 
       <ul>
         <li>写 <code>virtual</code> 之前，先把类型列表写下来。如果列表固定且已知，
@@ -309,8 +187,6 @@ drawable &amp;d = p;                  // dispatch through a reference
         <li>如果必须为分派而继承，让层次浅一些，所有东西都标注
           （<a href="/zhcn/docs/18.virtual/03.marking/">第18.3章</a>），
           并且永远不要让基类指针逃进你自己的 API。</li>
-        <li>只有当“一个共享基类子对象”就是领域语义时，才用虚继承。如果你说不清为什么这个基类必须共享，
-          用组合；虚基类是布局成本和构造顺序复杂度，不是复用工具。</li>
       </ul>
 
     </section>

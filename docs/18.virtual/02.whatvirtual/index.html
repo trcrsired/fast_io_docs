@@ -78,145 +78,9 @@ sizeof(drawable)=8 sizeof(point)=24 sizeof(square)=16 through base=point through
       </p>
 
     </section>
+
     <section>
-      <h2>3. Virtual Inheritance: The Diamond</h2>
-
-      <p>
-        <code>virtual</code> in a base-class list is a different feature from
-        <code>virtual</code> on a function. It solves a different problem: multiple inheritance
-        can put more than one copy of a common base into one object.
-      </p>
-      <pre><code class="language-cpp">struct base
-{
-    int id{};
-    virtual ~base() = default;
-};
-
-struct left : base
-{
-    int l{};
-};
-
-struct right : base
-{
-    int r{};
-};
-
-struct bottom : left, right
-{
-    int b{};
-};</code></pre>
-      <p>
-        A <code>bottom</code> object now contains two <code>base</code> subobjects: one through
-        <code>left</code>, one through <code>right</code>. The name <code>id</code> is ambiguous,
-        and so is the conversion to <code>base&amp;</code>:
-      </p>
-      <pre><code class="language-cpp">bottom x;
-// x.id = 1;            // error: ambiguous, which base?
-// base &amp;br = x;        // error: ambiguous base
-
-left &amp;l = x;
-right &amp;r = x;
-base &amp;bl = l;           // the base inside left
-base &amp;br = r;           // the base inside right</code></pre>
-      <p>
-        The two bases also have separate state. If <code>base</code> holds an <code>id</code>, a
-        change through <code>bl</code> is not visible through <code>br</code>. For a true
-        "is-a" diamond &mdash; one shared base subobject &mdash; declare the inheritance from
-        <code>base</code> as virtual:
-      </p>
-      <pre><code class="language-cpp">struct left : virtual base
-{
-    int l{};
-};
-
-struct right : virtual base
-{
-    int r{};
-};
-
-struct bottom : left, right
-{
-    int b{};
-};</code></pre>
-      <p>
-        Now <code>bottom</code> has exactly one <code>base</code> subobject, shared by the
-        <code>left</code> and <code>right</code> branches. The name is no longer ambiguous:
-      </p>
-      <pre><code class="language-cpp">bottom x;
-x.id = 1;               // OK: one shared base
-base &amp;br = x;           // OK: one shared base
-left &amp;l = x;
-base &amp;bl = l;           // still refers to the same shared base
-</code></pre>
-      <p>
-        The cost is layout. A virtual base cannot be placed at a fixed offset in every complete
-        object, because the path to it depends on the most-derived type. The implementation
-        usually adds a pointer or an offset table (a <em>virtual base pointer</em>, or
-        <em>vbptr</em>) to the class, and access to a virtual base member becomes an indirect
-        access. The standard does not mandate the layout; <code>sizeof</code>, offsets and the
-        number of hidden pointers are ABI details. Do not build a wire format on them.
-      </p>
-      <p>
-        Construction order is the other sharp edge. Virtual base classes are constructed before
-        non-virtual base classes, and the most-derived class is responsible for initializing the
-        virtual base. Initializers for that virtual base in intermediate classes are ignored
-        when the intermediate class is not the most-derived object:
-      </p>
-      <pre><code class="language-cpp">struct base
-{
-    base() { std::print("base\n"); }
-};
-
-struct left : virtual base
-{
-    left() : base{} { std::print("left\n"); }
-};
-
-struct right : virtual base
-{
-    right() : base{} { std::print("right\n"); }
-};
-
-struct bottom : left, right
-{
-    bottom() { std::print("bottom\n"); }
-};
-
-bottom x; // base, left, right, bottom</code></pre>
-      <p>
-        Destruction runs in the reverse order: <code>bottom</code>, <code>right</code>,
-        <code>left</code>, <code>base</code>. If you write a constructor that assumes it controls
-        the virtual base, test it both as a standalone object and as a base of a more-derived
-        object. The same constructor can see different base initialization in the two cases.
-      </p>
-      <p>
-        Cross-casting between sibling branches needs RTTI. A <code>static_cast</code> from
-        <code>left*</code> to <code>right*</code> is not allowed, because the compiler cannot know
-        the offset without the complete object. <code>dynamic_cast</code> can find the shared base
-        or the sibling subobject, but it requires a polymorphic type and a runtime search:
-      </p>
-      <pre><code class="language-cpp">bottom x;
-left *lp = &amp;x;
-base *bp = dynamic_cast&lt;base *&gt;(lp); // shared virtual base
-right *rp = dynamic_cast&lt;right *&gt;(lp); // sibling subobject, or nullptr
-</code></pre>
-      <p>
-        This is exactly the kind of code the rest of the chapter argues against: a runtime cast
-        to recover a relationship that the type system could have expressed with composition. If
-        you need a shared interface, prefer a pure interface with no data, or composition plus a
-        reference. If you need shared state, make the sharing explicit with a pointer or a
-        reference member, not with a virtual base.
-      </p>
-      <p>
-        Virtual inheritance is not a general-purpose code-reuse tool. It is for the narrow case
-        where a diamond is genuinely part of the domain model and one shared base subobject is the
-        correct semantic. It is expensive in layout, construction order and casts, and it is easy
-        to get wrong. In new code, composition is almost always clearer.
-      </p>
-    </section>
-    <section>
-      <h2>4. Why Virtual Only Pays Off With Allocation</h2>
+      <h2>3. Why Virtual Only Pays Off With Allocation</h2>
 
       <p>
         There is a way to use <code>virtual</code> without the heap: put derived objects in a
@@ -248,7 +112,7 @@ drawable &amp;d = p;                  // dispatch through a reference
 
     </section>
     <section>
-      <h2>5. The Cost Model, Honestly</h2>
+      <h2>4. The Cost Model, Honestly</h2>
 
       <table>
         <thead>
@@ -302,7 +166,7 @@ drawable &amp;d = p;                  // dispatch through a reference
 
     </section>
     <section>
-      <h2>6. So When Is <code>virtual</code> Acceptable?</h2>
+      <h2>5. So When Is <code>virtual</code> Acceptable?</h2>
 
       <ul>
         <li><strong>When you are reading legacy code.</strong> This is the honest answer for
@@ -324,7 +188,7 @@ drawable &amp;d = p;                  // dispatch through a reference
 
     </section>
     <section>
-      <h2>7. Rules of Thumb</h2>
+      <h2>6. Rules of Thumb</h2>
 
       <ul>
         <li>Before writing <code>virtual</code>, write down the list of types. If the list is
@@ -338,9 +202,6 @@ drawable &amp;d = p;                  // dispatch through a reference
         <li>If you must inherit for dispatch, keep the hierarchy shallow, mark everything
           (<a href="/docs/18.virtual/03.marking/">Ch18.3</a>), and never let a base pointer
           escape into your own API.</li>
-        <li>Use virtual inheritance only when one shared base subobject is the domain
-          semantics. If you cannot explain why the base must be shared, use composition; a
-          virtual base is layout cost and construction-order complexity, not a reuse tool.</li>
       </ul>
 
     </section>
