@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.4: transmit - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.4: <code>transmit</code></h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/04.transmit/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. What transmit Is For</h2>
+      <p>
+        <code>transmit</code> moves bytes from an input device to an output device. It does not
+        format, parse, or interpret the bytes. It is the third member of the core I/O trio:
+        <code>print</code> writes values, <code>scan</code> reads values, and
+        <code>transmit</code> moves a byte stream.
+      </p>
+      <p>
+        The operation exists because a hand-written loop is easy to get subtly wrong. A single
+        <code>read</code> may return less than you asked for. A single <code>write</code> may
+        accept less than it was given. Either may be interrupted. A buffered input device may
+        already hold bytes that a raw descriptor copy would overtake. <code>transmit</code>
+        handles all of that in one place.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. The Two Operations</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Return</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::operations::transmit_some_bytes(out, off_out, in, off_in, size)</code></td>
+            <td><code>::std::size_t</code></td>
+            <td>Move at most <code>size</code> bytes. Returns the number actually moved in this
+              round; <code>0</code> means end of input.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::operations::transmit_all_bytes(out, off_out, in, off_in, total)</code></td>
+            <td><code>void</code></td>
+            <td>Repeat until end of input or until the optional bound is exhausted.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>off_out</code> and <code>off_in</code> are <code>fpos_nullable_ptr</code> values.
+        Pass <code>{}</code> to use and advance the device's own position. Pass an
+        <code>intfpos_t</code> by reference to transfer at an explicit offset without moving the
+        device's own position; the referenced value is advanced past the transferred bytes.
+      </p>
+      <p>
+        <code>total</code> is a <code>size_t_opt</code>. <code>{}</code> means “until EOF”;
+        <code>::fast_io::size_t_opt{n}</code> means “at most <code>n</code> bytes”. This is the
+        bound for protocols that already know the body length.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. File-to-File</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    ::fast_io::ibuf_file in("input.bin");
+    ::fast_io::obuf_file out("output.bin");
+
+    ::fast_io::operations::transmit_all_bytes(out, {}, in, {}, {});
+}
+</code></pre>
+      <p>
+        No temporary buffer appears in the application code. If the platform and the device
+        types support a kernel copy path, <code>transmit_all_bytes</code> can use
+        <code>copy_file_range</code>, <code>splice</code> or <code>sendfile</code>; otherwise it
+        falls back to a bounded internal buffer. The application does not need two versions of
+        the copy.
+      </p>
+      <p>
+        The devices do not have to be files. The same call moves bytes from a pipe to a file, a
+        socket to a file, or a file to a socket. That is why the process and pipe chapter uses
+        the same operation: the child process writes into a pipe, and the parent transmits the
+        pipe into its own output.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Bounded Transfer</h2>
+      <p>
+        A protocol that carries a length prefix should pass that length. The transfer stops at
+        the bound even if the input has more bytes:
+      </p>
+      <pre><code class="language-cpp">
+::std::size_t const body_length{content_length};
+
+::fast_io::operations::transmit_all_bytes(
+    out, {}, in, {}, ::fast_io::size_t_opt{body_length});
+</code></pre>
+      <p>
+        Use <code>transmit_some_bytes</code> when you need the count of bytes moved in this round,
+        for example to update a progress counter or to interleave several streams. A return value
+        of <code>0</code> means EOF, not an error.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Buffered Input and Output</h2>
+      <p>
+        <code>transmit</code> works with buffered and unbuffered devices on both sides. The
+        implementation is careful about two ordering hazards:
+      </p>
+      <ul>
+        <li><strong>Input lookahead.</strong> A buffered input device may already hold bytes in
+          its buffer. A raw descriptor-to-descriptor copy would skip them. The operation forwards
+          the pending input buffer first, then transfers from the device.</li>
+        <li><strong>Output buffer.</strong> A buffered output device may hold pending bytes. The
+          operation flushes that buffer before a kernel-level copy, so the destination order is
+          preserved.</li>
+      </ul>
+      <p>
+        This is why <code>transmit</code> is safe on the buffered types used by <code>scan</code>
+        and <code>print</code>, not only on raw native files.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Failure and Partial Progress</h2>
+      <p>
+        Both operations report device failures as herbceptions. A partial transfer is not a
+        failure: <code>transmit_all_bytes</code> continues until EOF or the bound, and
+        <code>transmit_some_bytes</code> reports the bytes moved. A byte is counted only after it
+        has actually reached the output, so a short write does not silently lose input data.
+      </p>
+      <p>
+        Offsets are a separate failure surface. Passing a non-null output offset to a device
+        that cannot seek (a pipe or a socket) is an error; pass <code>{}</code> for those devices.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. transmit vs print vs scan</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Input</th>
+            <th>Output</th>
+            <th>Data</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>print</code></td>
+            <td>values</td>
+            <td>device</td>
+            <td>formatted text</td>
+          </tr>
+          <tr>
+            <td><code>scan</code></td>
+            <td>buffered device</td>
+            <td>values</td>
+            <td>parsed text</td>
+          </tr>
+          <tr>
+            <td><code>transmit</code></td>
+            <td>device</td>
+            <td>device</td>
+            <td>raw bytes</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Do not use <code>print</code> to move a binary blob and do not use
+        <code>transmit</code> to write a number. The boundary is the same one stated in
+        <a href="/docs/11.io/05.buffered/">Ch11.5</a>: bytes use transmit, structured data uses
+        scan and print.
+      </p>
+      <div class="note">
+        <strong>Module status.</strong> The transmit operations are available from the header
+        interface. The current <code>fast_io</code> module export list does not include
+        <code>transmit_some_bytes</code> or <code>transmit_all_bytes</code>; use
+        <code>#include &lt;fast_io.h&gt;</code> until they are exported.
+      </div>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li><code>transmit_some_bytes</code> moves one bounded round and returns the byte count;
+          <code>transmit_all_bytes</code> loops to EOF or a bound.</li>
+        <li>Offsets are optional; pass <code>{}</code> for pipes, sockets and ordinary streaming.</li>
+        <li>A return value of <code>0</code> means EOF, not an error.</li>
+        <li>The operation forwards buffered input and flushes buffered output before a kernel
+          copy.</li>
+        <li>It can use kernel copy paths where available and falls back to a bounded buffer.</li>
+        <li>Use transmit for bytes, print for values, scan for parsed input.</li>
+        <li>The transmit operations are currently header-side, not in the module export list.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/03.scan/" class="prev-button">&larr; Ch26.3: scan</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

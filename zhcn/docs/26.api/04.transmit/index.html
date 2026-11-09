@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.4章：transmit - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.4章：<code>transmit</code></h1>
+    <p class="lang-switch"><a href="/docs/26.api/04.transmit/">English</a></p>
+
+    <section>
+      <h2>1. transmit 用来做什么</h2>
+      <p>
+        <code>transmit</code> 把字节从输入设备搬到输出设备。它不格式化、不解析、不解释这些字节。
+        它是核心 I/O 三件套的第三个成员：<code>print</code> 写值，<code>scan</code> 读值，
+        <code>transmit</code> 搬字节流。
+      </p>
+      <p>
+        这个操作存在，是因为手写循环很容易在细节上出错。一次 <code>read</code>
+        可能少于你要求的字节数；一次 <code>write</code> 可能只接受一部分；
+        两者都可能被中断；带缓冲的输入设备可能已经持有一些字节，
+        而直接的描述符复制会越过它们。<code>transmit</code> 在一个地方处理所有这些情况。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 两个操作</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>操作</th>
+            <th>返回</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::operations::transmit_some_bytes(out, off_out, in, off_in, size)</code></td>
+            <td><code>::std::size_t</code></td>
+            <td>最多搬 <code>size</code> 字节。返回这一轮实际搬了多少；<code>0</code>
+              表示输入结束。</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::operations::transmit_all_bytes(out, off_out, in, off_in, total)</code></td>
+            <td><code>void</code></td>
+            <td>重复直到输入结束或可选上界耗尽。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>off_out</code> 和 <code>off_in</code> 是 <code>fpos_nullable_ptr</code>。
+        传 <code>{}</code> 表示使用并推进设备自己的位置。传一个
+        <code>intfpos_t</code> 引用表示在显式偏移处传输，不移动设备自己的位置；
+        被引用的值会推进到已传输字节之后。
+      </p>
+      <p>
+        <code>total</code> 是 <code>size_t_opt</code>。<code>{}</code> 表示“直到 EOF”；
+        <code>::fast_io::size_t_opt{n}</code> 表示“最多 <code>n</code> 字节”。
+        这是给已经知道 body 长度的协议用的上界。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 文件到文件</h2>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    ::fast_io::ibuf_file in("input.bin");
+    ::fast_io::obuf_file out("output.bin");
+
+    ::fast_io::operations::transmit_all_bytes(out, {}, in, {}, {});
+}
+</code></pre>
+      <p>
+        应用代码里没有临时缓冲区。如果平台和设备类型支持内核复制路径，
+        <code>transmit_all_bytes</code> 可以使用 <code>copy_file_range</code>、
+        <code>splice</code> 或 <code>sendfile</code>；否则退回一个有界内部缓冲区。
+        应用不需要维护两个版本的复制。
+      </p>
+      <p>
+        设备不必是文件。同一个调用可以把字节从管道搬到文件、从 socket 搬到文件，
+        或从文件搬到 socket。这也是进程与管道那一章使用同一操作的原因：
+        子进程写进管道，父进程把管道 transmit 到自己的输出。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 有界传输</h2>
+      <p>
+        带长度前缀的协议应该把长度传进去。即使输入还有更多字节，传输也会在上界处停止：
+      </p>
+      <pre><code class="language-cpp">
+::std::size_t const body_length{content_length};
+
+::fast_io::operations::transmit_all_bytes(
+    out, {}, in, {}, ::fast_io::size_t_opt{body_length});
+</code></pre>
+      <p>
+        需要这一轮搬了多少字节时用 <code>transmit_some_bytes</code>，
+        例如更新进度计数或交错处理多个流。返回 <code>0</code> 表示 EOF，不是错误。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 带缓冲的输入与输出</h2>
+      <p>
+        <code>transmit</code> 对带缓冲和不带缓冲的设备、输入和输出两侧都成立。
+        实现会小心处理两个顺序风险：
+      </p>
+      <ul>
+        <li><strong>输入预读。</strong> 带缓冲的输入设备可能已经在缓冲区里持有字节。
+          直接描述符到描述符的复制会跳过它们。操作会先转发挂起的输入缓冲区，
+          再从设备传输。</li>
+        <li><strong>输出缓冲。</strong> 带缓冲的输出设备可能持有待写字节。
+          操作会在内核级复制之前刷新该缓冲区，保证目标顺序。</li>
+      </ul>
+      <p>
+        这就是为什么 <code>transmit</code> 对 <code>scan</code> 和 <code>print</code>
+        使用的带缓冲类型也安全，而不只是对原始 native 文件安全。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 失败与部分进展</h2>
+      <p>
+        两个操作都通过 herbception 报告设备失败。部分传输不是失败：
+        <code>transmit_all_bytes</code> 会继续到 EOF 或上界，
+        <code>transmit_some_bytes</code> 报告已搬字节数。一个字节只有在真正到达输出之后才计数，
+        所以短写不会悄悄丢失输入数据。
+      </p>
+      <p>
+        偏移是另一类失败面。给不能 seek 的设备（管道或 socket）传非空输出偏移是错误；
+        这些设备传 <code>{}</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. transmit、print 与 scan</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>操作</th>
+            <th>输入</th>
+            <th>输出</th>
+            <th>数据</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>print</code></td>
+            <td>值</td>
+            <td>设备</td>
+            <td>格式化文本</td>
+          </tr>
+          <tr>
+            <td><code>scan</code></td>
+            <td>带缓冲设备</td>
+            <td>值</td>
+            <td>解析文本</td>
+          </tr>
+          <tr>
+            <td><code>transmit</code></td>
+            <td>设备</td>
+            <td>设备</td>
+            <td>原始字节</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        不要用 <code>print</code> 搬二进制 blob，也不要用 <code>transmit</code> 写数字。
+        边界和第11.5章说的一样：字节用 transmit，结构化数据用 scan 和 print。
+      </p>
+      <div class="note">
+        <strong>模块状态。</strong> transmit 操作目前来自头文件接口。
+        当前 <code>fast_io</code> 模块导出列表不包含
+        <code>transmit_some_bytes</code> 或 <code>transmit_all_bytes</code>；
+        在它们被导出之前，使用 <code>#include &lt;fast_io.h&gt;</code>。
+      </div>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>transmit_some_bytes</code> 搬一轮有界数据并返回字节数；
+          <code>transmit_all_bytes</code> 循环到 EOF 或上界。</li>
+        <li>偏移是可选的；管道、socket 和普通流式传输传 <code>{}</code>。</li>
+        <li>返回 <code>0</code> 表示 EOF，不是错误。</li>
+        <li>操作会在内核复制之前转发带缓冲输入并刷新带缓冲输出。</li>
+        <li>平台支持时可以使用内核复制路径，否则退回有界缓冲区。</li>
+        <li>字节用 transmit，值用 print，解析输入用 scan。</li>
+        <li>transmit 操作目前属于头文件侧，不在模块导出列表里。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/03.scan/" class="prev-button">&larr; 第26.3章：scan</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>
