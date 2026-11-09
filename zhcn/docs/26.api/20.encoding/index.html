@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.20章：字符编码 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.20章：字符编码</h1>
+    <p class="lang-switch"><a href="/docs/26.api/20.encoding/">English</a></p>
+
+    <section>
+      <h2>1. 编码方案</h2>
+      <table>
+        <thead>
+          <tr>
+            <th><code>encoding_scheme</code></th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>execution_charset</code></td><td>编译器为源字符类型选择的执行字符集。</td></tr>
+          <tr><td><code>utf_le</code></td><td>小端代码单元的 UTF。</td></tr>
+          <tr><td><code>utf_be</code></td><td>大端代码单元的 UTF。</td></tr>
+          <tr><td><code>utf</code></td><td>原生端序的 UTF 别名。</td></tr>
+          <tr><td><code>gb18030</code></td><td>GB18030 / GBK。</td></tr>
+          <tr><td><code>utf_ebcdic</code></td><td>UTF-EBCDIC。</td></tr>
+        </tbody>
+      </table>
+      <p>
+        方案名字描述的是字符单元的编码，不是字符数量。<code>char8_t</code> 序列在
+        <code>utf</code> 里是 UTF-8；<code>char16_t</code> 序列是原生字节序的 UTF-16；
+        <code>char32_t</code> 序列是原生字节序的 UTF-32。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 执行字符集检测</h2>
+      <p>
+        <code>execution_charset_encoding_scheme&lt;char_type&gt;()</code> 返回编译器为该字符类型
+        选择的方案。它识别 GCC/Clang 的 GB18030/GBK 执行字符集名、MSVC 的执行字符集宏、
+        EBCDIC 目标和宽字符端序。
+      </p>
+      <p>
+        <code>execution_charset_encoding&lt;char_type&gt;</code> 是同一个值的变量模板。
+        需要编译期默认值时用它；线格式有固定字节序时传显式方案。
+      </p>
+      <pre><code class="language-cpp">
+constexpr auto native_scheme{
+    ::fast_io::execution_charset_encoding_scheme&lt;char&gt;()};
+</code></pre>
+      <p>
+        辅助函数和枚举目前在头文件侧。模块只导出下面的两个操纵器，不导出方案名字。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>code_cvt</code></h2>
+      <p>
+        <code>mnp::code_cvt&lt;src, dst&gt;(value)</code> 在输出时转换一个 print alias/scatter。
+        目标字符类型来自输出流；源类型来自值。
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::u16obuf_file out{"utf16.txt"};
+::fast_io::io::println(
+    out, ::fast_io::mnp::code_cvt&lt;::fast_io::encoding_scheme::utf,
+                                     ::fast_io::encoding_scheme::utf&gt;(u8"Hello"));
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>形式</th>
+            <th>用途</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>code_cvt&lt;src, dst&gt;(value)</code></td>
+            <td>转换一个可打印值或 scatter。</td>
+          </tr>
+          <tr>
+            <td><code>code_cvt_os_c_str&lt;src, dst&gt;(ptr)</code></td>
+            <td>转换 NUL 结尾的 OS 字符串。</td>
+          </tr>
+          <tr>
+            <td><code>code_cvt_os_c_str&lt;src, dst&gt;(ptr, n)</code></td>
+            <td>转换已知长度的 OS 字符串。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        转换写入输出设备的 reserve 缓冲区；不分配中间字符串。
+        非法源序列被替换成编码的替换代码单元（Unicode 编码是 U+FFFD）。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. OS 字符串与执行字符集</h2>
+      <p>
+        来自 <code>argv</code> 或环境变量的路径是执行字符集，不一定是 UTF-8。
+        打印它时用 <code>code_cvt_os_c_str</code>：
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::io::println(
+    ::fast_io::mnp::code_cvt_os_c_str&lt;::fast_io::encoding_scheme::execution_charset,
+                                          ::fast_io::encoding_scheme::utf&gt;(argv[1]));
+</code></pre>
+      <p>
+        文件的设备类型已经选择原生编码路径；这个操纵器用于把 OS 字符串变成输出流上的文本。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 不是 transcoder</h2>
+      <p>
+        <code>code_cvt</code> 是值局部的格式化适配器。它不是更老的有状态
+        <code>transcoder</code> 管线，也不暴露流对象。需要带显式状态的增量解码器时，
+        用头文件接口里的通用 <code>general_code_cvt</code> 重载；
+        普通输出用 <code>code_cvt</code> 就够了。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 模块与头文件边界</h2>
+      <p>
+        <code>fast_io</code> 模块导出 <code>mnp::code_cvt</code> 和
+        <code>mnp::code_cvt_os_c_str</code>。<code>encoding_scheme</code>、
+        <code>execution_charset_encoding_scheme</code>、<code>execution_charset_encoding</code>、
+        <code>code_cvt_result</code> 和通用转换器目前在头文件侧。
+        需要显式命名方案时包含 <code>&lt;fast_io.h&gt;</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>encoding_scheme</code> 命名 UTF 端序变体、GB18030 和 UTF-EBCDIC。</li>
+        <li><code>utf</code> 是原生端序别名；字符类型决定它是 UTF-8、UTF-16 还是 UTF-32。</li>
+        <li><code>execution_charset_encoding_scheme&lt;T&gt;()</code> 检测编译器的执行字符集。</li>
+        <li><code>code_cvt&lt;src, dst&gt;</code> 在输出时转换一个可打印值。</li>
+        <li><code>code_cvt_os_c_str</code> 转换 NUL 结尾或已知长度的 OS 字符串。</li>
+        <li>非法序列变成替换代码单元，不是悄悄截断。</li>
+        <li>模块导出两个操纵器；方案名字和通用转换器在头文件侧。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/19.allocators/" class="prev-button">&larr; 第26.19章：分配器</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>

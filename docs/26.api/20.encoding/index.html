@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.20: Character Encoding - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.20: Character Encoding</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/20.encoding/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Encoding Schemes</h2>
+      <table>
+        <thead>
+          <tr>
+            <th><code>encoding_scheme</code></th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>execution_charset</code></td><td>The compiler's execution character set for the
+            source character type.</td></tr>
+          <tr><td><code>utf_le</code></td><td>UTF in little-endian code units.</td></tr>
+          <tr><td><code>utf_be</code></td><td>UTF in big-endian code units.</td></tr>
+          <tr><td><code>utf</code></td><td>The native-endian UTF alias.</td></tr>
+          <tr><td><code>gb18030</code></td><td>GB18030 / GBK.</td></tr>
+          <tr><td><code>utf_ebcdic</code></td><td>UTF-EBCDIC.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The scheme names describe the encoding of the character units, not the number of
+        characters. A <code>char8_t</code> sequence in <code>utf</code> is UTF-8; a
+        <code>char16_t</code> sequence is UTF-16 in native byte order; a <code>char32_t</code>
+        sequence is UTF-32 in native byte order.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Execution Charset Detection</h2>
+      <p>
+        <code>execution_charset_encoding_scheme&lt;char_type&gt;()</code> returns the scheme the
+        compiler selected for that character type. It recognizes GCC/Clang execution-charset
+        names for GB18030/GBK, MSVC's execution-charset macro, EBCDIC targets and wide-character
+        endianness.
+      </p>
+      <p>
+        <code>execution_charset_encoding&lt;char_type&gt;</code> is the same value as a variable
+        template. Use it when you need a compile-time default; pass an explicit scheme when the
+        wire format has a fixed byte order.
+      </p>
+      <pre><code class="language-cpp">
+constexpr auto native_scheme{
+    ::fast_io::execution_charset_encoding_scheme&lt;char&gt;()};
+</code></pre>
+      <p>
+        The helpers and the enum are header-side today. The module exports the two manipulators
+        below, not the scheme names.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>code_cvt</code></h2>
+      <p>
+        <code>mnp::code_cvt&lt;src, dst&gt;(value)</code> converts a print alias/scatter during
+        output. The destination character type comes from the output stream; the source type comes
+        from the value.
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::u16obuf_file out{"utf16.txt"};
+::fast_io::io::println(
+    out, ::fast_io::mnp::code_cvt&lt;::fast_io::encoding_scheme::utf,
+                                     ::fast_io::encoding_scheme::utf&gt;(u8"Hello"));
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>Form</th>
+            <th>Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>code_cvt&lt;src, dst&gt;(value)</code></td>
+            <td>Convert a printable value or scatter.</td>
+          </tr>
+          <tr>
+            <td><code>code_cvt_os_c_str&lt;src, dst&gt;(ptr)</code></td>
+            <td>Convert a NUL-terminated OS string.</td>
+          </tr>
+          <tr>
+            <td><code>code_cvt_os_c_str&lt;src, dst&gt;(ptr, n)</code></td>
+            <td>Convert a known-length OS string.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The conversion is performed into the output device's reserve buffer; it does not allocate
+        an intermediate string. Invalid source sequences are replaced with the encoding's
+        replacement code units (U+FFFD for Unicode encodings).
+      </p>
+    </section>
+
+    <section>
+      <h2>4. OS Strings and Execution Charset</h2>
+      <p>
+        A path from <code>argv</code> or an environment variable is in the execution charset, not
+        necessarily UTF-8. Use <code>code_cvt_os_c_str</code> when printing it:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::io::println(
+    ::fast_io::mnp::code_cvt_os_c_str&lt;::fast_io::encoding_scheme::execution_charset,
+                                          ::fast_io::encoding_scheme::utf&gt;(argv[1]));
+</code></pre>
+      <p>
+        For files, the device type already chooses the native encoding path; this manipulator is
+        for turning an OS string into text on an output stream.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. What Is Not a Transcoder</h2>
+      <p>
+        <code>code_cvt</code> is a value-local formatting adapter. It is not the older stateful
+        <code>transcoder</code> pipeline, and it does not expose a stream object. If you need an
+        incremental decoder with an explicit state, use the general
+        <code>general_code_cvt</code> overloads in the header interface; for ordinary output,
+        <code>code_cvt</code> is the smaller tool.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Module and Header Boundary</h2>
+      <p>
+        The <code>fast_io</code> module exports <code>mnp::code_cvt</code> and
+        <code>mnp::code_cvt_os_c_str</code>. <code>encoding_scheme</code>,
+        <code>execution_charset_encoding_scheme</code>, <code>execution_charset_encoding</code>, <code>code_cvt_result</code> and the general converter are
+        header-side today. Include <code>&lt;fast_io.h&gt;</code> when you need to name the scheme
+        explicitly.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li><code>encoding_scheme</code> names UTF endian variants, GB18030 and UTF-EBCDIC.</li>
+        <li><code>utf</code> is the native-endian alias; the character type determines whether it
+          is UTF-8, UTF-16 or UTF-32.</li>
+        <li><code>execution_charset_encoding_scheme&lt;T&gt;()</code> detects the compiler's
+          execution charset.</li>
+        <li><code>code_cvt&lt;src, dst&gt;</code> converts one printable value during output.</li>
+        <li><code>code_cvt_os_c_str</code> converts NUL-terminated or known-length OS strings.</li>
+        <li>Invalid sequences become replacement code units, not silent truncation.</li>
+        <li>The module exports the two manipulators; the scheme names and general converter are
+          header-side.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/19.allocators/" class="prev-button">&larr; Ch26.19: Allocators</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>
