@@ -54,8 +54,8 @@
             <td>A different platform from <code>-gnu</code>; static binaries are common</td>
           </tr>
           <tr>
-            <td><code>x86_64-linux-android</code></td>
-            <td>64-bit x86, Android, bionic</td>
+            <td><code>x86_64-linux-android30</code></td>
+            <td>64-bit x86, Android API level 30, bionic</td>
             <td>Not binary-compatible with desktop Linux</td>
           </tr>
           <tr>
@@ -120,9 +120,75 @@
         <code>x86_64-linux-musl</code> run on the same kernel and the same CPU, but a dynamically
         linked binary built against glibc does not run on a musl system without a compatibility
         layer, and vice versa.
-        <code>x86_64-linux-gnu</code> and <code>x86_64-linux-android</code> are the same story at a
-        larger scale: same instruction set, same Linux kernel underneath, different C library
-        (bionic), different platform. This is why "it is Linux" is not a portability statement.
+        <code>x86_64-linux-gnu</code> and <code>x86_64-linux-android30</code> are the same story at
+        a larger scale: same instruction set, same Linux kernel underneath, different C library
+        (bionic) and a different OS ABI, therefore a different platform. This is why "it is Linux"
+        is not a portability statement.
+      </p>
+      <p>
+        A common mistake is to rank the fields. An ISA change is treated as a "real" port; an OS or
+        libc change is treated as a detail. The triplet does not work that way. The fields are
+        independent axes, and a difference on any axis produces a different platform. The number of
+        fields that differ does not measure the distance.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Pair</th>
+            <th>What differs</th>
+            <th>What is shared</th>
+            <th>Same platform?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>x86_64-linux-gnu</code> vs <code>x86_64-linux-musl</code></td>
+            <td>libc</td>
+            <td>ISA, Linux kernel</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-linux-gnu</code> vs <code>x86_64-linux-android30</code></td>
+            <td>libc, OS ABI</td>
+            <td>ISA, Linux kernel</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-linux-gnu</code> vs <code>aarch64-windows-msvc</code></td>
+            <td>ISA, OS, libc</td>
+            <td>Nothing that matters to the binary</td>
+            <td>No</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The first pair differs only in the last field, and the last pair differs in every field. For
+        the linker and the loader, the result is the same: a different target, a different sysroot, a
+        different set of start-up objects, a different C library and a different dynamic loader. You
+        do not get to skip the port because the CPU is the same. The distance between
+        <code>x86_64-linux-gnu</code> and <code>x86_64-linux-musl</code> is just as big as the
+        distance between <code>x86_64-linux-gnu</code> and <code>aarch64-windows-msvc</code> in the
+        only sense that matters here: neither binary is the other, and each needs its own triplet,
+        sysroot and build.
+      </p>
+      <p>
+        Android is the same point with a larger blast radius. <code>x86_64-linux-android30</code> is
+        not "Linux with a different libc" in the way a desktop distribution is; it is a different
+        platform with bionic, a different linker, the Android app sandbox and a different API
+        surface. A desktop <code>x86_64-linux-gnu</code> binary does not run there, and a
+        <code>libc.so</code> from one does not satisfy the other. "It is the same CPU" and "it is the
+        same kernel" are not portability arguments; they are two of the four fields.
+      </p>
+      <p>
+        The app sandbox is the other half of the Android answer. A desktop program is a process
+        launched from a filesystem with a shared <code>/usr</code>; an Android app is an APK
+        installed into a sandbox with its own UID, a private data directory, a restricted linker
+        namespace, SELinux and seccomp policy, and a permission list. Native code inside the APK is
+        normally loaded as a library into that sandboxed process, not executed as an ordinary Unix
+        program. Even a binary that could satisfy bionic's ABI would still have to be packaged and
+        launched through the Android execution model. A GNU/Linux binary does not run on Android
+        because both the platform contract and the execution model differ: libc is the visible part,
+        the sandbox is the rest.
       </p>
       <p>
         The C library field is where most confusion lives. <code>gnu</code> means glibc,

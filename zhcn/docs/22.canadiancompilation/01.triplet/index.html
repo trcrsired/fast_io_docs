@@ -52,8 +52,8 @@
             <td>和 <code>-gnu</code> 是两个平台；静态二进制很常见</td>
           </tr>
           <tr>
-            <td><code>x86_64-linux-android</code></td>
-            <td>64 位 x86，Android，bionic</td>
+            <td><code>x86_64-linux-android30</code></td>
+            <td>64 位 x86，Android API level 30，bionic</td>
             <td>和桌面 Linux 不二进制兼容</td>
           </tr>
           <tr>
@@ -116,9 +116,67 @@
       <p>
         这张表本身就是完整的论证。<code>x86_64-linux-gnu</code> 和 <code>x86_64-linux-musl</code>
         跑在同一个内核、同一个 CPU 上，但动态链接到 glibc 的二进制在没有兼容层时不能跑在 musl 系统上，
-        反过来也一样。<code>x86_64-linux-gnu</code> 和 <code>x86_64-linux-android</code>
-        是同一件事的放大版：相同的指令集，底下都是 Linux 内核，不同的 C 库（bionic），不同的平台。
-        这就是为什么"它是 Linux"不是一句可移植性声明。
+        反过来也一样。<code>x86_64-linux-gnu</code> 和 <code>x86_64-linux-android30</code>
+        是同一件事的放大版：相同的指令集，底下都是 Linux 内核，不同的 C 库（bionic），不同的 OS ABI，
+        因此是不同的平台。这就是为什么"它是 Linux"不是一句可移植性声明。
+      </p>
+      <p>
+        一个常见错误是给这些字段排高低。指令集变了，人们当成"真正的"移植；操作系统或 C 库变了，
+        人们当成细节。三元组不是这样工作的。这些字段是互相独立的轴，任何一个轴上的差异都会产生
+        不同的平台。差异字段的数量并不衡量距离。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>对比</th>
+            <th>不同之处</th>
+            <th>相同之处</th>
+            <th>同一个平台？</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>x86_64-linux-gnu</code> vs <code>x86_64-linux-musl</code></td>
+            <td>libc</td>
+            <td>指令集、Linux 内核</td>
+            <td>否</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-linux-gnu</code> vs <code>x86_64-linux-android30</code></td>
+            <td>libc、OS ABI</td>
+            <td>指令集、Linux 内核</td>
+            <td>否</td>
+          </tr>
+          <tr>
+            <td><code>x86_64-linux-gnu</code> vs <code>aarch64-windows-msvc</code></td>
+            <td>指令集、操作系统、libc</td>
+            <td>对二进制来说没有</td>
+            <td>否</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        第一对只在最后一个字段不同，最后一对每个字段都不同。对链接器和加载器来说，结果是一样的：
+        不同的目标、不同的 sysroot、不同的启动对象、不同的 C 库和不同的动态加载器。你不能因为 CPU
+        相同就跳过移植。就这里唯一有意义的意义而言，<code>x86_64-linux-gnu</code> 和
+        <code>x86_64-linux-musl</code> 之间的距离，和 <code>x86_64-linux-gnu</code> 与
+        <code>aarch64-windows-msvc</code> 之间的距离一样大：两个二进制互不通用，各自需要自己的
+        三元组、sysroot 和构建。
+      </p>
+      <p>
+        Android 是同一个论点，只是影响范围更大。<code>x86_64-linux-android30</code> 不是桌面发行版
+        意义上的"换了个 libc 的 Linux"；它是一个不同的平台，有 bionic、不同的链接器、Android 应用沙盒
+        和不同的 API 表面。桌面 <code>x86_64-linux-gnu</code> 二进制不能在那里运行，一边的
+        <code>libc.so</code> 也不能满足另一边。"CPU 相同"和"内核相同"不是可移植性论证；
+        它们只是四个字段中的两个。
+      </p>
+      <p>
+        应用沙盒是 Android 答案的另一半。桌面程序是从文件系统启动的进程，共享 <code>/usr</code>；
+        Android 应用是安装进沙盒的 APK，有自己的 UID、私有数据目录、受限的链接器命名空间、SELinux
+        和 seccomp 策略，以及权限列表。APK 里的原生代码通常是作为库加载进那个沙盒进程的，不是作为
+        普通 Unix 程序执行的。即使一个二进制能满足 bionic 的 ABI，它仍然必须被打包，并通过 Android
+        的执行模型启动。GNU/Linux 二进制不能在 Android 上运行，是因为平台契约和执行模型都不同：
+        libc 是可见的那部分，沙盒是剩下的部分。
       </p>
       <p>
         最容易混淆的是 C 库字段。<code>gnu</code> 指 glibc，<code>musl</code> 指 musl，
