@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.12: Threading and Lockable Streams - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.12: Threading and Lockable Streams</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/12.threading/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Thread Safety Is Not Process Safety</h2>
+      <p>
+        A mutex inside one process cannot serialize another process. The lockable stream types
+        protect calls from threads that share the same object; they do not make two independent
+        processes writing the same file safe.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>Means</th>
+            <th>Provided by</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Thread safety</td>
+            <td>Two threads calling through the same object do not interleave or corrupt its
+              state.</td>
+            <td>Lockable stream aliases or an external mutex.</td>
+          </tr>
+          <tr>
+            <td>Process safety</td>
+            <td>Two processes writing the same file do not corrupt each other.</td>
+            <td>The OS, and only for operations it defines as atomic; a userspace mutex cannot
+              do it.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Buffering makes the distinction sharper. A buffered stream can split one logical write
+        into several flushes, and another process can write between them. If you need a
+        process-wide append guarantee, use an unbuffered native file opened with the platform's
+        atomic append mode, or coordinate with a file lock.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Lockable Aliases</h2>
+      <p>
+        Each buffered file family has a lockable alias. The alias behaves like the base type, but
+        every <code>print</code>, <code>scan</code> or <code>println</code> call acquires the
+        internal mutex for the duration of that call.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Alias</th>
+            <th>Base</th>
+            <th>Direction</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>ibuf_file_lockable</code></td>
+            <td><code>ibuf_file</code></td>
+            <td>Input</td>
+          </tr>
+          <tr>
+            <td><code>obuf_file_lockable</code></td>
+            <td><code>obuf_file</code></td>
+            <td>Output</td>
+          </tr>
+          <tr>
+            <td><code>iobuf_file_lockable</code></td>
+            <td><code>iobuf_file</code></td>
+            <td>Bidirectional</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The character variants follow the same naming:
+        <code>wibuf_file_lockable</code>, <code>u8obuf_file_lockable</code>,
+        <code>u16iobuf_file_lockable</code>, <code>u32iobuf_file_lockable</code>, and so on.
+        The generic names are
+        <code>basic_ibuf_file_lockable</code>, <code>basic_obuf_file_lockable</code> and
+        <code>basic_iobuf_file_lockable</code>.
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::obuf_file_lockable out{"shared.txt"};
+
+auto writer = [&amp;out](int id)
+{
+    for (int i{}; i &lt; 100; ++i)
+    {
+        ::fast_io::io::println(out, "thread ", id, " line ", i);
+    }
+};
+</code></pre>
+      <p>
+        The mutex makes each <code>println</code> call atomic with respect to other calls through
+        the same object. It does not make a sequence of calls atomic; another thread can run
+        between them.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. A Multi-Call Critical Section</h2>
+      <p>
+        When several calls must appear as one uninterrupted block, lock once around the block.
+        <code>native_mutex</code> is fast_io's platform mutex; <code>io_lock_guard</code> is the
+        RAII guard.
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::obuf_file out{"shared.txt"};
+::fast_io::native_mutex mtx;
+
+auto writer = [&amp;](int id)
+{
+    for (int i{}; i &lt; 100; ++i)
+    {
+        ::fast_io::io_lock_guard guard{mtx};
+        ::fast_io::io::print(out, "thread ");
+        ::fast_io::io::print(out, id);
+        ::fast_io::io::print(out, " line ");
+        ::fast_io::io::println(out, i);
+    }
+};
+</code></pre>
+      <p>
+        This protects the whole four-call sequence. The guard unlocks on scope exit, including
+        when an I/O operation throws. Do not hold the guard across a blocking operation you do
+        not control; that turns the mutex into a global stall.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The Mutex Type</h2>
+      <p>
+        <code>::fast_io::native_mutex</code> resolves to the platform primitive:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Platform</th>
+            <th>Implementation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>POSIX with pthreads</td>
+            <td><code>pthread_mutex_t</code></td>
+          </tr>
+          <tr>
+            <td>Windows (modern)</td>
+            <td>SRW lock</td>
+          </tr>
+          <tr>
+            <td>Windows (old)</td>
+            <td>critical section</td>
+          </tr>
+          <tr>
+            <td>mcfgthread targets</td>
+            <td><code>_MCF_mutex</code></td>
+          </tr>
+          <tr>
+            <td>single-thread / WASI / no pthreads</td>
+            <td>no-op mutex</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The lockable aliases use <code>native_mutex</code> internally. For a movable wrapper, use
+        <code>native_mutex_movable</code> (header-side); the plain type may be non-movable on some
+        platforms.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Choosing the Right Tool</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Situation</th>
+            <th>Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>One <code>println</code> must not interleave with another</td>
+            <td>A <code>*_lockable</code> alias</td>
+          </tr>
+          <tr>
+            <td>A group of calls must appear as one block</td>
+            <td><code>native_mutex</code> + <code>io_lock_guard</code></td>
+          </tr>
+          <tr>
+            <td>Several processes append to one file</td>
+            <td>OS-level atomic append, file lock or a dedicated logger; not a userspace mutex</td>
+          </tr>
+          <tr>
+            <td>High-throughput logging</td>
+            <td>Per-thread buffers plus a single writer, or an async queue</td>
+          </tr>
+          <tr>
+            <td>Read-only shared file</td>
+            <td>No mutex needed if nobody writes it</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>6. Module and Header Boundary</h2>
+      <p>
+        The <code>fast_io</code> module exports <code>native_mutex</code>, the lockable aliases
+        and their character variants. <code>io_lock_guard</code> is header-side today, so include
+        <code>&lt;fast_io.h&gt;</code> when you need it. The lockable aliases themselves are in
+        the module's <code>device.inc</code> export list.
+      </p>
+      <div class="note">
+        <strong>Do not confuse the two locks.</strong> A lockable stream owns a mutex, and
+        <code>io_lock_guard</code> locks a mutex you own. Locking a <code>native_mutex</code>
+        around a call to a lockable stream is usually unnecessary; locking a plain file does not
+        make it lockable.
+      </div>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>Lockable streams provide thread safety within one process, not process safety.</li>
+        <li><code>ibuf_file_lockable</code>, <code>obuf_file_lockable</code> and
+          <code>iobuf_file_lockable</code> lock per call.</li>
+        <li>Use <code>native_mutex</code> + <code>io_lock_guard</code> to protect a multi-call
+          critical section.</li>
+        <li><code>native_mutex</code> maps to pthread mutex, SRW lock, critical section,
+          mcfgthread mutex or a no-op mutex.</li>
+        <li>Buffering can split a logical write across flushes; process-level atomicity needs OS
+          support or a file lock.</li>
+        <li><code>io_lock_guard</code> is header-side; the lockable aliases and
+          <code>native_mutex</code> are module-exported.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/11.filesystem/" class="prev-button">&larr; Ch26.11: Filesystem and OS Layers</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

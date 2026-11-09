@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.12章：线程与可加锁流 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.12章：线程与可加锁流</h1>
+    <p class="lang-switch"><a href="/docs/26.api/12.threading/">English</a></p>
+
+    <section>
+      <h2>1. 线程安全不是进程安全</h2>
+      <p>
+        一个进程内部的互斥量不能串行化另一个进程。可加锁流类型保护的是共享同一个对象的线程；
+        它们不会让两个独立进程写同一个文件变得安全。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>性质</th>
+            <th>含义</th>
+            <th>由谁提供</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>线程安全</td>
+            <td>两个线程通过同一个对象调用时不会交错或破坏状态。</td>
+            <td>可加锁流别名或外部互斥量。</td>
+          </tr>
+          <tr>
+            <td>进程安全</td>
+            <td>两个进程写同一个文件时不会互相破坏。</td>
+            <td>操作系统，而且只对它定义为原子的操作；用户态互斥量做不到。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        缓冲会让这个区分更尖锐。带缓冲流可能把一次逻辑写拆成多次刷新，
+        另一个进程可以在中间写入。需要进程级追加保证时，
+        用平台原子追加模式打开不带缓冲的 native 文件，或者用文件锁协调。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 可加锁别名</h2>
+      <p>
+        每个带缓冲文件家族都有可加锁别名。别名行为与基础类型相同，
+        但每次 <code>print</code>、<code>scan</code> 或 <code>println</code> 调用都会在调用期间
+        获取内部互斥量。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>别名</th>
+            <th>基础类型</th>
+            <th>方向</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>ibuf_file_lockable</code></td>
+            <td><code>ibuf_file</code></td>
+            <td>输入</td>
+          </tr>
+          <tr>
+            <td><code>obuf_file_lockable</code></td>
+            <td><code>obuf_file</code></td>
+            <td>输出</td>
+          </tr>
+          <tr>
+            <td><code>iobuf_file_lockable</code></td>
+            <td><code>iobuf_file</code></td>
+            <td>双向</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        字符变体遵循同样的命名：<code>wibuf_file_lockable</code>、
+        <code>u8obuf_file_lockable</code>、<code>u16iobuf_file_lockable</code>、
+        <code>u32iobuf_file_lockable</code> 等。通用名字是
+        <code>basic_ibuf_file_lockable</code>、<code>basic_obuf_file_lockable</code> 和
+        <code>basic_iobuf_file_lockable</code>。
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::obuf_file_lockable out{"shared.txt"};
+
+auto writer = [&amp;out](int id)
+{
+    for (int i{}; i &lt; 100; ++i)
+    {
+        ::fast_io::io::println(out, "thread ", id, " line ", i);
+    }
+};
+</code></pre>
+      <p>
+        互斥量让每次 <code>println</code> 相对于同一对象上的其他调用是原子的。
+        它不会让一串调用成为原子；另一个线程可以在它们之间运行。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 多调用临界区</h2>
+      <p>
+        多个调用必须表现为一个不中断的块时，在块外锁一次。
+        <code>native_mutex</code> 是 fast_io 的平台互斥量；<code>io_lock_guard</code> 是 RAII 守卫。
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::obuf_file out{"shared.txt"};
+::fast_io::native_mutex mtx;
+
+auto writer = [&amp;](int id)
+{
+    for (int i{}; i &lt; 100; ++i)
+    {
+        ::fast_io::io_lock_guard guard{mtx};
+        ::fast_io::io::print(out, "thread ");
+        ::fast_io::io::print(out, id);
+        ::fast_io::io::print(out, " line ");
+        ::fast_io::io::println(out, i);
+    }
+};
+</code></pre>
+      <p>
+        这保护整个四次调用序列。守卫在作用域退出时解锁，包括 I/O 操作抛出时。
+        不要在你无法控制的阻塞操作期间持有守卫；那会把互斥量变成全局停顿。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 互斥量类型</h2>
+      <p>
+        <code>::fast_io::native_mutex</code> 解析为平台原语：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>平台</th>
+            <th>实现</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>带 pthread 的 POSIX</td>
+            <td><code>pthread_mutex_t</code></td>
+          </tr>
+          <tr>
+            <td>现代 Windows</td>
+            <td>SRW 锁</td>
+          </tr>
+          <tr>
+            <td>旧 Windows</td>
+            <td>临界区</td>
+          </tr>
+          <tr>
+            <td>mcfgthread 目标</td>
+            <td><code>_MCF_mutex</code></td>
+          </tr>
+          <tr>
+            <td>单线程 / WASI / 无 pthread</td>
+            <td>空操作互斥量</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        可加锁别名内部使用 <code>native_mutex</code>。需要可移动包装时用
+        <code>native_mutex_movable</code>（头文件侧）；普通类型在某些平台上可能不可移动。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 选择正确的工具</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th>使用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>一次 <code>println</code> 不能与另一次交错</td>
+            <td><code>*_lockable</code> 别名</td>
+          </tr>
+          <tr>
+            <td>一组调用必须表现为一个块</td>
+            <td><code>native_mutex</code> + <code>io_lock_guard</code></td>
+          </tr>
+          <tr>
+            <td>多个进程追加同一个文件</td>
+            <td>OS 级原子追加、文件锁或专用 logger；不是用户态互斥量</td>
+          </tr>
+          <tr>
+            <td>高吞吐日志</td>
+            <td>每线程缓冲加单写者，或异步队列</td>
+          </tr>
+          <tr>
+            <td>只读共享文件</td>
+            <td>没人写的话不需要互斥量</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>6. 模块与头文件边界</h2>
+      <p>
+        <code>fast_io</code> 模块导出 <code>native_mutex</code>、可加锁别名及其字符变体。
+        <code>io_lock_guard</code> 目前在头文件侧，需要时包含
+        <code>&lt;fast_io.h&gt;</code>。可加锁别名本身在模块的
+        <code>device.inc</code> 导出列表里。
+      </p>
+      <div class="note">
+        <strong>不要把两种锁混在一起。</strong> 可加锁流拥有一个互斥量；
+        <code>io_lock_guard</code> 锁的是你自己的互斥量。
+        在调用可加锁流时再套一个 <code>native_mutex</code> 通常没必要；
+        给普通文件加锁也不会让它变成可加锁类型。
+      </div>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>可加锁流提供单进程内的线程安全，不是进程安全。</li>
+        <li><code>ibuf_file_lockable</code>、<code>obuf_file_lockable</code> 和
+          <code>iobuf_file_lockable</code> 按调用加锁。</li>
+        <li>用 <code>native_mutex</code> + <code>io_lock_guard</code> 保护多调用临界区。</li>
+        <li><code>native_mutex</code> 映射为 pthread mutex、SRW 锁、临界区、
+          mcfgthread mutex 或空操作互斥量。</li>
+        <li>缓冲可能把一次逻辑写拆成多次刷新；进程级原子性需要 OS 支持或文件锁。</li>
+        <li><code>io_lock_guard</code> 在头文件侧；可加锁别名和
+          <code>native_mutex</code> 由模块导出。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/11.filesystem/" class="prev-button">&larr; 第26.11章：文件系统与 OS 层</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>
