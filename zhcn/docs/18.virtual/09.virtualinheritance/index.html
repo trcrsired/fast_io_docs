@@ -143,6 +143,11 @@ right *rp = dynamic_cast&lt;right *&gt;(lp); // sibling subobject, or nullptr
         虚继承不是通用的代码复用工具。它只适用于菱形确实是领域模型的一部分、并且一个共享基类子对象在语义上正确的
         狭窄场景。它在布局、构造顺序和转换上都很昂贵，而且很容易写错。在新代码里，组合几乎总是更清晰。
       </p>
+      <p>
+        这就是指南里
+        <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#use-type-erasure-over-virtual-functions-for-polymorphism">使用类型擦除替代虚函数实现多态</a>
+        的推论：如果具体类型从不逃逸出去，就没有东西可转换，RTTI 的代价也随转换一起消失。
+      </p>
     </section>
     <section>
       <h2>4. 这个特性为什么存在</h2>
@@ -165,6 +170,13 @@ right *rp = dynamic_cast&lt;right *&gt;(lp); // sibling subobject, or nullptr
         所以没有菱形、没有虚基类、也没有 RTTI。共享是一个在类型里可见的成员，而不是对象布局里的隐藏调整。
       </p>
       <p>
+        这也是指南里
+        <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#prefer-free-functions-over-methods">优先使用自由函数而不是成员函数</a>
+        和
+        <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#oop">考虑使用类型擦除而不是面向对象编程（OOP）</a>
+        在 I/O 上的应用：操作是设备上的函数，不是层次里的方法。
+      </p>
+      <p>
         安全代价来自同一份复杂性。类型混淆、破坏 vtable 或虚基类指针、对已经损坏的对象做
         <code>dynamic_cast</code>，都是常见的利用手法。带隐藏偏移和运行时指针调整的布局，给攻击者更多可破坏的状态，
         也带来更多“偏移错了就变成另一个对象”的位置。这不是避免虚继承的主要原因，但它是简单布局胜出的又一个理由。
@@ -175,6 +187,46 @@ right *rp = dynamic_cast&lt;right *&gt;(lp); // sibling subobject, or nullptr
         表达同样的共享。
       </p>
     </section>
+
+    <section>
+      <h2>5. 指南引用</h2>
+      <p>
+        本页适用的规则，来自
+        <a href="https://github.com/trcrsired/Portable-Cpp-Guideline"><code>Portable-Cpp-Guideline</code></a>（链接指向英文版对应小节）：
+      </p>
+      <ul>
+        <li>
+          <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#oop"><strong>考虑使用类型擦除而不是面向对象编程（OOP）。</strong></a>
+          菱形之所以存在，只是因为设计被表达成类层次。去掉层次，菱形就消失了。
+        </li>
+        <li>
+          <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#use-type-erasure-over-virtual-functions-for-polymorphism"><strong>使用类型擦除替代虚函数实现多态。</strong></a>
+          共享接口不需要共享的基类子对象，它只需要共享的调用签名。
+        </li>
+        <li>
+          <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#prefer-c-style-pesudo-vtable-singleton-over-c-vtable-especially-after-c20-where-we-have-designated-initializers"><strong>优先使用 C 风格伪 vtable 单例，而不是 C++ vtable。</strong></a>
+          虚继承给分派机制加上了虚基类偏移和 RTTI。两者都是 ABI 相关的；当表是你自己的时候，两者都不需要。
+        </li>
+        <li>
+          <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#if-you-have-to-use-virtual-methods-remember-to-always-mark-either-virtual-override-or-final"><strong>如果必须使用虚函数，始终标注 <code>virtual</code>、<code>override</code> 或 <code>final</code>。</strong></a>
+          虚继承不是标注规则的豁免
+          （<a href="/zhcn/docs/18.virtual/03.marking/">第18.3章</a>）。
+        </li>
+        <li>
+          <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#prefer-free-functions-over-methods"><strong>优先使用自由函数而不是成员函数。</strong></a>
+          <code>print</code>、<code>scan</code> 和 <code>transmit</code> 把设备作为参数；它们不需要类层次来实现多态。
+        </li>
+        <li>
+          <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#avoid-private-fields-and-methods"><strong>避免私有字段和方法。</strong></a>
+          共享基类子对象把状态藏在继承路径后面；显式成员可以被检查和测试。
+        </li>
+        <li>
+          <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#avoid-newunique_ptr"><strong>避免 <code>new</code>/<code>unique_ptr</code>。</strong></a>
+          iostream 风格的层次是让两者看起来必要的历史路径。菱形是同一个错误在类型系统里的表达。
+        </li>
+      </ul>
+    </section>
+
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
       <a href="/zhcn/docs/18.virtual/08.gui/" class="prev-button">&larr; 第18.8章：Qt、MFC，以及为什么 GUI 是 C++ 走歪的地方</a>

@@ -157,6 +157,12 @@ right *rp = dynamic_cast&lt;right *&gt;(lp); // sibling subobject, or nullptr
         correct semantic. It is expensive in layout, construction order and casts, and it is easy
         to get wrong. In new code, composition is almost always clearer.
       </p>
+      <p>
+        This is the guideline's
+        <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#use-type-erasure-over-virtual-functions-for-polymorphism">Use type erasure
+        over virtual functions for polymorphism</a> taken to its conclusion: if the concrete type
+        never escapes, there is nothing to cast, and the cost of RTTI disappears with the cast.
+      </p>
     </section>
     <section>
       <h2>4. Why the Feature Exists</h2>
@@ -186,6 +192,14 @@ right *rp = dynamic_cast&lt;right *&gt;(lp); // sibling subobject, or nullptr
         member that is visible in the type, not a hidden adjustment in the object layout.
       </p>
       <p>
+        That is the guideline's
+        <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#prefer-free-functions-over-methods">Prefer free functions over methods</a>
+        and
+        <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#oop">Consider
+        using type-erasure instead of OOP</a> applied to I/O: the operation is a function on a
+        device, not a method on a hierarchy.
+      </p>
+      <p>
         The security cost follows from the same complexity. Type confusion, corrupted vtable or
         virtual-base pointers, and <code>dynamic_cast</code> on damaged objects are standard
         exploitation techniques. A layout with hidden offsets and runtime pointer adjustment
@@ -201,6 +215,59 @@ right *rp = dynamic_cast&lt;right *&gt;(lp); // sibling subobject, or nullptr
         templates plus composition can express the same sharing with far less machinery.
       </p>
     </section>
+
+    <section>
+      <h2>5. Guideline References</h2>
+      <p>
+        The rules this page applies, from
+        <a href="https://github.com/trcrsired/Portable-Cpp-Guideline"><code>Portable-Cpp-Guideline</code></a>:
+      </p>
+      <ul>
+        <li>
+          <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#oop"><strong>Consider
+          using type-erasure instead of Object-Oriented Programming (OOP).</strong></a>
+          The diamond exists only because the design is expressed as a class hierarchy. Remove
+          the hierarchy and the diamond disappears.
+        </li>
+        <li>
+          <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#use-type-erasure-over-virtual-functions-for-polymorphism"><strong>Use
+          type erasure over virtual functions for polymorphism.</strong></a>
+          A shared interface does not require a shared base subobject; it requires a shared call
+          signature.
+        </li>
+        <li>
+          <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#prefer-c-style-pesudo-vtable-singleton-over-c-vtable-especially-after-c20-where-we-have-designated-initializers"><strong>Prefer
+          a C-style pseudo v-table singleton over the C++ v-table.</strong></a>
+          Virtual inheritance adds virtual-base offsets and RTTI to the dispatch machinery. Both
+          are ABI-specific, and neither is needed when the table is yours.
+        </li>
+        <li>
+          <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#if-you-have-to-use-virtual-methods-remember-to-always-mark-either-virtual-override-or-final"><strong>If
+          you have to use virtual methods, remember to always mark either <code>virtual</code>,
+          <code>override</code> or <code>final</code>.</strong></a>
+          Virtual inheritance is not an exemption from the marker rule
+          (<a href="/docs/18.virtual/03.marking/">Ch18.3</a>).
+        </li>
+        <li>
+          <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#prefer-free-functions-over-methods"><strong>Prefer free functions over
+          methods.</strong></a>
+          <code>print</code>, <code>scan</code> and <code>transmit</code> take the device as an
+          argument; they do not need a class hierarchy to be polymorphic.
+        </li>
+        <li>
+          <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#avoid-private-fields-and-methods"><strong>Avoid private fields and
+          methods.</strong></a>
+          A shared base subobject hides state behind an inheritance path. An explicit member can
+          be inspected and tested.
+        </li>
+        <li>
+          <a href="https://github.com/trcrsired/Portable-Cpp-Guideline#avoid-newunique_ptr"><strong>Avoid <code>new</code>/<code>unique_ptr</code>.</strong></a>
+          The iostream-style hierarchy is the historical path that made both look necessary. The
+          diamond is the same mistake expressed in the type system.
+        </li>
+      </ul>
+    </section>
+
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
       <a href="/docs/18.virtual/08.gui/" class="prev-button">&larr; Ch18.8: Qt, MFC, and Why GUIs Are Where C++ Went Wrong</a>
