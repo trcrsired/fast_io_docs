@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.21: Crypto and TLS - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.21: Crypto and TLS</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/21.cryptotls/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Two Modules</h2>
+      <p>
+        Primitive cryptography is in <code>fast_io_crypto</code>; the TLS record layer and socket
+        wrapper are in <code>fast_io.tls</code>. The TLS module imports the crypto module. Neither
+        is part of the umbrella <code>fast_io</code> module.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Exports</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>fast_io_crypto</code></td>
+            <td>CRC32/CRC32C, AES-128/192/256, Ed25519, X25519, NIST elliptic curves and
+              ECDSA helpers.</td>
+          </tr>
+          <tr>
+            <td><code>fast_io.tls</code></td>
+            <td>TLS client config, TLS clients, socket files, root store, peer certificates,
+              platform backends, handshake operations.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. CRC32</h2>
+      <p>
+        <code>crc32_context</code> and <code>crc32c_context</code> are incremental hash contexts:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::crc32c_context crc;
+crc.update(data, data + size);
+auto const value{crc.digest_value()};
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>update(first, last)</code></td><td>Feed a byte range.</td></tr>
+          <tr><td><code>reset()</code></td><td>Restart the context.</td></tr>
+          <tr><td><code>digest_value()</code></td><td>Return the 32-bit digest.</td></tr>
+          <tr><td><code>digest_to_byte_ptr(ptr)</code></td><td>Write the digest in wire byte order.</td></tr>
+          <tr><td><code>do_final()</code></td><td>No-op finalisation hook.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The implementation uses the hardware CRC instruction where available and a table fallback
+        otherwise. The context is constexpr.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. AES</h2>
+      <p>
+        <code>aes_ctx&lt;key_size&gt;</code> takes a raw key and operates on 16-byte blocks in ECB
+        mode. The aliases are <code>aes128</code>, <code>aes192</code> and <code>aes256</code>.
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::aes128 cipher{key_bytes.data()};
+cipher.encrypt(plain, nblocks, ciphertext);
+cipher.decrypt(ciphertext, nblocks, plain);
+</code></pre>
+      <p>
+        One context serves both directions; decryption reuses the encryption schedule in reverse.
+        The block loop is inside the backend, and <code>from</code>/<code>to</code> may alias.
+      </p>
+      <div class="warning">
+        <strong>ECB is not an encryption scheme.</strong> This API is a raw block primitive. A
+        real protocol needs a mode, a nonce/IV, authentication and key separation. Use TLS or an
+        AEAD construction from the header layer; do not invent a mode from ECB.
+      </div>
+    </section>
+
+    <section>
+      <h2>4. Ed25519 and X25519</h2>
+      <p>
+        <code>ed25519</code> and <code>diffie_hellman::x25519</code> expose fixed-size operations on
+        <code>std::byte</code> spans or raw pointers. The raw-pointer forms end in
+        <code>_to_ptr</code>.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>ed25519::create_key_pair(...)</code></td><td>Public/private key pair from a
+            32-byte secret.</td></tr>
+          <tr><td><code>ed25519::sign_message(...)</code></td><td>64-byte signature for a message.</td></tr>
+          <tr><td><code>ed25519::verify_signature(...)</code></td><td>Boolean verification.</td></tr>
+          <tr><td><code>x25519::calculate_public_key(...)</code></td><td>Public key from a 32-byte
+            secret.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The <code>_to_ptr</code> and span overloads are equivalent; the span forms enforce the
+        fixed sizes at the type level. The blinding overloads accept an explicit blinding context.
+        The exported X25519 surface derives a public key; the shared-secret construction is part
+        of the protocol layer, not a separate exported helper.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. NIST Curves and ECDSA</h2>
+      <p>
+        <code>ecc::secp256r1</code>, <code>secp384r1</code> and <code>secp521r1</code> are the
+        exported curve types. The module also exports ECDSA verification, signing, RFC 6979
+        deterministic signing and the RFC 6979 DRBG.
+      </p>
+      <p>
+        These are low-level arithmetic and signature primitives. They do not manage keys, select
+        a hash, or decide which curve is appropriate for a protocol. Use the TLS layer for a
+        complete handshake.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. TLS Types</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>tls_client_config</code></td><td>Hostname, trust anchors, hostname/chain
+            checks and kernel-offload preference.</td></tr>
+          <tr><td><code>tls_client</code></td><td>TLS state over a socket observer.</td></tr>
+          <tr><td><code>tls_socket_file</code></td><td>Owning socket + TLS client bundle.</td></tr>
+          <tr><td><code>iobuf_tls_socket_file</code></td><td>Buffered TLS socket for
+            <code>print</code>/<code>scan</code>.</td></tr>
+          <tr><td><code>root_store</code></td><td>DER trust anchors decoded from PEM.</td></tr>
+          <tr><td><code>peer_certificates</code></td><td>Parsed peer chain storage.</td></tr>
+          <tr><td><code>native_tls_socket_file</code></td><td>Platform TLS backend (SChannel or
+            OpenSSL/GnuTLS where configured).</td></tr>
+        </tbody>
+      </table>
+      <p>
+        <code>tls_socket_file</code> owns the socket; <code>tls_socket</code> borrows an observer.
+        The TLS stream is still a device: after the handshake, use <code>print</code>,
+        <code>scan</code> and <code>transmit</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Handshake and Trust</h2>
+      <pre><code class="language-cpp">
+::fast_io::tls::tls_socket_file tls{std::move(sock)};
+::fast_io::operations::handshake(tls, ::fast_io::u8cstring_view{u8"example.com"});
+::fast_io::io::println(tls, "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n");
+</code></pre>
+      <p>
+        The hostname overload loads the system trust bundle, checks the chain and verifies the
+        hostname. For a custom bundle, fill <code>tls_client_config</code> from a
+        <code>root_store</code> and call the config overload of <code>handshake</code>.
+      </p>
+      <p>
+        The trust loader (<code>root_store_load_system</code>, <code>root_store_load_pem_file</code>)
+        is header-side. The TLS module exports the types and handshake operation, not a string-path
+        loader.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Backends and Boundaries</h2>
+      <p>
+        <code>fast_io.tls</code> can use its own userspace record layer, the OS backend
+        (SChannel on Windows, native TLS where available) or OpenSSL/GnuTLS backends when built.
+        <code>tls_default_crypto</code> selects the platform default; the config and socket types
+        stay the same.
+      </p>
+      <p>
+        Header-side extras include SHA-1/SHA-256/SHA-512, HMAC, MD5, RSA, AEAD constructions,
+        padding and the platform crypto backends. They are not in the <code>fast_io_crypto</code>
+        module export list yet.
+      </p>
+      <div class="note">
+        <strong>Do not use raw primitives as a protocol.</strong> AES-ECB, a bare signature call
+        and a raw X25519 result are building blocks. A secure protocol needs key derivation,
+        nonces, authentication, transcript binding and error handling; the TLS layer already has
+        them.
+      </div>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>Crypto primitives are in <code>fast_io_crypto</code>; TLS is in
+          <code>fast_io.tls</code>.</li>
+        <li>CRC32/CRC32C contexts are incremental and constexpr.</li>
+        <li>AES is a raw 16-byte ECB block primitive; it is not a complete encryption scheme.</li>
+        <li>Ed25519 and X25519 have span and <code>_to_ptr</code> forms.</li>
+        <li>NIST curves and ECDSA helpers are low-level; TLS provides the complete handshake.</li>
+        <li>TLS socket files are devices; <code>print</code>/<code>scan</code> work after the
+          handshake.</li>
+        <li>The hostname handshake loads the system trust store; a custom bundle uses
+          <code>tls_client_config</code>.</li>
+        <li>SHA/HMAC/RSA/AEAD/padding and platform backends remain header-side.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/20.encoding/" class="prev-button">&larr; Ch26.20: Character Encoding</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.21章：加密与 TLS - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.21章：加密与 TLS</h1>
+    <p class="lang-switch"><a href="/docs/26.api/21.cryptotls/">English</a></p>
+
+    <section>
+      <h2>1. 两个模块</h2>
+      <p>
+        原语加密在 <code>fast_io_crypto</code>；TLS record 层和 socket 包装在
+        <code>fast_io.tls</code>。TLS 模块导入 crypto 模块。两者都不属于总括
+        <code>fast_io</code> 模块。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>模块</th>
+            <th>导出</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>fast_io_crypto</code></td>
+            <td>CRC32/CRC32C、AES-128/192/256、Ed25519、X25519、NIST 椭圆曲线和
+              ECDSA 辅助。</td>
+          </tr>
+          <tr>
+            <td><code>fast_io.tls</code></td>
+            <td>TLS 客户端配置、TLS 客户端、socket 文件、根证书库、对端证书、
+              平台后端、握手操作。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. CRC32</h2>
+      <p>
+        <code>crc32_context</code> 和 <code>crc32c_context</code> 是增量哈希上下文：
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::crc32c_context crc;
+crc.update(data, data + size);
+auto const value{crc.digest_value()};
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>成员</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>update(first, last)</code></td><td>喂入一段字节。</td></tr>
+          <tr><td><code>reset()</code></td><td>重新开始上下文。</td></tr>
+          <tr><td><code>digest_value()</code></td><td>返回 32 位摘要。</td></tr>
+          <tr><td><code>digest_to_byte_ptr(ptr)</code></td><td>按线格式字节序写摘要。</td></tr>
+          <tr><td><code>do_final()</code></td><td>空的收尾钩子。</td></tr>
+        </tbody>
+      </table>
+      <p>
+        平台有硬件 CRC 指令时使用硬件，否则用查表回退。上下文是 constexpr。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. AES</h2>
+      <p>
+        <code>aes_ctx&lt;key_size&gt;</code> 接收原始密钥，按 16 字节块做 ECB 运算。
+        别名是 <code>aes128</code>、<code>aes192</code> 和 <code>aes256</code>。
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::aes128 cipher{key_bytes.data()};
+cipher.encrypt(plain, nblocks, ciphertext);
+cipher.decrypt(ciphertext, nblocks, plain);
+</code></pre>
+      <p>
+        一个上下文同时服务两个方向；解密反向复用加密 key schedule。
+        块循环在后端内部，<code>from</code>/<code>to</code> 可以重叠。
+      </p>
+      <div class="warning">
+        <strong>ECB 不是加密方案。</strong> 这个 API 是原始块原语。
+        真实协议需要模式、nonce/IV、认证和密钥分离。用 TLS 或头文件层的 AEAD 构造；
+        不要用 ECB 自己拼模式。
+      </div>
+    </section>
+
+    <section>
+      <h2>4. Ed25519 与 X25519</h2>
+      <p>
+        <code>ed25519</code> 和 <code>diffie_hellman::x25519</code> 暴露固定大小的
+        <code>std::byte</code> span 或裸指针操作。裸指针形式以 <code>_to_ptr</code> 结尾。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>操作</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>ed25519::create_key_pair(...)</code></td><td>从 32 字节 secret 生成
+            公钥/私钥对。</td></tr>
+          <tr><td><code>ed25519::sign_message(...)</code></td><td>为消息生成 64 字节签名。</td></tr>
+          <tr><td><code>ed25519::verify_signature(...)</code></td><td>布尔验签。</td></tr>
+          <tr><td><code>x25519::calculate_public_key(...)</code></td><td>从 32 字节 secret 计算
+            公钥。</td></tr>
+        </tbody>
+      </table>
+      <p>
+        <code>_to_ptr</code> 和 span 重载等价；span 形式在类型层强制固定大小。
+        blinding 重载接受显式 blinding 上下文。导出的 X25519 表面计算公钥；
+        共享密钥构造属于协议层，不是单独导出的辅助。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. NIST 曲线与 ECDSA</h2>
+      <p>
+        <code>ecc::secp256r1</code>、<code>secp384r1</code> 和 <code>secp521r1</code>
+        是导出的曲线类型。模块还导出 ECDSA 验签、签名、RFC 6979 确定性签名和
+        RFC 6979 DRBG。
+      </p>
+      <p>
+        这些是底层算术和签名原语。它们不管理密钥、不选择哈希，
+        也不决定哪条曲线适合某个协议。完整握手用 TLS 层。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. TLS 类型</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>角色</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>tls_client_config</code></td><td>主机名、信任锚、hostname/chain 检查和
+            内核 offload 偏好。</td></tr>
+          <tr><td><code>tls_client</code></td><td>socket observer 上的 TLS 状态。</td></tr>
+          <tr><td><code>tls_socket_file</code></td><td>拥有 socket + TLS 客户端组合。</td></tr>
+          <tr><td><code>iobuf_tls_socket_file</code></td><td>带缓冲 TLS socket，用于
+            <code>print</code>/<code>scan</code>。</td></tr>
+          <tr><td><code>root_store</code></td><td>从 PEM 解码的 DER 信任锚。</td></tr>
+          <tr><td><code>peer_certificates</code></td><td>解析后的对端证书链存储。</td></tr>
+          <tr><td><code>native_tls_socket_file</code></td><td>平台 TLS 后端（配置时 SChannel 或
+            OpenSSL/GnuTLS）。</td></tr>
+        </tbody>
+      </table>
+      <p>
+        <code>tls_socket_file</code> 拥有 socket；<code>tls_socket</code> 借用 observer。
+        TLS 流仍然是设备：握手之后用 <code>print</code>、<code>scan</code> 和
+        <code>transmit</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 握手与信任</h2>
+      <pre><code class="language-cpp">
+::fast_io::tls::tls_socket_file tls{std::move(sock)};
+::fast_io::operations::handshake(tls, ::fast_io::u8cstring_view{u8"example.com"});
+::fast_io::io::println(tls, "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n");
+</code></pre>
+      <p>
+        hostname 重载加载系统信任库、检查链并验证主机名。自定义 bundle 时，
+        从 <code>root_store</code> 填 <code>tls_client_config</code>，
+        再调用 config 重载的 <code>handshake</code>。
+      </p>
+      <p>
+        信任加载器（<code>root_store_load_system</code>、
+        <code>root_store_load_pem_file</code>）在头文件侧。TLS 模块导出类型和握手操作，
+        不导出字符串路径 loader。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 后端与边界</h2>
+      <p>
+        <code>fast_io.tls</code> 可以使用自己的用户态 record 层、OS 后端
+        （Windows 上 SChannel、平台原生 TLS）或构建时启用的 OpenSSL/GnuTLS 后端。
+        <code>tls_default_crypto</code> 选择平台默认；config 和 socket 类型不变。
+      </p>
+      <p>
+        头文件侧额外内容：SHA-1/SHA-256/SHA-512、HMAC、MD5、RSA、AEAD 构造、
+        padding 和平台 crypto 后端。它们还没有进入 <code>fast_io_crypto</code>
+        模块导出列表。
+      </p>
+      <div class="note">
+        <strong>不要把原语当协议。</strong> AES-ECB、裸签名调用和裸 X25519 结果都是积木。
+        安全协议需要密钥派生、nonce、认证、transcript 绑定和错误处理；TLS 层已经有了。
+      </div>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>原语加密在 <code>fast_io_crypto</code>；TLS 在 <code>fast_io.tls</code>。</li>
+        <li>CRC32/CRC32C 上下文是增量且 constexpr 的。</li>
+        <li>AES 是原始 16 字节 ECB 块原语；不是完整加密方案。</li>
+        <li>Ed25519 和 X25519 有 span 和 <code>_to_ptr</code> 形式。</li>
+        <li>NIST 曲线和 ECDSA 辅助是底层；TLS 提供完整握手。</li>
+        <li>TLS socket 文件是设备；握手后 <code>print</code>/<code>scan</code> 可用。</li>
+        <li>hostname 握手加载系统信任库；自定义 bundle 用
+          <code>tls_client_config</code>。</li>
+        <li>SHA/HMAC/RSA/AEAD/padding 和平台后端仍在头文件侧。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/20.encoding/" class="prev-button">&larr; 第26.20章：字符编码</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>
