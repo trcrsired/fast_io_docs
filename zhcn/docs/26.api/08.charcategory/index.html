@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.8章：char_category - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.8章：<code>char_category</code></h1>
+    <p class="lang-switch"><a href="/docs/26.api/08.charcategory/">English</a></p>
+
+    <section>
+      <h2>1. char_category 是什么</h2>
+      <p>
+        <code>fast_io::char_category</code> 是编译期、与 locale 无关的字符分类层。
+        它回答 C locale 下 <code>&lt;cctype&gt;</code> 回答的问题，外加全角/半角
+        和少量路径/HTML 辅助，不需要 locale 对象；编译器能折叠时，运行时也没有函数调用。
+      </p>
+      <p>
+        每个谓词都是 <code>constexpr</code> 和 <code>noexcept</code>。
+        这一层接受 fast_io 使用的字符类型：<code>char</code>、<code>wchar_t</code>、
+        <code>char8_t</code>、<code>char16_t</code> 和 <code>char32_t</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 谓词</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>谓词</th>
+            <th>何时为真</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>is_c_alnum(ch)</code></td><td>字母或数字。</td></tr>
+          <tr><td><code>is_c_alpha(ch)</code></td><td>字母。</td></tr>
+          <tr><td><code>is_c_blank(ch)</code></td><td>空格或制表符。</td></tr>
+          <tr><td><code>is_c_cntrl(ch)</code></td><td>控制字符。</td></tr>
+          <tr><td><code>is_c_digit(ch)</code></td><td>十进制数字。</td></tr>
+          <tr><td><code>is_c_graph(ch)</code></td><td>图形字符（字母数字或标点）。</td></tr>
+          <tr><td><code>is_c_lower(ch)</code></td><td>小写字母。</td></tr>
+          <tr><td><code>is_c_print(ch)</code></td><td>可打印字符，包括空格。</td></tr>
+          <tr><td><code>is_c_punct(ch)</code></td><td>标点字符。</td></tr>
+          <tr><td><code>is_c_space(ch)</code></td><td>空白：空格、制表、换行、回车、换页、垂直制表。</td></tr>
+          <tr><td><code>is_c_upper(ch)</code></td><td>大写字母。</td></tr>
+          <tr><td><code>is_c_xdigit(ch)</code></td><td>十六进制数字。</td></tr>
+          <tr><td><code>is_c_halfwidth(ch)</code></td><td>半角字符。</td></tr>
+          <tr><td><code>is_c_fullwidth(ch)</code></td><td>全角字符。</td></tr>
+          <tr><td><code>is_html_whitespace(ch)</code></td><td>HTML 空白：空格、制表、LF、FF、CR。</td></tr>
+          <tr><td><code>is_dos_file_invalid_character(ch)</code></td><td>DOS/Windows 文件名中非法的字符。</td></tr>
+          <tr><td><code>is_dos_path_invalid_prefix_character(ch)</code></td><td>DOS 路径前缀开头非法的字符。头文件侧。</td></tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+static_assert(::fast_io::char_category::is_c_digit('7'));
+static_assert(!::fast_io::char_category::is_c_space('x'));
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. 大小写与宽度转换</h2>
+      <p>
+        转换函数是函数对象，不是宏，而且同样是 <code>constexpr</code>：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>条目</th>
+            <th>效果</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>to_c_lower(ch)</code></td>
+            <td>C locale 定义映射时，把大写字符转成小写。</td>
+          </tr>
+          <tr>
+            <td><code>to_c_upper(ch)</code></td>
+            <td>把小写字符转成大写。</td>
+          </tr>
+          <tr>
+            <td><code>to_c_halfwidth(ch)</code></td>
+            <td>把全角标点或形式转成已定义的半角形式。</td>
+          </tr>
+          <tr>
+            <td><code>ranges::to_c_lower(first, last[, proj])</code></td>
+            <td>对迭代器/哨兵范围应用映射；返回最终迭代器。</td>
+          </tr>
+          <tr>
+            <td><code>ranges::to_c_upper(range[, proj])</code></td>
+            <td>对范围应用映射；返回借用迭代器。</td>
+          </tr>
+          <tr>
+            <td><code>ranges::to_c_halfwidth(range[, proj])</code></td>
+            <td>对范围应用半角转换。</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+char c{'A'};
+c = ::fast_io::char_category::to_c_lower(c);   // 'a'
+
+::fast_io::string s{"Hello"};
+::fast_io::char_category::ranges::to_c_upper(s);
+</code></pre>
+      <p>
+        range 版本接受投影，所以可以和成员访问器组合：
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::char_category::ranges::to_c_lower(
+    first, last, [](auto const &e) { return e.initial; });
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. <code>char_category_traits</code></h2>
+      <p>
+        <code>char_category_traits&lt;family, negate&gt;</code> 把一个 family 变成可调用谓词。
+        它暴露 <code>family</code>、<code>is_negate</code> 和 <code>char_is(ch)</code>，
+        它的 <code>operator()</code> 调用 <code>char_is</code>。
+        这是可以存进表里或传给算法的形式。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th><code>char_category_family</code></th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>c_alnum</code></td><td>字母数字。</td></tr>
+          <tr><td><code>c_alpha</code></td><td>字母。</td></tr>
+          <tr><td><code>c_blank</code></td><td>空格或制表。</td></tr>
+          <tr><td><code>c_cntrl</code></td><td>控制。</td></tr>
+          <tr><td><code>c_digit</code></td><td>数字。</td></tr>
+          <tr><td><code>c_fullwidth</code></td><td>全角。</td></tr>
+          <tr><td><code>c_graph</code></td><td>图形。</td></tr>
+          <tr><td><code>c_halfwidth</code></td><td>半角。</td></tr>
+          <tr><td><code>c_lower</code></td><td>小写。</td></tr>
+          <tr><td><code>c_print</code></td><td>可打印。</td></tr>
+          <tr><td><code>c_punct</code></td><td>标点。</td></tr>
+          <tr><td><code>c_space</code></td><td>空白。</td></tr>
+          <tr><td><code>c_upper</code></td><td>大写。</td></tr>
+          <tr><td><code>c_xdigit</code></td><td>十六进制数字。</td></tr>
+          <tr><td><code>dos_file_invalid_character</code></td><td>DOS/Windows 文件名非法字符。</td></tr>
+          <tr><td><code>html_whitespace</code></td><td>HTML 空白。</td></tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+using digit_pred = ::fast_io::char_category::char_category_traits&lt;
+    ::fast_io::char_category::char_category_family::c_digit, false>;
+
+static_assert(digit_pred::char_is('5'));
+static_assert(!digit_pred{}( 'x' ));
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. 模块与头文件边界</h2>
+      <p>
+        <code>fast_io</code> 模块导出：
+      </p>
+      <ul>
+        <li><code>char_category_family</code> 和 <code>char_category_traits</code>；</li>
+        <li><code>to_c_lower</code>、<code>to_c_upper</code>、<code>to_c_halfwidth</code>；</li>
+        <li><code>ranges::to_c_lower</code>、<code>ranges::to_c_upper</code> 和
+          <code>ranges::to_c_halfwidth</code> 的 range 形式；</li>
+        <li><code>is_dos_file_invalid_character</code>。</li>
+      </ul>
+      <p>
+        单独的 <code>is_c_*</code> 谓词目前属于头文件侧。
+        <code>is_html_whitespace</code> 和
+        <code>is_dos_path_invalid_prefix_character</code> 也是。
+        它们都可以通过 <code>#include &lt;fast_io.h&gt;</code> 使用；
+        如果使用模块，先包含需要的谓词头文件，直到导出列表扩展。
+      </p>
+      <div class="note">
+        <strong>不是 locale。</strong> <code>char_category</code> 不是
+        <code>fast_io.i18n</code> 层。它是 C locale 的分类和转换层。
+        答案需要随用户 locale 变化时，用 locale 模块。
+      </div>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>char_category</code> 是编译期、与 locale 无关的字符分类。</li>
+        <li>核心谓词对应 C <code>&lt;cctype&gt;</code> 家族，另加全角/半角、HTML 空白
+          和 DOS 文件名验证。</li>
+        <li><code>to_c_lower</code>、<code>to_c_upper</code> 和 <code>to_c_halfwidth</code>
+          是 constexpr 函数对象；<code>ranges::</code> 形式把它们应用到带可选投影的范围。</li>
+        <li><code>char_category_traits&lt;family, negate&gt;</code> 是可调用、可存储的
+          family 形式。</li>
+        <li>模块导出 traits、三个转换对象、它们的 range 形式以及
+          <code>is_dos_file_invalid_character</code>；单独的 <code>is_c_*</code>
+          谓词仍在头文件侧。</li>
+        <li>这一层不是 locale；locale 相关格式化用 <code>fast_io.i18n</code>。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/07.manipulators/" class="prev-button">&larr; 第26.7章：操纵器查找</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>

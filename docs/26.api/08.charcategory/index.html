@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.8: char_category - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.8: <code>char_category</code></h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/08.charcategory/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. What char_category Is</h2>
+      <p>
+        <code>fast_io::char_category</code> is a compile-time, locale-independent character
+        classification layer. It answers the questions that <code>&lt;cctype&gt;</code> answers
+        in the C locale, plus fullwidth/halfwidth and a few path/HTML helpers, without a locale
+        object and without a function call at runtime when the compiler can fold it.
+      </p>
+      <p>
+        Every predicate is <code>constexpr</code> and <code>noexcept</code>. The layer accepts
+        the character types fast_io uses: <code>char</code>, <code>wchar_t</code>,
+        <code>char8_t</code>, <code>char16_t</code> and <code>char32_t</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Predicates</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Predicate</th>
+            <th>True when</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>is_c_alnum(ch)</code></td><td>Letter or digit.</td></tr>
+          <tr><td><code>is_c_alpha(ch)</code></td><td>Letter.</td></tr>
+          <tr><td><code>is_c_blank(ch)</code></td><td>Space or tab.</td></tr>
+          <tr><td><code>is_c_cntrl(ch)</code></td><td>Control character.</td></tr>
+          <tr><td><code>is_c_digit(ch)</code></td><td>Decimal digit.</td></tr>
+          <tr><td><code>is_c_graph(ch)</code></td><td>Graphical character (alphanumeric or punctuation).</td></tr>
+          <tr><td><code>is_c_lower(ch)</code></td><td>Lowercase letter.</td></tr>
+          <tr><td><code>is_c_print(ch)</code></td><td>Printable character, including space.</td></tr>
+          <tr><td><code>is_c_punct(ch)</code></td><td>Punctuation character.</td></tr>
+          <tr><td><code>is_c_space(ch)</code></td><td>Whitespace: space, tab, newline, carriage return, form feed, vertical tab.</td></tr>
+          <tr><td><code>is_c_upper(ch)</code></td><td>Uppercase letter.</td></tr>
+          <tr><td><code>is_c_xdigit(ch)</code></td><td>Hexadecimal digit.</td></tr>
+          <tr><td><code>is_c_halfwidth(ch)</code></td><td>Halfwidth character.</td></tr>
+          <tr><td><code>is_c_fullwidth(ch)</code></td><td>Fullwidth character.</td></tr>
+          <tr><td><code>is_html_whitespace(ch)</code></td><td>HTML whitespace: space, tab, LF, FF, CR.</td></tr>
+          <tr><td><code>is_dos_file_invalid_character(ch)</code></td><td>Character invalid in a DOS/Windows file name.</td></tr>
+          <tr><td><code>is_dos_path_invalid_prefix_character(ch)</code></td><td>Character invalid at the start of a DOS path prefix. Header-side.</td></tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+static_assert(::fast_io::char_category::is_c_digit('7'));
+static_assert(!::fast_io::char_category::is_c_space('x'));
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. Case and Width Conversion</h2>
+      <p>
+        The conversion functions are function objects, not macros, and they are also
+        <code>constexpr</code>:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Effect</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>to_c_lower(ch)</code></td>
+            <td>Map an uppercase character to lowercase where the C locale defines the mapping.</td>
+          </tr>
+          <tr>
+            <td><code>to_c_upper(ch)</code></td>
+            <td>Map a lowercase character to uppercase.</td>
+          </tr>
+          <tr>
+            <td><code>to_c_halfwidth(ch)</code></td>
+            <td>Map a fullwidth punctuation or form to its halfwidth form where defined.</td>
+          </tr>
+          <tr>
+            <td><code>ranges::to_c_lower(first, last[, proj])</code></td>
+            <td>Apply the mapping to an iterator/sentinel range; returns the final iterator.</td>
+          </tr>
+          <tr>
+            <td><code>ranges::to_c_upper(range[, proj])</code></td>
+            <td>Apply the mapping to a range; returns a borrowed iterator.</td>
+          </tr>
+          <tr>
+            <td><code>ranges::to_c_halfwidth(range[, proj])</code></td>
+            <td>Apply halfwidth conversion to a range.</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+char c{'A'};
+c = ::fast_io::char_category::to_c_lower(c);   // 'a'
+
+::fast_io::string s{"Hello"};
+::fast_io::char_category::ranges::to_c_upper(s);
+</code></pre>
+      <p>
+        The range versions accept a projection, so they compose with a member accessor:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::char_category::ranges::to_c_lower(
+    first, last, [](auto const &e) { return e.initial; });
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. <code>char_category_traits</code></h2>
+      <p>
+        <code>char_category_traits&lt;family, negate&gt;</code> turns a family into a callable
+        predicate. It exposes <code>family</code>, <code>is_negate</code> and
+        <code>char_is(ch)</code>, and its <code>operator()</code> calls <code>char_is</code>.
+        This is the form to store in a table or pass to an algorithm.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th><code>char_category_family</code></th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>c_alnum</code></td><td>Alphanumeric.</td></tr>
+          <tr><td><code>c_alpha</code></td><td>Alphabetic.</td></tr>
+          <tr><td><code>c_blank</code></td><td>Space or tab.</td></tr>
+          <tr><td><code>c_cntrl</code></td><td>Control.</td></tr>
+          <tr><td><code>c_digit</code></td><td>Digit.</td></tr>
+          <tr><td><code>c_fullwidth</code></td><td>Fullwidth.</td></tr>
+          <tr><td><code>c_graph</code></td><td>Graphical.</td></tr>
+          <tr><td><code>c_halfwidth</code></td><td>Halfwidth.</td></tr>
+          <tr><td><code>c_lower</code></td><td>Lowercase.</td></tr>
+          <tr><td><code>c_print</code></td><td>Printable.</td></tr>
+          <tr><td><code>c_punct</code></td><td>Punctuation.</td></tr>
+          <tr><td><code>c_space</code></td><td>Whitespace.</td></tr>
+          <tr><td><code>c_upper</code></td><td>Uppercase.</td></tr>
+          <tr><td><code>c_xdigit</code></td><td>Hexadecimal digit.</td></tr>
+          <tr><td><code>dos_file_invalid_character</code></td><td>Invalid DOS/Windows file-name character.</td></tr>
+          <tr><td><code>html_whitespace</code></td><td>HTML whitespace.</td></tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+using digit_pred = ::fast_io::char_category::char_category_traits&lt;
+    ::fast_io::char_category::char_category_family::c_digit, false>;
+
+static_assert(digit_pred::char_is('5'));
+static_assert(!digit_pred{}( 'x' ));
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. Module and Header Boundary</h2>
+      <p>
+        The <code>fast_io</code> module exports:
+      </p>
+      <ul>
+        <li><code>char_category_family</code> and <code>char_category_traits</code>;</li>
+        <li><code>to_c_lower</code>, <code>to_c_upper</code>, <code>to_c_halfwidth</code>;</li>
+        <li>the <code>ranges::to_c_lower</code>, <code>ranges::to_c_upper</code> and
+          <code>ranges::to_c_halfwidth</code> range forms;</li>
+        <li><code>is_dos_file_invalid_character</code>.</li>
+      </ul>
+      <p>
+        The individual <code>is_c_*</code> predicates are header-side today. So are
+        <code>is_html_whitespace</code> and
+        <code>is_dos_path_invalid_prefix_character</code>. They are all available through
+        <code>#include &lt;fast_io.h&gt;</code>; if you are using the module, include the header
+        for the predicate you need until the export list is extended.
+      </p>
+      <div class="note">
+        <strong>Not a locale.</strong> <code>char_category</code> is not the
+        <code>fast_io.i18n</code> layer. It is the C-locale classification and conversion layer.
+        Use the locale module when the answer must change with the user's locale.
+      </div>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li><code>char_category</code> is compile-time, locale-independent character
+          classification.</li>
+        <li>The core predicates mirror the C <code>&lt;cctype&gt;</code> families, plus
+          fullwidth/halfwidth, HTML whitespace and DOS file-name validation.</li>
+        <li><code>to_c_lower</code>, <code>to_c_upper</code> and <code>to_c_halfwidth</code> are
+          constexpr function objects; the <code>ranges::</code> forms apply them to a range with
+          an optional projection.</li>
+        <li><code>char_category_traits&lt;family, negate&gt;</code> is the callable, storable
+          form of a family.</li>
+        <li>The module exports the traits, the three conversion objects, their range forms and
+          <code>is_dos_file_invalid_character</code>; the individual <code>is_c_*</code>
+          predicates remain header-side.</li>
+        <li>This layer is not a locale; use <code>fast_io.i18n</code> for locale-dependent
+          formatting.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/07.manipulators/" class="prev-button">&larr; Ch26.7: Manipulator Lookup</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>
