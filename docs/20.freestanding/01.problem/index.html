@@ -278,7 +278,15 @@ undefined reference to `typeinfo for char const*'</code></pre>
           needs no runtime. The delay was not technical in that sense: <code>&lt;utility&gt;</code>
           is a large, entangled header, and carving out a freestanding subset was work nobody wanted
           to take on until C++23. A freestanding program that wanted <code>move</code> had to write
-          the cast itself or depend on a vendor extension.
+          the cast itself or depend on a vendor extension. Writing it yourself is possible, but it
+          is not a solution: every company and codebase ends up with its own
+          <code>xxx::move</code>, so the code is no longer idiomatic or portable, and library code
+          that spells <code>std::move</code> will not use yours. On Clang,
+          <code>std::move</code>, <code>std::forward</code>, <code>std::move_if_noexcept</code>,
+          <code>std::addressof</code> and <code>std::as_const</code> are also treated as compiler
+          builtins (<a href="https://reviews.llvm.org/D123345">D123345</a>); a hand-written
+          <code>xxx::move</code> does not get that handling, so it cannot be assumed to produce the
+          same code as the standard library's.
         </li>
         <li>
           <strong><code>std::array</code> and <code>&lt;algorithm&gt;</code> (C++26).</strong>

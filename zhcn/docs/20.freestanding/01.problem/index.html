@@ -240,6 +240,12 @@ undefined reference to `typeinfo for char const*'</code></pre>
           <code>std::move</code> 只是一个转换，不需要运行时。延迟不是因为这个转换本身有什么技术困难：
           <code>&lt;utility&gt;</code> 是一个很大、牵扯很多的头文件，把它切出一个独立子集是没人愿意接的活，
           直到 C++23 才做。想要 <code>move</code> 的独立程序只能自己写这个转换，或者依赖厂商扩展。
+          自己写是可能的，但这不是解决方案：每家公司、每个代码库最后都有自己的 <code>xxx::move</code>，
+          代码于是不再地道，也不再可移植；库代码写的是 <code>std::move</code>，不会用你的。
+          在 Clang 上，<code>std::move</code>、<code>std::forward</code>、<code>std::move_if_noexcept</code>、
+          <code>std::addressof</code> 和 <code>std::as_const</code> 还被当作编译器内建
+          （<a href="https://reviews.llvm.org/D123345">D123345</a>）；手写的 <code>xxx::move</code>
+          得不到这套处理，因此不能假定它生成和标准库相同的代码。
         </li>
         <li>
           <strong><code>std::array</code> 与 <code>&lt;algorithm&gt;</code>（C++26）。</strong>
