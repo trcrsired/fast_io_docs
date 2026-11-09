@@ -299,7 +299,11 @@ int main()
       <p>
         成员列表可以计算。一个常见模式是“结构体的数组版”：
       </p>
-      <pre><code class="language-cpp">template &lt;typename T, std::size_t N&gt;
+      <pre><code class="language-cpp">#include &lt;array&gt;
+#include &lt;meta&gt;
+#include &lt;vector&gt;
+
+template &lt;typename T, std::size_t N&gt;
 struct struct_of_arrays
 {
     struct impl;
@@ -328,8 +332,21 @@ struct struct_of_arrays
       <p>
         <code>substitute</code> 构建 <code>std::array&lt;MemberType, N&gt;</code> 的反射；
         <code>data_member_spec</code> 用原成员的名字命名它；<code>define_aggregate</code> 补全
-        <code>impl</code>。这类代码过去需要外部生成器。限制是真实的：生成的聚合体是简单聚合体，
-        不是带构造函数、虚函数或访问说明符的任意类。
+        <code>impl</code>。成员列表使用 <code>std::vector&lt;std::meta::info&gt;</code>；
+        <code>std::meta</code> 查询本身返回同一类型，所以例子保持使用标准容器。
+      </p>
+      <p>
+        这也是独立环境的痛点。<code>std::vector</code> 不是独立容器，而返回范围的元函数
+        （<code>nonstatic_data_members_of</code>、<code>enumerators_of</code>、
+        <code>members_of</code>、<code>bases_of</code>）返回的是
+        <code>std::vector&lt;std::meta::info&gt;</code>。P3295 提案为独立环境增加 constexpr 容器，
+        让这些函数可用；在你的标准库提供它之前，这些函数只能在宿主环境使用。核心语言
+        （<code>^^</code>、拼接、<code>std::meta::info</code>）对独立环境友好；需要检查的是这些
+        返回容器的库函数。
+      </p>
+      <p>
+        这类代码过去需要外部生成器。限制是真实的：生成的聚合体是简单聚合体，不是带构造函数、
+        虚函数或访问说明符的任意类。
       </p>
     </section>
 

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第25章：细则 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第25章：细则</h1>
+    <p class="lang-switch"><a href="/docs/25.fineprint/">English</a></p>
+
+    <section>
+      <h2>为什么有这一章</h2>
+      <p>
+        教程必须选择顺序。有些特性太小，不值得单独一章；有些太依赖场景，不适合主路径；有些只是掉在两个主题之间。
+        它们仍然出现在真实代码里，而且出现时，编译器的行为往往令人意外。
+      </p>
+      <p>
+        这一章收集前面没有覆盖的那些：共用体、结构化绑定、存储期与链接、匿名与内联命名空间、条件
+        <code>explicit</code>、<code>[[no_unique_address]]</code>、对齐、<code>offsetof</code> 和
+        <code>volatile</code>。每一页是一组规则，不是标准库导览。
+      </p>
+      <p>
+        有一个特性刻意不在这里重复：<code>using enum</code> 属于它影响的枚举，已经在
+        <a href="/zhcn/docs/02.basics/16.enumclass/">第2.16章</a>讲过。放在那里可以避免把同一条作用域规则教两遍。
+      </p>
+    </section>
+
+    <section>
+      <h2>四页</h2>
+      <ol>
+        <li><a href="/zhcn/docs/25.fineprint/01.union/">第25.1章：共用体：一块存储，多种类型</a></li>
+        <li><a href="/zhcn/docs/25.fineprint/02.bindings/">第25.2章：结构化绑定</a></li>
+        <li><a href="/zhcn/docs/25.fineprint/03.storage/">第25.3章：存储期、链接与命名空间</a></li>
+        <li><a href="/zhcn/docs/25.fineprint/04.edges/">第25.4章：带棱角的声明</a></li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>简短版本</h2>
+      <p>
+        <code>union</code> 让所有非静态数据成员共享一块存储。只能读活动成员；公共初始序列是窄例外。
+        非平凡成员需要显式构造和析构。位域依赖布局，不是可移植线格式。共用体类型双关在 C++ 里是未定义行为；
+        用 <code>std::bit_cast</code> 或 <code>memcpy</code>。
+      </p>
+      <p>
+        结构化绑定把多个名字绑定到一个隐藏对象的元素上。数组、类 tuple 类型和公开聚合体成员可以被分解。
+        声明的限定符作用于隐藏对象：<code>auto</code> 复制，<code>auto&amp;</code> 别名，
+        <code>auto const&amp;</code> 延长临时对象，<code>auto&amp;&amp;</code> 转发。名字数量必须等于元素数量。
+      </p>
+      <p>
+        作用域、存储期和链接互相独立。局部 <code>static</code> 每个程序一个对象，只初始化一次。
+        <code>thread_local</code> 每线程一个对象，不是同步。<code>inline</code> 变量在头文件里跨翻译单元
+        提供一个实体。命名空间作用域的 <code>const</code> 默认内部链接。匿名命名空间是每翻译单元的实现细节；
+        内联命名空间是透明版本化。
+      </p>
+      <p>
+        <code>explicit(bool)</code> 让显式性成为编译期条件。<code>[[no_unique_address]]</code> 允许空成员
+        重叠，但不保证大小。<code>alignas</code> 提高对齐；<code>alignof</code> 询问对齐。
+        <code>offsetof</code> 用于标准布局类型，且依赖 ABI。<code>volatile</code> 用于硬件和信号，
+        不用于线程间同步。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/24.reflection/04.support/" class="prev-button">&larr; 第24.4章：支持与采用</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/25.fineprint/01.union/" class="next-button">第25.1章：共用体 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

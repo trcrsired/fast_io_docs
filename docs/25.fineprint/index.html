@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch25: The Fine Print - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch25: The Fine Print</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/25.fineprint/">中文（简体）</a></p>
+
+    <section>
+      <h2>Why This Chapter Exists</h2>
+      <p>
+        A tutorial has to choose an order. Some features are too small for their own chapter, too
+        situational for the main path, or simply fall between two topics. They still appear in real
+        code, and when they do, the compiler's behavior is often surprising.
+      </p>
+      <p>
+        This chapter collects the ones that were not covered earlier: the union, structured
+        bindings, storage duration and linkage, anonymous and inline namespaces, conditional
+        <code>explicit</code>, <code>[[no_unique_address]]</code>, alignment, <code>offsetof</code>
+        and <code>volatile</code>. Each page is a set of rules, not a tour of the standard library.
+      </p>
+      <p>
+        One feature is deliberately not repeated here: <code>using enum</code> belongs with the enum
+        it affects, and it is already covered in
+        <a href="/docs/02.basics/16.enumclass/">Ch2.16</a>. Keeping it there avoids teaching the same
+        scope rule twice.
+      </p>
+    </section>
+
+    <section>
+      <h2>The Four Pages</h2>
+      <ol>
+        <li>
+          <a href="/docs/25.fineprint/01.union/">25.1 Union: One Storage, Many Types</a>
+        </li>
+        <li>
+          <a href="/docs/25.fineprint/02.bindings/">25.2 Structured Bindings</a>
+        </li>
+        <li>
+          <a href="/docs/25.fineprint/03.storage/">25.3 Storage, Linkage and Namespaces</a>
+        </li>
+        <li>
+          <a href="/docs/25.fineprint/04.edges/">25.4 Declarations with Sharp Edges</a>
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>The Short Version</h2>
+      <p>
+        A <code>union</code> shares one storage region among its non-static data members. Only the
+        active member may be read; the common initial sequence is the narrow exception. Non-trivial
+        members need explicit construction and destruction. Bit-fields are layout-dependent and are
+        not a portable wire format. Union type punning is undefined behavior in C++; use
+        <code>std::bit_cast</code> or <code>memcpy</code> instead.
+      </p>
+      <p>
+        A structured binding declares several names bound to the elements of one hidden object.
+        Arrays, tuple-like types and public aggregate members can be decomposed. The declaration's
+        qualifier applies to the hidden object: <code>auto</code> copies, <code>auto&amp;</code>
+        aliases, <code>auto const&amp;</code> extends a temporary, <code>auto&amp;&amp;</code>
+        forwards. The number of names must match the number of elements.
+      </p>
+      <p>
+        Scope, storage duration and linkage are independent. A local <code>static</code> is one
+        object per program, initialized once. <code>thread_local</code> is one object per thread, not
+        synchronization. <code>inline</code> variables give one entity across translation units in a
+        header. Namespace-scope <code>const</code> has internal linkage by default. Anonymous
+        namespaces are per-translation-unit implementation details; inline namespaces are
+        transparent versioning.
+      </p>
+      <p>
+        <code>explicit(bool)</code> makes explicitness a compile-time condition.
+        <code>[[no_unique_address]]</code> permits empty members to overlap, but does not guarantee
+        a size. <code>alignas</code> raises alignment; <code>alignof</code> asks for it.
+        <code>offsetof</code> is for standard-layout types and is ABI-dependent.
+        <code>volatile</code> is for hardware and signals, not for inter-thread synchronization.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/24.reflection/04.support/" class="prev-button">&larr; Ch24.4: Support and Adoption</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/25.fineprint/01.union/" class="next-button">Ch25.1: Union &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

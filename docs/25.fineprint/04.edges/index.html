@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch25.4: Declarations with Sharp Edges - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch25.4: Declarations with Sharp Edges</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/25.fineprint/04.edges/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. <code>explicit(bool)</code>: Conditional Explicitness</h2>
+      <p>
+        A constructor can be <code>explicit</code> or not, and the choice is usually made once for
+        the type. C++20 allows the choice to depend on a compile-time condition:
+      </p>
+      <pre><code class="language-cpp">#include &lt;type_traits&gt;
+
+template &lt;typename T&gt;
+struct box
+{
+    T value;
+
+    explicit(std::is_integral_v&lt;T&gt;) box(T v) : value{v} {}
+};</code></pre>
+      <p>
+        The expression in <code>explicit(...)</code> must be a constant expression of type
+        <code>bool</code>. When it is <code>true</code>, the constructor is explicit; when it is
+        <code>false</code>, it is converting. The usual use is a wrapper that should accept implicit
+        conversions for some element types but not for others:
+      </p>
+      <pre><code class="language-cpp">box&lt;double&gt; d = 1.0;   // OK: explicit(false)
+box&lt;int&gt; i = 1;        // error: explicit(true)
+box&lt;int&gt; j{1};         // OK: direct initialization</code></pre>
+      <p>
+        This is not a runtime check. The condition is evaluated during template instantiation, and
+        the resulting constructor is either explicit or not. It is useful for generic wrappers,
+        strong typedefs and unit types where the conversion policy depends on the payload.
+      </p>
+      <p>
+        Do not use <code>explicit(bool)</code> to encode a runtime policy. If the decision depends on
+        a value, it is not a conversion rule; write a named factory function instead.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. <code>[[no_unique_address]]</code>: Empty Members</h2>
+      <p>
+        An empty class still has a size of at least one byte, because every object needs a distinct
+        address. A member of an empty type normally costs that byte plus padding:
+      </p>
+      <pre><code class="language-cpp">struct empty {};
+
+struct without
+{
+    empty e;
+    int x;
+};
+
+struct with
+{
+    [[no_unique_address]] empty e;
+    int x;
+};</code></pre>
+      <p>
+        <code>[[no_unique_address]]</code> tells the compiler that the member does not need a unique
+        address, so it may overlap with other members. On the implementations used in this book,
+        <code>sizeof(without)</code> is usually 8 and <code>sizeof(with)</code> is usually 4. The
+        standard permits the overlap; it does not require a specific size.
+      </p>
+      <pre><code class="language-cpp">static_assert(sizeof(with) &lt;= sizeof(without));</code></pre>
+      <p>
+        This is how a stateless allocator, comparator or deleter can be stored in a container without
+        growing it. The attribute is a layout permission, not a guarantee: the compiler may still
+        give the member an address if it needs one, and the layout can differ between ABIs.
+      </p>
+      <p>
+        Do not apply it to a member whose address identity matters. If code takes
+        <code>&amp;obj.e</code> and compares it with another object's address, overlapping storage can
+        break the assumption. Use it for policy objects that are genuinely stateless.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>alignas</code> and <code>alignof</code></h2>
+      <p>
+        <code>alignof(T)</code> asks for the alignment requirement of a type.
+        <code>alignas(N)</code> requests a stricter alignment for an object or a type:
+      </p>
+      <pre><code class="language-cpp">#include &lt;cstddef&gt;
+
+struct alignas(64) cache_line
+{
+    std::byte data[64];
+};
+
+static_assert(alignof(cache_line) == 64);
+static_assert(sizeof(cache_line) == 64);</code></pre>
+      <p>
+        <code>alignas</code> can increase alignment; it cannot reduce it below the type's natural
+        requirement. A type with <code>alignas(64)</code> is 64-byte aligned wherever it is used, and
+        the compiler inserts padding in arrays and in containing structs to preserve that.
+      </p>
+      <p>
+        Alignment is not the same as size. A 64-byte-aligned object can be smaller or larger than 64
+        bytes; the alignment only fixes the starting address. Over-aligning every object wastes
+        memory; use it for cache-line separation, SIMD, memory-mapped I/O or a documented ABI, not as
+        a general performance hint.
+      </p>
+      <p>
+        The alignment of a type is also why a union's alignment is the strictest alignment among its
+        members, and why the order of members in a struct can change its size. Layout is a
+        first-class part of the ABI.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. <code>offsetof</code></h2>
+      <p>
+        <code>offsetof(type, member)</code> gives the byte offset of a member from the start of a
+        standard-layout object:
+      </p>
+      <pre><code class="language-cpp">#include &lt;cstddef&gt;
+
+struct record
+{
+    int id;
+    double value;
+};
+
+static_assert(offsetof(record, id) == 0);
+static_assert(offsetof(record, value) &gt;= sizeof(int));</code></pre>
+      <p>
+        <code>offsetof</code> is only defined for standard-layout types. A type with virtual
+        functions, virtual bases, private data members in a non-standard-layout arrangement, or
+        multiple access sections may not be usable. It is a compile-time macro, not a runtime
+        reflection call; it does not know about a particular object.
+      </p>
+      <p>
+        C++26 reflection provides <code>std::meta::offset_of</code>
+        (<a href="/docs/24.reflection/03.practice/">Ch24.3</a>) for the same question over a
+        reflection. The macro is still the portable answer for a fixed, standard-layout struct.
+      </p>
+      <p>
+        Offsets are ABI-dependent. A static assertion on an offset documents the layout your code
+        expects; it does not make the layout portable. If the offset must match a wire format, use a
+        serialization layer with explicit widths and endianness, not a raw struct.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. <code>volatile</code> Is Not Synchronization</h2>
+      <p>
+        <code>volatile</code> tells the compiler that every access to the object is observable and
+        must not be optimized away or reordered with respect to other volatile accesses. It does not
+        provide atomicity, mutual exclusion or inter-thread ordering.
+      </p>
+      <pre><code class="language-cpp">volatile std::uint32_t *mmio = reinterpret_cast&lt;volatile std::uint32_t *&gt;(0x40000000u);
+*mmio = 1;</code></pre>
+      <p>
+        That is the legitimate use: memory-mapped I/O, a hardware register, or a variable modified by
+        a signal handler. In those cases the compiler must actually perform the load or store.
+      </p>
+      <p>
+        This is the illegitimate use:
+      </p>
+      <pre><code class="language-cpp">volatile int counter{};
+++counter; // still a data race if another thread does the same</code></pre>
+      <p>
+        <code>volatile</code> does not make <code>++</code> atomic. Two threads can still read the
+        same value, increment it and write it back. Use <code>std::atomic&lt;int&gt;</code> for
+        inter-thread communication, and use a mutex when the protected state is more than one word.
+        <code>volatile</code> is for the hardware and the signal handler, not for the scheduler.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. A Few More Sharp Edges</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Declaration</th>
+            <th>What it actually means</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>constexpr</code> member function</td>
+            <td>Callable in a constant expression; it does not make the object immutable</td>
+          </tr>
+          <tr>
+            <td><code>mutable</code> member</td>
+            <td>Modifiable even in a <code>const</code> member function; use for caches and mutexes</td>
+          </tr>
+          <tr>
+            <td><code>static</code> member function</td>
+            <td>No <code>this</code>; it cannot access non-static members without an object</td>
+          </tr>
+          <tr>
+            <td><code>explicit</code> conversion operator</td>
+            <td>Requires a cast or a contextual conversion; it blocks implicit conversions</td>
+          </tr>
+          <tr>
+            <td><code>[[nodiscard]]</code></td>
+            <td>A warning if the return value is ignored; it does not change the type</td>
+          </tr>
+          <tr>
+            <td><code>[[fallthrough]]</code></td>
+            <td>Documents an intentional switch fallthrough; it does not change control flow</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The common thread is that a declaration can carry a rule about initialization, layout,
+        linkage, conversion or diagnostics. Read the rule, not the keyword's reputation. A
+        <code>constexpr</code> function is not automatically faster; an <code>inline</code> variable
+        is not automatically inlined; <code>volatile</code> is not atomic.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. What to Remember</h2>
+      <ul>
+        <li><code>explicit(bool)</code> makes explicitness depend on a compile-time condition.</li>
+        <li><code>[[no_unique_address]]</code> permits empty members to overlap; it does not guarantee a size.</li>
+        <li><code>alignas</code> raises alignment; <code>alignof</code> asks for it; size and alignment are different.</li>
+        <li><code>offsetof</code> is for standard-layout types and is ABI-dependent.</li>
+        <li><code>volatile</code> is for hardware and signals, not for thread synchronization.</li>
+        <li>Read what a declaration promises; the keyword's reputation is not the rule.</li>
+      </ul>
+      <p>
+        That closes the fine-print chapter. The features here are not new language directions; they
+        are the rules that were already in the language but rarely got a page of their own.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/25.fineprint/03.storage/" class="prev-button">&larr; Ch25.3: Storage, Linkage and Namespaces</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -91,6 +91,30 @@ bool is_green{a == Green};
       <p>
         Keep readability in mind. <code>using enum</code> reduces verbosity, but it also hides the enum name. Use it where it clearly improves clarity (e.g., local scopes or short switch-like logic).
       </p>
+      <p>
+        The declaration introduces the enumerators into the current scope, not the enum type name. You
+        still write <code>Color</code> when you need the type. It is especially useful in a
+        <code>switch</code> block:
+      </p>
+      <pre><code class="language-cpp">
+switch (c)
+{
+using enum Color;
+case Red:
+    break;
+case Green:
+    break;
+case Blue:
+    break;
+}
+</code></pre>
+      <p>
+        <code>using enum</code> does not change the enum's type safety. The enumerators are still
+        <code>Color</code> values, and there is still no implicit conversion to <code>int</code>. If
+        two enums in scope have an enumerator with the same name, the unqualified use is ambiguous and
+        the compiler rejects it; qualify the name or move the <code>using enum</code> into a narrower
+        block.
+      </p>
     </section>
 
     <section>

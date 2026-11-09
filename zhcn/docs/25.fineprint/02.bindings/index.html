@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第25.2章：结构化绑定 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第25.2章：结构化绑定</h1>
+    <p class="lang-switch"><a href="/docs/25.fineprint/02.bindings/">English</a></p>
+
+    <section>
+      <h2>1. 不写仪式地解包</h2>
+      <p>
+        结构化绑定一次声明多个名字，并把它们绑定到一个对象的元素上。它把这段：
+      </p>
+      <pre><code class="language-cpp">auto result = try_insert(map, key, value);
+auto it = result.first;
+bool inserted = result.second;</code></pre>
+      <p>
+        变成：
+      </p>
+      <pre><code class="language-cpp">auto [it, inserted] = try_insert(map, key, value);</code></pre>
+      <p>
+        语法是带方括号标识符列表的声明：
+      </p>
+      <pre><code class="language-cpp">auto [a, b] = pair;
+auto &amp;[x, y] = pair;
+auto const &amp;[x, y] = pair;
+auto &amp;&amp;[x, y] = make_pair();</code></pre>
+      <p>
+        这个声明不是 tuple 类型，名字也不是通常意义上的独立变量。编译器引入一个隐藏对象，用右侧初始化它，
+        然后让每个名字引用这个隐藏对象的一个元素。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 什么可以被分解</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>种类</th>
+            <th>元素</th>
+            <th>例子</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>数组</td>
+            <td>数组元素，按顺序</td>
+            <td><code>int a[3]; auto [x, y, z] = a;</code></td>
+          </tr>
+          <tr>
+            <td>类 tuple 类型</td>
+            <td>
+              <code>std::tuple</code>、<code>std::pair</code>、<code>std::array</code>，或任何提供
+              <code>tuple_size</code>、<code>tuple_element</code> 和 <code>get</code> 的类型
+            </td>
+            <td><code>auto [x, y] = std::pair{1, 2};</code></td>
+          </tr>
+          <tr>
+            <td>聚合体</td>
+            <td>公开的非静态数据成员，按声明顺序</td>
+            <td><code>struct point { int x, y; }; auto [x, y] = point{1, 2};</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        名字数量必须与元素数量匹配。不匹配是编译错误。没有“跳过某个”的语法；只需要部分值时，用
+        <code>_</code> 这样的占位名。
+      </p>
+      <pre><code class="language-cpp">struct point
+{
+    int x;
+    int y;
+};
+
+point p{3, 4};
+auto [x, y] = p;          // x == 3, y == 4
+auto &amp;[rx, ry] = p;       // rx and ry refer to p.x and p.y
+rx = 10;                   // p.x is now 10</code></pre>
+      <p>
+        对聚合体来说，只有公开的直接非静态数据成员参与。有私有成员、虚函数或用户声明构造函数的类，
+        不会按聚合体分解。基类不是扁平的成员列表；涉及继承时，不要依赖某个特定顺序。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>auto</code>、<code>auto&amp;</code>、<code>auto&amp;&amp;</code></h2>
+      <p>
+        声明上的限定符作用于隐藏对象，而不是分别作用于每个名字。这是生命周期和可变性 bug 的来源。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>声明</th>
+            <th>隐藏对象</th>
+            <th>名字</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>auto [a, b] = expr;</code></td>
+            <td><code>expr</code> 的副本</td>
+            <td>引用副本；修改 <code>a</code> 不会修改 <code>expr</code></td>
+          </tr>
+          <tr>
+            <td><code>auto &amp;[a, b] = expr;</code></td>
+            <td>对 <code>expr</code> 的引用</td>
+            <td>引用 <code>expr</code>；修改 <code>a</code> 会修改 <code>expr</code></td>
+          </tr>
+          <tr>
+            <td><code>auto const &amp;[a, b] = expr;</code></td>
+            <td>const 引用</td>
+            <td>只读；延长临时对象的生命周期</td>
+          </tr>
+          <tr>
+            <td><code>auto &amp;&amp;[a, b] = expr;</code></td>
+            <td>转发引用</td>
+            <td>像 <code>auto const &amp;</code> 一样延长临时对象生命周期，但保留可变性和值类别</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">std::pair&lt;int, int&gt; make();
+
+auto [a, b] = make();             // copies the pair
+auto &amp;[c, d] = make();            // error: cannot bind a non-const lvalue reference to a temporary
+auto const &amp;[e, f] = make();      // OK: lifetime extended
+auto &amp;&amp;[g, h] = make();          // OK: rvalue reference to the temporary</code></pre>
+      <p>
+        最后两个看起来相似，但不一样。<code>auto const &amp;</code> 和 <code>auto &amp;&amp;</code>
+        都会延长临时对象的生命周期到作用域结束。区别是 const 和值类别：<code>auto &amp;&amp;</code>
+        保留可变性，也保留它绑定的是右值这一事实；<code>auto const &amp;</code> 是只读视图。
+        如果你需要之后使用这些值，直接用 <code>auto</code> 或 <code>auto const &amp;</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. map 的场景</h2>
+      <p>
+        最常见的真实用途是遍历 map 和向 map 插入：
+      </p>
+      <pre><code class="language-cpp">std::map&lt;std::string, int&gt; counts;
+
+for (auto const &amp;[key, value] : counts)
+{
+    std::print("{} -> {}\n", key, value);
+}
+
+if (auto [it, inserted] = counts.try_emplace("apple", 1); inserted)
+{
+    std::print("new key: {}\n", it-&gt;first);
+}</code></pre>
+      <p>
+        在 map 里，<code>key</code> 是 const：容器拥有排序，不允许你通过迭代器修改键。
+        绑定为非 const 时，<code>value</code> 可修改。这不是结构化绑定的怪癖；这是 map 迭代器类型本来的样子。
+      </p>
+      <p>
+        <code>if</code> 初始化语句让 <code>it</code> 和 <code>inserted</code> 在条件和函数体里可见。
+        这是使用 <code>try_emplace</code> 结果而不把变量泄漏到函数其余部分的惯用方式。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 类 tuple 类型与定制</h2>
+      <p>
+        对类 tuple 类型，编译器使用 <code>std::tuple_size</code>、<code>std::tuple_element</code>
+        和 <code>get</code>。标准类型已经提供。用户类型可以加入：
+      </p>
+      <pre><code class="language-cpp">struct version
+{
+    int major;
+    int minor;
+};
+
+namespace std
+{
+template &lt;&gt;
+struct tuple_size&lt;version&gt; : integral_constant&lt;std::size_t, 2&gt;
+{
+};
+
+template &lt;std::size_t I&gt;
+struct tuple_element&lt;I, version&gt;
+{
+    using type = int;
+};
+}
+
+template &lt;std::size_t I&gt;
+int get(version const &amp;v)
+{
+    if constexpr (I == 0)
+    {
+        return v.major;
+    }
+    else
+    {
+        return v.minor;
+    }
+}
+
+version v{1, 2};
+auto [major, minor] = v;</code></pre>
+      <p>
+        对一个两字段结构体来说，这套机制很多。聚合体路径已经处理公开数据成员。只有当类型不是聚合体，
+        或者分解顺序不是声明顺序时，才用 tuple 协议。
+      </p>
+      <p>
+        <code>get</code> 通过参数依赖查找找到。它必须在结构化绑定处可见。该类型命名空间里的自由函数是
+        可移植形式。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 会咬人的细节</h2>
+      <ul>
+        <li>
+          <strong>不能给单个名字加 <code>const</code>、<code>volatile</code> 或
+          <code>static</code>。</strong>限定符作用于隐藏对象；用 <code>auto const &amp;</code>，
+          或者把值复制到单独变量。
+        </li>
+        <li>
+          <strong>结构化绑定不是一个能整体取地址的变量。</strong>每个名字引用隐藏对象的子对象。
+          名字是左值时可以取它的地址，但绑定整体没有地址。
+        </li>
+        <li>
+          <strong>位域不能绑定到非 const 引用。</strong>复制可以；<code>auto &amp;</code> 绑定不行。
+        </li>
+        <li>
+          <strong>生命周期是隐藏对象的生命周期。</strong>引用临时对象内部的绑定需要临时对象活着；
+          <code>auto const &amp;</code> 是常见修复。
+        </li>
+        <li>
+          <strong><code>constexpr</code> 结构化绑定是 C++26。</strong>更早的标准会拒绝
+          <code>constexpr auto [x, y] = ...</code>，即使初始化器是常量。
+        </li>
+        <li>
+          <strong>lambda 捕获是按名字的。</strong>捕获单个名字比试图整体捕获绑定更清晰，也能避免生命周期意外。
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>7. 小例子：解析结果</h2>
+      <pre><code class="language-cpp">struct parse_result
+{
+    bool ok;
+    int value;
+};
+
+parse_result parse(std::string_view text)
+{
+    if (text == "42")
+    {
+        return {true, 42};
+    }
+    return {false, 0};
+}
+
+int main()
+{
+    if (auto [ok, value] = parse("42"); ok)
+    {
+        std::print("value = {}\n", value);
+    }
+    else
+    {
+        std::print("parse failed\n");
+    }
+}</code></pre>
+      <p>
+        初始化语句不是结构化绑定的一部分；它是<a href="/zhcn/docs/03.statements/03.if/">第3.3章</a>
+        的普通 <code>if</code> 初始化语句。两个特性自然组合：绑定声明名字，初始化语句限定它们的作用域。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 需要记住什么</h2>
+      <ul>
+        <li>结构化绑定解包数组、类 tuple 类型和公开聚合体成员。</li>
+        <li>声明创建一个隐藏对象；名字引用它内部。</li>
+        <li><code>auto</code> 复制，<code>auto &amp;</code> 别名，<code>auto const &amp;</code>
+          延长临时对象，<code>auto &amp;&amp;</code> 转发。</li>
+        <li>名字数量必须等于元素数量。</li>
+        <li>map 的键是 const；值可变。</li>
+        <li>类 tuple 定制可用，但聚合体通常不需要。</li>
+        <li>注意生命周期、位域和仅 C++26 的 <code>constexpr</code> 形式。</li>
+      </ul>
+      <p>
+        下一页从解包值转向决定值住在哪里的声明：存储期、链接和命名空间。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/25.fineprint/01.union/" class="prev-button">&larr; 第25.1章：共用体</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/25.fineprint/03.storage/" class="next-button">第25.3章：存储期、链接与命名空间 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

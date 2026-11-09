@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch25.1: Union: One Storage, Many Types - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch25.1: Union: One Storage, Many Types</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/25.fineprint/01.union/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Feature That Fell Through</h2>
+      <p>
+        A <code>union</code> is a class type whose non-static data members all share one storage
+        region. Only one member is alive at a time. It is the language's built-in way to say
+        "this object is one of several types, and I do not want to pay for all of them".
+      </p>
+      <pre><code class="language-cpp">union value
+{
+    int i;
+    double d;
+};</code></pre>
+      <p>
+        <code>value</code> is at least as large as its largest member, and aligned for its most
+        strictly aligned member. On a typical 64-bit platform,
+        <code>sizeof(value) == 8</code> and <code>alignof(value) == 8</code>. The compiler may add
+        padding; the standard only guarantees that every member fits.
+      </p>
+      <p>
+        The important rule is the <strong>active member</strong>. After you assign to
+        <code>v.i</code>, the active member is <code>i</code>. Reading <code>v.d</code> is
+        undefined behavior: the bytes may be there, but there is no <code>double</code> object
+        whose lifetime has started. A union is not a license to reinterpret bytes.
+      </p>
+      <pre><code class="language-cpp">value v{};
+v.i = 42;          // active member: i
+int x = v.i;       // OK
+// double y = v.d; // undefined behavior: d is not active</code></pre>
+    </section>
+
+    <section>
+      <h2>2. Size, Alignment and the Layout Bill</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>Rule</th>
+            <th>Consequence</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Size</td>
+            <td>At least the size of the largest member; may be larger because of padding</td>
+            <td>A union is not a compact serialization format</td>
+          </tr>
+          <tr>
+            <td>Alignment</td>
+            <td>The strictest alignment among the members</td>
+            <td>
+              A union containing a <code>double</code> is 8-byte aligned even if you only use its
+              <code>char</code> member
+            </td>
+          </tr>
+          <tr>
+            <td>Padding</td>
+            <td>Implementation-defined</td>
+            <td>Do not write it to a file or a socket as if it were a wire format</td>
+          </tr>
+          <tr>
+            <td>Empty union</td>
+            <td>Not allowed; a union must have at least one non-static data member</td>
+            <td>Use a struct with an empty member if you need a distinct type</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        If you need a specific alignment, say so with <code>alignas</code>. If you need to know the
+        alignment, ask <code>alignof</code>. Both are covered in
+        <a href="/docs/25.fineprint/04.edges/">25.4</a>.
+      </p>
+      <pre><code class="language-cpp">union alignas(64) cache_line
+{
+    char bytes[64];
+    double value;
+};
+
+static_assert(alignof(cache_line) == 64);
+static_assert(sizeof(cache_line) >= 64);</code></pre>
+      <p>
+        <code>alignas</code> can increase the alignment; it cannot reduce it below what the members
+        require. The compiler is allowed to make the object larger, but not smaller than the largest
+        member.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. A Tagged Union, Written by Hand</h2>
+      <p>
+        A union alone does not tell you which member is active. You need a tag next to it. This is a
+        <strong>tagged union</strong>, or discriminated union:
+      </p>
+      <pre><code class="language-cpp">struct number
+{
+    enum class kind { integer, real } k;
+    union
+    {
+        int i;
+        double d;
+    };
+};</code></pre>
+      <p>
+        The inner union is <strong>anonymous</strong>: it has no name, and its members are injected
+        into the enclosing class. You write <code>n.i</code> and <code>n.d</code>, not
+        <code>n.u.i</code>. The tag says which one is alive:
+      </p>
+      <pre><code class="language-cpp">number n{};
+n.k = number::kind::integer;
+n.i = 42;
+
+switch (n.k)
+{
+case number::kind::integer:
+    std::print("integer {}\n", n.i);
+    break;
+case number::kind::real:
+    std::print("real {}\n", n.d);
+    break;
+}</code></pre>
+      <p>
+        The tag is not checked by the language. If you write the tag as
+        <code>integer</code> but assign <code>n.d</code>, the program is still well-formed until it
+        reads the wrong member. The invariant is your responsibility. Keep the tag and the union
+        together, and change them in one place.
+      </p>
+      <p>
+        This is the pattern to reach for when you need a small closed set of alternatives and cannot
+        afford a separate allocation. It is not a general-purpose dynamic type; it has no visitor,
+        no type erasure and no automatic lifetime management. Those are separate design decisions.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Non-Trivial Members: You Own the Lifetime</h2>
+      <p>
+        A union with a member that has a non-trivial constructor or destructor needs help. The union
+        itself does not know which member is alive, so it cannot construct or destroy the right one.
+        You must provide the special members and manage the lifetime explicitly.
+      </p>
+      <pre><code class="language-cpp">#include &lt;memory&gt;
+#include &lt;string&gt;
+
+union storage
+{
+    std::string s;
+    int i;
+
+    storage() noexcept {}
+    ~storage() {}
+};
+
+storage st;
+std::construct_at(&amp;st.s, "hello");
+std::print("{}\n", st.s);
+std::destroy_at(&amp;st.s);</code></pre>
+      <p>
+        <code>std::construct_at</code> starts the lifetime of the <code>std::string</code> in the
+        union's storage. <code>std::destroy_at</code> ends it. If you forget the destroy, the string's
+        buffer leaks. If you destroy a member that is not alive, the behavior is undefined. If you
+        copy the union, you must know which member to copy; the implicit copy is deleted for a reason.
+      </p>
+      <p>
+        This is why a non-trivial union is usually wrapped in a class that owns the tag and provides
+        constructors, a destructor, copy/move operations and accessors. The union is the storage
+        primitive; the wrapper is the type that maintains the invariant.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. The Common Initial Sequence</h2>
+      <p>
+        There is one narrow exception to "only the active member". If two standard-layout structs
+        start with the same sequence of layout-compatible members, a union of those structs may be
+        read through either member for that common initial part:
+      </p>
+      <pre><code class="language-cpp">struct header
+{
+    std::uint32_t tag;
+};
+
+struct a
+{
+    std::uint32_t tag;
+    int x;
+};
+
+struct b
+{
+    std::uint32_t tag;
+    double y;
+};
+
+union u
+{
+    a av;
+    b bv;
+};
+
+u value{};
+value.av = {1, 2};
+std::uint32_t tag = value.bv.tag; // OK: common initial sequence
+// int x = value.bv.y;            // still undefined: y is not common</code></pre>
+      <p>
+        The exception is deliberately narrow. It exists for C compatibility and for inspecting the
+        common header of variant-like records. It does not make arbitrary type punning legal, and it
+        does not apply to non-standard-layout types.
+      </p>
+      <p>
+        If you need to reinterpret the bytes of one type as another, use
+        <code>::std::bit_cast</code> when the types are trivially copyable and the same size
+        (<a href="/docs/02.basics/13.casting/">Ch2.13</a> and
+        <a href="/docs/05.pointerscarray/13.strictaliasing/">Ch5.13</a>), or
+        <code>std::memcpy</code> into a properly constructed object. A union is not the tool for
+        that job in C++.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Bit-Fields</h2>
+      <p>
+        A bit-field declares a member with a specific number of bits:
+      </p>
+      <pre><code class="language-cpp">struct flags
+{
+    unsigned ready : 1;
+    unsigned mode  : 3;
+    unsigned       : 0;   // force the next member to a new allocation unit
+    unsigned error : 1;
+};</code></pre>
+      <p>
+        Bit-fields are useful for compact in-memory records, hardware registers and protocol headers
+        that are defined in terms of bits. They are a poor choice for a portable wire format: the
+        allocation order, padding, signedness of a plain <code>int</code> bit-field and the meaning
+        of a zero-width field are implementation-defined.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Answer for a portable format</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Which bit is the first field?</td>
+            <td>Not specified by the standard; depends on the ABI</td>
+          </tr>
+          <tr>
+            <td>How wide is the allocation unit?</td>
+            <td>Implementation-defined</td>
+          </tr>
+          <tr>
+            <td>What does <code>unsigned : 0</code> do?</td>
+            <td>Implementation-defined alignment to the next unit</td>
+          </tr>
+          <tr>
+            <td>Can I take its address?</td>
+            <td>No; a bit-field is not addressable</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The classic C trick of writing an integer and reading a bit-field through a union is
+        undefined behavior in C++. If you need to pack and unpack bits, do it explicitly with shifts
+        and masks, or use <code>::std::bit_cast</code> to a fixed-width integer and then shift. That
+        code is portable and testable; the union version depends on the compiler's layout.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. When to Use a Union</h2>
+      <ul>
+        <li>
+          <strong>Compact storage for a closed set of alternatives.</strong> A tagged union with a
+          small number of members and no allocation.
+        </li>
+        <li>
+          <strong>Interop with a C ABI.</strong> A C library exposes a union; you mirror it exactly.
+        </li>
+        <li>
+          <strong>Hardware or protocol records.</strong> Only when the layout is fixed by the
+          platform or the protocol and you have static assertions for the sizes.
+        </li>
+        <li>
+          <strong>Implementing a low-level container or allocator.</strong> The union is a storage
+          primitive inside a wrapper that owns the tag and the lifetime.
+        </li>
+      </ul>
+      <p>
+        Do not use a union as a general "any type" variable. Do not use it to bypass the type system.
+        Do not use it for type punning. If the alternatives need behavior, write a class that owns
+        the tag and the storage; the union is only one piece of the implementation.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. What to Remember</h2>
+      <ul>
+        <li>A union shares one storage region among its non-static data members.</li>
+        <li>Only the active member may be read. The common initial sequence is the narrow exception.</li>
+        <li>Size is at least the largest member; alignment is the strictest member alignment.</li>
+        <li>Non-trivial members require explicit construction and destruction.</li>
+        <li>Bit-fields are layout-dependent; do not use them as a portable wire format.</li>
+        <li>Union type punning is undefined behavior in C++; use <code>bit_cast</code> or <code>memcpy</code>.</li>
+      </ul>
+      <p>
+        The next page covers a feature that is not a type but changes how you unpack one: structured
+        bindings.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/25.fineprint/" class="prev-button">&larr; Ch25: The Fine Print</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/25.fineprint/02.bindings/" class="next-button">Ch25.2: Structured Bindings &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

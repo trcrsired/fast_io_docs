@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第25.3章：存储期、链接与命名空间 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第25.3章：存储期、链接与命名空间</h1>
+    <p class="lang-switch"><a href="/docs/25.fineprint/03.storage/">English</a></p>
+
+    <section>
+      <h2>1. 三个不同的问题</h2>
+      <p>
+        “这个名字住在哪里？”实际上是三个问题，混淆它们是这个领域大多数 bug 的来源：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>问题</th>
+            <th>术语</th>
+            <th>答案</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>名字在源码的哪里可用？</td>
+            <td>作用域</td>
+            <td>块、类、命名空间、函数参数等</td>
+          </tr>
+          <tr>
+            <td>对象活多久？</td>
+            <td>存储期</td>
+            <td>自动、静态、线程或动态</td>
+          </tr>
+          <tr>
+            <td>另一个翻译单元能引用它吗？</td>
+            <td>链接</td>
+            <td>无链接、内部链接或外部链接</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        变量可以有块作用域和静态存储期（局部 <code>static</code>）。可以有命名空间作用域和内部链接
+        （匿名命名空间）。可以有命名空间作用域和外部链接（普通全局变量）。这三个属性互相独立。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 局部 <code>static</code>：一个对象，只初始化一次</h2>
+      <pre><code class="language-cpp">int next_id()
+{
+    static int counter{};
+    return ++counter;
+}</code></pre>
+      <p>
+        <code>counter</code> 是块作用域变量，具有静态存储期。每个程序一个对象，不是每次调用一个。
+        控制第一次到达声明时初始化，程序退出时销毁。
+      </p>
+      <p>
+        从 C++11 起，初始化是线程安全的：如果两个线程同时第一次调用 <code>next_id</code>，一个会等待另一个，
+        对象只构造一次。这个保证是关于<em>初始化</em>的，不是关于之后的访问。<code>++counter</code>
+        本身在两个线程并发调用时是数据竞争。如果这就是你的意思，用 <code>std::atomic&lt;int&gt;</code>。
+      </p>
+      <pre><code class="language-cpp">#include &lt;atomic&gt;
+
+int next_id()
+{
+    static std::atomic&lt;int&gt; counter{};
+    return ++counter;
+}</code></pre>
+      <p>
+        局部 static 适合惰性单例、缓存和一次性初始化。它不适合隐藏的全局状态：函数签名不再告诉读者
+        调用之间共享数据。如果测试需要重置状态，局部 static 让你无法做到，除非额外提供重置钩子。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>thread_local</code>：每个线程一个对象</h2>
+      <pre><code class="language-cpp">thread_local int per_thread_counter{};
+
+void bump()
+{
+    ++per_thread_counter;
+}</code></pre>
+      <p>
+        每个线程有自己的 <code>per_thread_counter</code>。线程第一次到达声明时创建对象，线程退出时销毁。
+        它是线程局部缓存的存储期对应物：没有锁、没有共享、没有伪共享。
+      </p>
+      <p>
+        在头文件里用 <code>inline thread_local</code>，让每个翻译单元引用同一个实体：
+      </p>
+      <pre><code class="language-cpp">inline thread_local int per_thread_counter{};</code></pre>
+      <p>
+        <code>thread_local</code> 有成本。动态初始化器每个线程运行一次，对象可能需要 TLS 槽，
+        析构函数在线程退出时运行。在独立目标上可能根本没有线程局部存储。不要把它用于逻辑上全局的值；
+        当值确实是每线程的时候才用它。
+      </p>
+      <p>
+        <code>thread_local</code> 变量不会自动与其他线程同步。它是私有状态，不是通信通道。如果两个线程
+        必须看到同一个值，用 atomic 或受 mutex 保护的对象，而不是 <code>thread_local</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. <code>inline</code> 变量</h2>
+      <p>
+        C++17 之前，头文件不能定义全局变量：每个包含头文件的翻译单元都会定义它，链接器会报重复定义。
+        变通办法是每个翻译单元一个 <code>static</code> 变量（各有一份），或者 <code>extern</code> 声明
+        加一个 <code>.cc</code> 文件里的定义。
+      </p>
+      <p>
+        C++17 增加了 <code>inline</code> 变量。inline 变量有外部链接，在所有翻译单元中只有一个定义，
+        即使定义出现在头文件里：
+      </p>
+      <pre><code class="language-cpp">inline constexpr int protocol_version = 3;
+inline std::string default_name{"fast_io"};</code></pre>
+      <p>
+        这里的 <code>inline</code> 是关于链接和 ODR 的，不是关于内联变量的地址或避免内存加载。
+        编译器仍然可以把对象放在一个位置，并让每个翻译单元引用它。
+      </p>
+      <p>
+        头文件定义的常量用 <code>inline constexpr</code>，需要唯一身份的全局对象用
+        <code>inline</code>。非平凡 inline 变量有动态初始化；它相对于其他翻译单元的初始化顺序仍然是问题。
+        顺序重要时，优先常量初始化或函数局部 static。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 命名空间作用域的 <code>const</code> 很特殊</h2>
+      <p>
+        在 C++ 中，命名空间作用域的 <code>const</code> 变量默认具有内部链接：
+      </p>
+      <pre><code class="language-cpp">const int limit = 100;          // internal linkage
+extern const int shared = 100;  // external linkage, defined here
+inline constexpr int version = 3; // one entity across TUs</code></pre>
+      <p>
+        这就是为什么头文件里的 <code>const int limit = 100;</code> 不会导致链接错误：每个翻译单元得到自己的
+        副本。这也是为什么在两个翻译单元里取 <code>limit</code> 的地址可能得到两个不同地址。如果你需要
+        一个身份，写 <code>inline constexpr</code>，或者 <code>extern const</code> 加一个定义。
+      </p>
+      <p>
+        这条规则是 C++ 从 C 的 <code>const</code> 语义继承来的。它会让那些以为每个命名空间作用域定义都是
+        外部链接的人吃惊。依赖地址身份之前，先检查链接。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 匿名命名空间</h2>
+      <pre><code class="language-cpp">namespace
+{
+    int implementation_counter;
+    void helper();
+}</code></pre>
+      <p>
+        无名命名空间里的名字具有内部链接。每个翻译单元得到自己的副本，名字不会与另一个翻译单元里的同名名字冲突。
+        它是命名空间作用域 <code>static</code> 的现代替代品。
+      </p>
+      <p>
+        匿名命名空间适合 <code>.cc</code> 文件里的实现细节。它不适合头文件里的共享状态：每个包含头文件的
+        翻译单元得到不同的对象，所以那个“全局”不是全局的。如果你想要一个对象，用 <code>inline</code> 变量。
+      </p>
+      <p>
+        匿名命名空间也不是安全边界。它改变链接，不改变调试器、二进制或另一个拥有自己副本的翻译单元对它的可见性。
+        不要把秘密放进去。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 内联命名空间</h2>
+      <p>
+        内联命名空间的成员在外层命名空间里也可见：
+      </p>
+      <pre><code class="language-cpp">namespace lib
+{
+    inline namespace v2
+    {
+        struct widget
+        {
+            int id;
+        };
+    }
+}
+
+lib::widget w{1};    // OK, as if widget were directly in lib
+lib::v2::widget x{2}; // also OK</code></pre>
+      <p>
+        这是标准库的版本化工具。<code>std::literals</code> 是一个内联命名空间，这就是为什么
+        <code>using namespace std::literals;</code> 能让字面量可见而不需要命名版本。库可以增加新的内联命名空间
+        <code>v3</code>，同时保留旧的以兼容 ABI。
+      </p>
+      <p>
+        内联命名空间影响名字查找和名字修饰。它们不是运行时机制，也不创建新对象。当你需要透明版本化时用它，
+        不要把它当通用分组工具。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. <code>extern</code>：声明与定义</h2>
+      <pre><code class="language-cpp">extern int global;       // declaration: no storage here
+int global = 42;         // definition: storage here
+
+extern "C" int c_api();  // C language linkage</code></pre>
+      <p>
+        没有初始化器的 <code>extern</code> 是声明。它告诉编译器名字和类型；链接器在别处找定义。
+        定义分配存储（或提供函数体）。这个区别在头文件里很重要：声明放头文件，定义放一个 <code>.cc</code>
+        文件，或者对变量用 <code>inline</code>。
+      </p>
+      <p>
+        <code>extern "C"</code> 是语言链接，不是存储。它关闭 C++ 名字修饰，让 C 程序或 C ABI 能找到符号。
+        它不改变类型系统，也不让 C++ 类布局与 C 兼容。
+      </p>
+    </section>
+
+    <section>
+      <h2>9. 需要记住什么</h2>
+      <ul>
+        <li>作用域、存储期和链接是互相独立的属性。</li>
+        <li>局部 <code>static</code> 每个程序一个对象，只初始化一次，首次使用线程安全。</li>
+        <li><code>thread_local</code> 每线程一个对象；它是私有状态，不是同步。</li>
+        <li><code>inline</code> 变量在头文件里跨翻译单元提供一个实体。</li>
+        <li>命名空间作用域的 <code>const</code> 默认内部链接；需要一个身份时用 <code>inline constexpr</code>。</li>
+        <li>匿名命名空间用于每翻译单元的实现细节，不是共享全局。</li>
+        <li>内联命名空间是透明版本化，不是运行时特性。</li>
+        <li><code>extern</code> 声明；定义提供存储。</li>
+      </ul>
+      <p>
+        最后一页讲那些含义容易被忽略的声明：条件 <code>explicit</code>、空基类优化、对齐、
+        <code>offsetof</code> 和 <code>volatile</code>。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/25.fineprint/02.bindings/" class="prev-button">&larr; 第25.2章：结构化绑定</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/25.fineprint/04.edges/" class="next-button">第25.4章：带棱角的声明 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

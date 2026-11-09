@@ -93,6 +93,27 @@ bool is_green{a == Green};
         请注意可读性。<code>using enum</code> 减少了冗长，但同时也隐藏了枚举名。
         只在它明显提升清晰度的地方使用（例如局部作用域或简短的类 switch 逻辑）。
       </p>
+      <p>
+        这个声明把枚举值引入当前作用域，而不是引入枚举类型名。需要类型时，你仍然要写
+        <code>Color</code>。它在 <code>switch</code> 块里特别有用：
+      </p>
+      <pre><code class="language-cpp">
+switch (c)
+{
+using enum Color;
+case Red:
+    break;
+case Green:
+    break;
+case Blue:
+    break;
+}
+</code></pre>
+      <p>
+        <code>using enum</code> 不改变枚举的类型安全。枚举值仍然是 <code>Color</code> 值，仍然不能隐式
+        转换成 <code>int</code>。如果作用域里两个枚举有同名枚举值，不加限定的使用会有歧义，编译器会拒绝；
+        给名字加限定，或者把 <code>using enum</code> 放进更窄的块。
+      </p>
     </section>
 
     <section>

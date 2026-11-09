@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第25.1章：共用体：一块存储，多种类型 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第25.1章：共用体：一块存储，多种类型</h1>
+    <p class="lang-switch"><a href="/docs/25.fineprint/01.union/">English</a></p>
+
+    <section>
+      <h2>1. 漏掉的那个特性</h2>
+      <p>
+        <code>union</code>（共用体）是一种类类型，它的所有非静态数据成员共享同一块存储区域。同一时刻只有一个
+        成员是活的。它是语言内置的表达方式：“这个对象是几种类型之一，而我不想为所有类型都付出空间”。
+      </p>
+      <pre><code class="language-cpp">union value
+{
+    int i;
+    double d;
+};</code></pre>
+      <p>
+        <code>value</code> 至少和最大成员一样大，并按最严格对齐的成员对齐。在典型的 64 位平台上，
+        <code>sizeof(value) == 8</code>，<code>alignof(value) == 8</code>。编译器可以加填充；标准只保证
+        每个成员都放得下。
+      </p>
+      <p>
+        重要的规则是<strong>活动成员</strong>。你给 <code>v.i</code> 赋值后，活动成员是 <code>i</code>。
+        读 <code>v.d</code> 是未定义行为：字节可能还在，但并没有一个生命周期开始的
+        <code>double</code> 对象。共用体不是随意重解释字节的许可证。
+      </p>
+      <pre><code class="language-cpp">value v{};
+v.i = 42;          // active member: i
+int x = v.i;       // OK
+// double y = v.d; // undefined behavior: d is not active</code></pre>
+    </section>
+
+    <section>
+      <h2>2. 大小、对齐与布局代价</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>属性</th>
+            <th>规则</th>
+            <th>后果</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>大小</td>
+            <td>至少是最大成员的大小；可能因填充更大</td>
+            <td>共用体不是紧凑的序列化格式</td>
+          </tr>
+          <tr>
+            <td>对齐</td>
+            <td>成员中最严格的对齐</td>
+            <td>
+              含 <code>double</code> 的共用体即使你只用 <code>char</code> 成员，也是 8 字节对齐
+            </td>
+          </tr>
+          <tr>
+            <td>填充</td>
+            <td>实现定义</td>
+            <td>不要把它当线格式写文件或 socket</td>
+          </tr>
+          <tr>
+            <td>空共用体</td>
+            <td>不允许；至少要有一个非静态数据成员</td>
+            <td>需要独立类型时，用带空成员的 struct</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        如果需要特定对齐，用 <code>alignas</code> 明说。如果想知道对齐，问 <code>alignof</code>。
+        两者在<a href="/zhcn/docs/25.fineprint/04.edges/">第25.4章</a>讲。
+      </p>
+      <pre><code class="language-cpp">union alignas(64) cache_line
+{
+    char bytes[64];
+    double value;
+};
+
+static_assert(alignof(cache_line) == 64);
+static_assert(sizeof(cache_line) >= 64);</code></pre>
+      <p>
+        <code>alignas</code> 可以提高对齐；不能低于成员要求的对齐。编译器可以让对象更大，但不能小于最大成员。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 手写带标签的共用体</h2>
+      <p>
+        共用体本身不告诉你哪个成员是活的。你需要在旁边放一个标签。这就是<strong>带标签的共用体</strong>
+        （tagged union）或可辨识共用体：
+      </p>
+      <pre><code class="language-cpp">struct number
+{
+    enum class kind { integer, real } k;
+    union
+    {
+        int i;
+        double d;
+    };
+};</code></pre>
+      <p>
+        内部的共用体是<strong>匿名</strong>的：它没有名字，成员被注入外层类。你写
+        <code>n.i</code> 和 <code>n.d</code>，不是 <code>n.u.i</code>。标签说明哪个是活的：
+      </p>
+      <pre><code class="language-cpp">number n{};
+n.k = number::kind::integer;
+n.i = 42;
+
+switch (n.k)
+{
+case number::kind::integer:
+    std::print("integer {}\n", n.i);
+    break;
+case number::kind::real:
+    std::print("real {}\n", n.d);
+    break;
+}</code></pre>
+      <p>
+        语言不检查标签。如果你把标签写成 <code>integer</code>，却赋值给 <code>n.d</code>，
+        程序在读到错误成员之前仍然是良构的。这个不变式是你的责任。把标签和共用体放在一起，
+        并且只在一个地方同时修改它们。
+      </p>
+      <p>
+        当你需要一个小而封闭的备选集合，又不想承担单独分配时，这是正确的模式。它不是通用的动态类型；
+        没有 visitor、没有类型擦除、没有自动生命周期管理。那些是另外的设计决定。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 非平凡成员：生命周期由你负责</h2>
+      <p>
+        如果共用体有非平凡构造或析构的成员，它需要帮助。共用体自己不知道哪个成员是活的，所以无法构造或析构
+        正确的那一个。你必须提供特殊成员函数，并显式管理生命周期。
+      </p>
+      <pre><code class="language-cpp">#include &lt;memory&gt;
+#include &lt;string&gt;
+
+union storage
+{
+    std::string s;
+    int i;
+
+    storage() noexcept {}
+    ~storage() {}
+};
+
+storage st;
+std::construct_at(&amp;st.s, "hello");
+std::print("{}\n", st.s);
+std::destroy_at(&amp;st.s);</code></pre>
+      <p>
+        <code>std::construct_at</code> 在共用体存储里开始 <code>std::string</code> 的生命周期。
+        <code>std::destroy_at</code> 结束它。忘记 destroy，string 的缓冲区就泄漏。析构一个不是活着的成员，
+        行为未定义。复制共用体时，你必须知道复制哪个成员；非平凡共用体的隐式复制会被删除，这是有原因的。
+      </p>
+      <p>
+        这就是为什么非平凡共用体通常被包在一个类里：类拥有标签，并提供构造函数、析构函数、复制/移动和访问器。
+        共用体是存储原语；包装类才是维护不变式的类型。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 公共初始序列</h2>
+      <p>
+        “只能读活动成员”有一个很窄的例外。如果两个标准布局结构体以相同的布局兼容成员序列开头，
+        那么这两个结构体的共用体可以通过任一成员读取那段公共初始部分：
+      </p>
+      <pre><code class="language-cpp">struct header
+{
+    std::uint32_t tag;
+};
+
+struct a
+{
+    std::uint32_t tag;
+    int x;
+};
+
+struct b
+{
+    std::uint32_t tag;
+    double y;
+};
+
+union u
+{
+    a av;
+    b bv;
+};
+
+u value{};
+value.av = {1, 2};
+std::uint32_t tag = value.bv.tag; // OK: common initial sequence
+// int x = value.bv.y;            // still undefined: y is not common</code></pre>
+      <p>
+        这个例外刻意很窄。它为了 C 兼容，以及检查变体式记录的公共头。它不会让任意类型双关合法，
+        也不适用于非标准布局类型。
+      </p>
+      <p>
+        如果你需要把一种类型的字节重解释成另一种，在类型可平凡复制且大小相同时用
+        <code>::std::bit_cast</code>（<a href="/zhcn/docs/02.basics/13.casting/">第2.13章</a>和
+        <a href="/zhcn/docs/05.pointerscarray/13.strictaliasing/">第5.13章</a>），或者用
+        <code>std::memcpy</code> 复制进一个正确构造的对象。共用体在 C++ 里不是做这件事的工具。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 位域</h2>
+      <p>
+        位域声明一个占指定比特数的成员：
+      </p>
+      <pre><code class="language-cpp">struct flags
+{
+    unsigned ready : 1;
+    unsigned mode  : 3;
+    unsigned       : 0;   // force the next member to a new allocation unit
+    unsigned error : 1;
+};</code></pre>
+      <p>
+        位域适合紧凑的内存记录、硬件寄存器和以位定义的协议头。它们不适合可移植的线格式：
+        分配顺序、填充、普通 <code>int</code> 位域的有符号性，以及零宽字段的含义，都是实现定义的。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>问题</th>
+            <th>可移植格式的答案</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>哪个位是第一个字段？</td>
+            <td>标准没有规定；取决于 ABI</td>
+          </tr>
+          <tr>
+            <td>分配单元有多宽？</td>
+            <td>实现定义</td>
+          </tr>
+          <tr>
+            <td><code>unsigned : 0</code> 做什么？</td>
+            <td>实现定义的、对齐到下一个单元的行为</td>
+          </tr>
+          <tr>
+            <td>能取地址吗？</td>
+            <td>不能；位域不可寻址</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        C 里经典的“写一个整数，再通过共用体读位域”技巧在 C++ 里是未定义行为。如果你需要打包和解包位，
+        用移位和掩码显式做，或者用 <code>::std::bit_cast</code> 转成固定宽度整数再移位。那种代码可移植、
+        可测试；共用体版本依赖编译器的布局。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 什么时候用共用体</h2>
+      <ul>
+        <li>
+          <strong>封闭备选集合的紧凑存储。</strong>成员很少、没有分配的带标签共用体。
+        </li>
+        <li>
+          <strong>与 C ABI 互操作。</strong>C 库暴露一个共用体；你精确镜像它。
+        </li>
+        <li>
+          <strong>硬件或协议记录。</strong>只在平台或协议固定布局，并且你有大小静态断言时。
+        </li>
+        <li>
+          <strong>实现底层容器或分配器。</strong>共用体是包装类内部的存储原语，包装类拥有标签和生命周期。
+        </li>
+      </ul>
+      <p>
+        不要把共用体当通用的“任意类型”变量。不要用它绕过类型系统。不要用它做类型双关。如果备选需要行为，
+        写一个拥有标签和存储的类；共用体只是实现的一部分。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 需要记住什么</h2>
+      <ul>
+        <li>共用体让所有非静态数据成员共享一块存储。</li>
+        <li>只能读活动成员。公共初始序列是窄例外。</li>
+        <li>大小至少是最大成员；对齐是最严格成员的对齐。</li>
+        <li>非平凡成员需要显式构造和析构。</li>
+        <li>位域依赖布局；不要把它们当可移植线格式。</li>
+        <li>共用体类型双关在 C++ 里是未定义行为；用 <code>bit_cast</code> 或 <code>memcpy</code>。</li>
+      </ul>
+      <p>
+        下一页讲一个不是类型、但改变你解包方式的特性：结构化绑定。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/25.fineprint/" class="prev-button">&larr; 第25章：细则</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/docs/25.fineprint/02.bindings/" class="next-button">第25.2章：结构化绑定 &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

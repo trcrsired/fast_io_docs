@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch25.2: Structured Bindings - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch25.2: Structured Bindings</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/25.fineprint/02.bindings/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Unpacking Without the Ceremony</h2>
+      <p>
+        A structured binding declares several names at once and binds them to the elements of an
+        object. It is the feature that turns this:
+      </p>
+      <pre><code class="language-cpp">auto result = try_insert(map, key, value);
+auto it = result.first;
+bool inserted = result.second;</code></pre>
+      <p>
+        into this:
+      </p>
+      <pre><code class="language-cpp">auto [it, inserted] = try_insert(map, key, value);</code></pre>
+      <p>
+        The syntax is a declaration with a bracketed identifier list:
+      </p>
+      <pre><code class="language-cpp">auto [a, b] = pair;
+auto &amp;[x, y] = pair;
+auto const &amp;[x, y] = pair;
+auto &amp;&amp;[x, y] = make_pair();</code></pre>
+      <p>
+        The declaration is not a tuple type and the names are not separate variables in the usual
+        sense. The compiler introduces one hidden object, initializes it from the right-hand side,
+        and then makes each name refer to one element of that hidden object.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. What Can Be Decomposed</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Kind</th>
+            <th>Elements</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Array</td>
+            <td>The array elements, in order</td>
+            <td><code>int a[3]; auto [x, y, z] = a;</code></td>
+          </tr>
+          <tr>
+            <td>Tuple-like</td>
+            <td>
+              <code>std::tuple</code>, <code>std::pair</code>, <code>std::array</code>, or anything
+              with <code>tuple_size</code>, <code>tuple_element</code> and <code>get</code>
+            </td>
+            <td><code>auto [x, y] = std::pair{1, 2};</code></td>
+          </tr>
+          <tr>
+            <td>Aggregate</td>
+            <td>The public non-static data members, in declaration order</td>
+            <td><code>struct point { int x, y; }; auto [x, y] = point{1, 2};</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The number of names must match the number of elements. A mismatch is a compile error. There
+        is no "skip one" syntax; use a placeholder name such as <code>_</code> if you only need some
+        of the values.
+      </p>
+      <pre><code class="language-cpp">struct point
+{
+    int x;
+    int y;
+};
+
+point p{3, 4};
+auto [x, y] = p;          // x == 3, y == 4
+auto &amp;[rx, ry] = p;       // rx and ry refer to p.x and p.y
+rx = 10;                   // p.x is now 10</code></pre>
+      <p>
+        For an aggregate, only public direct non-static data members participate. A class with
+        private members, virtual functions or a user-declared constructor is not decomposed as an
+        aggregate. Base classes are not a flat list of members; do not rely on a particular order
+        when inheritance is involved.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>auto</code>, <code>auto&amp;</code>, <code>auto&amp;&amp;</code></h2>
+      <p>
+        The qualifier on the declaration applies to the hidden object, not to each name separately.
+        This is the part that causes lifetime and mutation bugs.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Declaration</th>
+            <th>Hidden object</th>
+            <th>Names</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>auto [a, b] = expr;</code></td>
+            <td>A copy of <code>expr</code></td>
+            <td>References into the copy; modifying <code>a</code> does not modify <code>expr</code></td>
+          </tr>
+          <tr>
+            <td><code>auto &amp;[a, b] = expr;</code></td>
+            <td>A reference to <code>expr</code></td>
+            <td>References into <code>expr</code>; modifying <code>a</code> modifies <code>expr</code></td>
+          </tr>
+          <tr>
+            <td><code>auto const &amp;[a, b] = expr;</code></td>
+            <td>A const reference</td>
+            <td>Read-only; extends the lifetime of a temporary</td>
+          </tr>
+          <tr>
+            <td><code>auto &amp;&amp;[a, b] = expr;</code></td>
+            <td>A forwarding reference</td>
+            <td>
+              Extends a temporary's lifetime like <code>auto const &amp;</code>, but preserves
+              mutability and value category
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">std::pair&lt;int, int&gt; make();
+
+auto [a, b] = make();             // copies the pair
+auto &amp;[c, d] = make();            // error: cannot bind a non-const lvalue reference to a temporary
+auto const &amp;[e, f] = make();      // OK: lifetime extended
+auto &amp;&amp;[g, h] = make();          // OK: rvalue reference to the temporary</code></pre>
+      <p>
+        The last two look similar but are not. <code>auto const &amp;</code> extends the temporary's
+        lifetime to the end of the scope. <code>auto &amp;&amp;</code> binds an rvalue reference; the
+        temporary still lives to the end of the full expression unless lifetime extension applies.
+        If you need the values later, use <code>auto</code> or <code>auto const &amp;</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. The Map Case</h2>
+      <p>
+        The most common real use is iterating a map and inserting into one:
+      </p>
+      <pre><code class="language-cpp">std::map&lt;std::string, int&gt; counts;
+
+for (auto const &amp;[key, value] : counts)
+{
+    std::print("{} -> {}\n", key, value);
+}
+
+if (auto [it, inserted] = counts.try_emplace("apple", 1); inserted)
+{
+    std::print("new key: {}\n", it-&gt;first);
+}</code></pre>
+      <p>
+        In a map, <code>key</code> is const: the container owns the ordering and will not let you
+        mutate the key through an iterator. <code>value</code> is mutable when the binding is
+        non-const. This is not a quirk of structured bindings; it is the map's iterator type showing
+        through.
+      </p>
+      <p>
+        The <code>if</code> init-statement keeps <code>it</code> and <code>inserted</code> in scope
+        for the condition and the body. That is the idiomatic way to use the result of
+        <code>try_emplace</code> without leaking the variables into the rest of the function.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Tuple-Like Types and Customization</h2>
+      <p>
+        For a tuple-like type, the compiler uses <code>std::tuple_size</code>,
+        <code>std::tuple_element</code> and <code>get</code>. The standard types already provide
+        them. A user-defined type can opt in:
+      </p>
+      <pre><code class="language-cpp">struct version
+{
+    int major;
+    int minor;
+};
+
+namespace std
+{
+template &lt;&gt;
+struct tuple_size&lt;version&gt; : integral_constant&lt;std::size_t, 2&gt;
+{
+};
+
+template &lt;std::size_t I&gt;
+struct tuple_element&lt;I, version&gt;
+{
+    using type = int;
+};
+}
+
+template &lt;std::size_t I&gt;
+int get(version const &amp;v)
+{
+    if constexpr (I == 0)
+    {
+        return v.major;
+    }
+    else
+    {
+        return v.minor;
+    }
+}
+
+version v{1, 2};
+auto [major, minor] = v;</code></pre>
+      <p>
+        This is a lot of machinery for a two-field struct. The aggregate path already handles public
+        data members. Use the tuple protocol when the type is not an aggregate, or when the
+        decomposition order is not the declaration order.
+      </p>
+      <p>
+        The <code>get</code> function is found by argument-dependent lookup. It must be visible at
+        the point of the structured binding. A member <code>get</code> is also considered in some
+        contexts, but a free function in the type's namespace is the portable form.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Subtleties That Bite</h2>
+      <ul>
+        <li>
+          <strong>You cannot apply <code>const</code>, <code>volatile</code> or
+          <code>static</code> to one name.</strong> The qualifier applies to the hidden object; use
+          <code>auto const &amp;</code> or copy the value into a separate variable.
+        </li>
+        <li>
+          <strong>Structured bindings are not variables you can take the address of as a group.</strong>
+          Each name refers to a subobject of the hidden object. Taking the address of a name is
+          allowed when it is an lvalue, but there is no address for the binding as a whole.
+        </li>
+        <li>
+          <strong>A bit-field cannot be bound to a non-const reference.</strong> A copy is fine; an
+          <code>auto &amp;</code> binding is not.
+        </li>
+        <li>
+          <strong>Lifetime is the hidden object's lifetime.</strong> A binding that refers into a
+          temporary needs the temporary to live; <code>auto const &amp;</code> is the usual fix.
+        </li>
+        <li>
+          <strong><code>constexpr</code> structured bindings are C++26.</strong> Older standards
+          reject <code>constexpr auto [x, y] = ...</code> even though the initializer is constant.
+        </li>
+        <li>
+          <strong>Lambda captures are per name.</strong> Capturing the individual names is clearer
+          than trying to capture the binding as a unit, and it avoids lifetime surprises.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>7. A Small Example: Parsing a Result</h2>
+      <pre><code class="language-cpp">struct parse_result
+{
+    bool ok;
+    int value;
+};
+
+parse_result parse(std::string_view text)
+{
+    if (text == "42")
+    {
+        return {true, 42};
+    }
+    return {false, 0};
+}
+
+int main()
+{
+    if (auto [ok, value] = parse("42"); ok)
+    {
+        std::print("value = {}\n", value);
+    }
+    else
+    {
+        std::print("parse failed\n");
+    }
+}</code></pre>
+      <p>
+        The init-statement is not part of the structured binding; it is the ordinary
+        <code>if</code> init-statement from <a href="/docs/03.statements/03.if/">Ch3.3</a>. The two
+        features compose naturally: the binding declares the names, the init-statement scopes them.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. What to Remember</h2>
+      <ul>
+        <li>Structured bindings unpack arrays, tuple-like types and public aggregate members.</li>
+        <li>The declaration creates one hidden object; the names refer into it.</li>
+        <li><code>auto</code> copies, <code>auto &amp;</code> aliases, <code>auto const &amp;</code>
+          extends a temporary, <code>auto &amp;&amp;</code> forwards.</li>
+        <li>The number of names must match the number of elements.</li>
+        <li>Map keys are const; values are mutable.</li>
+        <li>Tuple-like customization is available, but aggregates usually need nothing.</li>
+        <li>Watch lifetime, bit-fields and the C++26-only <code>constexpr</code> form.</li>
+      </ul>
+      <p>
+        The next page moves from unpacking values to the declarations that decide where values live:
+        storage duration, linkage and namespaces.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/25.fineprint/01.union/" class="prev-button">&larr; Ch25.1: Union</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/25.fineprint/03.storage/" class="next-button">Ch25.3: Storage, Linkage and Namespaces &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -316,7 +316,11 @@ int main()
       <p>
         The member list can be computed. A common pattern is a "struct of arrays":
       </p>
-      <pre><code class="language-cpp">template &lt;typename T, std::size_t N&gt;
+      <pre><code class="language-cpp">#include &lt;array&gt;
+#include &lt;meta&gt;
+#include &lt;vector&gt;
+
+template &lt;typename T, std::size_t N&gt;
 struct struct_of_arrays
 {
     struct impl;
@@ -345,10 +349,24 @@ struct struct_of_arrays
       <p>
         <code>substitute</code> builds the reflection of <code>std::array&lt;MemberType, N&gt;</code>;
         <code>data_member_spec</code> names it after the original member;
-        <code>define_aggregate</code> completes <code>impl</code>. This is the kind of code that
-        used to require an external generator. The constraints are real: generated aggregates are
-        simple aggregates, not arbitrary classes with constructors, virtual functions or access
-        specifiers.
+        <code>define_aggregate</code> completes <code>impl</code>. The member list uses
+        <code>std::vector&lt;std::meta::info&gt;</code>; the <code>std::meta</code> queries
+        themselves return the same type, so the example stays with the standard container.
+      </p>
+      <p>
+        That is also the freestanding wart. <code>std::vector</code> is not a freestanding container,
+        and the range-returning metafunctions (<code>nonstatic_data_members_of</code>,
+        <code>enumerators_of</code>, <code>members_of</code>, <code>bases_of</code>) return
+        <code>std::vector&lt;std::meta::info&gt;</code>. P3295 proposes freestanding constexpr
+        containers to make those functions usable in a freestanding environment, but until that is
+        available in your standard library they are hosted-only. The core language (<code>^^</code>,
+        splices, <code>std::meta::info</code>) is freestanding-friendly; the container-returning
+        library functions are the part to check.
+      </p>
+      <p>
+        This is the kind of code that used to require an external generator. The constraints are
+        real: generated aggregates are simple aggregates, not arbitrary classes with constructors,
+        virtual functions or access specifiers.
       </p>
     </section>
 

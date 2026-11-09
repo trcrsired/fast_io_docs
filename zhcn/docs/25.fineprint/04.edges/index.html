@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第25.4章：带棱角的声明 - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第25.4章：带棱角的声明</h1>
+    <p class="lang-switch"><a href="/docs/25.fineprint/04.edges/">English</a></p>
+
+    <section>
+      <h2>1. <code>explicit(bool)</code>：有条件地显式</h2>
+      <p>
+        构造函数要么是 <code>explicit</code>，要么不是，通常对类型做一次选择。C++20 允许这个选择依赖
+        编译期条件：
+      </p>
+      <pre><code class="language-cpp">#include &lt;type_traits&gt;
+
+template &lt;typename T&gt;
+struct box
+{
+    T value;
+
+    explicit(std::is_integral_v&lt;T&gt;) box(T v) : value{v} {}
+};</code></pre>
+      <p>
+        <code>explicit(...)</code> 里的表达式必须是 <code>bool</code> 类型的常量表达式。为
+        <code>true</code> 时构造函数是显式的；为 <code>false</code> 时是转换构造函数。常见用法是包装器
+        对某些元素类型接受隐式转换，对另一些不接受：
+      </p>
+      <pre><code class="language-cpp">box&lt;double&gt; d = 1.0;   // OK: explicit(false)
+box&lt;int&gt; i = 1;        // error: explicit(true)
+box&lt;int&gt; j{1};         // OK: direct initialization</code></pre>
+      <p>
+        这不是运行时检查。条件在模板实例化期间求值，得到的构造函数要么显式，要么不是。它适合泛型包装器、
+        强类型 typedef 和单位类型，这些地方的转换策略取决于负载类型。
+      </p>
+      <p>
+        不要用 <code>explicit(bool)</code> 编码运行时策略。如果决定取决于值，那就不是转换规则；写一个
+        具名工厂函数。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. <code>[[no_unique_address]]</code>：空成员</h2>
+      <p>
+        空类的大小至少是一字节，因为每个对象需要不同地址。空类型成员通常会占用这一字节加上填充：
+      </p>
+      <pre><code class="language-cpp">struct empty {};
+
+struct without
+{
+    empty e;
+    int x;
+};
+
+struct with
+{
+    [[no_unique_address]] empty e;
+    int x;
+};</code></pre>
+      <p>
+        <code>[[no_unique_address]]</code> 告诉编译器这个成员不需要唯一地址，因此可以与其他成员重叠。
+        在本书使用的实现上，<code>sizeof(without)</code> 通常是 8，<code>sizeof(with)</code> 通常是 4。
+        标准允许重叠；它不要求特定大小。
+      </p>
+      <pre><code class="language-cpp">static_assert(sizeof(with) &lt;= sizeof(without));</code></pre>
+      <p>
+        这就是无状态分配器、比较器或删除器能存进容器而不让容器变大的方式。这个属性是布局许可，不是保证：
+        编译器需要时仍然可以给成员地址，而且布局可能因 ABI 而异。
+      </p>
+      <p>
+        不要把它用于地址身份重要的成员。如果代码取 <code>&amp;obj.e</code> 并与其他对象的地址比较，
+        重叠存储会破坏假设。用它来存真正无状态的策略对象。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>alignas</code> 与 <code>alignof</code></h2>
+      <p>
+        <code>alignof(T)</code> 询问类型的对齐要求。<code>alignas(N)</code> 为对象或类型请求更严格的对齐：
+      </p>
+      <pre><code class="language-cpp">#include &lt;cstddef&gt;
+
+struct alignas(64) cache_line
+{
+    std::byte data[64];
+};
+
+static_assert(alignof(cache_line) == 64);
+static_assert(sizeof(cache_line) == 64);</code></pre>
+      <p>
+        <code>alignas</code> 可以提高对齐；不能低于类型的自然要求。带 <code>alignas(64)</code> 的类型
+        在任何地方都是 64 字节对齐，编译器会在数组和包含它的结构体里插入填充来保持这一点。
+      </p>
+      <p>
+        对齐不是大小。64 字节对齐的对象可以小于或大于 64 字节；对齐只固定起始地址。给每个对象过度对齐会浪费内存；
+        把它用于缓存行隔离、SIMD、内存映射 I/O 或文档化的 ABI，不要当通用性能提示。
+      </p>
+      <p>
+        类型的对齐也是共用体对齐取最严格成员对齐的原因，也是结构体成员顺序会改变大小的原因。布局是 ABI 的
+        一等公民。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. <code>offsetof</code></h2>
+      <p>
+        <code>offsetof(type, member)</code> 给出成员距标准布局对象起点的字节偏移：
+      </p>
+      <pre><code class="language-cpp">#include &lt;cstddef&gt;
+
+struct record
+{
+    int id;
+    double value;
+};
+
+static_assert(offsetof(record, id) == 0);
+static_assert(offsetof(record, value) &gt;= sizeof(int));</code></pre>
+      <p>
+        <code>offsetof</code> 只对标准布局类型有定义。带虚函数、虚基类、非标准布局排列的私有数据成员，
+        或有多个访问区的类型，可能不能用。它是编译期宏，不是运行时反射调用；它不知道具体对象。
+      </p>
+      <p>
+        C++26 反射提供 <code>std::meta::offset_of</code>（<a href="/zhcn/docs/24.reflection/03.practice/">第24.3章</a>），
+        对反射问同样的问题。对于固定的标准布局结构体，宏仍然是可移植答案。
+      </p>
+      <p>
+        偏移依赖 ABI。对偏移做静态断言记录了你期望的布局；它不会让布局可移植。如果偏移必须匹配线格式，
+        用显式宽度和端序的序列化层，不要用裸结构体。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. <code>volatile</code> 不是同步</h2>
+      <p>
+        <code>volatile</code> 告诉编译器对对象的每次访问都是可观察的，不能被优化掉，也不能相对其他
+        volatile 访问重排。它不提供原子性、互斥或线程间顺序。
+      </p>
+      <pre><code class="language-cpp">volatile std::uint32_t *mmio = reinterpret_cast&lt;volatile std::uint32_t *&gt;(0x40000000u);
+*mmio = 1;</code></pre>
+      <p>
+        这是合法用途：内存映射 I/O、硬件寄存器，或由信号处理函数修改的变量。这些情况下编译器必须真正执行
+        加载或存储。
+      </p>
+      <p>
+        这是不合法用途：
+      </p>
+      <pre><code class="language-cpp">volatile int counter{};
+++counter; // still a data race if another thread does the same</code></pre>
+      <p>
+        <code>volatile</code> 不会让 <code>++</code> 原子。两个线程仍然可以读到同一个值、加一、写回。
+        线程间通信用 <code>std::atomic&lt;int&gt;</code>；受保护状态超过一个字时用 mutex。
+        <code>volatile</code> 是给硬件和信号处理函数的，不是给调度器的。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 还有几个棱角</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>声明</th>
+            <th>它实际意味着什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>constexpr</code> 成员函数</td>
+            <td>可以在常量表达式中调用；它不会让对象不可变</td>
+          </tr>
+          <tr>
+            <td><code>mutable</code> 成员</td>
+            <td>在 <code>const</code> 成员函数里也可修改；用于缓存和 mutex</td>
+          </tr>
+          <tr>
+            <td><code>static</code> 成员函数</td>
+            <td>没有 <code>this</code>；没有对象时不能访问非静态成员</td>
+          </tr>
+          <tr>
+            <td><code>explicit</code> 转换运算符</td>
+            <td>需要转换或上下文转换；它阻止隐式转换</td>
+          </tr>
+          <tr>
+            <td><code>[[nodiscard]]</code></td>
+            <td>忽略返回值时警告；它不改变类型</td>
+          </tr>
+          <tr>
+            <td><code>[[fallthrough]]</code></td>
+            <td>记录有意的 switch 贯穿；它不改变控制流</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        共同点是：声明可以携带关于初始化、布局、链接、转换或诊断的规则。读规则，不要读关键字的声誉。
+        <code>constexpr</code> 函数不会自动更快；<code>inline</code> 变量不会自动内联；
+        <code>volatile</code> 不是原子。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 需要记住什么</h2>
+      <ul>
+        <li><code>explicit(bool)</code> 让显式性取决于编译期条件。</li>
+        <li><code>[[no_unique_address]]</code> 允许空成员重叠；它不保证大小。</li>
+        <li><code>alignas</code> 提高对齐；<code>alignof</code> 询问对齐；大小和对齐不同。</li>
+        <li><code>offsetof</code> 用于标准布局类型，且依赖 ABI。</li>
+        <li><code>volatile</code> 用于硬件和信号，不用于线程同步。</li>
+        <li>读声明承诺了什么；关键字的声誉不是规则。</li>
+      </ul>
+      <p>
+        细则章到这里结束。这些特性不是新的语言方向；它们是语言里早就存在、但很少单独成页的规则。
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/25.fineprint/03.storage/" class="prev-button">&larr; 第25.3章：存储期、链接与命名空间</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>

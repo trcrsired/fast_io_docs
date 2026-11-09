@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch25.3: Storage, Linkage and Namespaces - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch25.3: Storage, Linkage and Namespaces</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/25.fineprint/03.storage/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Three Different Questions</h2>
+      <p>
+        "Where does this name live?" is actually three questions, and confusing them causes most of
+        the bugs in this area:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Term</th>
+            <th>Answer</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Where can the name be used in the source?</td>
+            <td>Scope</td>
+            <td>Block, class, namespace, function parameter, and so on</td>
+          </tr>
+          <tr>
+            <td>How long does the object live?</td>
+            <td>Storage duration</td>
+            <td>Automatic, static, thread, or dynamic</td>
+          </tr>
+          <tr>
+            <td>Can another translation unit refer to it?</td>
+            <td>Linkage</td>
+            <td>No linkage, internal linkage, or external linkage</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        A variable can have block scope and static storage duration (a local
+        <code>static</code>). It can have namespace scope and internal linkage (an anonymous
+        namespace). It can have namespace scope and external linkage (an ordinary global). The three
+        properties are independent.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Local <code>static</code>: One Object, Initialized Once</h2>
+      <pre><code class="language-cpp">int next_id()
+{
+    static int counter{};
+    return ++counter;
+}</code></pre>
+      <p>
+        <code>counter</code> is a block-scope variable with static storage duration. There is one
+        object per program, not one per call. It is initialized the first time control reaches the
+        declaration, and destroyed when the program exits.
+      </p>
+      <p>
+        Since C++11, the initialization is thread-safe: if two threads call <code>next_id</code> for
+        the first time at once, one waits for the other, and the object is constructed exactly once.
+        That guarantee is about <em>initialization</em>, not about later access. The
+        <code>++counter</code> itself is a data race if two threads call it concurrently. Use
+        <code>std::atomic&lt;int&gt;</code> if that is what you mean.
+      </p>
+      <pre><code class="language-cpp">#include &lt;atomic&gt;
+
+int next_id()
+{
+    static std::atomic&lt;int&gt; counter{};
+    return ++counter;
+}</code></pre>
+      <p>
+        Local statics are good for lazy singletons, caches and one-time initialization. They are bad
+        for hidden global state: the function signature no longer tells the reader that calls share
+        data. If the state must be reset for a test, a local static makes that impossible without a
+        separate reset hook.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. <code>thread_local</code>: One Object Per Thread</h2>
+      <pre><code class="language-cpp">thread_local int per_thread_counter{};
+
+void bump()
+{
+    ++per_thread_counter;
+}</code></pre>
+      <p>
+        Each thread gets its own <code>per_thread_counter</code>. The object is created when the
+        thread first reaches the declaration, and destroyed when the thread exits. It is the storage
+        duration counterpart of a thread-local cache: no locking, no sharing, no false sharing.
+      </p>
+      <p>
+        In a header, use <code>inline thread_local</code> so every translation unit refers to the
+        same entity:
+      </p>
+      <pre><code class="language-cpp">inline thread_local int per_thread_counter{};</code></pre>
+      <p>
+        <code>thread_local</code> has costs. A dynamic initializer runs per thread, the object may
+        need a TLS slot, and the destructor runs during thread exit. On a freestanding target there
+        may be no thread-local storage at all. Do not use it for a value that is logically global;
+        use it when the value is genuinely per-thread.
+      </p>
+      <p>
+        A <code>thread_local</code> variable is not automatically synchronized with other threads.
+        It is private state, not a communication channel. If two threads must see the same value, use
+        an atomic or a mutex-protected object, not <code>thread_local</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. <code>inline</code> Variables</h2>
+      <p>
+        Before C++17, a header could not define a global variable: every translation unit that
+        included the header would define it, and the linker would report multiple definitions. The
+        workarounds were a <code>static</code> variable per translation unit (one copy each) or an
+        <code>extern</code> declaration plus one definition in a <code>.cc</code> file.
+      </p>
+      <p>
+        C++17 added <code>inline</code> variables. An inline variable has external linkage and one
+        definition across all translation units, even though the definition appears in a header:
+      </p>
+      <pre><code class="language-cpp">inline constexpr int protocol_version = 3;
+inline std::string default_name{"fast_io"};</code></pre>
+      <p>
+        <code>inline</code> here is about linkage and the ODR, not about inlining the variable's
+        address or avoiding a memory load. The compiler may still place the object in one location
+        and refer to it from every translation unit.
+      </p>
+      <p>
+        Use <code>inline constexpr</code> for header-defined constants and
+        <code>inline</code> for header-defined objects that need one identity. A non-trivial inline
+        variable has dynamic initialization; its initialization order relative to other translation
+        units is still a problem. Prefer constant initialization or a function-local static when
+        order matters.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Namespace-Scope <code>const</code> Is Special</h2>
+      <p>
+        A namespace-scope <code>const</code> variable has internal linkage by default in C++:
+      </p>
+      <pre><code class="language-cpp">const int limit = 100;          // internal linkage
+extern const int shared = 100;  // external linkage, defined here
+inline constexpr int version = 3; // one entity across TUs</code></pre>
+      <p>
+        That is why a header with <code>const int limit = 100;</code> does not cause a linker error:
+        each translation unit gets its own copy. It is also why taking the address of
+        <code>limit</code> in two translation units may produce two different addresses. If you need
+        one identity, write <code>inline constexpr</code> or <code>extern const</code> with one
+        definition.
+      </p>
+      <p>
+        The rule is a C++ inheritance from C's <code>const</code> semantics. It surprises people who
+        expect every namespace-scope definition to be external. Check the linkage before you rely on
+        address identity.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Anonymous Namespaces</h2>
+      <pre><code class="language-cpp">namespace
+{
+    int implementation_counter;
+    void helper();
+}</code></pre>
+      <p>
+        Names in an unnamed namespace have internal linkage. Each translation unit gets its own copy,
+        and the names cannot collide with the same names in another translation unit. It is the
+        modern replacement for <code>static</code> at namespace scope.
+      </p>
+      <p>
+        An anonymous namespace is useful for implementation details in a <code>.cc</code> file. It is
+        wrong for shared state in a header: every translation unit that includes the header gets a
+        different object, so the "global" is not global. If you want one object, use an
+        <code>inline</code> variable.
+      </p>
+      <p>
+        The anonymous namespace is also not a security boundary. It changes linkage, not visibility
+        to the debugger, the binary or another translation unit that has its own copy. Do not put
+        secrets in it.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Inline Namespaces</h2>
+      <p>
+        An inline namespace is a namespace whose members are also visible in the enclosing namespace:
+      </p>
+      <pre><code class="language-cpp">namespace lib
+{
+    inline namespace v2
+    {
+        struct widget
+        {
+            int id;
+        };
+    }
+}
+
+lib::widget w{1};    // OK, as if widget were directly in lib
+lib::v2::widget x{2}; // also OK</code></pre>
+      <p>
+        This is the standard library's versioning tool. <code>std::literals</code> is an inline
+        namespace, which is why <code>using namespace std::literals;</code> makes the literals
+        visible without naming the version. A library can add a new inline namespace
+        <code>v3</code> and keep the old one for ABI compatibility.
+      </p>
+      <p>
+        Inline namespaces affect name lookup and mangling. They are not a runtime mechanism and they
+        do not create a new object. Use them when you need transparent versioning, not as a generic
+        grouping tool.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. <code>extern</code>: Declaration vs Definition</h2>
+      <pre><code class="language-cpp">extern int global;       // declaration: no storage here
+int global = 42;         // definition: storage here
+
+extern "C" int c_api();  // C language linkage</code></pre>
+      <p>
+        <code>extern</code> without an initializer is a declaration. It tells the compiler the name
+        and type; the linker finds the definition elsewhere. A definition allocates storage (or
+        provides a function body). The distinction matters in headers: put declarations in headers
+        and definitions in one <code>.cc</code> file, or use <code>inline</code> for variables.
+      </p>
+      <p>
+        <code>extern "C"</code> is language linkage, not storage. It disables C++ name mangling so a
+        C program or a C ABI can find the symbol. It does not change the type system, and it does not
+        make a C++ class layout-compatible with C.
+      </p>
+    </section>
+
+    <section>
+      <h2>9. What to Remember</h2>
+      <ul>
+        <li>Scope, storage duration and linkage are independent properties.</li>
+        <li>A local <code>static</code> is one object per program, initialized once, thread-safe on first use.</li>
+        <li><code>thread_local</code> is one object per thread; it is private state, not synchronization.</li>
+        <li><code>inline</code> variables give one entity across translation units in a header.</li>
+        <li>Namespace-scope <code>const</code> has internal linkage by default; use <code>inline constexpr</code> for one identity.</li>
+        <li>Anonymous namespaces are for per-translation-unit implementation details, not shared globals.</li>
+        <li>Inline namespaces are transparent versioning, not a runtime feature.</li>
+        <li><code>extern</code> declares; a definition provides storage.</li>
+      </ul>
+      <p>
+        The last page covers declarations whose meaning is easy to miss: conditional
+        <code>explicit</code>, empty-base optimization, alignment, <code>offsetof</code> and
+        <code>volatile</code>.
+      </p>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/25.fineprint/02.bindings/" class="prev-button">&larr; Ch25.2: Structured Bindings</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="/docs/25.fineprint/04.edges/" class="next-button">Ch25.4: Declarations with Sharp Edges &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
