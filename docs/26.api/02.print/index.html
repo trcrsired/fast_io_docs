@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.2: print - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.2: <code>print</code></h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/02.print/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Function Surface</h2>
+      <p>
+        The print family is deliberately small. Every function returns <code>void</code> and
+        reports failure through herbceptions. The difference between the names is the
+        destination, the newline, and whether the call is allowed to return.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Default destination</th>
+            <th>Newline</th>
+            <th>Availability</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>print(args...)</code></td>
+            <td>C <code>stdout</code></td>
+            <td>No</td>
+            <td>Always</td>
+          </tr>
+          <tr>
+            <td><code>println(args...)</code></td>
+            <td>C <code>stdout</code></td>
+            <td>Yes, <code>\n</code></td>
+            <td>Always</td>
+          </tr>
+          <tr>
+            <td><code>perr(args...)</code></td>
+            <td>native <code>stderr</code></td>
+            <td>No</td>
+            <td>Always</td>
+          </tr>
+          <tr>
+            <td><code>perrln(args...)</code></td>
+            <td>native <code>stderr</code></td>
+            <td>Yes, <code>\n</code></td>
+            <td>Always</td>
+          </tr>
+          <tr>
+            <td><code>panic(args...)</code></td>
+            <td>native <code>stderr</code></td>
+            <td>No</td>
+            <td>Always; terminates</td>
+          </tr>
+          <tr>
+            <td><code>panicln(args...)</code></td>
+            <td>native <code>stderr</code></td>
+            <td>Yes, <code>\n</code></td>
+            <td>Always; terminates</td>
+          </tr>
+          <tr>
+            <td><code>debug_print(args...)</code></td>
+            <td>native <code>stdout</code></td>
+            <td>No</td>
+            <td>Only when <code>NDEBUG</code> is not defined</td>
+          </tr>
+          <tr>
+            <td><code>debug_println(args...)</code></td>
+            <td>native <code>stdout</code></td>
+            <td>Yes</td>
+            <td>Only when <code>NDEBUG</code> is not defined</td>
+          </tr>
+          <tr>
+            <td><code>debug_perr(args...)</code></td>
+            <td>native <code>stderr</code></td>
+            <td>No</td>
+            <td>Only when <code>NDEBUG</code> is not defined</td>
+          </tr>
+          <tr>
+            <td><code>debug_perrln(args...)</code></td>
+            <td>native <code>stderr</code></td>
+            <td>Yes</td>
+            <td>Only when <code>NDEBUG</code> is not defined</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Every function also accepts an output device as its first argument:
+        <code>print(device, args...)</code>, <code>println(device, args...)</code>,
+        <code>perr(device, args...)</code>, and so on. When the first argument is not an output
+        device, the default destination in the table is used.
+      </p>
+      <p>
+        <code>perr</code> writes to the platform's native standard error, not to C's
+        <code>stderr</code>. It is unbuffered and each call is a syscall, which gives the
+        atomicity you want for diagnostics. <code>panic</code> and <code>panicln</code> are the
+        same destination followed by a trap: they do not return.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. What Counts as the First Argument</h2>
+      <p>
+        The first argument is a device if it satisfies the output-stream or I/O-stream concept
+        used by fast_io. Otherwise it is printed as a value and the default destination is
+        used. This is why both of these are valid:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::io;
+
+    // Value first: default destination.
+    println("answer = ", 42);
+
+    // Device first: explicit destination.
+    ::fast_io::obuf_file out("out.txt");
+    println(out, "answer = ", 42);
+}
+</code></pre>
+      <p>
+        There is no format string and no per-call state. The device is chosen once, and every
+        remaining argument is formatted according to its own type and any manipulator wrapped
+        around it. This is why <code>print</code> composes without the iostream state machine:
+        there is nothing to restore after the call.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Formatting Is Argument-Local</h2>
+      <p>
+        A manipulator is a value, not a stream flag. <code>mnp::hex</code>, <code>mnp::fixed</code>,
+        <code>mnp::left</code> and the rest wrap exactly one argument:
+      </p>
+      <pre><code class="language-cpp">
+println("decimal: ", 255);
+println("hex:     ", ::fast_io::mnp::hex(255));
+println("padded:  ", ::fast_io::mnp::right(42, 8, '0'));
+</code></pre>
+      <p>
+        The next statement is unaffected. There is no equivalent of forgetting to reset
+        <code>std::hex</code>, and no equivalent of a manipulator leaking into a different
+        stream. The complete exported list, including base, floating, width, pointer, string,
+        binary, network and locale manipulators, is in
+        <a href="/docs/26.api/01.modules/">Ch26.1</a>.
+      </p>
+      <p>
+        Custom types join the same path through <code>print_reserve_define</code> or
+        <code>print_define</code>. The print function does not need to know the type; it asks the
+        type's formatter to write into the output device. A type that can only be printed through
+        a scatter of existing bytes should use <code>print_scatter_define</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Return Value and Failure</h2>
+      <p>
+        The print family has no return value. A failure is thrown as a herbception, so the
+        normal handler is the same one used elsewhere in this book:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    try
+    {
+        ::fast_io::io::println(::fast_io::out(), "hello");
+    }
+    catch throws(::std::error e)
+    {
+        ::fast_io::io::perrln(e);
+        return 1;
+    }
+}
+</code></pre>
+      <p>
+        Formatting a type that has no formatter is a compile-time error, not a runtime one.
+        A runtime failure comes from the device layer: a closed file, a full disk, a broken
+        pipe, or an interrupted syscall.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Buffering, Flushing and Synchronization</h2>
+      <p>
+        <code>print</code> works with both buffered and unbuffered output devices. A buffered
+        device batches small writes and flushes when the buffer is full or when the object is
+        destroyed; an unbuffered device writes through. This is the same split described in
+        <a href="/docs/11.io/05.buffered/">Ch11.5</a>, and it is why the print family does not
+        force every caller to choose a buffer size.
+      </p>
+      <p>
+        <code>perr</code> is intentionally unbuffered. Diagnostics must arrive even if the
+        process is about to trap or another thread is still holding a buffered stream. The
+        price is one syscall per call; do not use <code>perr</code> in a hot loop.
+      </p>
+      <p>
+        Thread safety depends on the device. A mutex-wrapped device (for example a lockable file
+        type) serializes calls. A plain buffered file does not become thread-safe because the
+        function is named <code>println</code>. Process safety is a stronger property: the
+        print family guarantees it only when the device is not a buffered output stream.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Debug Output</h2>
+      <p>
+        The <code>debug_*</code> family exists so that diagnostic prints can disappear from
+        release builds. When <code>NDEBUG</code> is defined, these functions are not available;
+        code that still references them fails to compile instead of silently producing output.
+        Their default destination is the native standard stream, not C's stream, so they still
+        work when the C runtime is not in a useful state.
+      </p>
+      <pre><code class="language-cpp">
+debug_println("state = ", state);
+</code></pre>
+      <p>
+        Do not use <code>debug_print</code> as a logging API. It is a development tool, and its
+        availability is intentionally tied to the build mode.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. What to Use for What</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Need</th>
+            <th>Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Normal program output</td>
+            <td><code>print</code> / <code>println</code> to the default or an explicit file/device</td>
+          </tr>
+          <tr>
+            <td>Diagnostics that must survive a crash</td>
+            <td><code>perr</code> / <code>perrln</code></td>
+          </tr>
+          <tr>
+            <td>Impossible state</td>
+            <td><code>panic</code> / <code>panicln</code></td>
+          </tr>
+          <tr>
+            <td>Development-only tracing</td>
+            <td><code>debug_print</code> / <code>debug_perr</code></td>
+          </tr>
+          <tr>
+            <td>Bytes, not values</td>
+            <td><code>transmit</code> (see <a href="/docs/11.io/05.buffered/">Ch11.5</a>)</td>
+          </tr>
+          <tr>
+            <td>Locale-aware numbers or time</td>
+            <td><code>imbue(loc, out)</code> (see <a href="/docs/26.api/01.modules/">Ch26.1</a>)</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>The print family is <code>print</code>, <code>println</code>, <code>perr</code>,
+          <code>perrln</code>, <code>panic</code>, <code>panicln</code> and the
+          <code>debug_*</code> variants.</li>
+        <li><code>print</code>/<code>println</code> default to C <code>stdout</code>;
+          <code>perr</code>/<code>perrln</code> use native unbuffered <code>stderr</code>.</li>
+        <li>A device can be the first argument; otherwise the default destination is used.</li>
+        <li>Manipulators affect one argument only; there is no stream state to reset.</li>
+        <li>All functions return <code>void</code> and report device failures as herbceptions.</li>
+        <li><code>panic</code> terminates; <code>debug_*</code> disappears under
+          <code>NDEBUG</code>.</li>
+        <li>Use <code>transmit</code> for byte movement, not the print family.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/01.modules/" class="prev-button">&larr; Ch26.1: Modules and Concepts</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

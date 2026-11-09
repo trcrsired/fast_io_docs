@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.1: Modules and the Four Concept Categories - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.1: Modules and the Four Concept Categories</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/01.modules/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Module Is the API Contract</h2>
+      <p>
+        fast_io ships headers and C++20 module interfaces. The headers expose almost the whole
+        implementation. The modules expose a curated subset: the names listed in
+        <code>share/fast_io/fast_io_inc/*.inc</code>. That subset is the API surface an importer
+        should treat as public.
+      </p>
+      <p>
+        This is the distinction the rest of this reference follows. A name is documented as a
+        module API only when the module exports it. A useful header-only helper that is not in
+        the export list is marked as such; it is not silently presented as part of the module
+        contract.
+      </p>
+      <p>
+        The header interface remains valid. <code>#include &lt;fast_io.h&gt;</code> is still how
+        the tutorial builds, and it is the escape hatch when a module is incomplete. But when
+        both exist, the module export list is the smaller and more stable surface.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Module Inventory</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Interface file</th>
+            <th>What it adds</th>
+            <th>Imports</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>fast_io</code></td>
+            <td><code>fast_io.cppm</code></td>
+            <td>Umbrella: core vocabulary, I/O operations, devices, buffers, containers,
+              freestanding helpers, network and time types.</td>
+            <td>none</td>
+          </tr>
+          <tr>
+            <td><code>fast_io.floating</code></td>
+            <td><code>fast_io_floating.cppm</code></td>
+            <td>Shortest round-trip floating-point conversion for binary16, bfloat16, binary32,
+              binary64, binary80 and binary128. Build separately; requires <code>#embed</code>.</td>
+            <td>core fast_io headers</td>
+          </tr>
+          <tr>
+            <td><code>fast_io.i18n</code></td>
+            <td><code>fast_io_i18n.cppm</code></td>
+            <td>Locale blobs, <code>lc_locale</code>, <code>lc_ctx</code>, <code>imbue</code>,
+              locale-aware concat and <code>lc_dump</code>. The loader is compiled into the
+              module.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>fast_io_crypto</code></td>
+            <td><code>fast_io_crypto.cppm</code></td>
+            <td>CRC32/CRC32C, AES-128/192/256, Ed25519, X25519, NIST elliptic curves and
+              signing/verification helpers.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>fast_io.tls</code></td>
+            <td><code>fast_io_tls.cppm</code></td>
+            <td>TLS clients, TLS socket files, root stores, peer certificates, platform TLS
+              backends and async TLS customization points.</td>
+            <td><code>fast_io</code>, <code>fast_io_crypto</code></td>
+          </tr>
+          <tr>
+            <td><code>fast_io_legacy</code></td>
+            <td><code>fast_io_legacy.cppm</code></td>
+            <td><code>FILE*</code> interoperation and <code>std::basic_filebuf</code>
+              interoperation. Read-only for new code.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>fast_io.json</code></td>
+            <td><code>fast_io_json.cppm</code></td>
+            <td>Streaming JSON handler interface and a DOM document over the same parser.</td>
+            <td>fast_io containers and core types</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The naming is not uniform: <code>fast_io.floating</code>, <code>fast_io.i18n</code>,
+        <code>fast_io.tls</code> and <code>fast_io.json</code> use dotted names, while
+        <code>fast_io_crypto</code> and <code>fast_io_legacy</code> use underscores. Treat the
+        spelling in the table as part of the current interface, not as a style you should
+        extrapolate from.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. The Four Concept Categories</h2>
+      <p>
+        fast_io is easier to learn when its types are sorted by the concept they satisfy rather
+        than by the header they live in. Four categories carry almost everything:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>What it means</th>
+            <th>Typical names</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Device</strong></td>
+            <td>A thing that can provide input bytes, accept output bytes, seek, or participate
+              in transmit. A device is the endpoint, not the formatter.</td>
+            <td><code>native_file</code>, <code>ibuf_file</code>, <code>obuf_file</code>,
+              <code>iobuf_file</code>, <code>native_pipe</code>, <code>iobuf_pipe</code>,
+              <code>iobuf_socket_file</code>, <code>c_file</code>,
+              <code>basic_iobuf</code></td>
+          </tr>
+          <tr>
+            <td><strong>I/O type</strong></td>
+            <td>The vocabulary that connects values to operations: scatter arrays, aliases,
+              reserve types, status values, observers and the customization points used by
+              <code>print</code> and <code>scan</code>.</td>
+            <td><code>basic_io_scatter_t</code>, <code>io_type_t</code>,
+              <code>io_reserve_type_t</code>, <code>io_alias_t</code>,
+              <code>io_scatter_status_t</code>, stream observers and references</td>
+          </tr>
+          <tr>
+            <td><strong>Manipulator</strong></td>
+            <td>A small value that changes how one argument is formatted. It carries a
+              <code>manip_tag</code>; it does not mutate the stream and does not persist after
+              the call.</td>
+            <td><code>hex</code>, <code>fixed</code>, <code>left</code>,
+              <code>boolalpha</code>, <code>code_cvt</code>, <code>os_c_str</code>,
+              <code>lc_dump</code></td>
+          </tr>
+          <tr>
+            <td><strong>Strlike</strong></td>
+            <td>A string-like output sink: contiguous character storage with
+              <code>strlike_begin</code>/<code>strlike_curr</code>/<code>strlike_end</code>,
+              reserve and append customization. This is what <code>concat</code>, locale
+              formatting and <code>print</code> into memory use.</td>
+            <td><code>fast_io::string</code>, <code>basic_string_view</code>,
+              <code>basic_ostring_ref_fast_io</code>,
+              <code>io_strlike_reference_wrapper</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        They compose in one direction: a <strong>device</strong> receives the result, a
+        <strong>strlike</strong> can be the destination when the result is text in memory, an
+        <strong>I/O type</strong> carries the intermediate representation, and a
+        <strong>manipulator</strong> changes one argument on its way through.
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::println(device, ::fast_io::mnp::hex(value));
+//                ^device  ^manipulator
+</code></pre>
+
+      <h3>What about transcoders?</h3>
+      <p>
+        <code>transcoder</code> is an older category. It described a stateful conversion
+        pipeline between encodings. Most of what it was for is now expressed by the
+        <code>code_cvt</code> manipulator and the <code>code_cvt_os_c_str</code> alias, which
+        convert one value inside a <code>print</code> call without a separate object. Treat the
+        transcoder family as legacy and under review: do not design a new API around it, and
+        check whether <code>code_cvt</code> already does the job.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. What the Umbrella Module Exports</h2>
+      <p>
+        The export list is the best table of contents for the library. The main groups are:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Group</th>
+            <th>Exported examples</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>I/O functions</td>
+            <td><code>print</code>, <code>println</code>, <code>perr</code>,
+              <code>perrln</code>, <code>panic</code>, <code>panicln</code>,
+              <code>scan</code>, <code>scan_some</code>, <code>debug_print</code>,
+              <code>debug_perr</code> (unless disabled)</td>
+          </tr>
+          <tr>
+            <td>Devices and buffers</td>
+            <td><code>ibuf_file</code>, <code>obuf_file</code>, <code>iobuf_file</code>,
+              <code>iobuf_pipe</code>, <code>iobuf_socket_file</code>, lockable variants,
+              <code>basic_ibuf</code>, <code>basic_obuf</code>, <code>basic_iobuf</code></td>
+          </tr>
+          <tr>
+            <td>Containers</td>
+            <td><code>string</code>, <code>vector</code>, <code>array</code>,
+              <code>span</code>, <code>string_view</code>, <code>list</code>,
+              <code>deque</code>, <code>queue</code>, <code>stack</code>,
+              B-tree and Swiss-table string containers</td>
+          </tr>
+          <tr>
+            <td>Core vocabulary</td>
+            <td><code>basic_io_scatter_t</code>, <code>io_type_t</code>,
+              <code>io_reserve_type_t</code>, <code>io_alias_t</code>,
+              <code>print_reserve_define</code>, <code>scan_context_define</code>,
+              <code>parse_by_scan</code></td>
+          </tr>
+          <tr>
+            <td>Operations</td>
+            <td><code>read_some</code>, <code>read_all</code>, <code>write_some</code>,
+              <code>write_all</code>, <code>pread_*</code>, <code>pwrite_*</code>,
+              scatter variants, <code>print_freestanding</code></td>
+          </tr>
+          <tr>
+            <td>Freestanding and utilities</td>
+            <td>allocation adapters, <code>freestanding</code> algorithms, bit operations,
+              endian/byte swap, SIMD intrinsics, <code>posix_timespec64</code>,
+              <code>iso8601_timestamp</code></td>
+          </tr>
+          <tr>
+            <td>Herbceptions</td>
+            <td>When <code>__HERBCEPTIONS__</code> is defined, the module re-exports
+              <code>std::error</code>, <code>std::errc</code>,
+              <code>std::parse_errc</code> and the query manipulators.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>5. The Exported Manipulator Surface</h2>
+      <p>
+        These are the manipulators the <code>fast_io</code> module exports today, grouped by
+        what they do. All of them are in <code>::fast_io::mnp</code> (the alias for
+        <code>::fast_io::manipulators</code>).
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Group</th>
+            <th>Names</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Integer base</td>
+            <td><code>base&lt;N&gt;</code>, <code>baseupper&lt;N&gt;</code>,
+              <code>bin</code>, <code>oct</code>, <code>dec</code>, <code>hex</code>,
+              <code>hexupper</code>, <code>hex0x</code>, <code>hex0xupper</code></td>
+          </tr>
+          <tr>
+            <td>Floating format</td>
+            <td><code>decimal</code>, <code>general</code>, <code>fixed</code>,
+              <code>scientific</code>, <code>hexfloat</code>, and the comma-grouped forms
+              <code>comma_decimal</code>, <code>comma_general</code>, <code>comma_fixed</code>,
+              <code>comma_scientific</code>, <code>comma_hexfloat</code></td>
+          </tr>
+          <tr>
+            <td>Boolean</td>
+            <td><code>boolalpha</code> (with an optional uppercase template argument)</td>
+          </tr>
+          <tr>
+            <td>Width and alignment</td>
+            <td><code>width</code>, <code>left</code>, <code>middle</code>, <code>right</code>,
+              <code>internal</code></td>
+          </tr>
+          <tr>
+            <td>Pointer and handle views</td>
+            <td><code>pointervw</code>, <code>handlevw</code>, <code>methodvw</code>,
+              <code>addrvw</code>, <code>dfvw</code>, <code>bitfieldvw</code></td>
+          </tr>
+          <tr>
+            <td>String and range views</td>
+            <td><code>os_c_str</code>, <code>os_c_str_carr</code>,
+              <code>os_c_str_null_terminated</code>,
+              <code>os_c_str_null_terminated_carr</code>,
+              <code>os_c_str_or_nullptr</code>, <code>os_c_str_with_known_size</code>,
+              <code>rgvw</code>, <code>strvw</code></td>
+          </tr>
+          <tr>
+            <td>Encoding</td>
+            <td><code>code_cvt</code>, <code>code_cvt_os_c_str</code></td>
+          </tr>
+          <tr>
+            <td>Binary</td>
+            <td><code>leb128_get</code>, <code>leb128_put</code></td>
+          </tr>
+          <tr>
+            <td>Network</td>
+            <td><code>ip_generic</code>, <code>ip_scan_generic</code></td>
+          </tr>
+          <tr>
+            <td>Source and errors</td>
+            <td><code>cur_src_loc</code>, <code>name</code>, <code>message</code>,
+              <code>name_message</code>, <code>posix_equivalent_name</code>,
+              <code>posix_equivalent_message</code>,
+              <code>posix_equivalent_name_message</code>,
+              <code>herbceptions_query_information</code></td>
+          </tr>
+          <tr>
+            <td>Locale</td>
+            <td><code>lc_dump</code> (from <code>fast_io.i18n</code>)</td>
+          </tr>
+          <tr>
+            <td>Line skippers</td>
+            <td><code>lf</code>, <code>crlf</code>, <code>cr</code>,
+              <code>line_skipper_platform</code> (from <code>fast_io.tls</code>)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The module also exports the types behind these values:
+        <code>scalar_flags</code>, <code>scalar_manip_t</code>, <code>scalar_placement</code>,
+        <code>floating_format</code>, <code>percentage_flag</code>, <code>lc_time_flag</code>,
+        <code>ip_flags</code>, <code>ip_manip_t</code>,
+        <code>ip_scan_manip_t</code>, <code>member_function_pointer_holder_t</code> and
+        <code>whole_get_t</code>.
+      </p>
+      <div class="note">
+        <strong>Not currently exported by the module:</strong>
+        <code>ordinal</code>, <code>percentage_conventional</code>,
+        <code>percentage_sex_ratio</code> and their comma/base variants,
+        <code>host</code>, <code>url</code>, <code>url_path</code>, <code>token</code>,
+        <code>header_value</code>, <code>sql_string</code>, <code>funcvw</code>,
+        <code>itervw</code>, <code>fieldptrvw</code>, <code>chvw</code>,
+        <code>enum_int_view</code>, <code>small_scatter</code> and <code>mtvw</code>.
+        They exist in the headers; use the header interface if you need them today.
+      </div>
+    </section>
+
+    <section>
+      <h2>6. The Locale Module</h2>
+      <p>
+        <code>fast_io.i18n</code> is a separate module because locale data is bulky and
+        optional. It exports <code>fast_io</code> and adds the locale layer on top:
+      </p>
+      <ul>
+        <li><strong>Wire types.</strong> <code>l10n::lc_locale</code> is a flat,
+          position-independent image. Pointers inside it are <code>lc_rva</code> values and
+          strings are <code>lc_scatter</code> values, so the bytes work from a file mapping, an
+          embedded array, a WebAssembly module or a resource.</li>
+        <li><strong>Loading.</strong> <code>l10n::load_l10n</code> maps a locale blob, checks
+          magic and version, verifies the image once, and returns an
+          <code>lc_locale const *</code>. Sandboxed callers can pass a pointer to an image they
+          already have.</li>
+        <li><strong>Binding.</strong> <code>imbue(loc, out)</code> wraps an output stream. The
+          <code>lc_ctx</code> is built lazily, only when an argument actually needs locale
+          formatting.</li>
+        <li><strong>Formatting.</strong> <code>lc_concat</code> / <code>lc_concatln</code>
+          produce locale-formatted strings; <code>mnp::lc_dump</code> prints a textual dump of a
+          locale; <code>lc_time_flag</code> selects a time format.</li>
+      </ul>
+      <pre><code class="language-cpp">
+import fast_io.i18n;
+
+int main()
+{
+    using namespace ::fast_io::io;
+
+    auto const *loc{::fast_io::l10n::load_l10n(u8"de_DE.UTF-8")};
+
+    // Grouping and separators come from LC_NUMERIC.
+    println(::fast_io::imbue(loc, ::fast_io::out()), 1234567);
+
+    // The whole locale as text, for inspection.
+    println(::fast_io::imbue(loc, ::fast_io::out()), ::fast_io::mnp::lc_dump(loc));
+}
+</code></pre>
+      <p>
+        The locale categories available through <code>basic_lc_all</code> are identification,
+        monetary, numeric, time, messages, paper, telephone, name, address, measurement and
+        keyboard. The numeric layer carries the thousands separator and grouping; the time
+        layer carries the POSIX format strings and alternate digits. A locale with no grouping
+        takes the plain formatting path and never builds an <code>lc_ctx</code>.
+      </p>
+      <p>
+        The header interface is <code>#include &lt;fast_io_i18n.h&gt;</code>. The module
+        compiles the loader into itself, so importing <code>fast_io.i18n</code> does not require
+        a separate <code>fast_io_i18n</code> library.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Importing and Building</h2>
+      <p>
+        The module files live in <code>{fast_io}/share/fast_io</code>. Build
+        <code>fast_io</code> first, then the module that imports it. The dependency order is:
+      </p>
+      <pre><code class="language-text">
+fast_io
+  ├── fast_io.i18n
+  ├── fast_io_crypto
+  │     └── fast_io.tls
+  ├── fast_io_legacy
+  ├── fast_io.json
+  └── fast_io.floating   (separately compiled conversion support)
+</code></pre>
+      <pre><code class="language-cpp">
+import fast_io;
+
+int main()
+{
+    ::fast_io::io::println("Hello from the module");
+    ::fast_io::vector&lt;int&gt; v{1, 2, 3};
+    for (auto x : v)
+    {
+        ::fast_io::io::print(x, " ");
+    }
+}
+</code></pre>
+      <p>
+        Clang is the supported path for modules today; GCC module support is experimental and
+        the herbceptions GCC build is known to ICE on some fast_io module units. MSVC is not
+        supported because it has no herbceptions. The exact precompile and link commands are in
+        <a href="/docs/01.compile/08.fastio/">Ch1.8</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>The module export list is the public API contract; headers expose more, but not all
+          of it is exported.</li>
+        <li>The module set is <code>fast_io</code>, <code>fast_io.floating</code>,
+          <code>fast_io.i18n</code>, <code>fast_io_crypto</code>, <code>fast_io.tls</code>,
+          <code>fast_io_legacy</code> and <code>fast_io.json</code>.</li>
+        <li>The four concept categories are device, I/O type, manipulator and strlike;
+          transcoder is legacy and under review.</li>
+        <li>Manipulators are one-argument formatting wrappers, not persistent stream state.</li>
+        <li><code>fast_io.i18n</code> owns the locale blob, loader, <code>imbue</code> and
+          locale-aware concatenation.</li>
+        <li>Build <code>fast_io</code> first; Clang is the reliable module compiler today.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/" class="prev-button">&larr; Ch26: API Reference</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+      <a href="../02.print/" class="next-button">Ch26.2: print &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

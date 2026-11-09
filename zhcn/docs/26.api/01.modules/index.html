@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.1章：模块与四类概念 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.1章：模块与四类概念</h1>
+    <p class="lang-switch"><a href="/docs/26.api/01.modules/">English</a></p>
+
+    <section>
+      <h2>1. 模块就是 API 契约</h2>
+      <p>
+        fast_io 同时提供头文件和 C++20 模块接口。头文件暴露了几乎整个实现；
+        模块只暴露一份经过筛选的子集，也就是
+        <code>share/fast_io/fast_io_inc/*.inc</code> 里列出的名字。
+        导入者应该把这部分当作公开 API。
+      </p>
+      <p>
+        这份参考遵循的正是这个区分：只有模块导出的名字才会被当作模块 API 记录。
+        某个有用的、只在头文件里存在的辅助函数，会被明确标注为头文件接口，
+        而不会悄悄说成模块契约的一部分。
+      </p>
+      <p>
+        头文件接口仍然有效。<code>#include &lt;fast_io.h&gt;</code> 依然是本教程的构建方式，
+        也是模块不完整时的退路。但两者都存在时，模块导出列表是更小、更稳定的那一层。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 模块清单</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>模块</th>
+            <th>接口文件</th>
+            <th>增加什么</th>
+            <th>导入</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>fast_io</code></td>
+            <td><code>fast_io.cppm</code></td>
+            <td>总括模块：核心词汇、I/O 操作、设备、缓冲区、容器、freestanding 辅助、
+              网络与时间类型。</td>
+            <td>无</td>
+          </tr>
+          <tr>
+            <td><code>fast_io.floating</code></td>
+            <td><code>fast_io_floating.cppm</code></td>
+            <td>binary16、bfloat16、binary32、binary64、binary80 和 binary128 的最短往返
+              浮点转换。需要单独构建，并要求 <code>#embed</code>。</td>
+            <td>核心 fast_io 头文件</td>
+          </tr>
+          <tr>
+            <td><code>fast_io.i18n</code></td>
+            <td><code>fast_io_i18n.cppm</code></td>
+            <td>locale blob、<code>lc_locale</code>、<code>lc_ctx</code>、<code>imbue</code>、
+              locale 感知的 concat 和 <code>lc_dump</code>。loader 直接编译进模块。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>fast_io_crypto</code></td>
+            <td><code>fast_io_crypto.cppm</code></td>
+            <td>CRC32/CRC32C、AES-128/192/256、Ed25519、X25519、NIST 椭圆曲线以及
+              签名/验签辅助。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>fast_io.tls</code></td>
+            <td><code>fast_io_tls.cppm</code></td>
+            <td>TLS 客户端、TLS socket 文件、根证书库、对端证书、平台 TLS 后端和
+              异步 TLS 定制点。</td>
+            <td><code>fast_io</code>、<code>fast_io_crypto</code></td>
+          </tr>
+          <tr>
+            <td><code>fast_io_legacy</code></td>
+            <td><code>fast_io_legacy.cppm</code></td>
+            <td><code>FILE*</code> 互操作和 <code>std::basic_filebuf</code> 互操作。
+              新代码只读，不写。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>fast_io.json</code></td>
+            <td><code>fast_io_json.cppm</code></td>
+            <td>流式 JSON handler 接口，以及建立在同一 parser 上的 DOM document。</td>
+            <td>fast_io 容器与核心类型</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        命名并不统一：<code>fast_io.floating</code>、<code>fast_io.i18n</code>、
+        <code>fast_io.tls</code> 和 <code>fast_io.json</code> 用点号，
+        而 <code>fast_io_crypto</code> 和 <code>fast_io_legacy</code> 用下划线。
+        以表里的拼写为准，不要从这个现状推导出某种命名规律。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 四类概念</h2>
+      <p>
+        如果按类型满足的概念来分类，而不是按头文件位置来分类，fast_io 会好懂得多。
+        几乎所有东西都落在四类里：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>类别</th>
+            <th>含义</th>
+            <th>典型名字</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>设备（Device）</strong></td>
+            <td>能提供输入字节、接受输出字节、定位，或参与 transmit 的东西。
+              设备是端点，不是格式化器。</td>
+            <td><code>native_file</code>、<code>ibuf_file</code>、<code>obuf_file</code>、
+              <code>iobuf_file</code>、<code>native_pipe</code>、<code>iobuf_pipe</code>、
+              <code>iobuf_socket_file</code>、<code>c_file</code>、
+              <code>basic_iobuf</code></td>
+          </tr>
+          <tr>
+            <td><strong>I/O 类型（I/O type）</strong></td>
+            <td>把值和操作连接起来的词汇：scatter 数组、alias、reserve 类型、状态值、
+              observer，以及 <code>print</code>/<code>scan</code> 使用的定制点。</td>
+            <td><code>basic_io_scatter_t</code>、<code>io_type_t</code>、
+              <code>io_reserve_type_t</code>、<code>io_alias_t</code>、
+              <code>io_scatter_status_t</code>、流 observer 与引用</td>
+          </tr>
+          <tr>
+            <td><strong>操纵器（Manipulator）</strong></td>
+            <td>改变单个参数格式的小值。它携带 <code>manip_tag</code>，不修改流，
+              调用结束后也不残留状态。</td>
+            <td><code>hex</code>、<code>fixed</code>、<code>left</code>、
+              <code>boolalpha</code>、<code>code_cvt</code>、<code>os_c_str</code>、
+              <code>lc_dump</code></td>
+          </tr>
+          <tr>
+            <td><strong>字符串类（Strlike）</strong></td>
+            <td>字符串形状的输出汇：连续字符存储，带
+              <code>strlike_begin</code>/<code>strlike_curr</code>/<code>strlike_end</code>、
+              reserve 和 append 定制。这就是 <code>concat</code>、locale 格式化和
+              “打印到内存”所使用的目标。</td>
+            <td><code>fast_io::string</code>、<code>basic_string_view</code>、
+              <code>basic_ostring_ref_fast_io</code>、
+              <code>io_strlike_reference_wrapper</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        它们按一个方向组合：<strong>设备</strong>接收结果；结果是内存里的文本时，
+        <strong>strlike</strong> 可以作为目标；<strong>I/O 类型</strong>承载中间表示；
+        <strong>操纵器</strong>在参数经过时改变它的格式。
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::println(device, ::fast_io::mnp::hex(value));
+//                ^device  ^manipulator
+</code></pre>
+
+      <h3>那 transcoder 呢？</h3>
+      <p>
+        <code>transcoder</code> 是更老的一类。它描述的是有状态的编码转换管线。
+        它原本的大部分用途，现在由 <code>code_cvt</code> 操纵器和
+        <code>code_cvt_os_c_str</code> 别名表达：在一次 <code>print</code> 调用里转换一个值，
+        不需要单独的对象。把 transcoder 当作遗留接口、仍在评估的东西：
+        不要围绕它设计新 API，先确认 <code>code_cvt</code> 是否已经够用。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 总括模块导出了什么</h2>
+      <p>
+        导出列表就是这份库最好的目录。主要分组如下：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>分组</th>
+            <th>导出示例</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>I/O 函数</td>
+            <td><code>print</code>、<code>println</code>、<code>perr</code>、
+              <code>perrln</code>、<code>panic</code>、<code>panicln</code>、
+              <code>scan</code>、<code>scan_some</code>、<code>debug_print</code>、
+              <code>debug_perr</code>（未禁用时）</td>
+          </tr>
+          <tr>
+            <td>设备与缓冲区</td>
+            <td><code>ibuf_file</code>、<code>obuf_file</code>、<code>iobuf_file</code>、
+              <code>iobuf_pipe</code>、<code>iobuf_socket_file</code>、可加锁变体、
+              <code>basic_ibuf</code>、<code>basic_obuf</code>、<code>basic_iobuf</code></td>
+          </tr>
+          <tr>
+            <td>容器</td>
+            <td><code>string</code>、<code>vector</code>、<code>array</code>、
+              <code>span</code>、<code>string_view</code>、<code>list</code>、
+              <code>deque</code>、<code>queue</code>、<code>stack</code>、
+              B 树和 Swiss 表的字符串容器</td>
+          </tr>
+          <tr>
+            <td>核心词汇</td>
+            <td><code>basic_io_scatter_t</code>、<code>io_type_t</code>、
+              <code>io_reserve_type_t</code>、<code>io_alias_t</code>、
+              <code>print_reserve_define</code>、<code>scan_context_define</code>、
+              <code>parse_by_scan</code></td>
+          </tr>
+          <tr>
+            <td>操作</td>
+            <td><code>read_some</code>、<code>read_all</code>、<code>write_some</code>、
+              <code>write_all</code>、<code>pread_*</code>、<code>pwrite_*</code>、
+              scatter 变体、<code>print_freestanding</code></td>
+          </tr>
+          <tr>
+            <td>Freestanding 与工具</td>
+            <td>分配器适配器、<code>freestanding</code> 算法、位操作、endian/byte swap、
+              SIMD intrinsics、<code>posix_timespec64</code>、
+              <code>iso8601_timestamp</code></td>
+          </tr>
+          <tr>
+            <td>Herbceptions</td>
+            <td>定义 <code>__HERBCEPTIONS__</code> 时，模块重新导出
+              <code>std::error</code>、<code>std::errc</code>、
+              <code>std::parse_errc</code> 和查询用操纵器。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>5. 模块导出的操纵器</h2>
+      <p>
+        下面是 <code>fast_io</code> 模块目前导出的操纵器，按用途分组。
+        它们都在 <code>::fast_io::mnp</code>（<code>::fast_io::manipulators</code> 的别名）里。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>分组</th>
+            <th>名字</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>整数进制</td>
+            <td><code>base&lt;N&gt;</code>、<code>baseupper&lt;N&gt;</code>、
+              <code>bin</code>、<code>oct</code>、<code>dec</code>、<code>hex</code>、
+              <code>hexupper</code>、<code>hex0x</code>、<code>hex0xupper</code></td>
+          </tr>
+          <tr>
+            <td>浮点格式</td>
+            <td><code>decimal</code>、<code>general</code>、<code>fixed</code>、
+              <code>scientific</code>、<code>hexfloat</code>，以及带千位分组的
+              <code>comma_decimal</code>、<code>comma_general</code>、<code>comma_fixed</code>、
+              <code>comma_scientific</code>、<code>comma_hexfloat</code></td>
+          </tr>
+          <tr>
+            <td>布尔</td>
+            <td><code>boolalpha</code>（可选大写模板参数）</td>
+          </tr>
+          <tr>
+            <td>宽度与对齐</td>
+            <td><code>width</code>、<code>left</code>、<code>middle</code>、<code>right</code>、
+              <code>internal</code></td>
+          </tr>
+          <tr>
+            <td>指针与句柄视图</td>
+            <td><code>pointervw</code>、<code>handlevw</code>、<code>methodvw</code>、
+              <code>addrvw</code>、<code>dfvw</code>、<code>bitfieldvw</code></td>
+          </tr>
+          <tr>
+            <td>字符串与范围视图</td>
+            <td><code>os_c_str</code>、<code>os_c_str_carr</code>、
+              <code>os_c_str_null_terminated</code>、
+              <code>os_c_str_null_terminated_carr</code>、
+              <code>os_c_str_or_nullptr</code>、<code>os_c_str_with_known_size</code>、
+              <code>rgvw</code>、<code>strvw</code></td>
+          </tr>
+          <tr>
+            <td>编码</td>
+            <td><code>code_cvt</code>、<code>code_cvt_os_c_str</code></td>
+          </tr>
+          <tr>
+            <td>二进制</td>
+            <td><code>leb128_get</code>、<code>leb128_put</code></td>
+          </tr>
+          <tr>
+            <td>网络</td>
+            <td><code>ip_generic</code>、<code>ip_scan_generic</code></td>
+          </tr>
+          <tr>
+            <td>源码与错误</td>
+            <td><code>cur_src_loc</code>、<code>name</code>、<code>message</code>、
+              <code>name_message</code>、<code>posix_equivalent_name</code>、
+              <code>posix_equivalent_message</code>、
+              <code>posix_equivalent_name_message</code>、
+              <code>herbceptions_query_information</code></td>
+          </tr>
+          <tr>
+            <td>Locale</td>
+            <td><code>lc_dump</code>（来自 <code>fast_io.i18n</code>）</td>
+          </tr>
+          <tr>
+            <td>行跳过器</td>
+            <td><code>lf</code>、<code>crlf</code>、<code>cr</code>、
+              <code>line_skipper_platform</code>（来自 <code>fast_io.tls</code>）</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        模块还导出这些值背后的类型：
+        <code>scalar_flags</code>、<code>scalar_manip_t</code>、<code>scalar_placement</code>、
+        <code>floating_format</code>、<code>percentage_flag</code>、<code>lc_time_flag</code>、
+        <code>ip_flags</code>、<code>ip_manip_t</code>、
+        <code>ip_scan_manip_t</code>、<code>member_function_pointer_holder_t</code> 和
+        <code>whole_get_t</code>。
+      </p>
+      <div class="note">
+        <strong>模块目前不导出：</strong>
+        <code>ordinal</code>、<code>percentage_conventional</code>、
+        <code>percentage_sex_ratio</code> 及其 comma/base 变体、
+        <code>host</code>、<code>url</code>、<code>url_path</code>、<code>token</code>、
+        <code>header_value</code>、<code>sql_string</code>、<code>funcvw</code>、
+        <code>itervw</code>、<code>fieldptrvw</code>、<code>chvw</code>、
+        <code>enum_int_view</code>、<code>small_scatter</code> 和 <code>mtvw</code>。
+        它们在头文件里存在；今天需要它们就用头文件接口。
+      </div>
+    </section>
+
+    <section>
+      <h2>6. Locale 模块</h2>
+      <p>
+        <code>fast_io.i18n</code> 单独成模块，是因为 locale 数据体积大且可选。
+        它导出 <code>fast_io</code>，并在上面增加 locale 层：
+      </p>
+      <ul>
+        <li><strong>线格式类型。</strong> <code>l10n::lc_locale</code> 是一张扁平的、
+          位置无关的镜像。内部指针是 <code>lc_rva</code>，字符串是
+          <code>lc_scatter</code>，所以这份字节可以从文件映射、嵌入数组、
+          WebAssembly 模块或资源里直接使用。</li>
+        <li><strong>加载。</strong> <code>l10n::load_l10n</code> 映射 locale blob，
+          检查 magic 和版本，验证一次镜像，然后返回 <code>lc_locale const *</code>。
+          沙箱里的调用者可以直接传入自己已经拿到的镜像指针。</li>
+        <li><strong>绑定。</strong> <code>imbue(loc, out)</code> 包装一个输出流。
+          <code>lc_ctx</code> 延迟构建，只有参数真的需要 locale 格式化时才建立。</li>
+        <li><strong>格式化。</strong> <code>lc_concat</code> / <code>lc_concatln</code>
+          生成 locale 格式的字符串；<code>mnp::lc_dump</code> 打印 locale 的文本转储；
+          <code>lc_time_flag</code> 选择时间格式。</li>
+      </ul>
+      <pre><code class="language-cpp">
+import fast_io.i18n;
+
+int main()
+{
+    using namespace ::fast_io::io;
+
+    auto const *loc{::fast_io::l10n::load_l10n(u8"de_DE.UTF-8")};
+
+    // Grouping and separators come from LC_NUMERIC.
+    println(::fast_io::imbue(loc, ::fast_io::out()), 1234567);
+
+    // The whole locale as text, for inspection.
+    println(::fast_io::imbue(loc, ::fast_io::out()), ::fast_io::mnp::lc_dump(loc));
+}
+</code></pre>
+      <p>
+        <code>basic_lc_all</code> 提供的 locale 类别有：identification、monetary、numeric、
+        time、messages、paper、telephone、name、address、measurement 和 keyboard。
+        数字层带千位分隔符和分组；时间层带 POSIX 格式串和替代数字。
+        没有分组的 locale 走普通格式化路径，根本不会构建 <code>lc_ctx</code>。
+      </p>
+      <p>
+        头文件接口是 <code>#include &lt;fast_io_i18n.h&gt;</code>。
+        模块把 loader 编译进自己里面，所以导入 <code>fast_io.i18n</code>
+        不需要额外链接 <code>fast_io_i18n</code> 库。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 导入与构建</h2>
+      <p>
+        模块文件位于 <code>{fast_io}/share/fast_io</code>。先构建
+        <code>fast_io</code>，再构建导入它的模块。依赖顺序是：
+      </p>
+      <pre><code class="language-text">
+fast_io
+  ├── fast_io.i18n
+  ├── fast_io_crypto
+  │     └── fast_io.tls
+  ├── fast_io_legacy
+  ├── fast_io.json
+  └── fast_io.floating   (separately compiled conversion support)
+</code></pre>
+      <pre><code class="language-cpp">
+import fast_io;
+
+int main()
+{
+    ::fast_io::io::println("Hello from the module");
+    ::fast_io::vector&lt;int&gt; v{1, 2, 3};
+    for (auto x : v)
+    {
+        ::fast_io::io::print(x, " ");
+    }
+}
+</code></pre>
+      <p>
+        目前模块的可靠路径是 Clang；GCC 的模块支持仍是实验性的，
+        带 herbceptions 的 GCC 构建在某些 fast_io 模块单元上已知会 ICE。
+        MSVC 不受支持，因为它没有 herbceptions。具体的预编译和链接命令在
+        <a href="/zhcn/docs/01.compile/08.fastio/">第1.8章</a>。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>模块导出列表才是公开 API 契约；头文件暴露更多，但不是全部都被导出。</li>
+        <li>模块集合是 <code>fast_io</code>、<code>fast_io.floating</code>、
+          <code>fast_io.i18n</code>、<code>fast_io_crypto</code>、<code>fast_io.tls</code>、
+          <code>fast_io_legacy</code> 和 <code>fast_io.json</code>。</li>
+        <li>四类概念是 device、I/O type、manipulator 和 strlike；
+          transcoder 是遗留类别，仍在评估。</li>
+        <li>操纵器是单参数的格式化包装，不是会残留的流状态。</li>
+        <li><code>fast_io.i18n</code> 拥有 locale blob、loader、<code>imbue</code>
+          和 locale 感知的拼接。</li>
+        <li>先构建 <code>fast_io</code>；目前可靠的模块编译器是 Clang。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/" class="prev-button">&larr; 第26章：API 参考</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+      <a href="../02.print/" class="next-button">第26.2章：print &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

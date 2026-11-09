@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.2章：print - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.2章：<code>print</code></h1>
+    <p class="lang-switch"><a href="/docs/26.api/02.print/">English</a></p>
+
+    <section>
+      <h2>1. 函数表面</h2>
+      <p>
+        print 家族刻意保持很小。每个函数都返回 <code>void</code>，并通过 herbception 报告失败。
+        名字之间的差别只有：目标、换行，以及这个调用是否允许返回。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>函数</th>
+            <th>默认目标</th>
+            <th>换行</th>
+            <th>可用性</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>print(args...)</code></td>
+            <td>C <code>stdout</code></td>
+            <td>否</td>
+            <td>始终</td>
+          </tr>
+          <tr>
+            <td><code>println(args...)</code></td>
+            <td>C <code>stdout</code></td>
+            <td>是，<code>\n</code></td>
+            <td>始终</td>
+          </tr>
+          <tr>
+            <td><code>perr(args...)</code></td>
+            <td>原生 <code>stderr</code></td>
+            <td>否</td>
+            <td>始终</td>
+          </tr>
+          <tr>
+            <td><code>perrln(args...)</code></td>
+            <td>原生 <code>stderr</code></td>
+            <td>是，<code>\n</code></td>
+            <td>始终</td>
+          </tr>
+          <tr>
+            <td><code>panic(args...)</code></td>
+            <td>原生 <code>stderr</code></td>
+            <td>否</td>
+            <td>始终；会终止</td>
+          </tr>
+          <tr>
+            <td><code>panicln(args...)</code></td>
+            <td>原生 <code>stderr</code></td>
+            <td>是，<code>\n</code></td>
+            <td>始终；会终止</td>
+          </tr>
+          <tr>
+            <td><code>debug_print(args...)</code></td>
+            <td>原生 <code>stdout</code></td>
+            <td>否</td>
+            <td>仅在未定义 <code>NDEBUG</code> 时</td>
+          </tr>
+          <tr>
+            <td><code>debug_println(args...)</code></td>
+            <td>原生 <code>stdout</code></td>
+            <td>是</td>
+            <td>仅在未定义 <code>NDEBUG</code> 时</td>
+          </tr>
+          <tr>
+            <td><code>debug_perr(args...)</code></td>
+            <td>原生 <code>stderr</code></td>
+            <td>否</td>
+            <td>仅在未定义 <code>NDEBUG</code> 时</td>
+          </tr>
+          <tr>
+            <td><code>debug_perrln(args...)</code></td>
+            <td>原生 <code>stderr</code></td>
+            <td>是</td>
+            <td>仅在未定义 <code>NDEBUG</code> 时</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        每个函数也接受一个输出设备作为第一个参数：
+        <code>print(device, args...)</code>、<code>println(device, args...)</code>、
+        <code>perr(device, args...)</code> 等等。第一个参数不是输出设备时，使用表里的默认目标。
+      </p>
+      <p>
+        <code>perr</code> 写平台原生的标准错误，而不是 C 的 <code>stderr</code>。
+        它不带缓冲，每次调用就是一次系统调用，这正好提供诊断所需的原子性。
+        <code>panic</code> 和 <code>panicln</code> 是同样的目标，然后执行 trap：它们不返回。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 第一个参数算什么</h2>
+      <p>
+        如果第一个参数满足 fast_io 使用的 output-stream 或 I/O-stream 概念，它就是设备；
+        否则它被当作值打印，并使用默认目标。所以下面两种写法都成立：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::io;
+
+    // Value first: default destination.
+    println("answer = ", 42);
+
+    // Device first: explicit destination.
+    ::fast_io::obuf_file out("out.txt");
+    println(out, "answer = ", 42);
+}
+</code></pre>
+      <p>
+        没有格式串，也没有每次调用的状态。设备只选一次，剩下的每个参数按自己的类型，
+        以及包在它外面的操纵器来格式化。这就是为什么 <code>print</code> 不需要 iostream
+        状态机也能组合：调用结束后没有东西需要恢复。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 格式化只作用于参数</h2>
+      <p>
+        操纵器是值，不是流标志。<code>mnp::hex</code>、<code>mnp::fixed</code>、
+        <code>mnp::left</code> 等等都只包住一个参数：
+      </p>
+      <pre><code class="language-cpp">
+println("decimal: ", 255);
+println("hex:     ", ::fast_io::mnp::hex(255));
+println("padded:  ", ::fast_io::mnp::right(42, 8, '0'));
+</code></pre>
+      <p>
+        下一条语句不受影响。不存在忘记重置 <code>std::hex</code> 的等价问题，
+        也不存在操纵器泄漏到另一个流的等价问题。完整导出列表——包括进制、浮点、宽度、
+        指针、字符串、二进制、网络和 locale 操纵器——在
+        <a href="/zhcn/docs/26.api/01.modules/">第26.1章</a>。
+      </p>
+      <p>
+        自定义类型通过 <code>print_reserve_define</code> 或 <code>print_define</code>
+        加入同一条路径。print 函数不需要认识这个类型；它让类型的格式化器写进输出设备。
+        如果类型只能通过一段已有字节的 scatter 打印，就用 <code>print_scatter_define</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 返回值与失败</h2>
+      <p>
+        print 家族没有返回值。失败以 herbception 抛出，所以通常的处理程序就是本书一直在用的那个：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    try
+    {
+        ::fast_io::io::println(::fast_io::out(), "hello");
+    }
+    catch throws(::std::error e)
+    {
+        ::fast_io::io::perrln(e);
+        return 1;
+    }
+}
+</code></pre>
+      <p>
+        给一个没有格式化器的类型做格式化是编译期错误，不是运行期错误。
+        运行期失败来自设备层：文件已关闭、磁盘满、管道破裂，或者系统调用被中断。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 缓冲、刷新与同步</h2>
+      <p>
+        <code>print</code> 对带缓冲和不带缓冲的输出设备都成立。带缓冲设备把小写操作攒起来，
+        缓冲区满或对象析构时刷出；不带缓冲设备直接写透。这就是
+        <a href="/zhcn/docs/11.io/05.buffered/">第11.5章</a>讲过的划分，
+        也是 print 家族不强迫每个调用者选择缓冲区大小的原因。
+      </p>
+      <p>
+        <code>perr</code> 故意不带缓冲。即使进程即将 trap，或者另一个线程还持有带缓冲的流，
+        诊断也必须到达。代价是每次调用一次系统调用；不要在热循环里用 <code>perr</code>。
+      </p>
+      <p>
+        线程安全取决于设备。互斥包装的设备（例如可加锁文件类型）会把调用串行化。
+        普通带缓冲文件不会因为函数叫 <code>println</code> 就变成线程安全的。
+        进程安全是更强的性质：只有设备不是带缓冲输出流时，print 家族才保证它。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 调试输出</h2>
+      <p>
+        <code>debug_*</code> 家族的存在，是为了让诊断打印从发布构建里消失。
+        定义 <code>NDEBUG</code> 后这些函数不可用；仍然引用它们的代码会编译失败，
+        而不是悄悄产生输出。它们的默认目标是原生标准流，不是 C 的流，
+        所以即使 C 运行时不在可用状态，它们仍然能工作。
+      </p>
+      <pre><code class="language-cpp">
+debug_println("state = ", state);
+</code></pre>
+      <p>
+        不要把 <code>debug_print</code> 当日志 API 用。它是开发工具，可用性刻意绑定构建模式。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 什么场景用什么</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>需求</th>
+            <th>使用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>普通程序输出</td>
+            <td><code>print</code> / <code>println</code>，目标为默认或显式文件/设备</td>
+          </tr>
+          <tr>
+            <td>崩溃后仍需保留的诊断</td>
+            <td><code>perr</code> / <code>perrln</code></td>
+          </tr>
+          <tr>
+            <td>不可能状态</td>
+            <td><code>panic</code> / <code>panicln</code></td>
+          </tr>
+          <tr>
+            <td>仅开发期的跟踪</td>
+            <td><code>debug_print</code> / <code>debug_perr</code></td>
+          </tr>
+          <tr>
+            <td>搬字节，不是搬值</td>
+            <td><code>transmit</code>（见 <a href="/zhcn/docs/11.io/05.buffered/">第11.5章</a>）</td>
+          </tr>
+          <tr>
+            <td>locale 感知的数字或时间</td>
+            <td><code>imbue(loc, out)</code>（见 <a href="/zhcn/docs/26.api/01.modules/">第26.1章</a>）</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>print 家族是 <code>print</code>、<code>println</code>、<code>perr</code>、
+          <code>perrln</code>、<code>panic</code>、<code>panicln</code> 以及
+          <code>debug_*</code> 变体。</li>
+        <li><code>print</code>/<code>println</code> 默认写 C <code>stdout</code>；
+          <code>perr</code>/<code>perrln</code> 使用原生、不带缓冲的 <code>stderr</code>。</li>
+        <li>设备可以作为第一个参数；否则使用默认目标。</li>
+        <li>操纵器只影响一个参数；没有需要重置的流状态。</li>
+        <li>所有函数返回 <code>void</code>，设备失败以 herbception 报告。</li>
+        <li><code>panic</code> 会终止；<code>debug_*</code> 在 <code>NDEBUG</code> 下消失。</li>
+        <li>搬字节用 <code>transmit</code>，不要用 print 家族。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/01.modules/" class="prev-button">&larr; 第26.1章：模块与概念</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>
