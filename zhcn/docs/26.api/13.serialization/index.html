@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.13章：序列化与二进制格式 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.13章：序列化与二进制格式</h1>
+    <p class="lang-switch"><a href="/docs/26.api/13.serialization/">English</a></p>
+
+    <section>
+      <h2>1. 没有独立的序列化框架</h2>
+      <p>
+        fast_io 没有带 schema 注册、反射或运行期类型注册表的序列化框架。
+        二进制格式用和其他 I/O 一样的三件工具写：标量用操纵器，blob 用字节操作，
+        记录用长度或分隔符分帧。
+      </p>
+      <p>
+        重要的部分是显式决定线格式。不要把一个结构体的地址强转成 <code>std::byte*</code>
+        直接写：padding、对齐和原生端序不是协议的一部分。
+        每个字段用确定的宽度和字节序写。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 端序辅助</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>条目</th>
+            <th>含义</th>
+            <th>模块</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>byte_swap(value)</code></td>
+            <td>反转无符号整数的字节序。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>little_endian(value)</code></td>
+            <td>把原生整数转成小端表示。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>big_endian(value)</code></td>
+            <td>把原生整数转成大端表示。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>le_put&lt;N&gt;(value)</code></td>
+            <td>写一个 <code>N</code> 位小端整数。</td>
+            <td>头文件侧</td>
+          </tr>
+          <tr>
+            <td><code>be_put&lt;N&gt;(value)</code></td>
+            <td>写一个 <code>N</code> 位大端整数。</td>
+            <td>头文件侧</td>
+          </tr>
+          <tr>
+            <td><code>le_get&lt;N&gt;(ref)</code>、<code>be_get&lt;N&gt;(ref)</code></td>
+            <td>按选定字节序读一个 <code>N</code> 位整数。</td>
+            <td>头文件侧</td>
+          </tr>
+          <tr>
+            <td><code>lebe_put&lt;endian, N&gt;(value)</code></td>
+            <td><code>le_put</code>/<code>be_put</code> 背后的通用形式。</td>
+            <td>头文件侧</td>
+          </tr>
+          <tr>
+            <td><code>iec559_le_put</code>、<code>iec559_be_put</code></td>
+            <td>IEEE-754 浮点字节序辅助。</td>
+            <td>头文件侧</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+auto const wire{::fast_io::big_endian(value)};
+::fast_io::operations::write_all_bytes(
+    out, reinterpret_cast&lt;::std::byte const *&gt;(&amp;wire), sizeof(wire));
+</code></pre>
+      <p>
+        转换函数是 constexpr，并处理宿主原生字节序，包括非小端/非大端目标。
+        <code>le_put</code>/<code>le_get</code> 家族是格式化器层替代方案：
+        通过 <code>print</code>/<code>scan</code> 读写，而不是原始字节复制。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. LEB128</h2>
+      <p>
+        LEB128 是可变长度整数编码。fast_io 以一对操纵器提供它：
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::io::print(out, ::fast_io::mnp::leb128_put(size));
+
+::std::uint64_t decoded{};
+::fast_io::io::scan(in, ::fast_io::mnp::leb128_get(decoded));
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>条目</th>
+            <th>方向</th>
+            <th>模块</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>leb128_put(value)</code></td>
+            <td>写</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>leb128_get(ref)</code></td>
+            <td>读</td>
+            <td><code>fast_io</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        编码器处理有符号和无符号整数。解码器检查截断和溢出；
+        畸形流是解析错误，不是部分值。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. WebAssembly 编码</h2>
+      <p>
+        WebAssembly 辅助是同一组原语上的头文件侧别名：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>条目</th>
+            <th>编码</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>wasm_varint_put</code>、<code>wasm_varint_get</code></td>
+            <td>LEB128 varint。</td>
+          </tr>
+          <tr>
+            <td><code>wasm_uint32_put</code>、<code>wasm_uint32_get</code></td>
+            <td>32 位小端。</td>
+          </tr>
+          <tr>
+            <td><code>wasm_uint64_put</code>、<code>wasm_uint64_get</code></td>
+            <td>64 位小端。</td>
+          </tr>
+          <tr>
+            <td><code>wasm_float_put</code>、<code>wasm_float_get</code></td>
+            <td>IEEE-754 小端浮点。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        它们不在模块导出列表里。需要时包含 <code>#include &lt;fast_io.h&gt;</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 固定大小字节窗口</h2>
+      <p>
+        正好 <code>N</code> 字节的记录用 <code>read_all_bytes</code> /
+        <code>write_all_bytes</code>。已知长度的文本 token 用 <code>str_get_all(ref, n)</code>：
+      </p>
+      <pre><code class="language-cpp">
+::std::byte header[16];
+::fast_io::operations::read_all_bytes(in, header, sizeof(header));
+
+::std::byte payload[64];
+::fast_io::operations::write_all_bytes(out, payload, sizeof(payload));
+</code></pre>
+      <p>
+        这些操作在无法填满整个窗口时失败。短读不会被悄悄当成完整记录；
+        短写不会被悄悄当成完整消息。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 一个分帧二进制记录</h2>
+      <p>
+        长度前缀记录是避免分隔符歧义的最简单格式。长度是 LEB128 varint，body 是原始字节：
+      </p>
+      <pre><code class="language-cpp">
+void write_record(::fast_io::obuf_file &amp;out,
+                  ::fast_io::span&lt;::std::byte const&gt; body)
+{
+    ::fast_io::io::print(out, ::fast_io::mnp::leb128_put(body.size()));
+    ::fast_io::operations::write_all_bytes(out, body.data(), body.size());
+}
+</code></pre>
+      <pre><code class="language-cpp">
+std::uint64_t length{};
+::fast_io::io::scan(in, ::fast_io::mnp::leb128_get(length));
+
+::fast_io::vector&lt;::std::byte&gt; body;
+body.resize(length);
+::fast_io::operations::read_all_bytes(in, body.data(), body.size());
+</code></pre>
+      <p>
+        两条规则让它安全。第一，在分配之前用最大值检查长度。
+        第二，短 body 是截断记录，要失败；不要处理部分 payload。
+        同一模式适用于网络帧、文件记录和内存缓冲区。
+      </p>
+    </section>
+
+    <section>
+      <h2>7. 不要靠强转序列化</h2>
+      <ul>
+        <li><strong>不要把结构体按字节写。</strong> padding、对齐和字段顺序是实现细节。</li>
+        <li><strong>不要依赖原生端序。</strong> 每个字段显式选择小端或大端。</li>
+        <li><strong>不要从指针字段 <code>memcpy</code>。</strong> 用长度序列化指向的数据。</li>
+        <li><strong>不要把 union 当线格式。</strong> 活跃成员是手工维护的；
+          带标签的编码更清晰、更可移植。</li>
+        <li><strong>不要信任长度前缀。</strong> 分配前给它上界。</li>
+      </ul>
+      <p>
+        union 和 bit-field 细节在 <a href="/zhcn/docs/25.fineprint/01.union/">第25.1章</a>。
+        字节操作在 <a href="/zhcn/docs/26.api/09.operations/">第26.9章</a>。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. 模块与头文件边界</h2>
+      <p>
+        <code>fast_io</code> 模块导出 <code>byte_swap</code>、<code>little_endian</code>、
+        <code>big_endian</code>、<code>leb128_put</code>、<code>leb128_get</code>
+        以及字节读写操作。<code>le_put</code>/<code>le_get</code> 家族、IEEE-754 辅助、
+        WebAssembly 辅助和 <code>str_get_all</code> 目前在头文件侧。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>fast_io 通过操纵器和字节操作序列化，不是 schema 框架。</li>
+        <li><code>byte_swap</code>、<code>little_endian</code> 和 <code>big_endian</code>
+          由模块导出；<code>le_put</code>/<code>le_get</code> 在头文件侧。</li>
+        <li><code>leb128_put</code>/<code>leb128_get</code> 由模块导出，处理有符号和无符号值。</li>
+        <li>WebAssembly varint 和浮点辅助是头文件侧别名。</li>
+        <li>精确窗口用固定大小字节操作；短读和短写会失败。</li>
+        <li>长度前缀记录，先验证上界，再读 body。</li>
+        <li>永远不要把结构体或 union 当作它的内存字节镜像。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/12.threading/" class="prev-button">&larr; 第26.12章：线程与可加锁流</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>

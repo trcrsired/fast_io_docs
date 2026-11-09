@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.13: Serialization and Binary Formats - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.13: Serialization and Binary Formats</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/13.serialization/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. No Separate Serialization Framework</h2>
+      <p>
+        fast_io does not have a serialization framework with schema registration, reflection or a
+        runtime type registry. A binary format is written with the same three tools as any other
+        I/O: a manipulator for a scalar, a byte operation for a blob, and a length or delimiter to
+        frame the record.
+      </p>
+      <p>
+        The important part is to decide the wire layout explicitly. Do not write a struct by
+        casting its address to <code>std::byte*</code>: padding, alignment and native endianness
+        are not part of the protocol. Write each field with a defined width and byte order.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Endian Helpers</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Meaning</th>
+            <th>Module</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>byte_swap(value)</code></td>
+            <td>Reverse the byte order of an unsigned integer.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>little_endian(value)</code></td>
+            <td>Convert a native integer to little-endian representation.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>big_endian(value)</code></td>
+            <td>Convert a native integer to big-endian representation.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>le_put&lt;N&gt;(value)</code></td>
+            <td>Write an <code>N</code>-bit little-endian integer.</td>
+            <td>header-side</td>
+          </tr>
+          <tr>
+            <td><code>be_put&lt;N&gt;(value)</code></td>
+            <td>Write an <code>N</code>-bit big-endian integer.</td>
+            <td>header-side</td>
+          </tr>
+          <tr>
+            <td><code>le_get&lt;N&gt;(ref)</code>, <code>be_get&lt;N&gt;(ref)</code></td>
+            <td>Read an <code>N</code>-bit integer in the selected byte order.</td>
+            <td>header-side</td>
+          </tr>
+          <tr>
+            <td><code>lebe_put&lt;endian, N&gt;(value)</code></td>
+            <td>The general form behind <code>le_put</code>/<code>be_put</code>.</td>
+            <td>header-side</td>
+          </tr>
+          <tr>
+            <td><code>iec559_le_put</code>, <code>iec559_be_put</code></td>
+            <td>IEEE-754 floating-point byte-order helpers.</td>
+            <td>header-side</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+auto const wire{::fast_io::big_endian(value)};
+::fast_io::operations::write_all_bytes(
+    out, reinterpret_cast&lt;::std::byte const *&gt;(&amp;wire), sizeof(wire));
+</code></pre>
+      <p>
+        The conversion functions are constexpr and handle the host's native order, including
+        non-little/non-big targets. The <code>le_put</code>/<code>le_get</code> family is the
+        formatter-level alternative: it writes or reads through <code>print</code>/<code>scan</code>
+        instead of a raw byte copy.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. LEB128</h2>
+      <p>
+        LEB128 is a variable-length integer encoding. fast_io provides it as a pair of
+        manipulators:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::io::print(out, ::fast_io::mnp::leb128_put(size));
+
+::std::uint64_t decoded{};
+::fast_io::io::scan(in, ::fast_io::mnp::leb128_get(decoded));
+</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Direction</th>
+            <th>Module</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>leb128_put(value)</code></td>
+            <td>Write</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>leb128_get(ref)</code></td>
+            <td>Read</td>
+            <td><code>fast_io</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The encoder handles signed and unsigned integers. The decoder checks for truncation and
+        overflow; a malformed stream is a parse error, not a partial value.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. WebAssembly Encodings</h2>
+      <p>
+        The WebAssembly helpers are header-side aliases over the same primitives:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Encoding</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>wasm_varint_put</code>, <code>wasm_varint_get</code></td>
+            <td>LEB128 varint.</td>
+          </tr>
+          <tr>
+            <td><code>wasm_uint32_put</code>, <code>wasm_uint32_get</code></td>
+            <td>32-bit little-endian.</td>
+          </tr>
+          <tr>
+            <td><code>wasm_uint64_put</code>, <code>wasm_uint64_get</code></td>
+            <td>64-bit little-endian.</td>
+          </tr>
+          <tr>
+            <td><code>wasm_float_put</code>, <code>wasm_float_get</code></td>
+            <td>IEEE-754 little-endian float.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        They are not in the module export list. Use <code>#include &lt;fast_io.h&gt;</code> when
+        you need them.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Fixed-Size Byte Windows</h2>
+      <p>
+        For a record that is exactly <code>N</code> bytes, use
+        <code>read_all_bytes</code> / <code>write_all_bytes</code>. For a text token with a known
+        length, use <code>str_get_all(ref, n)</code>:
+      </p>
+      <pre><code class="language-cpp">
+::std::byte header[16];
+::fast_io::operations::read_all_bytes(in, header, sizeof(header));
+
+::std::byte payload[64];
+::fast_io::operations::write_all_bytes(out, payload, sizeof(payload));
+</code></pre>
+      <p>
+        These operations fail if the full window cannot be filled. A short read is not silently
+        accepted as a complete record; a short write is not silently accepted as a complete
+        message.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. A Framed Binary Record</h2>
+      <p>
+        A length-prefixed record is the simplest format that avoids delimiter ambiguity. The
+        length is a LEB128 varint; the body is raw bytes:
+      </p>
+      <pre><code class="language-cpp">
+void write_record(::fast_io::obuf_file &amp;out,
+                  ::fast_io::span&lt;::std::byte const&gt; body)
+{
+    ::fast_io::io::print(out, ::fast_io::mnp::leb128_put(body.size()));
+    ::fast_io::operations::write_all_bytes(out, body.data(), body.size());
+}
+</code></pre>
+      <pre><code class="language-cpp">
+std::uint64_t length{};
+::fast_io::io::scan(in, ::fast_io::mnp::leb128_get(length));
+
+::fast_io::vector&lt;::std::byte&gt; body;
+body.resize(length);
+::fast_io::operations::read_all_bytes(in, body.data(), body.size());
+</code></pre>
+      <p>
+        Two rules make this safe. First, validate the length against a maximum before allocating.
+        Second, treat a short body as a truncated record and fail; do not process a partial
+        payload. The same pattern works for network frames, file records and memory buffers.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. What Not to Serialize by Casting</h2>
+      <ul>
+        <li><strong>Do not write a struct as bytes.</strong> Padding, alignment and field order
+          are implementation details.</li>
+        <li><strong>Do not rely on native endianness.</strong> Choose little-endian or big-endian
+          explicitly for every field.</li>
+        <li><strong>Do not use <code>memcpy</code> from a pointer field.</strong> Serialize the
+          pointed-to data with a length.</li>
+        <li><strong>Do not use a union as a wire format.</strong> The active member is manual; a
+          tagged encoding is clearer and portable.</li>
+        <li><strong>Do not trust a length prefix.</strong> Bound it before allocation.</li>
+      </ul>
+      <p>
+        The union and bit-field details are in <a href="/docs/25.fineprint/01.union/">Ch25.1</a>.
+        The byte operations are in <a href="/docs/26.api/09.operations/">Ch26.9</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Module and Header Boundary</h2>
+      <p>
+        The <code>fast_io</code> module exports <code>byte_swap</code>,
+        <code>little_endian</code>, <code>big_endian</code>, <code>leb128_put</code>,
+        <code>leb128_get</code> and the byte read/write operations. The
+        <code>le_put</code>/<code>le_get</code> family, IEEE-754 helpers, WebAssembly helpers and
+        <code>str_get_all</code> are header-side today.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>fast_io serializes through manipulators and byte operations, not a schema framework.</li>
+        <li><code>byte_swap</code>, <code>little_endian</code> and <code>big_endian</code> are
+          module-exported; <code>le_put</code>/<code>le_get</code> are header-side.</li>
+        <li><code>leb128_put</code>/<code>leb128_get</code> are module-exported and handle signed
+          and unsigned values.</li>
+        <li>WebAssembly varint and float helpers are header-side aliases.</li>
+        <li>Use fixed-size byte operations for exact windows; short reads and writes fail.</li>
+        <li>Length-prefix records, validate the bound, then read the body.</li>
+        <li>Never treat a struct or union as its in-memory byte image.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/12.threading/" class="prev-button">&larr; Ch26.12: Threading and Lockable Streams</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>
