@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.7: Manipulator Lookup - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.7: Manipulator Lookup</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/07.manipulators/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. How to Read This Page</h2>
+      <p>
+        Every entry is in <code>::fast_io::mnp</code>, the alias for
+        <code>::fast_io::manipulators</code>. A manipulator wraps one value and is consumed by
+        the next <code>print</code> or <code>scan</code> call. It is not stream state.
+      </p>
+      <p>
+        Entries marked <strong>module</strong> are in the <code>fast_io</code> module export list.
+        Entries marked <strong>header</strong> exist in the headers but are not exported by the
+        module yet. The scan-side <code>*_get</code> family is header-side as a group.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Integer Base</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Signature</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>base&lt;N&gt;</code></td>
+            <td><code>base&lt;N, showbase = false, full = false&gt;(value)</code></td>
+            <td>Base 2–36, lowercase digits.</td>
+          </tr>
+          <tr>
+            <td><code>baseupper&lt;N&gt;</code></td>
+            <td><code>baseupper&lt;N, showbase = false, full = false&gt;(value)</code></td>
+            <td>Base 2–36, uppercase digits where applicable.</td>
+          </tr>
+          <tr>
+            <td><code>bin</code></td>
+            <td><code>bin&lt;showbase = false, full = false&gt;(value)</code></td>
+            <td>Base 2.</td>
+          </tr>
+          <tr>
+            <td><code>oct</code></td>
+            <td><code>oct&lt;showbase = false, full = false&gt;(value)</code></td>
+            <td>Base 8.</td>
+          </tr>
+          <tr>
+            <td><code>dec</code></td>
+            <td><code>dec&lt;showbase = false, full = false&gt;(value)</code></td>
+            <td>Base 10.</td>
+          </tr>
+          <tr>
+            <td><code>hex</code></td>
+            <td><code>hex&lt;showbase = false, full = false&gt;(value)</code></td>
+            <td>Base 16, lowercase.</td>
+          </tr>
+          <tr>
+            <td><code>hexupper</code></td>
+            <td><code>hexupper&lt;showbase = false, full = false&gt;(value)</code></td>
+            <td>Base 16, uppercase.</td>
+          </tr>
+          <tr>
+            <td><code>hex0x</code></td>
+            <td><code>hex0x&lt;full = false&gt;(value)</code></td>
+            <td>Base 16 with a <code>0x</code> prefix.</td>
+          </tr>
+          <tr>
+            <td><code>hex0xupper</code></td>
+            <td><code>hex0xupper&lt;full = false&gt;(value)</code></td>
+            <td>Base 16 with a <code>0X</code> prefix.</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+println(::fast_io::mnp::hex(255));        // ff
+println(::fast_io::mnp::hex0x(255));      // 0xff
+println(::fast_io::mnp::base&lt;36&gt;(35));    // z
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. Floating Format</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Signature</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>decimal</code></td>
+            <td><code>decimal(value)</code>, <code>decimal(value, precision)</code></td>
+            <td>Shortest decimal or fixed precision.</td>
+          </tr>
+          <tr>
+            <td><code>general</code></td>
+            <td><code>general(value)</code>, <code>general(value, precision)</code></td>
+            <td>General floating format.</td>
+          </tr>
+          <tr>
+            <td><code>fixed</code></td>
+            <td><code>fixed(value)</code>, <code>fixed(value, precision)</code></td>
+            <td>Fixed-point notation.</td>
+          </tr>
+          <tr>
+            <td><code>scientific</code></td>
+            <td><code>scientific(value)</code>, <code>scientific(value, precision)</code></td>
+            <td>Scientific notation.</td>
+          </tr>
+          <tr>
+            <td><code>hexfloat</code></td>
+            <td><code>hexfloat(value)</code>, <code>hexfloat(value, precision)</code></td>
+            <td>Hexadecimal floating notation.</td>
+          </tr>
+          <tr>
+            <td><code>comma_*</code></td>
+            <td><code>comma_decimal</code>, <code>comma_general</code>,
+              <code>comma_fixed</code>, <code>comma_scientific</code>,
+              <code>comma_hexfloat</code></td>
+            <td>The same formats with comma grouping.</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+println(::fast_io::mnp::fixed(3.14159, 2));   // 3.14
+println(::fast_io::mnp::hexfloat(1.0));       // hexadecimal float
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. Boolean, Width and Alignment</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Signature</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>boolalpha</code></td>
+            <td><code>boolalpha&lt;uppercase = false&gt;(bool)</code></td>
+            <td><code>true</code>/<code>false</code> instead of 1/0.</td>
+          </tr>
+          <tr>
+            <td><code>width</code></td>
+            <td><code>width(placement, value, n)</code>,
+              <code>width(placement, value, n, fill)</code></td>
+            <td>Pad to width <code>n</code>; placement is
+              <code>scalar_placement::left</code>, <code>middle</code>, <code>right</code> or
+              <code>internal</code>.</td>
+          </tr>
+          <tr>
+            <td><code>left</code></td>
+            <td><code>left(value, n)</code>, <code>left(value, n, fill)</code></td>
+            <td>Left-align in a field of width <code>n</code>.</td>
+          </tr>
+          <tr>
+            <td><code>middle</code></td>
+            <td><code>middle(value, n)</code>, <code>middle(value, n, fill)</code></td>
+            <td>Center in a field of width <code>n</code>.</td>
+          </tr>
+          <tr>
+            <td><code>right</code></td>
+            <td><code>right(value, n)</code>, <code>right(value, n, fill)</code></td>
+            <td>Right-align in a field of width <code>n</code>.</td>
+          </tr>
+          <tr>
+            <td><code>internal</code></td>
+            <td><code>internal(value, n)</code>, <code>internal(value, n, fill)</code></td>
+            <td>Pad between the sign/base and the digits.</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+println(::fast_io::mnp::boolalpha(true));
+println(::fast_io::mnp::right(42, 8, '0'));   // 00000042
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. Pointer and Handle Views</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Signature</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>pointervw</code></td>
+            <td><code>pointervw&lt;uppercase = false&gt;(pointer)</code></td>
+            <td>Print a pointer value, not the object it points to.</td>
+          </tr>
+          <tr>
+            <td><code>itervw</code></td>
+            <td><code>itervw&lt;uppercase = false&gt;(iterator)</code></td>
+            <td>Print a contiguous iterator as an address. Header-side.</td>
+          </tr>
+          <tr>
+            <td><code>funcvw</code></td>
+            <td><code>funcvw&lt;uppercase = false&gt;(function pointer)</code></td>
+            <td>Print a function pointer. Header-side.</td>
+          </tr>
+          <tr>
+            <td><code>fieldptrvw</code></td>
+            <td><code>fieldptrvw&lt;uppercase = false&gt;(member object pointer)</code></td>
+            <td>Print a member-object pointer. Header-side.</td>
+          </tr>
+          <tr>
+            <td><code>methodvw</code></td>
+            <td><code>methodvw&lt;uppercase = false&gt;(member function pointer)</code></td>
+            <td>Print a member-function pointer.</td>
+          </tr>
+          <tr>
+            <td><code>addrvw</code></td>
+            <td><code>addrvw&lt;uppercase = false&gt;(value)</code></td>
+            <td>Print an address-shaped integer.</td>
+          </tr>
+          <tr>
+            <td><code>dfvw</code></td>
+            <td><code>dfvw(value)</code></td>
+            <td>Print a default-form address with <code>0x</code> and sign.</td>
+          </tr>
+          <tr>
+            <td><code>handlevw</code></td>
+            <td><code>handlevw&lt;uppercase = false&gt;(handle)</code></td>
+            <td>Print an OS handle; integral handles use decimal.</td>
+          </tr>
+          <tr>
+            <td><code>bitfieldvw</code></td>
+            <td><code>bitfieldvw(value)</code></td>
+            <td>Print a bit-field or byte value as an integer view.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Be explicit when a pointer is meant to be data. Passing a <code>char const *</code>
+        directly prints the pointer value, not the string; use <code>os_c_str</code> or
+        <code>strvw</code> for the text.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. String and Range Views</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Signature</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>os_c_str</code></td>
+            <td><code>os_c_str(ptr, n)</code>, <code>os_c_str(range)</code></td>
+            <td>OS-native string with a known size; stops at NUL.</td>
+          </tr>
+          <tr>
+            <td><code>os_c_str_carr</code></td>
+            <td><code>os_c_str_carr(array)</code></td>
+            <td>Same, for a character array.</td>
+          </tr>
+          <tr>
+            <td><code>os_c_str_null_terminated</code></td>
+            <td><code>os_c_str_null_terminated(ptr, n)</code></td>
+            <td>NUL-terminated string with a known capacity.</td>
+          </tr>
+          <tr>
+            <td><code>os_c_str_null_terminated_carr</code></td>
+            <td><code>os_c_str_null_terminated_carr(array)</code></td>
+            <td>Same, for a character array.</td>
+          </tr>
+          <tr>
+            <td><code>os_c_str_or_nullptr</code></td>
+            <td><code>os_c_str_or_nullptr(ptr)</code></td>
+            <td>Print a string or a null representation.</td>
+          </tr>
+          <tr>
+            <td><code>os_c_str_with_known_size</code></td>
+            <td><code>os_c_str_with_known_size(ptr, n)</code></td>
+            <td>String with an explicit byte/character count.</td>
+          </tr>
+          <tr>
+            <td><code>strvw</code></td>
+            <td><code>strvw(first, last)</code>, <code>strvw(range)</code></td>
+            <td>Non-owning character range as a scatter.</td>
+          </tr>
+          <tr>
+            <td><code>rgvw</code></td>
+            <td><code>rgvw(range, separator)</code></td>
+            <td>Print a range with a separator between elements.</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+::fast_io::string_view sv{"hello"};
+println(::fast_io::mnp::strvw(sv));
+println(::fast_io::mnp::rgvw(::fast_io::array&lt;int, 3&gt;{1, 2, 3}, ", "));
+</code></pre>
+    </section>
+
+    <section>
+      <h2>7. Encoding, Binary, Network and Errors</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Signature</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>code_cvt</code></td>
+            <td><code>code_cvt&lt;src, dst&gt;(value)</code></td>
+            <td>Convert between encoding schemes during output.</td>
+          </tr>
+          <tr>
+            <td><code>code_cvt_os_c_str</code></td>
+            <td><code>code_cvt_os_c_str&lt;src, dst&gt;(ptr[, n])</code></td>
+            <td>Encoding conversion for a C string.</td>
+          </tr>
+          <tr>
+            <td><code>leb128_put</code></td>
+            <td><code>leb128_put(value)</code></td>
+            <td>Write a LEB128 integer.</td>
+          </tr>
+          <tr>
+            <td><code>leb128_get</code></td>
+            <td><code>leb128_get(ref)</code></td>
+            <td>Read a LEB128 integer into <code>ref</code>.</td>
+          </tr>
+          <tr>
+            <td><code>ip_generic</code></td>
+            <td><code>ip_generic(ip)</code></td>
+            <td>Print an IPv4/IPv6/address/port type with flags.</td>
+          </tr>
+          <tr>
+            <td><code>ip_scan_generic</code></td>
+            <td><code>ip_scan_generic(ip&amp;)</code></td>
+            <td>Scan into an IP type with flags.</td>
+          </tr>
+          <tr>
+            <td><code>cur_src_loc</code></td>
+            <td><code>cur_src_loc(source_location = current())</code></td>
+            <td>Print file, line, column and function.</td>
+          </tr>
+          <tr>
+            <td><code>name</code>, <code>message</code>, <code>name_message</code></td>
+            <td>error query wrappers</td>
+            <td>Print the name, message or both for a herbception error.</td>
+          </tr>
+          <tr>
+            <td><code>posix_equivalent_*</code></td>
+            <td>error query wrappers</td>
+            <td>The POSIX-equivalent name/message forms.</td>
+          </tr>
+          <tr>
+            <td><code>lc_dump</code></td>
+            <td><code>lc_dump(locale)</code></td>
+            <td>Print the whole locale as text.</td>
+          </tr>
+          <tr>
+            <td><code>lf</code>, <code>crlf</code>, <code>cr</code></td>
+            <td><code>lf()</code>, <code>crlf()</code>, <code>cr()</code></td>
+            <td>Line skippers for scanning.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>ip_flags</code>, <code>ip_scan_default_flags</code>, <code>scalar_flags</code>,
+        <code>scalar_manip_t</code>, <code>ip_manip_t</code> and the placement/format enums are
+        the types behind these values. They are documented with the export list in
+        <a href="/docs/26.api/01.modules/">Ch26.1</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Scan-Side Manipulators</h2>
+      <p>
+        These are the header-side counterparts used by <code>scan</code>. They are not exported
+        by the module yet.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Signature</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>ch_get</code></td>
+            <td><code>ch_get(ref)</code></td>
+            <td>Read one character without treating it as a number.</td>
+          </tr>
+          <tr>
+            <td><code>base_get&lt;N&gt;</code></td>
+            <td><code>base_get&lt;N, noskipws, skipzero, prefix&gt;(ref)</code></td>
+            <td>Read an integer in base 2–36.</td>
+          </tr>
+          <tr>
+            <td><code>bin_get</code>, <code>oct_get</code>, <code>dec_get</code>, <code>hex_get</code></td>
+            <td>same flag shape as <code>base_get</code></td>
+            <td>Base-specific integer reads.</td>
+          </tr>
+          <tr>
+            <td><code>addrvw_get</code></td>
+            <td><code>addrvw_get(ref)</code></td>
+            <td>Read an address-shaped hex integer.</td>
+          </tr>
+          <tr>
+            <td><code>strlike_get</code></td>
+            <td><code>strlike_get(ref)</code></td>
+            <td>Read a whitespace-delimited token into a string-like destination.</td>
+          </tr>
+          <tr>
+            <td><code>strlike_line_get</code></td>
+            <td><code>strlike_line_get(ref)</code></td>
+            <td>Read one line into a string-like destination.</td>
+          </tr>
+          <tr>
+            <td><code>strlike_whole_get</code></td>
+            <td><code>strlike_whole_get(ref)</code></td>
+            <td>Read the whole remaining input.</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+int x{};
+::fast_io::io::scan(in, ::fast_io::mnp::hex_get(x));
+
+::fast_io::string line;
+::fast_io::io::scan(in, ::fast_io::mnp::strlike_line_get(line));
+</code></pre>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li>Manipulators are one-argument wrappers, not persistent stream state.</li>
+        <li>Integer base, floating format, width, pointer and string views are the main output
+          families.</li>
+        <li><code>boolalpha</code>, <code>ip_generic</code>, <code>leb128_put</code>,
+          <code>code_cvt</code> and the error query wrappers cover the remaining output
+          domains.</li>
+        <li>Scan-side <code>*_get</code> manipulators are separate from output manipulators.</li>
+        <li>Module-exported and header-only entries are marked; do not assume a header helper is
+          in the module contract.</li>
+        <li>A raw <code>char const *</code> prints as a pointer; wrap it in
+          <code>os_c_str</code> or <code>strvw</code> for text.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/06.locale/" class="prev-button">&larr; Ch26.6: Locale</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

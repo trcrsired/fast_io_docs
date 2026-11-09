@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.7章：操纵器查找 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.7章：操纵器查找</h1>
+    <p class="lang-switch"><a href="/docs/26.api/07.manipulators/">English</a></p>
+
+    <section>
+      <h2>1. 怎么读这一页</h2>
+      <p>
+        所有条目都在 <code>::fast_io::mnp</code>，也就是
+        <code>::fast_io::manipulators</code> 的别名。操纵器包住一个值，被下一次
+        <code>print</code> 或 <code>scan</code> 调用消费。它不是流状态。
+      </p>
+      <p>
+        标为 <strong>module</strong> 的条目在 <code>fast_io</code> 模块导出列表里；
+        标为 <strong>header</strong> 的条目存在于头文件，但模块还没有导出。
+        scan 侧的 <code>*_get</code> 家族整体属于头文件侧。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 整数进制</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>条目</th>
+            <th>签名</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>base&lt;N&gt;</code></td>
+            <td><code>base&lt;N, showbase = false, full = false&gt;(value)</code></td>
+            <td>2–36 进制，小写数字。</td>
+          </tr>
+          <tr>
+            <td><code>baseupper&lt;N&gt;</code></td>
+            <td><code>baseupper&lt;N, showbase = false, full = false&gt;(value)</code></td>
+            <td>2–36 进制，适用时用大写数字。</td>
+          </tr>
+          <tr>
+            <td><code>bin</code></td>
+            <td><code>bin&lt;showbase = false, full = false&gt;(value)</code></td>
+            <td>二进制。</td>
+          </tr>
+          <tr>
+            <td><code>oct</code></td>
+            <td><code>oct&lt;showbase = false, full = false&gt;(value)</code></td>
+            <td>八进制。</td>
+          </tr>
+          <tr>
+            <td><code>dec</code></td>
+            <td><code>dec&lt;showbase = false, full = false&gt;(value)</code></td>
+            <td>十进制。</td>
+          </tr>
+          <tr>
+            <td><code>hex</code></td>
+            <td><code>hex&lt;showbase = false, full = false&gt;(value)</code></td>
+            <td>十六进制，小写。</td>
+          </tr>
+          <tr>
+            <td><code>hexupper</code></td>
+            <td><code>hexupper&lt;showbase = false, full = false&gt;(value)</code></td>
+            <td>十六进制，大写。</td>
+          </tr>
+          <tr>
+            <td><code>hex0x</code></td>
+            <td><code>hex0x&lt;full = false&gt;(value)</code></td>
+            <td>十六进制，带 <code>0x</code> 前缀。</td>
+          </tr>
+          <tr>
+            <td><code>hex0xupper</code></td>
+            <td><code>hex0xupper&lt;full = false&gt;(value)</code></td>
+            <td>十六进制，带 <code>0X</code> 前缀。</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+println(::fast_io::mnp::hex(255));        // ff
+println(::fast_io::mnp::hex0x(255));      // 0xff
+println(::fast_io::mnp::base&lt;36&gt;(35));    // z
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3. 浮点格式</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>条目</th>
+            <th>签名</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>decimal</code></td>
+            <td><code>decimal(value)</code>、<code>decimal(value, precision)</code></td>
+            <td>最短十进制或固定精度。</td>
+          </tr>
+          <tr>
+            <td><code>general</code></td>
+            <td><code>general(value)</code>、<code>general(value, precision)</code></td>
+            <td>通用浮点格式。</td>
+          </tr>
+          <tr>
+            <td><code>fixed</code></td>
+            <td><code>fixed(value)</code>、<code>fixed(value, precision)</code></td>
+            <td>定点表示。</td>
+          </tr>
+          <tr>
+            <td><code>scientific</code></td>
+            <td><code>scientific(value)</code>、<code>scientific(value, precision)</code></td>
+            <td>科学计数法。</td>
+          </tr>
+          <tr>
+            <td><code>hexfloat</code></td>
+            <td><code>hexfloat(value)</code>、<code>hexfloat(value, precision)</code></td>
+            <td>十六进制浮点表示。</td>
+          </tr>
+          <tr>
+            <td><code>comma_*</code></td>
+            <td><code>comma_decimal</code>、<code>comma_general</code>、
+              <code>comma_fixed</code>、<code>comma_scientific</code>、
+              <code>comma_hexfloat</code></td>
+            <td>同样的格式，带千位分组。</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+println(::fast_io::mnp::fixed(3.14159, 2));   // 3.14
+println(::fast_io::mnp::hexfloat(1.0));       // hexadecimal float
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4. 布尔、宽度与对齐</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>条目</th>
+            <th>签名</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>boolalpha</code></td>
+            <td><code>boolalpha&lt;uppercase = false&gt;(bool)</code></td>
+            <td>用 <code>true</code>/<code>false</code> 而不是 1/0。</td>
+          </tr>
+          <tr>
+            <td><code>width</code></td>
+            <td><code>width(placement, value, n)</code>、
+              <code>width(placement, value, n, fill)</code></td>
+            <td>填充到宽度 <code>n</code>；placement 是
+              <code>scalar_placement::left</code>、<code>middle</code>、<code>right</code>
+              或 <code>internal</code>。</td>
+          </tr>
+          <tr>
+            <td><code>left</code></td>
+            <td><code>left(value, n)</code>、<code>left(value, n, fill)</code></td>
+            <td>在宽度 <code>n</code> 的字段里左对齐。</td>
+          </tr>
+          <tr>
+            <td><code>middle</code></td>
+            <td><code>middle(value, n)</code>、<code>middle(value, n, fill)</code></td>
+            <td>在宽度 <code>n</code> 的字段里居中。</td>
+          </tr>
+          <tr>
+            <td><code>right</code></td>
+            <td><code>right(value, n)</code>、<code>right(value, n, fill)</code></td>
+            <td>在宽度 <code>n</code> 的字段里右对齐。</td>
+          </tr>
+          <tr>
+            <td><code>internal</code></td>
+            <td><code>internal(value, n)</code>、<code>internal(value, n, fill)</code></td>
+            <td>在符号/进制前缀和数字之间填充。</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+println(::fast_io::mnp::boolalpha(true));
+println(::fast_io::mnp::right(42, 8, '0'));   // 00000042
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5. 指针与句柄视图</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>条目</th>
+            <th>签名</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>pointervw</code></td>
+            <td><code>pointervw&lt;uppercase = false&gt;(pointer)</code></td>
+            <td>打印指针值，不打印它指向的对象。</td>
+          </tr>
+          <tr>
+            <td><code>itervw</code></td>
+            <td><code>itervw&lt;uppercase = false&gt;(iterator)</code></td>
+            <td>把连续迭代器打印成地址。头文件侧。</td>
+          </tr>
+          <tr>
+            <td><code>funcvw</code></td>
+            <td><code>funcvw&lt;uppercase = false&gt;(function pointer)</code></td>
+            <td>打印函数指针。头文件侧。</td>
+          </tr>
+          <tr>
+            <td><code>fieldptrvw</code></td>
+            <td><code>fieldptrvw&lt;uppercase = false&gt;(member object pointer)</code></td>
+            <td>打印成员对象指针。头文件侧。</td>
+          </tr>
+          <tr>
+            <td><code>methodvw</code></td>
+            <td><code>methodvw&lt;uppercase = false&gt;(member function pointer)</code></td>
+            <td>打印成员函数指针。</td>
+          </tr>
+          <tr>
+            <td><code>addrvw</code></td>
+            <td><code>addrvw&lt;uppercase = false&gt;(value)</code></td>
+            <td>打印地址形状的整数。</td>
+          </tr>
+          <tr>
+            <td><code>dfvw</code></td>
+            <td><code>dfvw(value)</code></td>
+            <td>打印带 <code>0x</code> 和符号的默认形式地址。</td>
+          </tr>
+          <tr>
+            <td><code>handlevw</code></td>
+            <td><code>handlevw&lt;uppercase = false&gt;(handle)</code></td>
+            <td>打印 OS 句柄；整数句柄用十进制。</td>
+          </tr>
+          <tr>
+            <td><code>bitfieldvw</code></td>
+            <td><code>bitfieldvw(value)</code></td>
+            <td>把 bit-field 或字节值按整数视图打印。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        指针作为数据时要说清楚。直接传 <code>char const *</code> 打印的是指针值，不是字符串；
+        文本用 <code>os_c_str</code> 或 <code>strvw</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. 字符串与范围视图</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>条目</th>
+            <th>签名</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>os_c_str</code></td>
+            <td><code>os_c_str(ptr, n)</code>、<code>os_c_str(range)</code></td>
+            <td>已知大小的 OS 原生字符串；在 NUL 处停止。</td>
+          </tr>
+          <tr>
+            <td><code>os_c_str_carr</code></td>
+            <td><code>os_c_str_carr(array)</code></td>
+            <td>同上，用于字符数组。</td>
+          </tr>
+          <tr>
+            <td><code>os_c_str_null_terminated</code></td>
+            <td><code>os_c_str_null_terminated(ptr, n)</code></td>
+            <td>已知容量的 NUL 结尾字符串。</td>
+          </tr>
+          <tr>
+            <td><code>os_c_str_null_terminated_carr</code></td>
+            <td><code>os_c_str_null_terminated_carr(array)</code></td>
+            <td>同上，用于字符数组。</td>
+          </tr>
+          <tr>
+            <td><code>os_c_str_or_nullptr</code></td>
+            <td><code>os_c_str_or_nullptr(ptr)</code></td>
+            <td>打印字符串或空表示。</td>
+          </tr>
+          <tr>
+            <td><code>os_c_str_with_known_size</code></td>
+            <td><code>os_c_str_with_known_size(ptr, n)</code></td>
+            <td>带显式字节/字符数的字符串。</td>
+          </tr>
+          <tr>
+            <td><code>strvw</code></td>
+            <td><code>strvw(first, last)</code>、<code>strvw(range)</code></td>
+            <td>非拥有字符范围，作为 scatter。</td>
+          </tr>
+          <tr>
+            <td><code>rgvw</code></td>
+            <td><code>rgvw(range, separator)</code></td>
+            <td>在元素之间插入分隔符打印范围。</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+::fast_io::string_view sv{"hello"};
+println(::fast_io::mnp::strvw(sv));
+println(::fast_io::mnp::rgvw(::fast_io::array&lt;int, 3&gt;{1, 2, 3}, ", "));
+</code></pre>
+    </section>
+
+    <section>
+      <h2>7. 编码、二进制、网络与错误</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>条目</th>
+            <th>签名</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>code_cvt</code></td>
+            <td><code>code_cvt&lt;src, dst&gt;(value)</code></td>
+            <td>输出时在编码方案之间转换。</td>
+          </tr>
+          <tr>
+            <td><code>code_cvt_os_c_str</code></td>
+            <td><code>code_cvt_os_c_str&lt;src, dst&gt;(ptr[, n])</code></td>
+            <td>对 C 字符串做编码转换。</td>
+          </tr>
+          <tr>
+            <td><code>leb128_put</code></td>
+            <td><code>leb128_put(value)</code></td>
+            <td>写一个 LEB128 整数。</td>
+          </tr>
+          <tr>
+            <td><code>leb128_get</code></td>
+            <td><code>leb128_get(ref)</code></td>
+            <td>把 LEB128 整数读进 <code>ref</code>。</td>
+          </tr>
+          <tr>
+            <td><code>ip_generic</code></td>
+            <td><code>ip_generic(ip)</code></td>
+            <td>带 flags 打印 IPv4/IPv6/地址/端口类型。</td>
+          </tr>
+          <tr>
+            <td><code>ip_scan_generic</code></td>
+            <td><code>ip_scan_generic(ip&amp;)</code></td>
+            <td>带 flags 扫描进 IP 类型。</td>
+          </tr>
+          <tr>
+            <td><code>cur_src_loc</code></td>
+            <td><code>cur_src_loc(source_location = current())</code></td>
+            <td>打印文件、行、列和函数。</td>
+          </tr>
+          <tr>
+            <td><code>name</code>、<code>message</code>、<code>name_message</code></td>
+            <td>错误查询包装</td>
+            <td>打印 herbception 错误的名称、消息或两者。</td>
+          </tr>
+          <tr>
+            <td><code>posix_equivalent_*</code></td>
+            <td>错误查询包装</td>
+            <td>POSIX 等价的名称/消息形式。</td>
+          </tr>
+          <tr>
+            <td><code>lc_dump</code></td>
+            <td><code>lc_dump(locale)</code></td>
+            <td>把整个 locale 打印成文本。</td>
+          </tr>
+          <tr>
+            <td><code>lf</code>、<code>crlf</code>、<code>cr</code></td>
+            <td><code>lf()</code>、<code>crlf()</code>、<code>cr()</code></td>
+            <td>扫描用的行跳过器。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>ip_flags</code>、<code>ip_scan_default_flags</code>、<code>scalar_flags</code>、
+        <code>scalar_manip_t</code>、<code>ip_manip_t</code> 以及 placement/format 枚举
+        是这些值背后的类型。它们和导出列表一起记录在
+        <a href="/zhcn/docs/26.api/01.modules/">第26.1章</a>。
+      </p>
+    </section>
+
+    <section>
+      <h2>8. scan 侧操纵器</h2>
+      <p>
+        这些是 <code>scan</code> 使用的头文件侧对应物。模块目前还没有导出它们。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>条目</th>
+            <th>签名</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>ch_get</code></td>
+            <td><code>ch_get(ref)</code></td>
+            <td>读一个字符，不把它当数字。</td>
+          </tr>
+          <tr>
+            <td><code>base_get&lt;N&gt;</code></td>
+            <td><code>base_get&lt;N, noskipws, skipzero, prefix&gt;(ref)</code></td>
+            <td>按 2–36 进制读整数。</td>
+          </tr>
+          <tr>
+            <td><code>bin_get</code>、<code>oct_get</code>、<code>dec_get</code>、<code>hex_get</code></td>
+            <td>与 <code>base_get</code> 相同的 flag 形状</td>
+            <td>特定进制的整数读取。</td>
+          </tr>
+          <tr>
+            <td><code>addrvw_get</code></td>
+            <td><code>addrvw_get(ref)</code></td>
+            <td>读取地址形状的十六进制整数。</td>
+          </tr>
+          <tr>
+            <td><code>strlike_get</code></td>
+            <td><code>strlike_get(ref)</code></td>
+            <td>把空白分隔的 token 读进字符串类目标。</td>
+          </tr>
+          <tr>
+            <td><code>strlike_line_get</code></td>
+            <td><code>strlike_line_get(ref)</code></td>
+            <td>把一行读进字符串类目标。</td>
+          </tr>
+          <tr>
+            <td><code>strlike_whole_get</code></td>
+            <td><code>strlike_whole_get(ref)</code></td>
+            <td>读取剩余的全部输入。</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+int x{};
+::fast_io::io::scan(in, ::fast_io::mnp::hex_get(x));
+
+::fast_io::string line;
+::fast_io::io::scan(in, ::fast_io::mnp::strlike_line_get(line));
+</code></pre>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li>操纵器是单参数包装，不是持久流状态。</li>
+        <li>整数进制、浮点格式、宽度、指针和字符串视图是主要输出家族。</li>
+        <li><code>boolalpha</code>、<code>ip_generic</code>、<code>leb128_put</code>、
+          <code>code_cvt</code> 和错误查询包装覆盖其余输出领域。</li>
+        <li>scan 侧 <code>*_get</code> 操纵器与输出操纵器是分开的。</li>
+        <li>模块导出和头文件侧条目都有标记；不要假定头文件辅助在模块契约里。</li>
+        <li>裸 <code>char const *</code> 打印为指针；文本要包
+          <code>os_c_str</code> 或 <code>strvw</code>。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/06.locale/" class="prev-button">&larr; 第26.6章：locale</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>
