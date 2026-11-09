@@ -188,6 +188,12 @@ int main()
         <code>print_freestanding</code> 写入任何满足接口的输出流。格式化引擎不知道、也不关心目标是 UART、
         帧缓冲、环形缓冲区还是一个文件。
       </p>
+      <p>
+        同样的设计也适用于 I/O，而且这是库的另一半。fast_io 不是"容器库外加一个 I/O 附件"：格式化和扫描层由
+        concepts 约束，所以任何满足输出流接口的类型都能用。你只需要为设备定义一次写操作——UART、帧缓冲或
+        环形缓冲区需要什么就写什么——<code>print</code> / <code>print_freestanding</code> 就知道如何把每个
+        支持的参数格式化进去。库不需要控制台、文件描述符或 locale 才知道怎么打印。
+      </p>
       <pre><code class="language-cpp">int render(int value) throws
 {
   char buffer[64];
@@ -208,6 +214,10 @@ int main()
         这个翻译单元只包含 <code>fast_io_core.h</code> 和 vector。它不碰文件、控制台或 locale。在真实板子上，
         你写一个实现 UART 或帧缓冲写入操作的设备类型，把它交给同一个 <code>print_freestanding</code>，
         格式化代码一行都不用改。
+      </p>
+      <p>
+        关键就在这里：操作是对设备泛型的，而不是绑定到某个固定的 <code>std::ostream</code>。编译器用 concept
+        检查设备；只要它满足接口，同一份格式化代码就为它实例化。没有运行时分发，也没有隐藏的控制台。
       </p>
     </section>
 

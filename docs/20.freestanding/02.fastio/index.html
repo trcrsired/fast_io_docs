@@ -214,6 +214,15 @@ int main()
         stream that satisfies the interface. The formatting engine does not know or care whether
         the destination is a UART, a framebuffer, a ring buffer or a file.
       </p>
+      <p>
+        The same design applies to I/O, and it is the other half of the library. fast_io is not a
+        container library with an I/O add-on: the formatting and scanning layer is constrained by
+        concepts, so it works with any type that satisfies the output-stream interface. You define
+        the device once &mdash; the write operation your UART, framebuffer or ring buffer needs
+        &mdash; and <code>print</code> / <code>print_freestanding</code> knows how to format every
+        supported argument into it. The library does not need a console, a file descriptor or a
+        locale to know how to print.
+      </p>
       <pre><code class="language-cpp">int render(int value) throws
 {
   char buffer[64];
@@ -235,6 +244,12 @@ int main()
         touches a file, a console or a locale. For a real board, you write a device type with the
         write operation your UART or framebuffer needs and pass it to the same
         <code>print_freestanding</code>; none of the formatting code changes.
+      </p>
+      <p>
+        That is the point: the operation is generic over the device, not tied to a fixed
+        <code>std::ostream</code>. The compiler checks the device against the concept; if it
+        satisfies the interface, the same formatting code instantiates for it. There is no runtime
+        dispatch and no hidden console.
       </p>
     </section>
 
