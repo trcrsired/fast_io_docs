@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.16: Time - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.16: Time</h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/16.time/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. Two Time Types</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Contents</th>
+            <th>Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>posix_timespec64</code></td>
+            <td><code>tv_sec</code> (signed 64-bit seconds since the Unix epoch) and
+              <code>tv_nsec</code> (32-bit nanoseconds).</td>
+            <td>The machine and syscall representation.</td>
+          </tr>
+          <tr>
+            <td><code>iso8601_timestamp</code></td>
+            <td><code>year</code>, <code>month</code>, <code>day</code>, <code>hours</code>,
+              <code>minutes</code>, <code>seconds</code>, <code>nanoseconds</code> and
+              <code>timezone</code>.</td>
+            <td>The human/calendar representation.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>posix_timespec64</code> supports arithmetic: addition, subtraction, negation and
+        division by an integer. The operations normalize nanoseconds, so
+        <code>1s + 500ms</code> is a valid timespec with <code>tv_nsec == 500000000</code>, not a
+        raw field addition.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Clock Queries</h2>
+      <p>
+        <code>posix_clock_gettime(id)</code> returns a <code>posix_timespec64</code>.
+        <code>posix_clock_getres(id)</code> returns the clock resolution. Both are hosted APIs;
+        a freestanding target supplies its own clock.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th><code>posix_clock_id</code></th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>realtime</code></td><td>Wall-clock time since the epoch.</td></tr>
+          <tr><td><code>realtime_coarse</code></td><td>Lower-resolution realtime clock.</td></tr>
+          <tr><td><code>realtime_alarm</code></td><td>Alarm clock.</td></tr>
+          <tr><td><code>tai</code></td><td>International Atomic Time, where the platform has it.</td></tr>
+          <tr><td><code>monotonic</code></td><td>Monotonic clock, unaffected by wall-clock changes.</td></tr>
+          <tr><td><code>monotonic_coarse</code>, <code>monotonic_raw</code>, <code>monotonic_raw_approx</code></td><td>Coarse/raw monotonic variants.</td></tr>
+          <tr><td><code>boottime</code>, <code>boottime_alarm</code></td><td>Time since boot and its alarm clock.</td></tr>
+          <tr><td><code>process_cputime_id</code>, <code>thread_cputime_id</code></td><td>CPU time of the process or thread.</td></tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+auto const now{::fast_io::posix_clock_gettime(::fast_io::posix_clock_id::realtime)};
+</code></pre>
+      <p>
+        Not every platform implements every clock. The unsupported ones fail through the
+        herbception channel rather than returning a zero timestamp.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. UTC and Local Conversion</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Meaning</th>
+            <th>Module</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>utc(timespec)</code></td>
+            <td>Convert a Unix timestamp to an ISO 8601 calendar value in UTC.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>local(timespec, dstadj = posix_daylight())</code></td>
+            <td>Convert to local time; may query the platform timezone.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>to_posix_timespec64(iso)</code></td>
+            <td>Convert an ISO 8601 value back to a Unix timestamp.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>to_posix_timespec64_ftu64</code></td>
+            <td>Convert from a fixed-point 64-bit timestamp.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>posix_timespec64_to_ftu64</code></td>
+            <td>Convert to a fixed-point 64-bit timestamp.</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>posix_daylight()</code></td>
+            <td>Whether local time currently observes daylight saving.</td>
+            <td>header-side</td>
+          </tr>
+          <tr>
+            <td><code>timezone_name(dst)</code></td>
+            <td>The platform timezone abbreviation.</td>
+            <td>header-side</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+auto const t{::fast_io::posix_clock_gettime(::fast_io::posix_clock_id::realtime)};
+auto const iso{::fast_io::utc(t)};
+::fast_io::io::println(iso);
+</code></pre>
+      <p>
+        <code>utc</code> is <code>constexpr</code> and pure; <code>local</code> is not, because it
+        consults the platform timezone and daylight-saving state. Use <code>utc</code> for wire
+        timestamps and <code>local</code> only for display.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Printing and Scanning</h2>
+      <p>
+        <code>iso8601_timestamp</code> is printable and scannable directly. The printed form is
+        an ISO 8601 calendar string; the scanner accepts the same form.
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::iso8601_timestamp ts;
+::fast_io::io::scan(in, ts);
+::fast_io::io::println(ts);
+</code></pre>
+      <p>
+        For a Unix timestamp with a chosen fractional precision, wrap a
+        <code>posix_timespec64</code> with <code>mnp::fixed</code>:
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::io::println(::fast_io::mnp::fixed(t, 3));   // seconds.milliseconds
+::fast_io::io::println(::fast_io::mnp::comma_fixed(t, 6));
+</code></pre>
+      <p>
+        The precision is the number of fractional decimal digits. <code>comma_fixed</code> adds
+        digit grouping to the integer part.
+      </p>
+      <p>
+        <code>std::chrono::duration</code> values are printable when the chrono unit header is
+        included. The supported periods are nanoseconds, microseconds, milliseconds, seconds,
+        minutes, hours, days, weeks, months and years; the output includes the unit suffix.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Timezone Rules</h2>
+      <ul>
+        <li><code>utc</code> never depends on the process timezone.</li>
+        <li><code>local</code> asks the platform for the offset and DST state; pass
+          <code>dstadj</code> explicitly when you have already resolved it.</li>
+        <li><code>timezone_name</code> is display metadata; do not parse it as a stable
+          identifier.</li>
+        <li>A timestamp with a non-zero <code>timezone</code> field is still an absolute instant
+          plus an offset; converting it back with <code>to_posix_timespec64</code> normalizes it.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>6. Module and Header Boundary</h2>
+      <p>
+        The <code>fast_io</code> module exports <code>posix_timespec64</code>,
+        <code>iso8601_timestamp</code>, <code>utc</code>, <code>local</code>,
+        <code>to_posix_timespec64</code>, <code>to_posix_timespec64_ftu64</code> and
+        <code>posix_timespec64_to_ftu64</code>. The hosted unit adds
+        <code>posix_clock_id</code>, <code>posix_clock_gettime</code> and
+        <code>posix_clock_getres</code>. <code>posix_daylight</code>,
+        <code>timezone_name</code> and the chrono-duration print hooks are header-side.
+      </p>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li><code>posix_timespec64</code> is the machine timestamp; <code>iso8601_timestamp</code>
+          is the calendar value.</li>
+        <li><code>posix_clock_gettime</code> returns a normalized timespec; unsupported clocks
+          fail.</li>
+        <li><code>utc</code> is pure and constexpr; <code>local</code> queries the platform
+          timezone.</li>
+        <li>ISO 8601 values are printable and scannable directly.</li>
+        <li><code>mnp::fixed</code> and <code>comma_fixed</code> print Unix timestamps with a
+          chosen fractional precision.</li>
+        <li>Chrono durations print with unit suffixes when the chrono unit header is included.</li>
+        <li>Use UTC for wire formats and local time only for display.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/15.freestanding/" class="prev-button">&larr; Ch26.15: Freestanding API</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.16章：时间 - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.16章：时间</h1>
+    <p class="lang-switch"><a href="/docs/26.api/16.time/">English</a></p>
+
+    <section>
+      <h2>1. 两种时间类型</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>内容</th>
+            <th>用途</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>posix_timespec64</code></td>
+            <td><code>tv_sec</code>（Unix 纪元以来的有符号 64 位秒）和
+              <code>tv_nsec</code>（32 位纳秒）。</td>
+            <td>机器和系统调用表示。</td>
+          </tr>
+          <tr>
+            <td><code>iso8601_timestamp</code></td>
+            <td><code>year</code>、<code>month</code>、<code>day</code>、<code>hours</code>、
+              <code>minutes</code>、<code>seconds</code>、<code>nanoseconds</code> 和
+              <code>timezone</code>。</td>
+            <td>人类/日历表示。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>posix_timespec64</code> 支持算术：加法、减法、取负和除以整数。
+        操作会规范化纳秒，所以 <code>1s + 500ms</code> 是一个合法的 timespec，
+        <code>tv_nsec == 500000000</code>，不是原始字段相加。
+      </p>
+    </section>
+
+    <section>
+      <h2>2. 时钟查询</h2>
+      <p>
+        <code>posix_clock_gettime(id)</code> 返回 <code>posix_timespec64</code>。
+        <code>posix_clock_getres(id)</code> 返回时钟分辨率。两者都是 hosted API；
+        freestanding 目标自己提供时钟。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th><code>posix_clock_id</code></th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>realtime</code></td><td>自纪元以来的墙上时钟时间。</td></tr>
+          <tr><td><code>realtime_coarse</code></td><td>较低分辨率的实时时钟。</td></tr>
+          <tr><td><code>realtime_alarm</code></td><td>闹钟时钟。</td></tr>
+          <tr><td><code>tai</code></td><td>国际原子时，平台支持时可用。</td></tr>
+          <tr><td><code>monotonic</code></td><td>单调时钟，不受墙上时钟调整影响。</td></tr>
+          <tr><td><code>monotonic_coarse</code>、<code>monotonic_raw</code>、<code>monotonic_raw_approx</code></td><td>粗/原始单调变体。</td></tr>
+          <tr><td><code>boottime</code>、<code>boottime_alarm</code></td><td>自启动以来的时间及其闹钟。</td></tr>
+          <tr><td><code>process_cputime_id</code>、<code>thread_cputime_id</code></td><td>进程或线程的 CPU 时间。</td></tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+auto const now{::fast_io::posix_clock_gettime(::fast_io::posix_clock_id::realtime)};
+</code></pre>
+      <p>
+        不是每个平台都实现每个时钟。不支持的时钟通过 herbception 通道失败，
+        而不是返回零时间戳。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. UTC 与本地时间转换</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>条目</th>
+            <th>含义</th>
+            <th>模块</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>utc(timespec)</code></td>
+            <td>把 Unix 时间戳转成 UTC 的 ISO 8601 日历值。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>local(timespec, dstadj = posix_daylight())</code></td>
+            <td>转成本地时间；可能查询平台时区。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>to_posix_timespec64(iso)</code></td>
+            <td>把 ISO 8601 值转回 Unix 时间戳。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>to_posix_timespec64_ftu64</code></td>
+            <td>从定点 64 位时间戳转换。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>posix_timespec64_to_ftu64</code></td>
+            <td>转成定点 64 位时间戳。</td>
+            <td><code>fast_io</code></td>
+          </tr>
+          <tr>
+            <td><code>posix_daylight()</code></td>
+            <td>本地时间当前是否使用夏令时。</td>
+            <td>头文件侧</td>
+          </tr>
+          <tr>
+            <td><code>timezone_name(dst)</code></td>
+            <td>平台时区缩写。</td>
+            <td>头文件侧</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-cpp">
+auto const t{::fast_io::posix_clock_gettime(::fast_io::posix_clock_id::realtime)};
+auto const iso{::fast_io::utc(t)};
+::fast_io::io::println(iso);
+</code></pre>
+      <p>
+        <code>utc</code> 是 <code>constexpr</code> 且纯的；<code>local</code> 不是，
+        因为它查询平台时区和夏令时状态。线格式用 <code>utc</code>，
+        只在显示时用 <code>local</code>。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 打印与扫描</h2>
+      <p>
+        <code>iso8601_timestamp</code> 可以直接打印和扫描。打印形式是 ISO 8601 日历字符串；
+        扫描器接受同样的形式。
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::iso8601_timestamp ts;
+::fast_io::io::scan(in, ts);
+::fast_io::io::println(ts);
+</code></pre>
+      <p>
+        需要指定小数精度的 Unix 时间戳时，用 <code>mnp::fixed</code> 包一个
+        <code>posix_timespec64</code>：
+      </p>
+      <pre><code class="language-cpp">
+::fast_io::io::println(::fast_io::mnp::fixed(t, 3));   // seconds.milliseconds
+::fast_io::io::println(::fast_io::mnp::comma_fixed(t, 6));
+</code></pre>
+      <p>
+        精度是小数部分的十进制位数。<code>comma_fixed</code> 给整数部分加数字分组。
+      </p>
+      <p>
+        包含 chrono 单位头文件时，<code>std::chrono::duration</code> 值可打印。
+        支持的周期是纳秒、微秒、毫秒、秒、分、小时、天、周、月、年；
+        输出带单位后缀。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 时区规则</h2>
+      <ul>
+        <li><code>utc</code> 永远不依赖进程时区。</li>
+        <li><code>local</code> 向平台查询偏移和 DST 状态；已经解析过时显式传
+          <code>dstadj</code>。</li>
+        <li><code>timezone_name</code> 是显示元数据；不要把它当稳定标识符解析。</li>
+        <li>带非零 <code>timezone</code> 字段的时间戳仍然是绝对时刻加偏移；
+          用 <code>to_posix_timespec64</code> 转回时会规范化。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>6. 模块与头文件边界</h2>
+      <p>
+        <code>fast_io</code> 模块导出 <code>posix_timespec64</code>、
+        <code>iso8601_timestamp</code>、<code>utc</code>、<code>local</code>、
+        <code>to_posix_timespec64</code>、<code>to_posix_timespec64_ftu64</code> 和
+        <code>posix_timespec64_to_ftu64</code>。hosted 单元增加
+        <code>posix_clock_id</code>、<code>posix_clock_gettime</code> 和
+        <code>posix_clock_getres</code>。<code>posix_daylight</code>、
+        <code>timezone_name</code> 和 chrono duration 打印钩子在头文件侧。
+      </p>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>posix_timespec64</code> 是机器时间戳；<code>iso8601_timestamp</code>
+          是日历值。</li>
+        <li><code>posix_clock_gettime</code> 返回规范化 timespec；不支持的时钟会失败。</li>
+        <li><code>utc</code> 是纯的、constexpr；<code>local</code> 查询平台时区。</li>
+        <li>ISO 8601 值可以直接打印和扫描。</li>
+        <li><code>mnp::fixed</code> 和 <code>comma_fixed</code> 按选定小数精度打印
+          Unix 时间戳。</li>
+        <li>包含 chrono 单位头文件时，chrono duration 带单位后缀打印。</li>
+        <li>线格式用 UTC，本地时间只用于显示。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/15.freestanding/" class="prev-button">&larr; 第26.15章：Freestanding API</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>
