@@ -310,10 +310,19 @@ undefined reference to `typeinfo for char const*'</code></pre>
           <code>fast_io::containers::vector&lt;T, Alloc&gt;</code> 是反例：同一种容器，把分配器带在类型里，
           它就是独立的。下一页展示具体做法。
         </li>
+        <li>
+          <strong><code>std::string_view</code>（C++26）。</strong><code>&lt;string&gt;</code> 的独立部分只有
+          <code>char_traits</code>，不是 <code>basic_string</code>。<code>&lt;string_view&gt;</code> 在 C++26 里是独立的，
+          但那些会抛异常的方法被标成 <code>freestanding-deleted</code>：<code>at</code>、<code>copy</code>、
+          <code>substr</code>，以及几个 <code>compare</code> 重载。独立实现可以把它们 <code>=delete</code>。
+          剩下的东西不能做带边界检查的访问，也不能取子串，所以这是一个被掏空到对很多代码都没用的视图类型。
+          标准对"这个方法会抛异常"的解决办法是删掉这个方法，而不是提供一个不抛异常的替代品。
+        </li>
       </ul>
       <p>
         前四条的模式一样：特性本身不需要运行时，但标准没有要求它的头文件，所以一个符合标准的独立实现可以把它省掉。
-        最后一条相反：容器的接口本身就是运行时依赖，所以改头文件清单救不了它。
+        最后两条不同：<code>vector</code> 和 <code>string</code> 围绕分配器和异常设计，而 <code>string_view</code>
+        那些有用的、会抛异常的方法被删掉，剩下的要么与运行时绑得太死，要么被掏空到没法用。
       </p>
       <p>
         两种情况下，代码都在开发者的桌面上编译通过，在板子上失败。这部分问题不是交叉编译器能修的，

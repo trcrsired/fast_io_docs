@@ -322,12 +322,24 @@ undefined reference to `typeinfo for char const*'</code></pre>
           kind of container, with the allocator carried in the type, and it is freestanding. The
           next page shows how.
         </li>
+        <li>
+          <strong><code>std::string_view</code> (C++26).</strong> The freestanding part of
+          <code>&lt;string&gt;</code> is <code>char_traits</code>, not <code>basic_string</code>.
+          <code>&lt;string_view&gt;</code> is freestanding in C++26, but the methods that can throw
+          are marked <code>freestanding-deleted</code>: <code>at</code>, <code>copy</code>,
+          <code>substr</code>, and several <code>compare</code> overloads. A freestanding
+          implementation may <code>=delete</code> them. What is left cannot do bounds-checked access
+          or produce a substring, so it is a view type gutted to the point of being useless for a
+          lot of code. The standard's answer to "this method throws" is to delete the method, not to
+          provide a non-throwing alternative.
+        </li>
       </ul>
       <p>
         The pattern in the first four bullets is the same: the feature needs no runtime, but the
         standard did not require its header, so a conforming freestanding implementation could omit
-        it. The last bullet is the opposite case: the container's interface <em>is</em> the runtime
-        dependency, which is why no header-list change can rescue it.
+        it. The last two are different: <code>vector</code> and <code>string</code> are designed
+        around the allocator and exceptions, and <code>string_view</code>'s useful throwing methods
+        are deleted, so what remains is either too coupled to the runtime or too gutted to use.
       </p>
       <p>
         In both cases the code compiled on the developer's desktop and failed on the board. That is
