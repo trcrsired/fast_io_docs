@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ch22.2: Sysroot: libc, or Nothing - C++ Tutorial with fast_io</title>
+  <title>Ch22.2: Sysroot - C++ Tutorial with fast_io</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>Ch22.2: Sysroot: libc, or Nothing</h1>
+    <h1>Ch22.2: Sysroot</h1>
     <p class="lang-switch"><a href="/zhcn/docs/22.canadiancompilation/02.sysroot/">中文（简体）</a></p>
 
     <section>
@@ -129,33 +129,36 @@
     <section>
       <h2>2. What a Sysroot Looks Like</h2>
       <p>
-        A sysroot is a directory tree that pretends to be the target's root filesystem. The compiler
-        rewrites its default absolute search paths to point inside it. There are two common layouts:
-        the GCC-style layout, where the sysroot is the prefix for the target, and the
-        <code>usr</code>-merged layout used by clang and by most SDKs.
+        A sysroot is a directory tree that looks like the target's root filesystem. GCC and Clang
+        use the same idea: point the compiler at one directory, and the driver resolves its default
+        header, library and program search paths inside it. The usual tree is just:
       </p>
-      <pre><code class="language-text">GCC-style sysroot: $PREFIX/$TARGET
-$PREFIX/$TARGET/
-  include/                  libc headers, kernel headers
-  lib/                      libc.so, libm.so, crt1.o, crti.o, crtn.o
-  lib64/                    on 64-bit targets that use it
-  libexec/                  target helper programs, if any
-  sys-include/              temporary hack for Canadian builds
-
-Clang/SDK-style sysroot: /path/to/sysroot
-/path/to/sysroot/
-  usr/include/              libc headers, kernel headers
-  usr/lib/                  libc.so, libm.so, crt1.o, ...
-  usr/lib/$TARGET/          multiarch subdirectory
-  lib/                      loader and compatibility symlinks
-  lib64/</code></pre>
+      <pre><code class="language-text">/path/to/sysroot/
+  bin/       target programs and helper tools
+  include/   C and C++ headers
+  lib/       libraries, startup objects and the dynamic loader
+  share/     target data files
+</code></pre>
       <p>
-        Both work. What matters is that the compiler's default paths and the files on disk agree.
-        GCC's default target sysroot is <code>$PREFIX/$TARGET</code> and its default include
-        directory is <code>$PREFIX/$TARGET/include</code>. Clang's default is to search the sysroot's
-        <code>usr/include</code> and <code>usr/lib</code>, or the target-specific subdirectories
-        under them. If you install glibc to <code>.../usr/include</code> but tell GCC the sysroot is
-        <code>.../</code>, GCC will look in <code>.../include</code> and find nothing.
+        Some systems merge <code>/usr</code> and put the same directories under <code>usr/</code>, so
+        the compiler may search <code>usr/include</code> and <code>usr/lib</code> instead of
+        <code>include</code> and <code>lib</code>. That is a path detail, not a different sysroot
+        format. A target may also add <code>lib64</code>, <code>libexec</code> or a multiarch
+        subdirectory. The root is still one directory.
+      </p>
+      <p>
+        GCC and Clang use the same root layout; both accept <code>--sysroot</code>. Their drivers
+        may have different default search paths, but that is a driver detail, not a different
+        sysroot format. A GCC cross driver often defaults its sysroot to
+        <code>$PREFIX/$TARGET</code>; Clang is often invoked with an explicit
+        <code>--sysroot=</code> pointing at an SDK. Both are pointing at a root tree. If the
+        compiler's search path and the files on disk disagree, the link fails; the fix is to inspect
+        the actual search path, not to rename the tree.
+      </p>
+      <p>
+        A sysroot is not a "GCC layout" or a "Clang layout". It is a target root. The compiler's
+        default paths are a property of the driver and the target configuration;
+        <code>--sysroot</code> only changes the root against which those paths are resolved.
       </p>
       <p>
         The start-up objects are the usual first failure. A dynamically linked C program on Linux

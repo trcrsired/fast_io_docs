@@ -29,7 +29,7 @@
 
     <section>
       <h2>2. 工具链</h2>
-      <p>使用较新的 clang 和 WASI sysroot。关键参数是：</p>
+      <p>使用较新的 clang 和 WASI 系统根。关键参数是：</p>
       <pre><code class="language-sh">clang++ --config=$HOME/cfgs/wasm32-wasip1-noeh-nomtg.cfg \
   -fherbceptions -lherbceptions \
   -nostartfiles -Wl,--no-entry \
@@ -40,10 +40,10 @@
   -Wl,--export=app_len \
   app.cpp -o app.wasm</code></pre>
       <p>
-        这个 config 面向 <code>wasm32-wasip1</code>，使用 libc++ 和一个没有遗留异常机制的 sysroot，
+        这个 config 面向 <code>wasm32-wasip1</code>，使用 libc++ 和一个没有遗留异常机制的系统根，
         并传入 <code>-fno-exceptions</code>。最后这个参数并不矛盾：
         <code>-fno-exceptions</code> 关闭遗留 unwinder，而 <code>-fherbceptions</code> 启用赫布异常语言特性，
-        <code>-lherbceptions</code> 链接它的运行时。WASI sysroot 为 <code>wasm32-wasip1</code> 提供了
+        <code>-lherbceptions</code> 链接它的运行时。WASI 系统根为 <code>wasm32-wasip1</code> 提供了
         <code>libherbceptions.a</code>。再加上 <code>-fno-rtti</code>；核心不需要它，而且能让二进制更小。
       </p>
       <p>

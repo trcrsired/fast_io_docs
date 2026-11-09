@@ -89,7 +89,7 @@
         构建里，宿主和目标不同，你需要两个：<code>build&rarr;host</code> 用于编译器二进制，
         <code>build&rarr;target</code> 用于目标库。对反向编译（<code>build = target</code>），第二个是
         本地编译器；对普通加拿大交叉编译，它是另一个交叉编译器。原因不只是目标运行时：GCC 本身就是
-        C++ 程序，它将要运行的宿主需要完整的 C++ sysroot。build&rarr;host 交叉编译器负责产出链接到该宿主
+        C++ 程序，它将要运行的宿主需要完整的 C++ 系统根。build&rarr;host 交叉编译器负责产出链接到该宿主
         C++ 运行时的编译器二进制。因此构建顺序是：
       </p>
       <pre><code class="language-text">1. build -> host 交叉工具链     （构建宿主编译器的编译器）
@@ -168,7 +168,7 @@ make install-strip-gcc install-strip-target-libgcc</code></pre>
         这正是重点：libc 需要编译器，编译器又需要 libc。第一阶段编译器打破了循环。
       </p>
 
-      <h3>第三步：内核头文件和 libc 装进 sysroot</h3>
+      <h3>第三步：内核头文件和 libc 装进系统根</h3>
       <pre><code class="language-sh"># Linux UAPI 头文件
 make -C $SRC/linux headers_install ARCH=arm64 \
   INSTALL_HDR_PATH=$CROSS/$TARGET
@@ -192,9 +192,9 @@ cp -a install/. $CROSS/$TARGET/</code></pre>
         并把构建 prefix 从脚本里删掉。
       </p>
       <p>
-        musl 的流程更短；Android、Windows、macOS 通常直接从 SDK 的 sysroot 开始，根本不需要构建 libc。
+        musl 的流程更短；Android、Windows、macOS 通常直接从 SDK 的系统根开始，根本不需要构建 libc。
         不变量是一样的：头文件在 <code>$CROSS/$TARGET/include</code>，库在
-        <code>$CROSS/$TARGET/lib</code>，<code>crt1.o</code> 之类也在这个 sysroot 里。
+        <code>$CROSS/$TARGET/lib</code>，<code>crt1.o</code> 之类也在这个系统根里。
       </p>
 
       <h3>第四步：第二阶段 GCC，现在是宿主模式</h3>
@@ -280,10 +280,10 @@ rm -f $FINAL/$TARGET/sys-include</code></pre>
     </section>
 
     <section>
-      <h2>4. 为什么 sysroot 出现两次</h2>
+      <h2>4. 为什么系统根出现两次</h2>
       <p>
-        <code>$CROSS</code> 的交叉工具链需要 sysroot 来构建它自己的 <code>libstdc++</code>；
-        <code>$FINAL</code> 的最终工具链也需要 sysroot，因为在宿主上，头文件和库必须在那里。它们是两份拷贝：
+        <code>$CROSS</code> 的交叉工具链需要系统根来构建它自己的 <code>libstdc++</code>；
+        <code>$FINAL</code> 的最终工具链也需要系统根，因为在宿主上，头文件和库必须在那里。它们是两份拷贝：
         <code>$CROSS/$TARGET</code> 和 <code>$FINAL/$TARGET</code>。参考脚本为每个 prefix 分别安装 libc，
         看起来冗余，但两个编译器的生命周期不同。交叉工具链是构建工具，可以删掉；最终工具链是产物，
         必须自包含。
@@ -354,7 +354,7 @@ make install-strip-gcc install-strip-target-libgcc</code></pre>
         <code>libgcc</code> 仍然存在：它包含整数辅助函数、编译器可能需要的 unwind 代码和软浮点例程。
         不存在的是 C 库、<code>crt1.o</code>、动态加载器和宿主版 <code>libstdc++</code>。程序自己提供
         入口点、内存和 I/O 原语，这正是<a href="/zhcn/docs/20.freestanding/">第20章</a>的内容。
-        同一套工具链在提供 WASI sysroot 时也可以为 <code>wasm32-wasip1</code> 构建；那就是
+        同一套工具链在提供 WASI 系统根时也可以为 <code>wasm32-wasip1</code> 构建；那就是
         <a href="/zhcn/docs/21.pwas/03.wasm/">第21.3章</a>使用的配置。
       </p>
     </section>
@@ -377,7 +377,7 @@ $FINAL/bin/gcc -v -E -x c /dev/null
       <p>
         然后编译一个最简单的程序，用 <code>-Wl,--verbose</code> 看链接行。它应该在
         <code>$FINAL/$TARGET</code> 里找到 <code>crt1.o</code> 和 <code>libc.so</code>。如果它找到的是
-        构建机的 <code>/usr/lib/x86_64-linux-gnu</code>，sysroot 就是错的，产出的二进制不是 AArch64 程序。
+        构建机的 <code>/usr/lib/x86_64-linux-gnu</code>，系统根就是错的，产出的二进制不是 AArch64 程序。
       </p>
       <p>
         完整自动化——包括阶段文件、sys-include 兼容处理、反向编译、独立目标和打包——在
@@ -389,7 +389,7 @@ $FINAL/bin/gcc -v -E -x c /dev/null
 
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
-      <a href="/zhcn/docs/22.canadiancompilation/02.sysroot/" class="prev-button">&larr; 第22.2章：Sysroot</a>
+      <a href="/zhcn/docs/22.canadiancompilation/02.sysroot/" class="prev-button">&larr; 第22.2章：系统根</a>
       <a href="/" class="main-button">&uarr; 主页</a>
       <a href="/zhcn/docs/22.canadiancompilation/04.llvm/" class="next-button">第22.4章：LLVM &rarr;</a>
     </div>

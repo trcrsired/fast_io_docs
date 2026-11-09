@@ -23,12 +23,12 @@
       </p>
       <p>
         这个话题听起来像发布流程的杂活，其实不是。同样是三个三元组，决定了二进制能不能在眼前
-        这台机器上跑、sysroot 里装的是不是正确的 C 库，以及"交叉编译"到底指哪一件事。如果你曾经
+        这台机器上跑、系统根里装的是不是正确的 C 库，以及"交叉编译"到底指哪一件事。如果你曾经
         把一套工具链拷到另一台机器上，然后看着它在 <code>crt1.o</code>、找不到的 <code>ld</code>
         或者 <code>libstdc++.so.6</code> 版本上失败，这一章就是解释。
       </p>
       <p>
-        这一章很短，也很具体：一页讲命名体系，一页讲 sysroot，然后 GCC 和 LLVM 各一页。
+        这一章很短，也很具体：一页讲命名体系，一页讲系统根，然后 GCC 和 LLVM 各一页。
       </p>
     </section>
 
@@ -39,7 +39,7 @@
           <a href="/zhcn/docs/22.canadiancompilation/01.triplet/">22.1 三元组：给平台命名</a>
         </li>
         <li>
-          <a href="/zhcn/docs/22.canadiancompilation/02.sysroot/">22.2 Sysroot：有 libc，或者什么都没有</a>
+          <a href="/zhcn/docs/22.canadiancompilation/02.sysroot/">22.2 系统根</a>
         </li>
         <li>
           <a href="/zhcn/docs/22.canadiancompilation/03.gcc/">22.3 GCC：构建、宿主、目标</a>
@@ -74,14 +74,14 @@
         也就是你每天从 Linux 测试 Windows 构建时用的那一种。
       </p>
       <p>
-        编译器不提供目标平台的 C 库。<strong>sysroot</strong> 提供它，连同启动对象、内核头文件和
+        编译器不提供目标平台的 C 库。<strong>系统根</strong> 提供它，连同启动对象、内核头文件和
         动态加载器。GCC 提供 libgcc 和 libstdc++；LLVM 提供 compiler-rt、libc++、libc++abi 和
         libunwind。如果你不提供 libc，目标就是独立的，工具链必须如实说明，而不是假装自己是 Linux。
       </p>
       <p>
         在这些开始之前，构建机自己也需要同样的东西：一个带 C/C++ 头文件、libc 和 C++ 运行时的
-        C/C++ 开发环境，因为 GCC 和 Clang 都是 C++ 程序。Python、Go 和 Rust 不定义第二个 sysroot；
-        它们的运行时和原生模块都针对 C/C++ sysroot 构建。这就是为什么一个新平台首先得到的是
+        C/C++ 开发环境，因为 GCC 和 Clang 都是 C++ 程序。Python、Go 和 Rust 不定义第二个系统根；
+        它们的运行时和原生模块都针对 C/C++ 系统根构建。这就是为什么一个新平台首先得到的是
         C/C++ 工具链。
       </p>
       <p>

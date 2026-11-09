@@ -105,7 +105,7 @@ clang++ --target=wasm32-wasip1 --sysroot=$WASI ...</code></pre>
       <p>
         假设你在 <code>x86_64-linux-gnu</code> 上，想要一个运行在 <code>aarch64-linux-gnu</code> 上、
         能生成 AArch64 的 clang。你像交叉编译任何 C++ 程序一样交叉编译 clang：使用的编译器必须生成
-        AArch64，sysroot 必须是 AArch64 的 C/C++ sysroot，因为 clang 要链接 libc 和 C++ 运行时。
+        AArch64，系统根必须是 AArch64 的 C/C++ 系统根，因为 clang 要链接 libc 和 C++ 运行时。
         这就是加拿大构建：构建是 x86_64，宿主是 aarch64。这是 clang 唯一的非本地类别。目标根本不进入
         CMake 的三元组；它是后端和默认值，之后由 <code>--target</code> 选择。
       </p>
@@ -121,7 +121,7 @@ clang++ --target=wasm32-wasip1 --sysroot=$WASI ...</code></pre>
       <p>两种情况下，构建都需要同样三样实际的东西：</p>
       <ul>
         <li>
-          如果宿主不等于构建，需要一个 <strong>build-host 的 C++ sysroot</strong>。clang 是 C++ 写的；
+          如果宿主不等于构建，需要一个 <strong>build-host 的 C++ 系统根</strong>。clang 是 C++ 写的；
           产出的二进制必须链接宿主的 C++ 运行时。
         </li>
         <li>
@@ -131,15 +131,15 @@ clang++ --target=wasm32-wasip1 --sysroot=$WASI ...</code></pre>
         </li>
         <li>
           为任何要构建的运行时库（<code>compiler-rt</code>、<code>libc++</code>、<code>libc++abi</code>、
-          <code>libunwind</code>）准备带 libc 和头文件的<strong>目标 sysroot</strong>。
-          <a href="/zhcn/docs/22.canadiancompilation/02.sysroot/">22.2</a> 的 sysroot 规则原样适用。
+          <code>libunwind</code>）准备带 libc 和头文件的<strong>目标系统根</strong>。
+          <a href="/zhcn/docs/22.canadiancompilation/02.sysroot/">22.2</a> 的系统根规则原样适用。
         </li>
       </ul>
     </section>
 
     <section>
       <h2>3. CMake 配置</h2>
-      <p>用 CMake toolchain 文件表达宿主和 sysroot 是最干净的方式。参考脚本的形态是：</p>
+      <p>用 CMake toolchain 文件表达宿主和系统根是最干净的方式。参考脚本的形态是：</p>
       <pre><code class="language-cmake">set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_C_COMPILER clang)
 set(CMAKE_CXX_COMPILER clang++)
@@ -218,7 +218,7 @@ ninja -C build-aarch64 install/strip</code></pre>
     <section>
       <h2>5. 运行时库</h2>
       <p>
-        "clang 编译器"和"完整的 clang 工具链"是两回事。编译器本身可以使用目标 sysroot 里 GCC 的
+        "clang 编译器"和"完整的 clang 工具链"是两回事。编译器本身可以使用目标系统根里 GCC 的
         <code>libstdc++</code> 和 <code>libgcc</code>。这是得到可用交叉编译器最快的方式：
       </p>
       <pre><code class="language-sh">$PREFIX/bin/clang++ --target=$TARGET \
@@ -228,7 +228,7 @@ ninja -C build-aarch64 install/strip</code></pre>
       <p>
         自包含的 LLVM 工具链还会带上 <code>compiler-rt</code>、<code>libc++</code>、
         <code>libc++abi</code> 和 <code>libunwind</code>。把它们作为 runtime 构建，使用刚构建好的 clang
-        和目标 sysroot：
+        和目标系统根：
       </p>
       <pre><code class="language-sh">cmake -G Ninja -S llvm-project/runtimes -B build-runtimes \
   -DCMAKE_C_COMPILER=$PREFIX/bin/clang \
@@ -245,7 +245,7 @@ ninja -C build-runtimes install</code></pre>
       <p>
         构建顺序很重要：<code>compiler-rt</code> 的 builtins 不依赖 C++ 库；<code>libunwind</code>
         需要 C++ 头文件但不需要 C++ 库；<code>libc++abi</code> 需要 <code>libunwind</code>；
-        <code>libc++</code> 需要 <code>libc++abi</code>。如果你只需要 C，跳过这些，直接用 sysroot 的 libc。
+        <code>libc++</code> 需要 <code>libc++abi</code>。如果你只需要 C，跳过这些，直接用系统根的 libc。
       </p>
       <p>运行时装好之后，显式选择它们：</p>
       <pre><code class="language-sh">clang++ --target=$TARGET --sysroot=$SYSROOT \
@@ -293,7 +293,7 @@ ninja -C build-runtimes install</code></pre>
           </tr>
           <tr>
             <td>链接时报缺少 <code>crtbegin.o</code> 或 <code>-lc</code></td>
-            <td>没有目标 sysroot，或者布局不对</td>
+            <td>没有目标系统根，或者布局不对</td>
             <td>读 <a href="/zhcn/docs/22.canadiancompilation/02.sysroot/">22.2</a>，检查 <code>-print-search-dirs</code></td>
           </tr>
           <tr>
@@ -334,7 +334,7 @@ file $PREFIX/bin/clang                  # 必须匹配宿主，而不是构建�
         <a href="https://github.com/trcrsired/toolchainbuildscripts">trcrsired/toolchainbuildscripts</a>
         里的 <code>canadian/canadian_clang_aarch64-linux-gnu.txt</code> 和
         <code>llvm/build_common.sh</code>。那些文件把 <code>CMAKE_C_COMPILER_TARGET</code>、
-        <code>LLVM_HOST_TRIPLE</code>、<code>LLVM_DEFAULT_TARGET_TRIPLE</code>、sysroot、zlib 和本地
+        <code>LLVM_HOST_TRIPLE</code>、<code>LLVM_DEFAULT_TARGET_TRIPLE</code>、系统根、zlib 和本地
         TableGen 工具放在一处；读完这一页，这些选项名应该读起来像对构建过程的描述，而不是一串参数。
       </p>
     </section>

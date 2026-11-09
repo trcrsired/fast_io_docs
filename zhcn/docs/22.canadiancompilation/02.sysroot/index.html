@@ -3,21 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>第22.2章：Sysroot：有 libc，或者什么都没有 - 使用 fast_io 的 C++ 教程</title>
+  <title>第22.2章：系统根 - 使用 fast_io 的 C++ 教程</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/webp" href="/icons/logo.webp">
 </head>
 <body>
   <main>
-    <h1>第22.2章：Sysroot：有 libc，或者什么都没有</h1>
+    <h1>第22.2章：系统根</h1>
     <p class="lang-switch"><a href="/docs/22.canadiancompilation/02.sysroot/">English</a></p>
 
     <section>
       <h2>1. 规则</h2>
       <blockquote>
         <p>
-          <strong>规则。</strong>工具链需要目标平台的 C 库。要么你在 <strong>sysroot</strong> 里
+          <strong>规则。</strong>工具链需要目标平台的 C 库。要么你在 <strong>系统根</strong>里
           提供它，要么目标就是<strong>独立的</strong>，工具链必须按独立目标来配置。其余部分——
           编译器运行时、C++ 标准库、sanitizer——由 GCC 或 LLVM 提供。
         </p>
@@ -30,27 +30,27 @@
       </p>
       <p>
         这条规则有一个更强的形式，在自举一个新平台时尤其重要：
-        <strong>一个 C/C++ sysroot 是构建编译器本身的最低要求。</strong>GCC 和 Clang 都是 C++ 程序。
+        <strong>一个 C/C++ 系统根是构建编译器本身的最低要求。</strong>GCC 和 Clang 都是 C++ 程序。
         在构建它们之前，构建机需要一个能用的 C++ 编译器、C++ 标准库、libc 和平台头文件。你要构建的
         编译器可以面向一块独立板子，但编译器二进制本身仍然运行在宿主机器上，仍然要链接 C++ 运行时。
       </p>
       <blockquote>
         <p>
-          <strong>地基。</strong>平台上的其他所有语言工具链都建立在 C/C++ sysroot 之上。
+          <strong>地基。</strong>平台上的其他所有语言工具链都建立在 C/C++ 系统根之上。
           CPython 的解释器和扩展模块是 C 写的，链接 libc；Go 的 cgo 和平台相关包使用 C ABI 和
           系统调用层；Rust 标准库链接 libc 并调用 C 链接器；Node.js 和 V8 是 C++。
-          它们都没有定义第二个 sysroot。如果 C/C++ sysroot 缺失或者不对，它们同样无法为那个平台构建。
+          它们都没有定义第二个系统根。如果 C/C++ 系统根缺失或者不对，它们同样无法为那个平台构建。
         </p>
       </blockquote>
       <p>
         这就是为什么一个新操作系统的移植首先需要的不是 Python 移植或 Rust 移植，而是 C/C++ 工具链和
-        sysroot。有了这些，其他运行时只是针对它们构建的普通程序，"移植 Python"就变成了构建一遍 CPython，
+        系统根。有了这些，其他运行时只是针对它们构建的普通程序，"移植 Python"就变成了构建一遍 CPython，
         而不是定义一个新平台。C/C++ 层是平台契约；其他一切都是消费者。
       </p>
       <p>
-        在加拿大构建里，同一条规则适用两次。编译器二进制运行在宿主上，所以<em>宿主</em> sysroot 必须
-        完整到能链接一个 C++ 程序：libc、C++ 标准库和 C++ 头文件。<em>目标</em> sysroot 必须提供目标
-        运行时库所依赖的 C 库和头文件。两者都是 C/C++ sysroot，只是属于不同的三元组。
+        在加拿大构建里，同一条规则适用两次。编译器二进制运行在宿主上，所以<em>宿主</em>系统根必须
+        完整到能链接一个 C++ 程序：libc、C++ 标准库和 C++ 头文件。<em>目标</em>系统根必须提供目标
+        运行时库所依赖的 C 库和头文件。两者都是 C/C++ 系统根，只是属于不同的三元组。
       </p>
       <p>一旦看清楚，分工是很干净的：</p>
       <table>
@@ -64,22 +64,22 @@
         <tbody>
           <tr>
             <td>C 库</td>
-            <td>sysroot</td>
+            <td>系统根</td>
             <td>glibc、musl、bionic、newlib、mingw-w64 CRT、Apple libSystem</td>
           </tr>
           <tr>
             <td>启动对象</td>
-            <td>sysroot（来自 libc）</td>
+            <td>系统根（来自 libc）</td>
             <td><code>crt1.o</code>、<code>crti.o</code>、<code>crtn.o</code>、<code>Scrt1.o</code></td>
           </tr>
           <tr>
             <td>内核头文件</td>
-            <td>sysroot</td>
+            <td>系统根</td>
             <td><code>linux/</code>、<code>asm/</code>、<code>asm-generic/</code></td>
           </tr>
           <tr>
             <td>动态加载器</td>
-            <td>sysroot（来自 libc）</td>
+            <td>系统根（来自 libc）</td>
             <td><code>ld-linux-x86-64.so.2</code>、<code>ld-musl-aarch64.so.1</code></td>
           </tr>
           <tr>
@@ -100,7 +100,7 @@
         </tbody>
       </table>
       <p>
-        C++ 标准库依赖 C 库，所以它在 libc 之后、针对 sysroot 构建。但它仍然属于编译器发行版的一部分：
+        C++ 标准库依赖 C 库，所以它在 libc 之后、针对系统根构建。但它仍然属于编译器发行版的一部分：
         你随 GCC 安装 <code>libstdc++</code>，随 LLVM 安装 <code>libc++</code>，而不是随操作系统安装。
         在加拿大构建里，这个区分决定了哪个产物必须为宿主构建、哪个必须为目标构建。
       </p>
@@ -112,33 +112,33 @@
     </section>
 
     <section>
-      <h2>2. Sysroot 长什么样</h2>
+      <h2>2. 系统根长什么样</h2>
       <p>
-        sysroot 是一棵目录树，假装自己是目标平台的根文件系统。编译器把默认的绝对搜索路径重写到它里面。
-        有两种常见布局：GCC 风格，sysroot 就是目标的 prefix；以及 clang 和大多数 SDK 使用的
-        <code>usr</code> 合并布局。
+        系统根是一棵看起来像目标根文件系统的目录树。GCC 和 Clang 用的是同一个概念：把编译器指向一个目录，
+        驱动在这个目录里解析默认的头文件、库和程序搜索路径。常见的树就是：
       </p>
-      <pre><code class="language-text">GCC 风格 sysroot：$PREFIX/$TARGET
-$PREFIX/$TARGET/
-  include/                   libc 头文件、内核头文件
-  lib/                       libc.so、libm.so、crt1.o、crti.o、crtn.o
-  lib64/                     使用它的 64 位目标
-  libexec/                   目标的辅助程序（如果有）
-  sys-include/               加拿大构建的临时兼容目录
-
-Clang/SDK 风格 sysroot：/path/to/sysroot
-/path/to/sysroot/
-  usr/include/               libc 头文件、内核头文件
-  usr/lib/                   libc.so、libm.so、crt1.o、...
-  usr/lib/$TARGET/           multiarch 子目录
-  lib/                       加载器和兼容符号链接
-  lib64/</code></pre>
+      <pre><code class="language-text">/path/to/sysroot/
+  bin/       target programs and helper tools
+  include/   C and C++ headers
+  lib/       libraries, startup objects and the dynamic loader
+  share/     target data files
+</code></pre>
       <p>
-        两种都能用。重要的是编译器的默认路径和磁盘上的文件一致。GCC 默认的目标 sysroot 是
-        <code>$PREFIX/$TARGET</code>，默认 include 目录是 <code>$PREFIX/$TARGET/include</code>。
-        clang 默认搜索 sysroot 的 <code>usr/include</code> 和 <code>usr/lib</code>，或者它们下面的
-        目标特定子目录。如果你把 glibc 装到 <code>.../usr/include</code>，却告诉 GCC sysroot 是
-        <code>.../</code>，GCC 会去找 <code>.../include</code>，什么也找不到。
+        有些系统把 <code>/usr</code> 合并，把同样的目录放在 <code>usr/</code> 下，所以编译器可能搜索
+        <code>usr/include</code> 和 <code>usr/lib</code>，而不是 <code>include</code> 和
+        <code>lib</code>。这是路径细节，不是另一种系统根格式。目标还可能增加 <code>lib64</code>、
+        <code>libexec</code> 或多架构子目录。根仍然是一个目录。
+      </p>
+      <p>
+        GCC 和 Clang 使用同一套根布局；两者都接受 <code>--sysroot</code>。它们的驱动可能有不同的
+        默认搜索路径，但那是驱动细节，不是另一种系统根格式。GCC 交叉驱动经常把系统根默认设为
+        <code>$PREFIX/$TARGET</code>；Clang 经常用显式的 <code>--sysroot=</code> 指向一个 SDK。
+        两者都指向一棵根树。如果编译器的搜索路径和磁盘上的文件不一致，链接就会失败；修复方式是检查
+        实际搜索路径，而不是重命名目录树。
+      </p>
+      <p>
+        系统根不是“GCC 布局”或“Clang 布局”。它是目标根。编译器的默认路径是驱动和目标配置的属性；
+        <code>--sysroot</code> 只是改变这些路径相对哪个根解析。
       </p>
       <p>
         启动对象通常是第一个报错点。Linux 上动态链接的 C 程序需要 libc 的 <code>crt1.o</code>、
@@ -153,7 +153,7 @@ Clang/SDK 风格 sysroot：/path/to/sysroot
       <p>"libc 在哪里"只有两个合法答案，也只有两个：</p>
       <ul>
         <li>
-          <strong>宿主（hosted）。</strong>sysroot 里有目标平台真正的 C 库：
+          <strong>宿主（hosted）。</strong>系统根里有目标平台真正的 C 库：
           <code>x86_64-linux-gnu</code> 配 glibc、<code>aarch64-linux-musl</code> 配 musl、
           <code>aarch64-linux-android30</code> 配 bionic、<code>x86_64-w64-mingw32</code> 配
           mingw-w64 CRT、<code>wasm32-wasip1</code> 配 wasi-libc。编译器按宿主目标构建和配置，
@@ -170,41 +170,41 @@ Clang/SDK 风格 sysroot：/path/to/sysroot
       </ul>
       <p>
         错误在于把两者混在一起。一个写着 <code>-linux-gnu</code> 的三元组是在承诺目标有 glibc 和
-        Linux ABI。如果你为这个三元组构建编译器却没有 sysroot，构建可能成功，而每一次链接都会失败。
+        Linux ABI。如果你为这个三元组构建编译器却没有系统根，构建可能成功，而每一次链接都会失败。
         反过来，写着 <code>-elf</code> 或 <code>-none-</code> 的三元组按定义没有 libc；给它加一个
-        Linux sysroot 不会让它变成 Linux，只会把不匹配藏起来，直到某处调用了目标根本没有的系统调用。
+        Linux 系统根不会让它变成 Linux，只会把不匹配藏起来，直到某处调用了目标根本没有的系统调用。
       </p>
       <p>
         有些嵌入式目标使用 <strong>newlib</strong>，它是一个带移植层的小型 C 库。从 C 的意义上说它是
-        宿主目标，但它不是 POSIX，也不是 glibc。它仍然属于 sysroot，编译器仍然只提供自己的运行时。
+        宿主目标，但它不是 POSIX，也不是 glibc。它仍然属于系统根，编译器仍然只提供自己的运行时。
         "独立"意味着完全没有 libc，而不是"一个小 libc"。
       </p>
     </section>
 
     <section>
-      <h2>4. Sysroot 从哪里来</h2>
+      <h2>4. 系统根从哪里来</h2>
       <p>实际来源有三种，它们失败的方式各不相同：</p>
       <ol>
         <li>
           <strong>从源码构建 libc。</strong>Linux 目标的常规路径：安装内核头文件，用第一阶段的交叉
-          编译器构建 glibc 或 musl，安装到 sysroot，然后针对它重新构建 GCC。这样 sysroot 就是你选定的
+          编译器构建 glibc 或 musl，安装到系统根，然后针对它重新构建 GCC。这样系统根就是你选定的
           ABI，代价是构建时间长。
         </li>
         <li>
           <strong>从 SDK 或操作系统镜像里提取。</strong>Android NDK 自带包含 bionic 头文件和 stub 库的
-          sysroot。Windows SDK 自带 MSVC CRT 和导入库。macOS SDK 自带 libSystem 和框架。这更快，
+          系统根。Windows SDK 自带 MSVC CRT 和导入库。macOS SDK 自带 libSystem 和框架。这更快，
           但你被绑在厂商的布局和许可证上。
         </li>
         <li>
-          <strong>复用另一套工具链的 sysroot。</strong>如果已经有一套 GCC 交叉工具链，clang 可以通过
+          <strong>复用另一套工具链的系统根。</strong>如果已经有一套 GCC 交叉工具链，clang 可以通过
           <code>--gcc-toolchain=$PREFIX --sysroot=$SYSROOT</code> 使用它。大多数人就是这样在不重构建
           整个世界的情况下得到可用的 clang 交叉编译器。这一章的 LLVM 页也走这条路。
         </li>
       </ol>
       <p>
-        对加拿大构建来说，sysroot 必须为<em>目标</em>构建，而且必须出现在编译器将要记录的那个路径上。
+        对加拿大构建来说，系统根必须为<em>目标</em>构建，而且必须出现在编译器将要记录的那个路径上。
         GCC 的 <code>--with-sysroot=$SYSROOT</code> 把这个路径写死进编译器。如果你之后把工具链移到另一台
-        机器，而那个路径不存在，编译器能启动，然后找不到头文件。要么在宿主机上把 sysroot 装到同样的路径，
+        机器，而那个路径不存在，编译器能启动，然后找不到头文件。要么在宿主机上把系统根装到同样的路径，
         要么每次调用都显式传 <code>--sysroot</code>。
       </p>
       <p>
@@ -263,13 +263,13 @@ Clang/SDK 风格 sysroot：/path/to/sysroot
       <p>
         这张表就是加拿大构建为什么不是"一次构建"的原因。宿主侧工具（<code>cc1plus</code>、
         <code>clang</code>、<code>ld</code>）必须在宿主上运行。目标侧运行时（<code>libgcc</code>、
-        <code>libstdc++</code>）必须在目标上运行。sysroot 的 libc 必须匹配目标。一次 <code>make</code>
+        <code>libstdc++</code>）必须在目标上运行。系统根的 libc 必须匹配目标。一次 <code>make</code>
         不可能在一台机器上同时完成这三件事；构建过程必须始终把三元组分清楚。
       </p>
     </section>
 
     <section>
-      <h2>6. 验证 sysroot</h2>
+      <h2>6. 验证系统根</h2>
       <p>在怪编译器之前，先问它认为自己是什么：</p>
       <pre><code class="language-sh">$TARGET-gcc -print-sysroot
 $TARGET-gcc -print-search-dirs
@@ -278,13 +278,13 @@ $TARGET-gcc -v -E -x c /dev/null
 clang --target=$TARGET --sysroot=$SYSROOT -print-search-dirs
 clang --target=$TARGET --sysroot=$SYSROOT -v -E -x c /dev/null</code></pre>
       <p>
-        <code>-v -E</code> 的输出会列出 include 搜索路径。检查前几项是否在 sysroot 里，是否包含你期望的
+        <code>-v -E</code> 的输出会列出 include 搜索路径。检查前几项是否在系统根里，是否包含你期望的
         头文件。然后用 <code>-nostdlib -Wl,--verbose</code> 编译一个最简单的文件，看链接器找到的是哪些启动对象、
         哪个 <code>libc</code>。如果 <code>-print-sysroot</code> 是空的，编译器在用默认的 prefix 布局，
         那可能仍然是对的；如果它打印出一个在当前机器上不存在的路径，那就是你的 bug。
       </p>
       <p>
-        对独立工具链，同样的命令应该显示没有 libc、没有 sysroot，而且只有当你传 <code>-nostdlib</code>
+        对独立工具链，同样的命令应该显示没有 libc、没有系统根，而且只有当你传 <code>-nostdlib</code>
         并提供自己的启动代码时链接才会成功。如果独立工具链悄悄找到了构建机的 glibc，它产出的二进制会
         链接成功，然后无法运行。
       </p>
@@ -293,7 +293,7 @@ clang --target=$TARGET --sysroot=$SYSROOT -v -E -x c /dev/null</code></pre>
     <script src="/sw-register.js"></script>
     <div class="page-navigation">
       <a href="/zhcn/docs/22.canadiancompilation/01.triplet/" class="prev-button">&larr; 第22.1章：三元组</a>
-      <a href="/" class="main-button">&uarr; 主页</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
       <a href="/zhcn/docs/22.canadiancompilation/03.gcc/" class="next-button">第22.3章：GCC &rarr;</a>
     </div>
   </main>
