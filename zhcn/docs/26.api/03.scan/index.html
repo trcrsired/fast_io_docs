@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第26.3章：scan - 使用 fast_io 学习 C++ 教程</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>第26.3章：<code>scan</code></h1>
+    <p class="lang-switch"><a href="/docs/26.api/03.scan/">English</a></p>
+
+    <section>
+      <h2>1. 函数表面</h2>
+      <p>
+        输入有两个入口。<code>scan</code> 是全有或报错的形式；<code>scan_some</code>
+        是允许部分成功的形式。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>函数</th>
+            <th>返回</th>
+            <th>输入结束时</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>scan(in, args...)</code></td>
+            <td><code>void</code></td>
+            <td>抛出携带 <code>parse_errc::end_of_file</code> 的 herbception。</td>
+          </tr>
+          <tr>
+            <td><code>scan_some(in, args...)</code></td>
+            <td><code>scan_some_result_t</code></td>
+            <td>返回一个结果，<code>remained_args</code> 表示还有多少个参数没被扫描。
+              只有全部参数都扫描成功时结果才为真。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        两种形式都先接收输入设备。没有格式串。每个参数按自己的类型解析，
+        scan 操纵器可以改变单个参数的语法。
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::io;
+
+    ::fast_io::ibuf_file in("numbers.txt");
+    int a{};
+    int b{};
+
+    scan(in, a, b);
+    println("a + b = ", a + b);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. scan 需要带缓冲的输入</h2>
+      <p>
+        格式化输入需要向前看：它必须看到下一个字符，才能知道当前 token 是否结束，
+        并且可能需要把这个字符留给下一个参数。所以 <code>scan</code> 要求输入设备有缓冲区。
+        用 <code>ibuf_file</code> 或 <code>iobuf_file</code>：
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>设备</th>
+            <th>能 scan 吗</th>
+            <th>原因</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::ibuf_file</code></td>
+            <td>能</td>
+            <td>带缓冲输入；提供向前看和重新填充路径。</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::iobuf_file</code></td>
+            <td>能</td>
+            <td>带缓冲双向设备；输入侧可用。</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::native_file</code></td>
+            <td>不能</td>
+            <td>不带缓冲；没有可供向前看的输入缓冲区。包一层，或改用带缓冲文件类型。</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::iobuf_pipe</code></td>
+            <td>能</td>
+            <td>带缓冲管道；生产者是另一个进程时很有用。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        这是输出的镜像。<code>print</code> 对带缓冲和不带缓冲输出都成立，
+        因为它从不需要向前看；<code>scan</code> 没有输入缓冲区就无法工作，
+        类型系统会拒绝这种尝试，而不是在背后偷偷一个字节一个字节地读。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 失败：全有或全无 vs 部分</h2>
+      <p>
+        <code>scan</code> 用于必须完整的记录。如果输入在所有参数读完之前结束，它就抛出。
+        对配置行、命令记录或固定头部，这是正确的默认行为。
+      </p>
+      <p>
+        <code>scan_some</code> 用于“最后一条记录不完整是正常现象”的流。
+        它的结果携带没有被扫描的参数数量：
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::io;
+
+    ::fast_io::ibuf_file in("records.txt");
+    int a{};
+    int b{};
+
+    auto result{scan_some(in, a, b)};
+    if (!result)
+    {
+        println("stopped with ", result.remained_args, " argument(s) left");
+    }
+}
+</code></pre>
+      <p>
+        格式错误的 token 仍然是解析错误，仍然抛出。<code>scan_some</code> 只改变
+        “流在记录完成之前结束”的处理方式；它不会把非法输入变成成功。
+      </p>
+    </section>
+
+    <section>
+      <h2>4. 空白、进制与 token 边界</h2>
+      <p>
+        默认情况下，格式化输入跳过前导空白，读取能构成合法值的最长 token。
+        整数在第一个无法继续的字符处停止。字符串读取以空白分隔的 token，
+        除非用整行或字符串视图操纵器包住。
+      </p>
+      <pre><code class="language-cpp">
+int x{};
+::fast_io::io::scan(in, x);                 // decimal by default
+::fast_io::io::scan(in, ::fast_io::mnp::hex_get(x));
+</code></pre>
+      <p>
+        <code>hex_get</code>、<code>base_get&lt;N&gt;</code>、<code>oct_get</code>、
+        <code>bin_get</code>、<code>dec_get</code>、<code>addrvw_get</code>、
+        <code>ch_get</code>、<code>strlike_get</code>、<code>strlike_line_get</code> 和
+        <code>strlike_whole_get</code> 是 scan 侧的操纵器。它们目前属于头文件辅助；
+        模块导出列表还没有包含它们。使用模块又需要它们时，包含对应的 fast_io 头文件，
+        或者直接用普通类型。
+      </p>
+      <p>
+        不要把 <code>mnp::hex</code> 这类格式化操纵器当作 scan 目标。
+        输出操纵器描述“怎么写一个值”，scan 操纵器描述“怎么读一个值”。
+        名字不同正是因为这个原因。
+      </p>
+    </section>
+
+    <section>
+      <h2>5. 能扫描什么</h2>
+      <p>
+        内置路径覆盖整数、浮点数、字符、布尔、字符串和字符串类类型、IP 地址、时间戳，
+        以及提供自己的 <code>scan_context_define</code> / <code>scan_contiguous_define</code>
+        定制的类型。没有 scan 支持的类型是编译期错误。
+      </p>
+      <p>
+        扫描进固定大小缓冲区是刻意不静默的。如果输入 token 比目标长，操作失败而不是截断。
+        用会增长的字符串类型，或者在协议规定长度时使用长度前缀/整行操纵器。
+      </p>
+    </section>
+
+    <section>
+      <h2>6. scan 与 print 对称，但不相同</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>性质</th>
+            <th><code>print</code></th>
+            <th><code>scan</code></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>需要缓冲设备</td>
+            <td>否</td>
+            <td>输入侧需要</td>
+          </tr>
+          <tr>
+            <td>默认流</td>
+            <td>C <code>stdout</code></td>
+            <td>没有默认；输入设备必须显式给出</td>
+          </tr>
+          <tr>
+            <td>失败</td>
+            <td>来自设备层的 herbception</td>
+            <td>来自解析或设备层的 herbception</td>
+          </tr>
+          <tr>
+            <td>部分操作</td>
+            <td>不适用；每次写要么完整要么失败</td>
+            <td><code>scan_some</code> 报告剩余参数</td>
+          </tr>
+          <tr>
+            <td>操纵器方向</td>
+            <td><code>hex</code>、<code>fixed</code>、<code>left</code> 等</td>
+            <td><code>hex_get</code>、<code>base_get&lt;N&gt;</code>、<code>ch_get</code> 等</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>要点</h2>
+      <ul>
+        <li><code>scan</code> 是全有或报错；<code>scan_some</code> 报告剩余了多少个参数。</li>
+        <li><code>scan</code> 需要带缓冲的输入设备；<code>native_file</code> 不是。</li>
+        <li>两种形式都把输入设备作为第一个参数，都没有格式串。</li>
+        <li><code>scan_some</code> 处理短的最后一条记录，不处理非法输入；解析错误仍然抛出。</li>
+        <li>scan 语法用 <code>*_get</code> 家族，不要用输出操纵器。</li>
+        <li>固定大小目标拒绝超长 token，而不是截断。</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/zhcn/docs/26.api/02.print/" class="prev-button">&larr; 第26.2章：print</a>
+      <a href="/zhcn/" class="main-button">&uarr; 主页</a>
+    </div>
+  </main>
+</body>
+</html>

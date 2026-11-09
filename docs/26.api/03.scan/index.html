@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ch26.3: scan - C++ Tutorial with fast_io</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/webp" href="/icons/logo.webp">
+</head>
+<body>
+  <main>
+    <h1>Ch26.3: <code>scan</code></h1>
+    <p class="lang-switch"><a href="/zhcn/docs/26.api/03.scan/">中文（简体）</a></p>
+
+    <section>
+      <h2>1. The Function Surface</h2>
+      <p>
+        Input has two entry points. <code>scan</code> is the all-or-error form;
+        <code>scan_some</code> is the partial form.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Return</th>
+            <th>On end of input</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>scan(in, args...)</code></td>
+            <td><code>void</code></td>
+            <td>Throws a herbception carrying <code>parse_errc::end_of_file</code>.</td>
+          </tr>
+          <tr>
+            <td><code>scan_some(in, args...)</code></td>
+            <td><code>scan_some_result_t</code></td>
+            <td>Returns a result whose <code>remained_args</code> says how many arguments were
+              not scanned. The result is truthy only when every argument was scanned.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Both forms take the input device first. There is no format string. Each argument is
+        parsed according to its type, and a scan manipulator can change the syntax of one
+        argument.
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::io;
+
+    ::fast_io::ibuf_file in("numbers.txt");
+    int a{};
+    int b{};
+
+    scan(in, a, b);
+    println("a + b = ", a + b);
+}
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2. scan Requires a Buffered Input</h2>
+      <p>
+        Formatted input needs lookahead: it has to see the next character to know whether the
+        current token has ended, and it may need to leave that character for the next argument.
+        That is why <code>scan</code> requires an input device with a buffer. Use
+        <code>ibuf_file</code> or <code>iobuf_file</code>:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>Can it be scanned?</th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>::fast_io::ibuf_file</code></td>
+            <td>Yes</td>
+            <td>Buffered input; provides the lookahead and refill path.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::iobuf_file</code></td>
+            <td>Yes</td>
+            <td>Buffered bidirectional device; the input side works.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::native_file</code></td>
+            <td>No</td>
+            <td>Unbuffered; it has no input buffer to look ahead in. Wrap it or use a buffered
+              file type.</td>
+          </tr>
+          <tr>
+            <td><code>::fast_io::iobuf_pipe</code></td>
+            <td>Yes</td>
+            <td>Buffered pipe; useful when the producer is another process.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        This is the mirror image of output. <code>print</code> works on both buffered and
+        unbuffered output because it never needs to look ahead. <code>scan</code> cannot work
+        without an input buffer, and the type system rejects the attempt rather than letting it
+        read one byte at a time behind your back.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Failure: All-or-Nothing vs Partial</h2>
+      <p>
+        <code>scan</code> is for records that must be complete. If the input ends before all
+        arguments are read, it throws. That is the right default for a configuration line, a
+        command record or a fixed header.
+      </p>
+      <p>
+        <code>scan_some</code> is for streams where a partial final record is normal. Its result
+        carries the number of arguments that were not scanned:
+      </p>
+      <pre><code class="language-cpp">
+#include &lt;fast_io.h&gt;
+
+int main()
+{
+    using namespace ::fast_io::io;
+
+    ::fast_io::ibuf_file in("records.txt");
+    int a{};
+    int b{};
+
+    auto result{scan_some(in, a, b)};
+    if (!result)
+    {
+        println("stopped with ", result.remained_args, " argument(s) left");
+    }
+}
+</code></pre>
+      <p>
+        A malformed token is still a parse error and still throws. <code>scan_some</code> only
+        changes the handling of “the stream ended before the record did”; it does not turn
+        invalid input into a success.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Whitespace, Bases and Token Boundaries</h2>
+      <p>
+        By default, formatted input skips leading whitespace and reads the longest token that
+        forms a valid value. An integer stops at the first character that cannot continue it.
+        A string reads a whitespace-delimited token unless it is wrapped in a whole-line or
+        string-view manipulator.
+      </p>
+      <pre><code class="language-cpp">
+int x{};
+::fast_io::io::scan(in, x);                 // decimal by default
+::fast_io::io::scan(in, ::fast_io::mnp::hex_get(x));
+</code></pre>
+      <p>
+        <code>hex_get</code>, <code>base_get&lt;N&gt;</code>, <code>oct_get</code>,
+        <code>bin_get</code>, <code>dec_get</code>, <code>addrvw_get</code>,
+        <code>ch_get</code>, <code>strlike_get</code>, <code>strlike_line_get</code> and
+        <code>strlike_whole_get</code> are the scan-side manipulators. They are header-side
+        helpers today; the module export list does not include them yet. If you are using the
+        module and need one, include the corresponding fast_io header or use the plain type.
+      </p>
+      <p>
+        Do not use a formatting manipulator such as <code>mnp::hex</code> as a scan target.
+        The output manipulator describes how to write a value; the scan manipulator describes
+        how to read one. The names differ for that reason.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. What Can Be Scanned</h2>
+      <p>
+        The built-in path covers integers, floating-point values, characters, booleans,
+        strings and string-like types, IP addresses, timestamps and types that provide their own
+        <code>scan_context_define</code> / <code>scan_contiguous_define</code> customization.
+        A type with no scan support is a compile-time error.
+      </p>
+      <p>
+        Scanning into a fixed-size buffer is deliberately not silent. If the input token is
+        longer than the destination, the operation fails rather than truncating. Use a string
+        type that grows, or a length-prefixed/line-based manipulator when the size is part of the
+        protocol.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. scan and print Are Symmetric, Not Identical</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th><code>print</code></th>
+            <th><code>scan</code></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Buffered device required</td>
+            <td>No</td>
+            <td>Yes, on input</td>
+          </tr>
+          <tr>
+            <td>Default stream</td>
+            <td>C <code>stdout</code></td>
+            <td>No default; the input device is explicit</td>
+          </tr>
+          <tr>
+            <td>Failure</td>
+            <td>Herbception from the device layer</td>
+            <td>Herbception from parsing or the device layer</td>
+          </tr>
+          <tr>
+            <td>Partial operation</td>
+            <td>Not applicable; each write is complete or fails</td>
+            <td><code>scan_some</code> reports remaining arguments</td>
+          </tr>
+          <tr>
+            <td>Manipulator direction</td>
+            <td><code>hex</code>, <code>fixed</code>, <code>left</code>, …</td>
+            <td><code>hex_get</code>, <code>base_get&lt;N&gt;</code>, <code>ch_get</code>, …</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li><code>scan</code> is all-or-error; <code>scan_some</code> reports how many arguments
+          remained.</li>
+        <li><code>scan</code> requires a buffered input device; <code>native_file</code> is not
+          one.</li>
+        <li>Both forms take the input device as the first argument and have no format string.</li>
+        <li><code>scan_some</code> handles a short final record, not malformed input; parse
+          errors still throw.</li>
+        <li>Use the <code>*_get</code> family for scan syntax, not the output manipulators.</li>
+        <li>Fixed-size destinations reject overlong tokens instead of truncating.</li>
+      </ul>
+    </section>
+
+    <script src="/sw-register.js"></script>
+    <div class="page-navigation">
+      <a href="/docs/26.api/02.print/" class="prev-button">&larr; Ch26.2: print</a>
+      <a href="/" class="main-button">&uarr; Main Page</a>
+    </div>
+  </main>
+</body>
+</html>
