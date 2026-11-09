@@ -184,6 +184,33 @@
         <code>gnu</code> 指 mingw-w64。同一个词在不同操作系统上可能意味着不同的 ABI，
         这正是必须写完整三元组的原因。
       </p>
+
+      <h3>逃生通道：两边都跑同一个 Windows PE</h3>
+      <p>
+        有一个务实的办法可以让同一个二进制在同一体系结构的 GNU/Linux 和 Android 上都运行：
+        构建一个 Windows PE，用 Wine 运行。这不是理论。Wine 今天就在 Android 上运行，ARM64 的
+        Windows <code>.exe</code> 可以在 ARM64 手机上跑。Wine 在宿主操作系统之上实现 Windows ABI。
+        在 GNU/Linux 上，它把 Win32/Win64 调用映射到 POSIX 和 X11/Wayland；在 Android 上，它映射到
+        bionic 和 Android 的窗口系统。PE 文件是同一个。宿主 libc、动态加载器和 ELF ABI 不再属于
+        契约的一部分。
+      </p>
+      <p>
+        在 ARM 上，这意味着 Windows on ARM（ARM64）的 <code>.exe</code>，不是 x86 二进制。两边 CPU
+        执行相同的 ARM64 指令；Wine 提供 Windows API 和 PE 加载器，Android 构建提供 Android 的窗口
+        和权限层。同一个 ARM64 PE 可以运行在 ARM64 Linux 桌面和 ARM64 Android 设备上。
+      </p>
+      <p>
+        这就是"Win32 是 Linux 上唯一稳定的 ABI"这个笑话的来源。GNU/Linux 的用户态 ABI 是一个移动
+        目标：glibc 符号版本、libstdc++/libc++ ABI 变化、发行版打包，以及 ELF 加载器。Win32 已经
+        冻结了几十年，而 Wine 一直在实现它。如果你想要一个二进制在多年、多个发行版上都能用，
+        Windows PE 往往比针对今天 glibc 构建的 ELF 更可移植。
+      </p>
+      <p>
+        Wine 不会让 Android 沙盒消失。Wine 运行时仍然运行在一个 Android 应用里，受应用的 UID、权限、
+        SELinux 策略和 seccomp 过滤器约束。它消除的是 <em>ABI</em> 差距：同一个 PE 文件、同一套
+        Windows API 调用，在两个宿主上都工作。这足以让"一个二进制同时跑 GNU/Linux 和 Android"
+        从愿望变成可实践的陈述。
+      </p>
     </section>
 
     <section>

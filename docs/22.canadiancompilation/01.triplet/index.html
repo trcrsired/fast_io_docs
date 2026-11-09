@@ -196,6 +196,37 @@
         Microsoft CRT, <code>gnu</code> on Windows means mingw-w64. The same word can mean a
         different ABI on a different OS, which is exactly why the full triplet is required.
       </p>
+
+      <h3>The escape hatch: a Windows PE on both sides</h3>
+      <p>
+        There is a pragmatic way to get one binary that runs on both GNU/Linux and Android on the
+        same architecture: build a Windows PE and run it under Wine. This is not hypothetical: Wine
+        runs on Android today, and ARM64 Windows <code>.exe</code> files run on ARM64 phones. Wine
+        implements the Windows ABI on top of the host OS. On GNU/Linux it maps Win32/Win64 calls to
+        POSIX and the X11/Wayland stack; on Android it maps them to bionic and the Android surface.
+        The PE file is the same. The host libc, the dynamic loader and the ELF ABI stop being part
+        of the contract.
+      </p>
+      <p>
+        On ARM this means a Windows on ARM (ARM64) <code>.exe</code>, not an x86 binary. The CPU
+        executes the same ARM64 instructions on both sides; Wine supplies the Windows API and the PE
+        loader, and the Android build supplies the Android windowing and permission layer. The same
+        ARM64 PE can run on an ARM64 Linux desktop and an ARM64 Android device.
+      </p>
+      <p>
+        This is the origin of the joke that Win32 is the only stable ABI on Linux. The GNU/Linux
+        userland ABI is a moving target: glibc symbol versions, libstdc++/libc++ ABI changes,
+        distribution packaging, and the ELF loader. Win32 has been frozen for decades, and Wine keeps
+        implementing it. If you want one binary to work for years across many distributions, a
+        Windows PE is often more portable than an ELF built against today's glibc.
+      </p>
+      <p>
+        Wine does not make the Android sandbox disappear. The Wine runtime still runs inside an
+        Android app, with the app's UID, permissions, SELinux policy and seccomp filter. What it
+        removes is the <em>ABI</em> gap: the same PE file and the same Windows API calls work on both
+        hosts. That is enough to make "one binary for GNU/Linux and Android" a practical statement
+        rather than a wish.
+      </p>
     </section>
 
     <section>
