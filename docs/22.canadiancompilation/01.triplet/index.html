@@ -214,11 +214,29 @@
         ARM64 PE can run on an ARM64 Linux desktop and an ARM64 Android device.
       </p>
       <p>
+        The same ARM64 PE is not tied to Linux or Android. It runs natively on Windows on ARM, and
+        under Wine on any other ARM64 host with a working Wine port: Apple Silicon macOS,
+        FreeBSD/ARM64, and other ARM64 Unix systems. The host only has to provide a Wine port and the
+        CPU; the Windows ABI comes from Wine. This is the inverse of the ELF situation, where the
+        binary is tied to one libc and one loader. The PE is the portable artifact; the host is the
+        adapter.
+      </p>
+      <p>
         This is the origin of the joke that Win32 is the only stable ABI on Linux. The GNU/Linux
         userland ABI is a moving target: glibc symbol versions, libstdc++/libc++ ABI changes,
         distribution packaging, and the ELF loader. Win32 has been frozen for decades, and Wine keeps
         implementing it. If you want one binary to work for years across many distributions, a
         Windows PE is often more portable than an ELF built against today's glibc.
+      </p>
+      <p>
+        The Windows Phone era produced the sharpest version of this joke. A $1,000 premium Lumia ran
+        Windows and could not run a Windows <code>.exe</code> at all, because the walled garden had
+        no Win32 subsystem. A $39.99 Android phone bought at Walmart for an elderly relative can
+        install clang, point it at Microsoft's own Windows sysroot headers and libraries, build a
+        PE, and run it natively under Wine. The expensive phone was Windows and could not run
+        Windows programs; the cheap phone is not Windows and can. That was not a hardware limit. It
+        was the business model: the store was the point, and arbitrary Win32 programs were what the
+        walled garden had to prevent.
       </p>
       <p>
         Wine does not make the Android sandbox disappear. The Wine runtime still runs inside an
